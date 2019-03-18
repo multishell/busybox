@@ -8,8 +8,6 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#undef _GNU_SOURCE
-#define _GNU_SOURCE
 #include "libbb.h"
 #include "modutils.h"
 #include <sys/utsname.h> /* uname() */
@@ -80,9 +78,11 @@ static int FAST_FUNC parse_module(const char *fname, struct stat *sb UNUSED_PARA
 		 && strncmp(ptr, "__ksymtab_", 10) == 0
 		) {
 			ptr += 10;
-			if (strncmp(ptr, "gpl", 3) == 0 ||
-			    strcmp(ptr, "strings") == 0)
+			if (strncmp(ptr, "gpl", 3) == 0
+			 || strcmp(ptr, "strings") == 0
+			) {
 				continue;
+			}
 			llist_add_to(&info->symbols, xstrdup(ptr));
 			ptr += strlen(ptr);
 		}
