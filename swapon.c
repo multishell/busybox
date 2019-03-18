@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <mntent.h>
+#include <asm/page.h>
 #include <sys/swap.h>
 #include "internal.h"
 

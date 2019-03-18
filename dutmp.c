@@ -1,5 +1,5 @@
 /*
- * public domain -- Dave 'Kill a Cop' Cinege <dcinege@psychosis.com>
+ * public domain -- Dave Cinege <dcinege@psychosis.com>
  * 
  * dutmp
  * Takes utmp formated file on stdin and dumps it's contents 

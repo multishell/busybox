@@ -4,17 +4,29 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+/* ED: sparc termios is broken: revert back to old termio handling. */
+#if #cpu(sparc)
+#  define USE_OLD_TERMIO
+#endif
+
 #define BB_MORE_TERM
 
 #ifdef BB_MORE_TERM
-	#include <termios.h>
-	#include <signal.h>
+#  ifdef USE_OLD_TERMIO
+#	include <termio.h>
+#	define termios termio
+#	define stty(fd,argp) ioctl(fd,TCSETAF,argp)
+#  else
+#	include <termios.h>
+#	define stty(fd,argp) tcsetattr(fd,TCSANOW,argp)
+#  endif
+#	include <signal.h>
 
 	FILE *cin;
 	struct termios initial_settings, new_settings;
 
 	void gotsig(int sig) { 
-		tcsetattr(fileno(cin), TCSANOW, &initial_settings);
+		stty(fileno(cin), &initial_settings);
 		exit(0);
 	}
 #endif
@@ -40,11 +52,17 @@ more_fn(const struct FileInfo * i)
 		
 #ifdef BB_MORE_TERM
 	cin = fopen("/dev/tty", "r");
+	if (!cin)
+		cin = fopen("/dev/console", "r");
+#ifdef USE_OLD_TERMIO
+	ioctl(fileno(cin),TCGETA,&initial_settings);
+#else
 	tcgetattr(fileno(cin),&initial_settings);
+#endif
 	new_settings = initial_settings;
 	new_settings.c_lflag &= ~ICANON;
 	new_settings.c_lflag &= ~ECHO;
-	tcsetattr(fileno(cin), TCSANOW, &new_settings);
+	stty(fileno(cin), &new_settings);
 	
 	(void) signal(SIGINT, gotsig);
 #endif

@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <asm/page.h>
 #include <sys/swap.h>
 #include <string.h>
 #include <errno.h>

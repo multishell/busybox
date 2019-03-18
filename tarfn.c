@@ -136,7 +136,8 @@ TarExtractor(
 			}
 			/* Else, Fall Through */
 		case Directory:
-			h.Name[nameLength - 1] = '\0';
+			if (h.Name[nameLength - 1] == '/')
+				h.Name[nameLength - 1] = '\0';
 			status = (*functions->MakeDirectory)(&h);
 			break;
 		case HardLink:

@@ -85,6 +85,14 @@ descend(
 		if ( i.dyadic ) {
 			char	d[1024];
 
+			if (i.recursive) {
+				/* for cp -r command: i.destination is already the deep path
+				 * to the component, so just get the filename part of the
+				 * source */
+				char * slash = strrchr(i.source, '/');
+				if (slash != 0)
+					i.directoryLength = slash - i.source;
+			}
 			i.destination = join_paths(d, i.destination, &i.source[i.directoryLength]);
 		}
 		else

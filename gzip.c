@@ -380,7 +380,7 @@ extern int block_mode;   /* block compress mode -C compatible with 2.0 */
 #  undef LZW
 #endif
 
-/* $Id: revision.h,v 0.25 1993/06/24 08:29:52 jloup Exp $ */
+/* $Id: gzip.c,v 1.1 1998/11/26 23:47:48 ezanard Exp $ */
 /* tailor.h -- target dependent definitions
  * Copyright (C) 1992-1993 Jean-loup Gailly.
  * This is free software; you can redistribute it and/or modify it under the
@@ -391,7 +391,7 @@ extern int block_mode;   /* block compress mode -C compatible with 2.0 */
  * The target dependent functions should be defined in tailor.c.
  */
 
-/* $Id: tailor.h,v 0.18 1993/06/14 19:32:20 jloup Exp $ */
+/* $Id: gzip.c,v 1.1 1998/11/26 23:47:48 ezanard Exp $ */
 
 #if defined(__MSDOS__) && !defined(MSDOS)
 #  define MSDOS
@@ -767,7 +767,7 @@ extern int block_mode;   /* block compress mode -C compatible with 2.0 */
 #endif
 
 #ifdef RCSID
-static char rcsid[] = "$Id: bits.c,v 0.9 1993/06/11 10:16:58 jloup Exp $";
+static char rcsid[] = "$Id: gzip.c,v 1.1 1998/11/26 23:47:48 ezanard Exp $";
 #endif
 
 /* ===========================================================================
@@ -976,7 +976,7 @@ void copy_block(buf, len, header)
 #include <stdio.h>
 
 #ifdef RCSID
-static char rcsid[] = "$Id: deflate.c,v 0.15 1993/06/24 10:53:53 jloup Exp $";
+static char rcsid[] = "$Id: gzip.c,v 1.1 1998/11/26 23:47:48 ezanard Exp $";
 #endif
 
 /* ===========================================================================
@@ -1592,7 +1592,7 @@ ulg deflate()
  */
 
 #ifdef RCSID
-static char rcsid[] = "$Id: gzip.c,v 0.24 1993/06/24 10:52:07 jloup Exp $";
+static char rcsid[] = "$Id: gzip.c,v 1.1 1998/11/26 23:47:48 ezanard Exp $";
 #endif
 
 #include <ctype.h>
@@ -1925,7 +1925,7 @@ local void do_exit(int exitcode)
 #include <ctype.h>
 
 #ifdef RCSID
-static char rcsid[] = "$Id: trees.c,v 0.12 1993/06/10 13:27:54 jloup Exp $";
+static char rcsid[] = "$Id: gzip.c,v 1.1 1998/11/26 23:47:48 ezanard Exp $";
 #endif
 
 /* ===========================================================================
@@ -2943,7 +2943,7 @@ local void set_file_type()
  */
 
 #ifdef RCSID
-static char rcsid[] = "$Id: util.c,v 0.15 1993/06/15 09:04:13 jloup Exp $";
+static char rcsid[] = "$Id: gzip.c,v 1.1 1998/11/26 23:47:48 ezanard Exp $";
 #endif
 
 #include <ctype.h>
@@ -3142,7 +3142,7 @@ void display_ratio(num, den, file)
  */
 
 #ifdef RCSID
-static char rcsid[] = "$Id: zip.c,v 0.17 1993/06/10 13:29:25 jloup Exp $";
+static char rcsid[] = "$Id: gzip.c,v 1.1 1998/11/26 23:47:48 ezanard Exp $";
 #endif
 
 #include <ctype.h>

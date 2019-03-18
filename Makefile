@@ -1,15 +1,14 @@
-
-VERSION=0.25
+VERSION=0.26
 BUILDTIME=$(shell date "+%Y%m%d-%H%M")
 
 #This will choke on a non-debian system
 ARCH=$(shell dpkg --print-architecture)
 #ARCH=i386
 
-
 STRIP= strip --remove-section=.note --remove-section=.comment busybox
 LDFLAGS= -s
 
+# -D_GNU_SOURCE is needed because environ is used in init.c
 CFLAGS=-g -Wall -O2 -fomit-frame-pointer -fno-builtin -D_GNU_SOURCE
 LIBRARIES=-lc
 OBJECTS=$(shell ./busybox.obj)
@@ -17,7 +16,6 @@ OBJECTS=$(shell ./busybox.obj)
 CFLAGS+= -DBB_VER='"$(VERSION)"'
 CFLAGS+= -DBB_BT='"$(BUILDTIME)"'
 
-# -D_GNU_SOURCE is needed because environ is used in init.c
 ifdef INCLUDE_DINSTALL
   CFLAGS+= -DINCLUDE_DINSTALL
   LIBRARIES+= -lnewt -lslang
@@ -36,12 +34,12 @@ busybox: $(OBJECTS)
 
 links:
 	- ./busybox.mkll | sort >busybox.links
-	
+
 ../libfdisk/libfdisk.a: force
 	$(MAKE) -C ../libfdisk libfdisk.a
 
 clean:
-	- rm -f busybox busybox.links *~ *.o 
+	- rm -f busybox.links *~ *.o
 
 distclean: clean
 	- rm -f busybox

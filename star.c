@@ -56,7 +56,25 @@ ExtractFile(TarInfo * i)
     struct utimbuf t;
         
     if ( fd < 0 ) {
-        unlink(i->Name);
+	if (errno == EEXIST)
+            unlink(i->Name);
+	else if (errno == ENOENT) {
+            char path[1024];
+            char *s = path;
+            strcpy(path, i->Name);
+            s++;
+            while ( *s != '\0' ) {
+                if ( *s == '/' ) {
+                    *s = '\0';
+                    if ( mkdir(path, 0777) != 0 && !is_a_directory(path) ) {
+                        name_and_error(path);
+                        return 1;
+                    }
+                    *s = '/';
+                }
+                s++;
+            }
+        }
         fd = open(i->Name, O_CREAT|O_TRUNC|O_WRONLY, i->Mode & ~S_IFMT);
         if ( fd < 0 )
             return IOError(i);

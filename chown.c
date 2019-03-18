@@ -4,6 +4,73 @@
 #include <string.h>
 #include <stdio.h>
 
+int my_getid(const char *filename, const char *name, uid_t *id) 
+{
+	FILE *stream;
+	uid_t rid;
+	char *rname, *start, *end, buf[128];
+
+	stream=fopen(filename,"r");
+
+	while (fgets (buf, 128, stream) != NULL) {
+		if (buf[0] == '#')
+			continue;
+
+		start = buf;
+		end = strchr (start, ':');
+		if (end == NULL)
+			continue;
+		*end = '\0';
+		rname = start;
+
+		start = end + 1;
+		end = strchr (start, ':');
+		if (end == NULL)
+			continue;
+
+		start = end + 1;
+		rid = (uid_t) strtol (start, &end, 10);
+		if (end == start)
+			continue;
+
+		if (name) {
+			if (0 == strcmp(rname, name)) {
+				*id=rid;
+				return 0;
+			}
+		} else {
+			if ( *id == rid )
+				return 0;
+		}
+	}
+	fclose(stream);
+	return -1;
+}
+
+int 
+my_getpwuid(uid_t *uid) 
+{
+	return my_getid("/etc/passwd", NULL, uid);
+}
+
+int 
+my_getpwnam(char *name, uid_t *uid) 
+{
+	return my_getid("/etc/passwd", name, uid);
+}
+
+int 
+my_getgrgid(gid_t *gid) 
+{
+	return my_getid("/etc/group", NULL, gid);
+}
+
+int 
+my_getgrnam(char *name, gid_t *gid) 
+{
+	return my_getid("/etc/group", name, gid);
+}
+
 const char	chown_usage[] = "chown [-R] user-name file [file ...]\n"
 "\n\tThe group list is kept in the file /etc/groups.\n\n"
 "\t-R:\tRecursively change the mode of all files and directories\n"
@@ -12,8 +79,9 @@ const char	chown_usage[] = "chown [-R] user-name file [file ...]\n"
 int
 parse_user_name(const char * s, struct FileInfo * i)
 {
-	struct	passwd * 	p;
 	char *				dot = strchr(s, '.');
+	char * end = NULL;
+	uid_t id = 0;
 
 	if (! dot )
 		dot = strchr(s, ':');
@@ -21,19 +89,24 @@ parse_user_name(const char * s, struct FileInfo * i)
 	if ( dot )
 		*dot = '\0';
 
-	if ( (p = getpwnam(s)) == 0 ) {
-		fprintf(stderr, "%s: no such user.\n", s);
-		return 1;
-	}
-	i->userID = p->pw_uid;
-
-	if ( dot ) {
-		struct group *	g = getgrnam(++dot);
-		if ( g == 0 ) {
-			fprintf(stderr, "%s: no such group.\n", dot);
+	if ( my_getpwnam(s,&id) == -1 ) {
+		id = strtol(s,&end,10);
+		if ((*end != '\0') || ( my_getpwuid(&id) == -1 )) {
+			fprintf(stderr, "%s: no such user.\n", s);
 			return 1;
 		}
-		i->groupID = g->gr_gid;
+	}
+	i->userID = id;
+
+	if ( dot ) {
+		if ( my_getgrnam(++dot,&id) == -1 ) {
+			id = strtol(dot,&end,10);
+			if ((*end != '\0') || ( my_getgrgid(&id) == -1 )) {
+				fprintf(stderr, "%s: no such group.\n", dot);
+				return 1;
+			}
+		}
+		i->groupID = id;
 		i->changeGroupID = 1;
 	}
 	return 0;

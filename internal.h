@@ -56,7 +56,7 @@ extern struct mntent *
 extern void	usage(const char *);
 
 #ifdef INCLUDE_DINSTALL
-	extern int dinstall_main(void);
+	extern int dbootstrap_main(void);
 #endif
 
 extern int block_device_main(struct FileInfo * i, int argc, char * * argv);
@@ -73,11 +73,13 @@ extern int dyadic_main(struct FileInfo * i, int argc, char * * argv);
 extern int false_main(struct FileInfo * i, int argc, char * * argv);
 extern int fdisk_main(struct FileInfo * i, int argc, char * * argv);
 extern int find_main(struct FileInfo * i, int argc, char * * argv);
+extern int gzip_main(struct FileInfo * i, int argc, char * * argv);
 extern int halt_main(struct FileInfo * i, int argc, char * * argv);
 extern int init_main(struct FileInfo * i, int argc, char * * argv);
 extern int kill_main(struct FileInfo * i, int argc, char * * argv);
 extern int length_main(struct FileInfo * i, int argc, char * * argv);
 extern int ln_main(struct FileInfo * i, int argc, char * * argv);
+extern int loadfont_main(struct FileInfo * i, int argc, char * * argv);
 extern int loadkmap_main(struct FileInfo * i, int argc, char * * argv);
 extern int losetup_main(struct FileInfo * i, int argc, char * * argv);
 extern int ls_main(struct FileInfo * i, int argc, char * * argv);
@@ -104,7 +106,6 @@ extern int tryopen_main(struct FileInfo * i, int argc, char * * argv);
 extern int umount_main(struct FileInfo * i, int argc, char * * argv);
 extern int update_main(struct FileInfo * i, int argc, char * * argv);
 extern int zcat_main(struct FileInfo * i, int argc, char * * argv);
-extern int gzip_main(struct FileInfo * i, int argc, char * * argv);
 
 extern int cat_fn(const struct FileInfo * i);
 extern int cp_fn(const struct FileInfo * i);
@@ -151,16 +152,18 @@ extern const char	dutmp_usage[];
 extern const char	false_usage[];
 extern const char	fdflush_usage[];
 extern const char	find_usage[];
+extern const char	gzip_usage[];
 extern const char	halt_usage[];
 extern const char	init_usage[];
 extern const char	kill_usage[];
 extern const char	length_usage[];
 extern const char	ln_usage[];
+extern const char	loadfont_usage[];
 extern const char	loadkmap_usage[];
 extern const char	losetup_usage[];
 extern const char	ls_usage[];
-extern const char	math_usage[];
 extern const char	makedevs_usage[];
+extern const char	math_usage[];
 extern const char	mkdir_usage[];
 extern const char	mknod_usage[];
 extern const char	mkswap_usage[];
@@ -187,6 +190,5 @@ extern const char	tryopen_usage[];
 extern const char	umount_usage[];
 extern const char	update_usage[];
 extern const char	zcat_usage[];
-extern const char	gzip_usage[];
 
 #endif
