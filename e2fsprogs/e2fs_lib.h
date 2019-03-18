@@ -9,6 +9,10 @@
 /* Constants and structures */
 #include "e2fs_defs.h"
 
+#if __GNUC_PREREQ(4,1)
+# pragma GCC visibility push(hidden)
+#endif
+
 /* Iterate a function on each entry of a directory */
 int iterate_on_dir(const char *dir_name,
 		int (*func)(const char *, struct dirent *, void *),
@@ -27,7 +31,7 @@ int fgetsetflags(const char *name, unsigned long *get_flags, unsigned long set_f
 /* Must be 1 for compatibility with `int long_format'. */
 #define PFOPT_LONG  1
 /* Print file attributes on an ext2 file system */
-void print_flags(FILE *f, unsigned long flags, unsigned options);
+void print_e2flags(FILE *f, unsigned long flags, unsigned options);
 
 extern const uint32_t e2attr_flags_value[];
 extern const char e2attr_flags_sname[];
@@ -40,4 +44,8 @@ extern const char e2attr_flags_sname[];
 #else
 #define e2attr_flags_value_chattr (&e2attr_flags_value[1])
 #define e2attr_flags_sname_chattr (&e2attr_flags_sname[1])
+#endif
+
+#if __GNUC_PREREQ(4,1)
+# pragma GCC visibility pop
 #endif
