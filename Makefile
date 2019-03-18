@@ -1,6 +1,6 @@
 VERSION = 1
 PATCHLEVEL = 5
-SUBLEVEL = 0
+SUBLEVEL = 1
 EXTRAVERSION =
 NAME = Unnamed
 
@@ -302,6 +302,8 @@ AFLAGS_KERNEL	=
 CFLAGS		:= $(CFLAGS)
 CPPFLAGS	:= $(CPPFLAGS)
 AFLAGS		:= $(AFLAGS)
+LDFLAGS		:= $(LDFLAGS)
+LDLIBS		:=
 
 # Read KERNELRELEASE from .kernelrelease (if it exists)
 KERNELRELEASE = $(shell cat .kernelrelease 2> /dev/null)
@@ -315,6 +317,7 @@ export	VERSION PATCHLEVEL SUBLEVEL KERNELRELEASE KERNELVERSION \
 export CPPFLAGS NOSTDINC_FLAGS LINUXINCLUDE OBJCOPYFLAGS LDFLAGS
 export CFLAGS CFLAGS_KERNEL CFLAGS_MODULE
 export AFLAGS AFLAGS_KERNEL AFLAGS_MODULE
+export FLTFLAGS
 
 # When compiling out-of-tree modules, put MODVERDIR in the module
 # tree rather than in the kernel tree. The kernel tree might
@@ -565,7 +568,8 @@ quiet_cmd_busybox__ ?= LINK    $@
       cmd_busybox__ ?= $(srctree)/scripts/trylink $(CC) $(LDFLAGS) \
       -o $@ -Wl,-M \
       -Wl,--warn-common -Wl,--sort-common -Wl,--gc-sections \
-      -Wl,--start-group $(busybox-all) -Wl,--end-group
+      -Wl,--start-group $(busybox-all) -Wl,--end-group \
+      $(LDLIBS)
 
 # Generate System.map
 quiet_cmd_sysmap = SYSMAP
