@@ -4,7 +4,7 @@
  *
  * Copyright (C) 2001 by Glenn McGrath
  *
- * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
+ * Licensed under GPLv2 or later, see file LICENSE in this source tree.
  *
  * Limitations:
  * Doesn't check CRC's
@@ -12,7 +12,7 @@
  *
  */
 #include "libbb.h"
-#include "unarchive.h"
+#include "archive.h"
 
 /* GNU cpio 2.9 --help (abridged):
 
@@ -370,7 +370,7 @@ int cpio_main(int argc UNUSED_PARAM, char **argv)
 		if (cpio_fmt[0] != 'n') /* we _require_ "-H newc" */
 			bb_show_usage();
 		if (opt & CPIO_OPT_FILE) {
-			xmove_fd(xopen3(cpio_filename, O_WRONLY | O_CREAT | O_TRUNC, 0666), STDOUT_FILENO);
+			xmove_fd(xopen(cpio_filename, O_WRONLY | O_CREAT | O_TRUNC), STDOUT_FILENO);
 		}
  dump:
 		return cpio_o();

@@ -16,7 +16,7 @@
  *
  * tftpd added by Denys Vlasenko & Vladimir Dronnikov
  *
- * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
+ * Licensed under GPLv2 or later, see file LICENSE in this source tree.
  */
 #include "libbb.h"
 
@@ -447,7 +447,7 @@ static int tftp_protocol(
 		/* NB: send_len value is preserved in code below
 		 * for potential resend */
 
-		retries = TFTP_NUM_RETRIES;	/* re-initialize */
+		retries = TFTP_NUM_RETRIES;  /* re-initialize */
 		waittime_ms = TFTP_TIMEOUT_MS;
 
  send_again:
