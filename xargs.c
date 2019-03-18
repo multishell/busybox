@@ -21,10 +21,10 @@
  *
  */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "busybox.h"
 
 int xargs_main(int argc, char **argv)
 {
@@ -68,8 +68,7 @@ int xargs_main(int argc, char **argv)
 		char *execstr = NULL;
 
 		/* eat the newline off the filename. */
-		if (file_to_act_on[strlen(file_to_act_on)-1] == '\n')
-			file_to_act_on[strlen(file_to_act_on)-1] = '\0';
+		chomp(file_to_act_on);
 
 		/* eat blank lines */
 		if (strlen(file_to_act_on) == 0)

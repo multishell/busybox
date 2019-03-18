@@ -1,9 +1,10 @@
 /* vi: set sw=4 ts=4: */
-#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/mtio.h>
 #include <sys/fcntl.h>
+#include "busybox.h"
 
 struct mt_opcodes {
 	char *name;
@@ -57,12 +58,12 @@ extern int mt_main(int argc, char **argv)
 	int fd;
 	
 	if (argc < 2) {
-		usage(mt_usage);
+		show_usage();
 	}
 
 	if (strcmp(argv[1], "-f") == 0) {
 		if (argc < 4) {
-			usage(mt_usage);
+			show_usage();
 		}
 		file = argv[2];
 		argv += 2;
@@ -76,7 +77,7 @@ extern int mt_main(int argc, char **argv)
 	}
 
 	if (code->name == 0) {
-		error_msg("unrecognized opcode %s.\n", argv[1]);
+		error_msg("unrecognized opcode %s.", argv[1]);
 		return EXIT_FAILURE;
 	}
 

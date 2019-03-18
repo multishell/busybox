@@ -21,16 +21,16 @@
  *
  */
 
-#include "busybox.h"
-
 #include <sys/types.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
+#include "busybox.h"
 
-static struct suffix_mult dd_suffixes[] = {
+
+static const struct suffix_mult dd_suffixes[] = {
 	{ "c", 1 },
 	{ "w", 2 },
 	{ "b", 512 },
@@ -76,7 +76,7 @@ int dd_main(int argc, char **argv)
 					sync = TRUE;
 					buf += 4;
 				} else {
-					error_msg_and_die("invalid conversion `%s'\n", argv[i]+5);
+					error_msg_and_die("invalid conversion `%s'", argv[i]+5);
 				}
 				if (buf[0] == '\0')
 					break;
@@ -84,7 +84,7 @@ int dd_main(int argc, char **argv)
 					buf++;
 			}
 		} else
-			usage(dd_usage);
+			show_usage();
 	}
 
 	buf = xmalloc(bs);

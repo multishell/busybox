@@ -21,9 +21,6 @@
  *
 */
 
-#include "busybox.h"
-#define BB_DECLARE_EXTERN
-#include "messages.c"
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -31,16 +28,21 @@
 #include <netdb.h>
 #include <stdio.h>
 #include <getopt.h>
+#include <string.h>
+#include <time.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "busybox.h"
+#define BB_DECLARE_EXTERN
+#include "messages.c"
 
 
 static const int RFC_868_BIAS = 2208988800UL;
 
-int setdate= 0;
-int printdate= 0;
+static int setdate= 0;
+static int printdate= 0;
 
-time_t askremotedate(char *host)
+static time_t askremotedate(char *host)
 {
 	struct hostent *h;
 	struct sockaddr_in sin;
@@ -72,7 +74,7 @@ time_t askremotedate(char *host)
 	}
 	if (read(fd, (void *)&nett, 4) != 4) {	/* read time from server */
 		close(fd);
-		error_msg("%s did not send the complete time\n", host);
+		error_msg("%s did not send the complete time", host);
 	}
 	close(fd);
 
@@ -95,14 +97,14 @@ int rdate_main(int argc, char **argv)
 	/* Interpret command line args */
 	/* do special-case option parsing */
 	if (argv[1] && (strcmp(argv[1], "--help") == 0))
-		usage(rdate_usage);
+		show_usage();
 
 	/* do normal option parsing */
 	while ((opt = getopt(argc, argv, "Hsp")) > 0) {
 		switch (opt) {
 			default:
 			case 'H':
-				usage(rdate_usage);
+				show_usage();
 				break;
 			case 's':
 				setdate++;
@@ -117,7 +119,7 @@ int rdate_main(int argc, char **argv)
 	if (printdate==0 && setdate==0) setdate++;
 
 	if (optind == argc) {
-		usage(rdate_usage);
+		show_usage();
 	}
 
 	if ((time= askremotedate(argv[optind])) == (time_t)-1) {

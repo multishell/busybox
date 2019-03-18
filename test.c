@@ -31,13 +31,13 @@
  * 	"This program is in the Public Domain."
  */
 
-#include "busybox.h"
 #include <sys/types.h>
 #include <unistd.h>
 #include <ctype.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include "busybox.h"
 #define BB_DECLARE_EXTERN
 #define bb_need_help
 #include "messages.c"
@@ -184,7 +184,7 @@ test_main(int argc, char** argv)
 
 	if (strcmp(applet_name, "[") == 0) {
 		if (strcmp(argv[--argc], "]"))
-			error_msg_and_die("missing ]\n");
+			error_msg_and_die("missing ]");
 		argv[argc] = NULL;
 	}
 	/* Implement special cases from POSIX.2, section 4.62.4 */
@@ -233,9 +233,9 @@ syntax(op, msg)
 	char	*msg;
 {
 	if (op && *op)
-		error_msg_and_die("%s: %s\n", op, msg);
+		error_msg_and_die("%s: %s", op, msg);
 	else
-		error_msg_and_die("%s\n", msg);
+		error_msg_and_die("%s", msg);
 }
 
 static int
@@ -470,13 +470,13 @@ getn(s)
 	r = strtol(s, &p, 10);
 
 	if (errno != 0)
-	  error_msg_and_die("%s: out of range\n", s);
+	  error_msg_and_die("%s: out of range", s);
 
 	while (isspace(*p))
 	  p++;
 	
 	if (*p)
-	  error_msg_and_die("%s: bad number\n", s);
+	  error_msg_and_die("%s: bad number", s);
 
 	return (int) r;
 }

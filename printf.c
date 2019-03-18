@@ -47,7 +47,6 @@
 
 //   19990508 Busy Boxed! Dave Cinege
 
-#include "busybox.h"
 #include <unistd.h>
 #include <stdio.h>
 #include <sys/types.h>
@@ -56,6 +55,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include "busybox.h"
 
 
 #ifndef S_IFMT
@@ -143,7 +143,7 @@ int printf_main(int argc, char **argv)
 
 	exit_status = 0;
 	if (argc <= 1 || **(argv + 1) == '-') {
-		usage(printf_usage);
+		show_usage();
 	}
 
 	format = argv[1];

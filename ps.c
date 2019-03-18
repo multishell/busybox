@@ -28,7 +28,6 @@
  *
  */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -38,6 +37,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include "busybox.h"
 #define BB_DECLARE_EXTERN
 #define bb_need_help
 #include "messages.c"
@@ -51,10 +51,6 @@ static const int TERMINAL_WIDTH = 79;      /* not 80 in case terminal has linefo
 /* The following is the first ps implementation --
  * the one using the /proc virtual filesystem.
  */
-
-#if ! defined BB_FEATURE_USE_PROCFS
-#error Sorry, I depend on the /proc filesystem right now.
-#endif
 
 typedef struct proc_s {
 	char
@@ -99,20 +95,20 @@ static void parse_proc_status(char *S, proc_t * P)
 	if (tmp)
 		sscanf(tmp, "Pid:\t%d\n" "PPid:\t%d\n", &P->pid, &P->ppid);
 	else
-		error_msg("Internal error!\n");
+		error_msg("Internal error!");
 
 	/* For busybox, ignoring effective, saved, etc */
 	tmp = strstr(S, "Uid:");
 	if (tmp)
 		sscanf(tmp, "Uid:\t%d", &P->ruid);
 	else
-		error_msg("Internal error!\n");
+		error_msg("Internal error!");
 
 	tmp = strstr(S, "Gid:");
 	if (tmp)
 		sscanf(tmp, "Gid:\t%d", &P->rgid);
 	else
-		error_msg("Internal error!\n");
+		error_msg("Internal error!");
 
 }
 
@@ -137,7 +133,7 @@ extern int ps_main(int argc, char **argv)
 
 	dir = opendir("/proc");
 	if (!dir)
-		error_msg_and_die("Can't open /proc\n");
+		error_msg_and_die("Can't open /proc");
 
 #ifdef BB_FEATURE_AUTOWIDTH
 		ioctl(fileno(stdout), TIOCGWINSZ, &win);
@@ -211,7 +207,7 @@ extern int ps_main(int argc, char **argv)
 #endif
 
 	if (argc > 1 && **(argv + 1) == '-') 
-		usage(ps_usage);
+		show_usage();
 
 	/* open device */ 
 	fd = open(device, O_RDONLY);

@@ -12,17 +12,17 @@
  * Erik Andersen <andersen@lineo.com>
  */
 
-#include "busybox.h"
 #include <sys/types.h>
 #include <fcntl.h>
 
 #include <errno.h>
-#define BB_DECLARE_EXTERN
-#define bb_need_io_error
-#include "messages.c"
 #include <utmp.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "busybox.h"
+#define BB_DECLARE_EXTERN
+#define bb_need_io_error
+#include "messages.c"
 
 extern int dutmp_main(int argc, char **argv)
 {
@@ -33,7 +33,7 @@ extern int dutmp_main(int argc, char **argv)
 	if (argc<2) {
 		file = fileno(stdin);
 	} else if (*argv[1] == '-' ) {
-		usage(dutmp_usage);
+		show_usage();
 	} else  {
 		file = open(argv[1], O_RDONLY);
 		if (file < 0) {
@@ -45,7 +45,7 @@ extern int dutmp_main(int argc, char **argv)
  * fact the stupid libc doesn't have a reliable #define to announce that libc5
  * is being used.  sigh.
  */
-#if ! defined __GLIBC__
+#if ! defined __GLIBC__ || defined __UCLIBC__
 	while (read(file, (void*)&ut, sizeof(struct utmp))) {
 		printf("%d|%d|%s|%s|%s|%s|%s|%lx\n",
 				ut.ut_type, ut.ut_pid, ut.ut_line,

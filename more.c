@@ -25,12 +25,12 @@
  *
  */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <sys/ioctl.h>
+#include "busybox.h"
 #define BB_DECLARE_EXTERN
 #define bb_need_help
 #include "messages.c"
@@ -67,10 +67,11 @@ static int terminal_height = 24;
 
 extern int more_main(int argc, char **argv)
 {
-	int c, lines = 0, input = 0;
-	int please_display_more_prompt = 0;
+	int c, lines, input = 0;
+	int please_display_more_prompt;
 	struct stat st;
 	FILE *file;
+	int len, page_height;
 
 #if defined BB_FEATURE_AUTOWIDTH && defined BB_FEATURE_USE_TERMIOS
 	struct winsize win = { 0, 0, 0, 0 };
@@ -112,12 +113,13 @@ extern int more_main(int argc, char **argv)
 		(void) signal(SIGTERM, gotsig);
 
 #endif
+		len=0;
+		lines = 0;
+		page_height = terminal_height;
+		please_display_more_prompt = 0;
 		while ((c = getc(file)) != EOF) {
-			if (please_display_more_prompt) {
-				int len = 0;
 
-				please_display_more_prompt = 0;
-				lines = 0;
+			if (please_display_more_prompt) {
 				len = printf("--More-- ");
 				if (file != stdin) {
 #if _FILE_OFFSET_BITS == 64
@@ -160,13 +162,16 @@ extern int more_main(int argc, char **argv)
 					putc('\b', stdout);
 				fflush(stdout);
 #endif
-
+				len=0;
+				lines = 0;
+				page_height = terminal_height;
+				please_display_more_prompt = 0;
 			}
 
 			/* 
 			 * There are two input streams to worry about here:
 			 *
-			 *     c : the character we are reading from the file being "mored"
+			 * c     : the character we are reading from the file being "mored"
 			 * input : a character received from the keyboard
 			 *
 			 * If we hit a newline in the _file_ stream, we want to test and
@@ -183,14 +188,28 @@ extern int more_main(int argc, char **argv)
 					please_display_more_prompt = 1;
 					break;
 				}
-				if (++lines == terminal_height)
+				/* Adjust the terminal height for any overlap, so that
+				 * no lines get lost off the top. */
+				if (len >= terminal_width) {
+					div_t result = div( len, terminal_width); 
+					if (result.quot) {
+						if (result.rem)
+							page_height-=result.quot;
+						else
+							page_height-=(result.quot-1);
+					}
+				}
+				if (++lines >= page_height) {
 					please_display_more_prompt = 1;
+				}
+				len=0;
 			}
 			/*
 			 * If we just read a newline from the file being 'mored' and any
 			 * key other than a return is hit, scroll by one page
 			 */
 			putc(c, stdout);
+			len++;
 		}
 		fclose(file);
 		fflush(stdout);

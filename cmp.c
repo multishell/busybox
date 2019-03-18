@@ -22,11 +22,11 @@
  *
  */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
+#include "busybox.h"
 
 int cmp_main(int argc, char **argv)
 {
@@ -36,7 +36,7 @@ int cmp_main(int argc, char **argv)
 
 	/* parse argv[] */
 	if (argc < 2 || 3 < argc)
-		usage(cmp_usage);
+		show_usage();
 
 	fp1 = xfopen(argv[1], "r");
 	if (argv[2] != NULL) {

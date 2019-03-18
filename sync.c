@@ -21,13 +21,15 @@
  *
  */
 
-#include "busybox.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
+#include "busybox.h"
 
 extern int sync_main(int argc, char **argv)
 {
 	if (argc > 1 && **(argv + 1) == '-')
-		usage(sync_usage);
-	return(sync());
+		show_usage();
+	sync();
+	return(EXIT_SUCCESS);
 }

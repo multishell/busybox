@@ -27,7 +27,6 @@
 #define DEBUG_INIT
 */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -43,13 +42,14 @@
 #include <sys/mount.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include "busybox.h"
+#define bb_need_full_version
+#define BB_DECLARE_EXTERN
+#include "messages.c"
 #ifdef BB_SYSLOGD
 # include <sys/syslog.h>
 #endif
 
-#define bb_need_full_version
-#define BB_DECLARE_EXTERN
-#include "messages.c"
 
 /* From <linux/vt.h> */
 struct vt_stat {
@@ -134,6 +134,8 @@ static _syscall2(int, bdflush, int, func, int, data);
 #define INIT_SCRIPT  "/etc/init.d/rcS"   /* Default sysinit script. */
 #endif
 
+#define MAXENV	16		/* Number of env. vars */
+//static const int MAXENV = 16;	/* Number of env. vars */
 static const int LOG = 0x1;
 static const int CONSOLE = 0x2;
 
@@ -172,7 +174,7 @@ struct initActionTag {
 	initAction *nextPtr;
 	initActionEnum action;
 };
-initAction *initActionList = NULL;
+static initAction *initActionList = NULL;
 
 
 static char *secondConsole = VT_SECONDARY;
@@ -204,7 +206,7 @@ static void message(int device, char *fmt, ...)
 		va_start(arguments, fmt);
 		vsnprintf(msg, sizeof(msg), fmt, arguments);
 		va_end(arguments);
-		openlog("init", 0, LOG_USER);
+		openlog(applet_name, 0, LOG_USER);
 		syslog(LOG_USER|LOG_INFO, msg);
 		closelog();
 	}
@@ -222,7 +224,6 @@ static void message(int device, char *fmt, ...)
 		} else if ((log_fd = device_open(log, O_RDWR|O_NDELAY)) < 0) {
 			log_fd = -2;
 			fprintf(stderr, "Bummer, can't write to log on %s!\r\n", log);
-			fflush(stderr);
 			log = NULL;
 			device = CONSOLE;
 		}
@@ -248,14 +249,13 @@ static void message(int device, char *fmt, ...)
 			fprintf(stderr, "Bummer, can't print: ");
 			va_start(arguments, fmt);
 			vfprintf(stderr, fmt, arguments);
-			fflush(stderr);
 			va_end(arguments);
 		}
 	}
 }
 
 /* Set terminal settings to reasonable defaults */
-void set_term(int fd)
+static void set_term(int fd)
 {
 	struct termios tty;
 
@@ -299,7 +299,7 @@ static int check_free_memory()
 	unsigned int result, u, s=10;
 
 	if (sysinfo(&info) != 0) {
-		perror_msg("Error checking free memory: ");
+		perror_msg("Error checking free memory");
 		return -1;
 	}
 
@@ -396,10 +396,11 @@ static void console_init()
 
 static pid_t run(char *command, char *terminal, int get_enter)
 {
-	int i, fd;
+	int i, j;
+	int fd;
 	pid_t pid;
-	char *tmpCmd;
-        char *cmd[255], *cmdpath;
+	char *tmpCmd, *s;
+	char *cmd[255], *cmdpath;
 	char buf[255];
 	static const char press_enter[] =
 
@@ -408,14 +409,27 @@ static pid_t run(char *command, char *terminal, int get_enter)
 #endif
 
 		"\nPlease press Enter to activate this console. ";
-	char *environment[] = {
+	char *environment[MAXENV+1] = {
+		termType,
 		"HOME=/",
 		"PATH=/usr/bin:/bin:/usr/sbin:/sbin",
 		"SHELL=/bin/sh",
-		termType,
 		"USER=root",
-		0
+		NULL
 	};
+
+	/* inherit environment to the child, merging our values -andy */
+	for (i=0; environ[i]; i++) {
+		for (j=0; environment[j]; j++) {
+			s = strchr(environment[j], '=');
+			if (!strncmp(environ[i], environment[j], s - environment[j]))
+				break;
+		}
+		if (!environment[j]) {
+			environment[j++] = environ[i];
+			environment[j] = NULL;
+		}
+	}
 
 	if ((pid = fork()) == 0) {
 		/* Clean up */
@@ -433,6 +447,12 @@ static pid_t run(char *command, char *terminal, int get_enter)
 		signal(SIGHUP, SIG_DFL);
 
 		if ((fd = device_open(terminal, O_RDWR)) < 0) {
+			struct stat statBuf;
+			if (stat(terminal, &statBuf) != 0) {
+				message(LOG | CONSOLE, "device '%s' does not exist.\n",
+						terminal);
+				exit(1);
+			}
 			message(LOG | CONSOLE, "Bummer, can't open %s\r\n", terminal);
 			exit(1);
 		}
@@ -453,9 +473,8 @@ static pid_t run(char *command, char *terminal, int get_enter)
 			 * specifies.
 			 */
 #ifdef DEBUG_INIT
-			pid_t shell_pgid = getpid();
 			message(LOG, "Waiting for enter to start '%s' (pid %d, console %s)\r\n",
-					command, shell_pgid, terminal);
+					command, getpid(), terminal);
 #endif
 			write(fileno(stdout), press_enter, sizeof(press_enter) - 1);
 			getc(stdin);
@@ -464,7 +483,7 @@ static pid_t run(char *command, char *terminal, int get_enter)
 #ifdef DEBUG_INIT
 		/* Log the process name and args */
 		message(LOG, "Starting pid %d, console %s: '%s'\r\n",
-				shell_pgid, terminal, command);
+				getpid(), terminal, command);
 #endif
 
 		/* See if any special /bin/sh requiring characters are present */
@@ -586,8 +605,9 @@ static void check_memory()
 /* Run all commands to be run right before halt/reboot */
 static void run_lastAction(void)
 {
-	initAction *a;
-	for (a = initActionList; a; a = a->nextPtr) {
+	initAction *a, *tmp;
+	for (a = initActionList; a; a = tmp) {
+		tmp = a->nextPtr;
 		if (a->action == CTRLALTDEL) {
 			waitfor(a->process, a->console, FALSE);
 			delete_initAction(a);
@@ -662,101 +682,9 @@ static void reboot_signal(int sig)
 	exit(0);
 }
 
-#if defined BB_FEATURE_INIT_CHROOT
-
-#warning BB_FEATURE_INIT_CHROOT is out of date and should be rewritten to us
-#warning pivot root instead.  Do not even bother till this work is done...
-#warning You have been warned.
-
-#if ! defined BB_FEATURE_USE_PROCFS
-#error Sorry, I depend on the /proc filesystem right now.
-#endif
-
-static void check_chroot(int sig)
-{
-	char *argv_init[2] = { "init", NULL, };
-	char *envp_init[3] = { "HOME=/", "TERM=linux", NULL, };
-	char rootpath[256], *tc;
-	int fd;
-
-	if ((fd = open("/proc/sys/kernel/init-chroot", O_RDONLY)) == -1) {
-		message(CONSOLE,
-				"SIGHUP recived, but could not open proc file\r\n");
-		sleep(2);
-		return;
-	}
-	if (read(fd, rootpath, sizeof(rootpath)) == -1) {
-		message(CONSOLE,
-				"SIGHUP recived, but could not read proc file\r\n");
-		sleep(2);
-		return;
-	}
-	close(fd);
-
-	if (rootpath[0] == '\0') {
-		message(CONSOLE,
-				"SIGHUP recived, but new root is not valid: %s\r\n",
-				rootpath);
-		sleep(2);
-		return;
-	}
-
-	tc = strrchr(rootpath, '\n');
-	*tc = '\0';
-
-	/* Ok, making it this far means we commit */
-	message(CONSOLE, "Please stand by, changing root to `%s'.\r\n",
-			rootpath);
-
-	/* kill all other programs first */
-	message(CONSOLE, "Sending SIGTERM to all processes.\r\n");
-	kill(-1, SIGTERM);
-	sleep(2);
-	sync();
-
-	message(CONSOLE, "Sending SIGKILL to all processes.\r\n");
-	kill(-1, SIGKILL);
-	sleep(2);
-	sync();
-
-	/* ok, we don't need /proc anymore. we also assume that the signaling
-	 * process left the rest of the filesystems alone for us */
-	umount("/proc");
-
-	/* Ok, now we chroot. Hopefully we only have two things mounted, the
-	 * new chroot'd mount point, and the old "/" mount. s,
-	 * we go ahead and unmount the old "/". This should trigger the kernel
-	 * to set things up the Right Way(tm). */
-
-	if (!chroot(rootpath))
-		umount("/dev/root");
-
-	/* If the chroot fails, we are already too far to turn back, so we
-	 * continue and hope that executing init below will revive the system */
-
-	/* close all of our descriptors and open new ones */
-	close(0);
-	close(1);
-	close(2);
-	open("/dev/console", O_RDWR, 0);
-	dup(0);
-	dup(0);
-
-	message(CONSOLE, "Executing real init...\r\n");
-	/* execute init in the (hopefully) new root */
-	execve("/sbin/init", argv_init, envp_init);
-
-	message(CONSOLE,
-			"ERROR: Could not exec new init. Press %s to reboot.\r\n",
-			(secondConsole == NULL)	/* serial console */
-			? "Reset" : "CTRL-ALT-DEL");
-	return;
-}
-#endif							/* BB_FEATURE_INIT_CHROOT */
-
 #endif							/* ! DEBUG_INIT */
 
-void new_initAction(initActionEnum action, char *process, char *cons)
+static void new_initAction(initActionEnum action, char *process, char *cons)
 {
 	initAction *newAction;
 
@@ -811,7 +739,7 @@ static void delete_initAction(initAction * action)
  * _is_ defined, but /etc/inittab is missing, this 
  * results in the same set of default behaviors.
  * */
-void parse_inittab(void)
+static void parse_inittab(void)
 {
 #ifdef BB_FEATURE_USE_INITTAB
 	FILE *file;
@@ -899,16 +827,8 @@ void parse_inittab(void)
 		while (a->name != 0) {
 			if (strcmp(a->name, action) == 0) {
 				if (*id != '\0') {
-					struct stat statBuf;
-
 					strcpy(tmpConsole, "/dev/");
 					strncat(tmpConsole, id, 200);
-					if (stat(tmpConsole, &statBuf) != 0) {
-						message(LOG | CONSOLE,
-								"device '%s' does not exist.  Did you read the directions?\n",
-								tmpConsole);
-						break;
-					}
 					id = tmpConsole;
 				}
 				new_initAction(a->action, process, id);
@@ -931,7 +851,7 @@ void parse_inittab(void)
 
 extern int init_main(int argc, char **argv)
 {
-	initAction *a;
+	initAction *a, *tmp;
 	pid_t wpid;
 	int status;
 
@@ -943,9 +863,7 @@ extern int init_main(int argc, char **argv)
 #endif
 	                  )
 	{
-			usage("init\n\nInit is the parent of all processes.\n\n"
-				  "This version of init is designed to be run only "
-				  "by the kernel.\n");
+			show_usage();
 	}
 	/* Set up sig handlers  -- be sure to
 	 * clear all of these in run() */
@@ -953,9 +871,6 @@ extern int init_main(int argc, char **argv)
 	signal(SIGUSR2, halt_signal);
 	signal(SIGINT, reboot_signal);
 	signal(SIGTERM, reboot_signal);
-#if defined BB_FEATURE_INIT_CHROOT
-	signal(SIGHUP, check_chroot);
-#endif
 
 	/* Turn off rebooting via CTL-ALT-DEL -- we get a 
 	 * SIGINT on CAD so we can shut things down gracefully... */
@@ -977,7 +892,7 @@ extern int init_main(int argc, char **argv)
 	setsid();
 
 	/* Make sure PATH is set to something sane */
-	putenv(_PATH_STDPATH);
+	putenv("PATH="_PATH_STDPATH);
 
 	/* Hello world */
 #ifndef DEBUG_INIT
@@ -1026,12 +941,13 @@ extern int init_main(int argc, char **argv)
 	argv[0]="init";
 
 	if (argc > 1)
-		strncpy(argv[1], "\0", strlen(argv[1])+1);
+		argv[1][0]=0;
 
 	/* Now run everything that needs to be run */
 
 	/* First run the sysinit command */
-	for (a = initActionList; a; a = a->nextPtr) {
+	for (a = initActionList; a; a = tmp) {
+		tmp = a->nextPtr;
 		if (a->action == SYSINIT) {
 			waitfor(a->process, a->console, FALSE);
 			/* Now remove the "sysinit" entry from the list */
@@ -1039,7 +955,8 @@ extern int init_main(int argc, char **argv)
 		}
 	}
 	/* Next run anything that wants to block */
-	for (a = initActionList; a; a = a->nextPtr) {
+	for (a = initActionList; a; a = tmp) {
+		tmp = a->nextPtr;
 		if (a->action == WAIT) {
 			waitfor(a->process, a->console, FALSE);
 			/* Now remove the "wait" entry from the list */
@@ -1047,7 +964,8 @@ extern int init_main(int argc, char **argv)
 		}
 	}
 	/* Next run anything to be run only once */
-	for (a = initActionList; a; a = a->nextPtr) {
+	for (a = initActionList; a; a = tmp) {
+		tmp = a->nextPtr;
 		if (a->action == ONCE) {
 			run(a->process, a->console, FALSE);
 			/* Now remove the "once" entry from the list */

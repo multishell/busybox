@@ -14,6 +14,18 @@
  * very minor changes required to also work with StrongArm and presumably
  * all ARM based systems.
  *
+ * Magnus Damm <damm@opensource.se> added PowerPC support 20-Feb-2001.
+ *   PowerPC specific code stolen from modutils-2.3.16, 
+ *   written by Paul Mackerras, Copyright 1996, 1997 Linux International.
+ *   I've only tested the code on mpc8xx platforms in big-endian mode.
+ *   Did some cleanup and added BB_USE_xxx_ENTRIES...
+ *
+ * Quinn Jensen <jensenq@lineo.com> added MIPS support 23-Feb-2001.
+ *   based on modutils-2.4.2
+ *   MIPS specific support for Elf loading and relocation.
+ *   Copyright 1996, 1997 Linux International.
+ *   Contributed by Ralf Baechle <ralf@gnu.ai.mit.edu>
+ *
  * Based almost entirely on the Linux modutils-2.3.11 implementation.
  *   Copyright 1996, 1997 Linux International.
  *   New implementation contributed by Richard Henderson <rth@tamu.edu>
@@ -37,7 +49,6 @@
  *
  */
 
-#include "busybox.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
@@ -51,6 +62,33 @@
 #include <sys/utsname.h>
 #include <sys/syscall.h>
 #include <linux/unistd.h>
+#include "busybox.h"
+
+#if defined(__powerpc__)
+#define BB_USE_PLT_ENTRIES
+#define BB_PLT_ENTRY_SIZE 16
+#endif
+
+#if defined(__arm__)
+#define BB_USE_PLT_ENTRIES
+#define BB_PLT_ENTRY_SIZE 8
+#define BB_USE_GOT_ENTRIES
+#define BB_GOT_ENTRY_SIZE 8
+#endif
+
+#if defined(__sh__)
+#define BB_USE_GOT_ENTRIES
+#define BB_GOT_ENTRY_SIZE 4
+#endif
+
+#if defined(__i386__)
+#define BB_USE_GOT_ENTRIES
+#define BB_GOT_ENTRY_SIZE 4
+#endif
+
+#if defined(__mips__)
+// neither used
+#endif
 
 //----------------------------------------------------------------------------
 //--------modutils module.h, lines 45-242
@@ -81,7 +119,7 @@
 #ifndef MODUTILS_MODULE_H
 static const int MODUTILS_MODULE_H = 1;
 
-#ident "$Id: insmod.c,v 1.44 2001/01/27 09:33:38 andersen Exp $"
+#ident "$Id: insmod.c,v 1.51 2001/03/12 23:08:34 markw Exp $"
 
 /* This file contains the structures used by the 2.0 and 2.1 kernels.
    We do not use the kernel headers directly because we do not wish
@@ -287,7 +325,7 @@ int delete_module(const char *);
 #ifndef MODUTILS_OBJ_H
 static const int MODUTILS_OBJ_H = 1;
 
-#ident "$Id: insmod.c,v 1.44 2001/01/27 09:33:38 andersen Exp $"
+#ident "$Id: insmod.c,v 1.51 2001/03/12 23:08:34 markw Exp $"
 
 /* The relocatable object is manipulated using elfin types.  */
 
@@ -311,21 +349,39 @@ static const int MODUTILS_OBJ_H = 1;
 #endif
 
 #define ELFCLASSM	ELFCLASS32
-#define ELFDATAM	ELFDATA2LSB
-
-
 
 #if defined(__sh__)
 
 #define MATCH_MACHINE(x) (x == EM_SH)
 #define SHT_RELM	SHT_RELA
 #define Elf32_RelM	Elf32_Rela
+#define ELFDATAM	ELFDATA2LSB
 
 #elif defined(__arm__)
 
 #define MATCH_MACHINE(x) (x == EM_ARM)
 #define SHT_RELM	SHT_REL
 #define Elf32_RelM	Elf32_Rel
+#define ELFDATAM	ELFDATA2LSB
+
+#elif defined(__powerpc__)
+
+#define MATCH_MACHINE(x) (x == EM_PPC)
+#define SHT_RELM	SHT_RELA
+#define Elf32_RelM	Elf32_Rela
+#define ELFDATAM        ELFDATA2MSB
+
+#elif defined(__mips__)
+
+#define MATCH_MACHINE(x) (x == EM_MIPS || x == EM_MIPS_RS3_LE)
+#define SHT_RELM	SHT_REL
+#define Elf32_RelM	Elf32_Rel
+#ifdef __MIPSEB__
+#define ELFDATAM        ELFDATA2MSB
+#endif
+#ifdef __MIPSEL__
+#define ELFDATAM        ELFDATA2LSB
+#endif
 
 #elif defined(__i386__)
 
@@ -340,6 +396,7 @@ static const int MODUTILS_OBJ_H = 1;
 
 #define SHT_RELM	SHT_REL
 #define Elf32_RelM	Elf32_Rel
+#define ELFDATAM	ELFDATA2LSB
 
 #else
 #error Sorry, but insmod.c does not yet support this architecture...
@@ -540,8 +597,10 @@ int flag_export = 1;
 
 /* Done ;-) */
 
-#if defined(__arm__)
-struct arm_plt_entry
+
+
+#if defined(BB_USE_PLT_ENTRIES)
+struct arch_plt_entry
 {
   int offset;
   int allocated:1;
@@ -549,26 +608,44 @@ struct arm_plt_entry
 };
 #endif
 
+#if defined(BB_USE_GOT_ENTRIES)
 struct arch_got_entry {
 	int offset;
 	unsigned offset_done:1;
 	unsigned reloc_done:1;
 };
+#endif
+
+#if defined(__mips__)
+struct mips_hi16
+{
+  struct mips_hi16 *next;
+  Elf32_Addr *addr;
+  Elf32_Addr value;
+};
+#endif
 
 struct arch_file {
 	struct obj_file root;
-#if defined(__arm__)
-    struct obj_section *plt;
+#if defined(BB_USE_PLT_ENTRIES)
+	struct obj_section *plt;
 #endif
+#if defined(BB_USE_GOT_ENTRIES)
 	struct obj_section *got;
+#endif
+#if defined(__mips__)
+	struct mips_hi16 *mips_hi16_list;
+#endif
 };
 
 struct arch_symbol {
 	struct obj_symbol root;
-#if defined(__arm__)
-    struct arm_plt_entry pltent;
+#if defined(BB_USE_PLT_ENTRIES)
+	struct arch_plt_entry pltent;
 #endif
+#if defined(BB_USE_GOT_ENTRIES)
 	struct arch_got_entry gotent;
+#endif
 };
 
 
@@ -618,7 +695,8 @@ extern int delete_module(const char *);
 _syscall1(int, get_kernel_syms, struct old_kernel_sym *, ks)
 #endif
 
-#if defined(__i386__) || defined(__m68k__) || defined(__arm__)
+#if defined(__i386__) || defined(__m68k__) || defined(__arm__) \
+ || defined(__powerpc__)
 /* Jump through hoops to fixup error return codes */
 #define __NR__create_module  __NR_create_module
 static inline _syscall2(long, _create_module, const char *, name, size_t,
@@ -673,7 +751,17 @@ struct obj_file *arch_new_file(void)
 {
 	struct arch_file *f;
 	f = xmalloc(sizeof(*f));
+
+#if defined(BB_USE_PLT_ENTRIES)
+	f->plt = NULL;
+#endif
+#if defined(BB_USE_GOT_ENTRIES)
 	f->got = NULL;
+#endif
+#if defined(__mips__)
+	f->mips_hi16_list = NULL;
+#endif
+
 	return &f->root;
 }
 
@@ -686,7 +774,14 @@ struct obj_symbol *arch_new_symbol(void)
 {
 	struct arch_symbol *sym;
 	sym = xmalloc(sizeof(*sym));
+
+#if defined(BB_USE_PLT_ENTRIES)
+	memset(&sym->pltent, 0, sizeof(sym->pltent));
+#endif
+#if defined(BB_USE_GOT_ENTRIES)
 	memset(&sym->gotent, 0, sizeof(sym->gotent));
+#endif
+
 	return &sym->root;
 }
 
@@ -702,14 +797,14 @@ arch_apply_relocation(struct obj_file *f,
 
 	ElfW(Addr) *loc = (ElfW(Addr) *) (targsec->contents + rel->r_offset);
 	ElfW(Addr) dot = targsec->header.sh_addr + rel->r_offset;
+#if defined(BB_USE_GOT_ENTRIES)
 	ElfW(Addr) got = ifile->got ? ifile->got->header.sh_addr : 0;
-#if defined(__arm__)
+#endif
+#if defined(BB_USE_PLT_ENTRIES)
 	ElfW(Addr) plt = ifile->plt ? ifile->plt->header.sh_addr : 0;
-
-	struct arm_plt_entry *pe;
+	struct arch_plt_entry *pe;
 	unsigned long *ip;
 #endif
-
 	enum obj_reloc ret = obj_reloc_ok;
 
 	switch (ELF32_R_TYPE(rel->r_info)) {
@@ -723,6 +818,10 @@ arch_apply_relocation(struct obj_file *f,
 	case R_ARM_NONE:
 #elif defined(__i386__)
 	case R_386_NONE:
+#elif defined(__powerpc__)
+	case R_PPC_NONE:
+#elif defined(__mips__)
+	case R_MIPS_NONE:
 #endif
 		break;
 
@@ -731,10 +830,108 @@ arch_apply_relocation(struct obj_file *f,
 #elif defined(__arm__)
 	case R_ARM_ABS32:
 #elif defined(__i386__)
-	case R_386_32:
+	case R_386_32:	
+#elif defined(__powerpc__)
+	case R_PPC_ADDR32:
+#elif defined(__mips__)
+	case R_MIPS_32:
 #endif
 		*loc += v;
 		break;
+
+#if defined(__powerpc__)
+	case R_PPC_ADDR16_HA:
+		*(unsigned short *)loc = (v + 0x8000) >> 16;
+		break;
+
+	case R_PPC_ADDR16_HI:
+		*(unsigned short *)loc = v >> 16;
+		break;
+
+	case R_PPC_ADDR16_LO:
+		*(unsigned short *)loc = v;
+		break;
+#endif
+
+#if defined(__mips__)
+	case R_MIPS_26:
+		if (v % 4)
+			ret = obj_reloc_dangerous;
+		if ((v & 0xf0000000) != ((dot + 4) & 0xf0000000))
+			ret = obj_reloc_overflow;
+		*loc =
+		    (*loc & ~0x03ffffff) | ((*loc + (v >> 2)) &
+					    0x03ffffff);
+		break;
+
+	case R_MIPS_HI16:
+		{
+			struct mips_hi16 *n;
+
+			/* We cannot relocate this one now because we don't know the value
+			   of the carry we need to add.  Save the information, and let LO16
+			   do the actual relocation.  */
+			n = (struct mips_hi16 *) xmalloc(sizeof *n);
+			n->addr = loc;
+			n->value = v;
+			n->next = ifile->mips_hi16_list;
+			ifile->mips_hi16_list = n;
+	       		break;
+		}
+
+	case R_MIPS_LO16:
+		{
+			unsigned long insnlo = *loc;
+			Elf32_Addr val, vallo;
+
+			/* Sign extend the addend we extract from the lo insn.  */
+			vallo = ((insnlo & 0xffff) ^ 0x8000) - 0x8000;
+
+			if (ifile->mips_hi16_list != NULL) {
+				struct mips_hi16 *l;
+
+				l = ifile->mips_hi16_list;
+				while (l != NULL) {
+					struct mips_hi16 *next;
+					unsigned long insn;
+
+					/* The value for the HI16 had best be the same. */
+					assert(v == l->value);
+
+					/* Do the HI16 relocation.  Note that we actually don't
+					   need to know anything about the LO16 itself, except where
+					   to find the low 16 bits of the addend needed by the LO16.  */
+					insn = *l->addr;
+					val =
+					    ((insn & 0xffff) << 16) +
+					    vallo;
+					val += v;
+
+					/* Account for the sign extension that will happen in the
+					   low bits.  */
+					val =
+					    ((val >> 16) +
+					     ((val & 0x8000) !=
+					      0)) & 0xffff;
+
+					insn = (insn & ~0xffff) | val;
+					*l->addr = insn;
+
+					next = l->next;
+					free(l);
+					l = next;
+				}
+
+				ifile->mips_hi16_list = NULL;
+			}
+
+			/* Ok, we're done with the HI16 relocs.  Now deal with the LO16.  */
+			val = v + vallo;
+			insnlo = (insnlo & ~0xffff) | (val & 0xffff);
+			*loc = insnlo;
+			break;
+		}
+#endif
 
 #if defined(__arm__)
 #elif defined(__sh__)
@@ -746,22 +943,48 @@ arch_apply_relocation(struct obj_file *f,
 	case R_386_PC32:
 		*loc += v - dot;
 		break;
+#elif defined(__powerpc__)
+	case R_PPC_REL32:
+		*loc = v - dot;
+		break;
 #endif
 
 #if defined(__sh__)
         case R_SH_PLT32:
                 *loc = v - dot;
                 break;
-#elif defined(__arm__)
+#elif defined(__i386__)
+#endif
+
+#if defined(BB_USE_PLT_ENTRIES)
+
+#if defined(__arm__)
     case R_ARM_PC24:
     case R_ARM_PLT32:
+#endif
+#if defined(__powerpc__)
+	case R_PPC_REL24:
+#endif
       /* find the plt entry and initialize it if necessary */
       assert(isym != NULL);
-      pe = (struct arm_plt_entry*) &isym->pltent;
+
+      pe = (struct arch_plt_entry*) &isym->pltent;
+
       if (! pe->inited) {
 	  	ip = (unsigned long *) (ifile->plt->contents + pe->offset);
+
+		/* generate some machine code */
+
+#if defined(__arm__)
 	  	ip[0] = 0xe51ff004;			/* ldr pc,[pc,#-4] */
 	  	ip[1] = v;				/* sym@ */
+#endif
+#if defined(__powerpc__)
+	  ip[0] = 0x3d600000 + ((v + 0x8000) >> 16);  /* lis r11,sym@ha */
+	  ip[1] = 0x396b0000 + (v & 0xffff);	      /* addi r11,r11,sym@l */
+	  ip[2] = 0x7d6903a6;			      /* mtctr r11 */
+	  ip[3] = 0x4e800420;			      /* bctr */
+#endif
 	  	pe->inited = 1;
 	  }
 
@@ -775,15 +998,18 @@ arch_apply_relocation(struct obj_file *f,
       if (v & 3)
 	    ret = obj_reloc_dangerous;
 
+      /* merge the offset into the instruction. */
+#if defined(__arm__)
       /* Convert to words. */
       v >>= 2;
 
-      /* merge the offset into the instruction. */
       *loc = (*loc & ~0x00ffffff) | ((v + *loc) & 0x00ffffff);
-      break;
-#elif defined(__i386__)
 #endif
-
+#if defined(__powerpc__)
+      *loc = (*loc & ~0x03fffffc) | (v & 0x03fffffc);
+#endif
+      break;
+#endif /* BB_USE_PLT_ENTRIES */
 
 #if defined(__arm__)
 #elif defined(__sh__)
@@ -809,6 +1035,8 @@ arch_apply_relocation(struct obj_file *f,
 		break;
 #endif
 
+#if defined(BB_USE_GOT_ENTRIES)
+
 #if defined(__sh__)
         case R_SH_GOTPC:
 #elif defined(__arm__)
@@ -827,7 +1055,7 @@ arch_apply_relocation(struct obj_file *f,
 #if defined(__sh__)
 	case R_SH_GOT32:
 #elif defined(__arm__)
-    case R_ARM_GOT32:
+	case R_ARM_GOT32:
 #elif defined(__i386__)
 	case R_386_GOT32:
 #endif
@@ -849,13 +1077,15 @@ arch_apply_relocation(struct obj_file *f,
 #if defined(__sh__)
 	case R_SH_GOTOFF:
 #elif defined(__arm__)
-    case R_ARM_GOTOFF:
+	case R_ARM_GOTOFF:
 #elif defined(__i386__)
 	case R_386_GOTOFF:
 #endif
 		assert(got != 0);
 		*loc += v - got;
 		break;
+
+#endif /* BB_USE_GOT_ENTRIES */
 
 	default:
         printf("Warning: unhandled reloc %d\n",(int)ELF32_R_TYPE(rel->r_info));
@@ -868,9 +1098,13 @@ arch_apply_relocation(struct obj_file *f,
 
 int arch_create_got(struct obj_file *f)
 {
+#if defined(BB_USE_GOT_ENTRIES) || defined(BB_USE_PLT_ENTRIES)
 	struct arch_file *ifile = (struct arch_file *) f;
-	int i, got_offset = 0, gotneeded = 0;
-#if defined(__arm__)
+	int i;
+#if defined(BB_USE_GOT_ENTRIES)
+	int got_offset = 0, gotneeded = 0;
+#endif
+#if defined(BB_USE_PLT_ENTRIES)
 	int plt_offset = 0, pltneeded = 0;
 #endif
     struct obj_section *relsec, *symsec, *strsec;
@@ -898,12 +1132,20 @@ int arch_create_got(struct obj_file *f)
 			switch (ELF32_R_TYPE(rel->r_info)) {
 #if defined(__arm__)
 			case R_ARM_GOT32:
+				break;
 #elif defined(__sh__)
 			case R_SH_GOT32:
+				break;
 #elif defined(__i386__)
 			case R_386_GOT32:
-#endif
 				break;
+#endif
+
+#if defined(__powerpc__)
+			case R_PPC_REL24:
+				pltneeded = 1;
+				break;
+#endif
 
 #if defined(__arm__)
 			case R_ARM_PC24:
@@ -936,17 +1178,18 @@ int arch_create_got(struct obj_file *f)
 				name = f->sections[extsym->st_shndx]->name;
 			}
 			intsym = (struct arch_symbol *) obj_find_symbol(f, name);
-
+#if defined(BB_USE_GOT_ENTRIES)
 			if (!intsym->gotent.offset_done) {
 				intsym->gotent.offset_done = 1;
 				intsym->gotent.offset = got_offset;
-				got_offset += 4;
+				got_offset += BB_GOT_ENTRY_SIZE;
 			}
-#if defined(__arm__)
+#endif
+#if defined(BB_USE_PLT_ENTRIES)
 			if (pltneeded && intsym->pltent.allocated == 0) {
 				intsym->pltent.allocated = 1;
 				intsym->pltent.offset = plt_offset;
-				plt_offset += 8;
+				plt_offset += BB_PLT_ENTRY_SIZE;
 				intsym->pltent.inited = 0;
 				pltneeded = 0;
 			}
@@ -954,27 +1197,30 @@ int arch_create_got(struct obj_file *f)
 			}
 		}
 
-#if defined(__arm__)
+#if defined(BB_USE_GOT_ENTRIES)
 	if (got_offset) {
 		struct obj_section* relsec = obj_find_section(f, ".got");
 
 		if (relsec) {
 			obj_extend_section(relsec, got_offset);
 		} else {
-			relsec = obj_create_alloced_section(f, ".got", 8, got_offset);
+			relsec = obj_create_alloced_section(f, ".got", 
+							    BB_GOT_ENTRY_SIZE,
+							    got_offset);
 			assert(relsec);
 		}
 
 		ifile->got = relsec;
 	}
-
-	if (plt_offset)
-		ifile->plt = obj_create_alloced_section(f, ".plt", 8, plt_offset);
-#else
-	if (got_offset > 0 || gotneeded)
-		ifile->got = obj_create_alloced_section(f, ".got", 4, got_offset);
 #endif
 
+#if defined(BB_USE_PLT_ENTRIES)
+	if (plt_offset)
+		ifile->plt = obj_create_alloced_section(f, ".plt", 
+							BB_PLT_ENTRY_SIZE, 
+							plt_offset);
+#endif
+#endif
 	return 1;
 }
 
@@ -1156,7 +1402,7 @@ struct obj_symbol *obj_add_symbol(struct obj_file *f, const char *name,
 				/* Don't report an error if the symbol is coming from
 				   the kernel or some external module.  */
 				if (secidx <= SHN_HIRESERVE)
-					error_msg("%s multiply defined\n", name);
+					error_msg("%s multiply defined", name);
 				return sym;
 			}
 		}
@@ -1419,7 +1665,7 @@ old_process_module_arguments(struct obj_file *f, int argc, char **argv)
 
 		/* Also check that the parameter was not resolved from the kernel.  */
 		if (sym == NULL || sym->secidx > SHN_HIRESERVE) {
-			error_msg("symbol for parameter %s not found\n", p);
+			error_msg("symbol for parameter %s not found", p);
 			return 0;
 		}
 
@@ -1432,7 +1678,7 @@ old_process_module_arguments(struct obj_file *f, int argc, char **argv)
 			str = alloca(strlen(q));
 			for (r = str, q++; *q != '"'; ++q, ++r) {
 				if (*q == '\0') {
-					error_msg("improperly terminated string argument for %s\n", p);
+					error_msg("improperly terminated string argument for %s", p);
 					return 0;
 				} else if (*q == '\\')
 					switch (*++q) {
@@ -1786,7 +2032,7 @@ new_process_module_arguments(struct obj_file *f, int argc, char **argv)
 		p = get_modinfo_value(f, key);
 		key += 5;
 		if (p == NULL) {
-			error_msg("invalid parameter %s\n", key);
+			error_msg("invalid parameter %s", key);
 			return 0;
 		}
 
@@ -1794,7 +2040,7 @@ new_process_module_arguments(struct obj_file *f, int argc, char **argv)
 
 		/* Also check that the parameter was not resolved from the kernel.  */
 		if (sym == NULL || sym->secidx > SHN_HIRESERVE) {
-			error_msg("symbol for parameter %s not found\n", key);
+			error_msg("symbol for parameter %s not found", key);
 			return 0;
 		}
 
@@ -1822,7 +2068,7 @@ new_process_module_arguments(struct obj_file *f, int argc, char **argv)
 					str = alloca(strlen(q));
 					for (r = str, q++; *q != '"'; ++q, ++r) {
 						if (*q == '\0') {
-							error_msg("improperly terminated string argument for %s\n",
+							error_msg("improperly terminated string argument for %s",
 									key);
 							return 0;
 						} else if (*q == '\\')
@@ -1917,14 +2163,14 @@ new_process_module_arguments(struct obj_file *f, int argc, char **argv)
 					/* Probably we should do that outside the loop ? */
 					if (!isdigit(*(p + 1))) {
 						error_msg("parameter type 'c' for %s must be followed by"
-								" the maximum size\n", key);
+								" the maximum size", key);
 						return 0;
 					}
 					charssize = strtoul(p + 1, (char **) NULL, 10);
 
 					/* Check length */
 					if (strlen(str) >= charssize) {
-						error_msg("string too long for %s (max %ld)\n", key,
+						error_msg("string too long for %s (max %ld)", key,
 								charssize - 1);
 						return 0;
 					}
@@ -1953,7 +2199,7 @@ new_process_module_arguments(struct obj_file *f, int argc, char **argv)
 					break;
 
 				default:
-					error_msg("unknown parameter type '%c' for %s\n", *p, key);
+					error_msg("unknown parameter type '%c' for %s", *p, key);
 					return 0;
 				}
 			}
@@ -1972,21 +2218,21 @@ new_process_module_arguments(struct obj_file *f, int argc, char **argv)
 
 			case ',':
 				if (++n > max) {
-					error_msg("too many values for %s (max %d)\n", key, max);
+					error_msg("too many values for %s (max %d)", key, max);
 					return 0;
 				}
 				++q;
 				break;
 
 			default:
-				error_msg("invalid argument syntax for %s\n", key);
+				error_msg("invalid argument syntax for %s", key);
 				return 0;
 			}
 		}
 
 	  end_of_arg:
 		if (n < min) {
-			error_msg("too few values for %s (min %d)\n", key, min);
+			error_msg("too few values for %s (min %d)", key, min);
 			return 0;
 		}
 
@@ -2060,48 +2306,50 @@ static int new_get_kernel_symbols(void)
 	}
 
 	n_ext_modules = nmod = ret;
-	ext_modules = modules = xmalloc(nmod * sizeof(*modules));
-	memset(modules, 0, nmod * sizeof(*modules));
 
 	/* Collect the modules' symbols.  */
 
-	for (i = 0, mn = module_names, m = modules;
-		 i < nmod; ++i, ++m, mn += strlen(mn) + 1) {
-		struct new_module_info info;
-
-		if (query_module(mn, QM_INFO, &info, sizeof(info), &ret)) {
-			if (errno == ENOENT) {
-				/* The module was removed out from underneath us.  */
-				continue;
-			}
-			perror_msg("query_module: QM_INFO: %s", mn);
-			return 0;
-		}
-
-		syms = xmalloc(bufsize = 1024);
-	  retry_mod_sym_load:
-		if (query_module(mn, QM_SYMBOLS, syms, bufsize, &ret)) {
-			switch (errno) {
-			case ENOSPC:
-				syms = xrealloc(syms, bufsize = ret);
-				goto retry_mod_sym_load;
-			case ENOENT:
-				/* The module was removed out from underneath us.  */
-				continue;
-			default:
-				perror_msg("query_module: QM_SYMBOLS: %s", mn);
+	if (nmod){
+		ext_modules = modules = xmalloc(nmod * sizeof(*modules));
+		memset(modules, 0, nmod * sizeof(*modules));
+		for (i = 0, mn = module_names, m = modules;
+			 i < nmod; ++i, ++m, mn += strlen(mn) + 1) {
+			struct new_module_info info;
+	
+			if (query_module(mn, QM_INFO, &info, sizeof(info), &ret)) {
+				if (errno == ENOENT) {
+					/* The module was removed out from underneath us.  */
+					continue;
+				}
+				perror_msg("query_module: QM_INFO: %s", mn);
 				return 0;
 			}
-		}
-		nsyms = ret;
-
-		m->name = mn;
-		m->addr = info.addr;
-		m->nsyms = nsyms;
-		m->syms = syms;
-
-		for (j = 0, s = syms; j < nsyms; ++j, ++s) {
-			s->name += (unsigned long) syms;
+	
+			syms = xmalloc(bufsize = 1024);
+		  retry_mod_sym_load:
+			if (query_module(mn, QM_SYMBOLS, syms, bufsize, &ret)) {
+				switch (errno) {
+				case ENOSPC:
+					syms = xrealloc(syms, bufsize = ret);
+					goto retry_mod_sym_load;
+				case ENOENT:
+					/* The module was removed out from underneath us.  */
+					continue;
+				default:
+					perror_msg("query_module: QM_SYMBOLS: %s", mn);
+					return 0;
+				}
+			}
+			nsyms = ret;
+	
+			m->name = mn;
+			m->addr = info.addr;
+			m->nsyms = nsyms;
+			m->syms = syms;
+	
+			for (j = 0, s = syms; j < nsyms; ++j, ++s) {
+				s->name += (unsigned long) syms;
+			}
 		}
 	}
 
@@ -2372,7 +2620,7 @@ int obj_check_undefineds(struct obj_file *f)
 					sym->secidx = SHN_ABS;
 					sym->value = 0;
 				} else {
-					error_msg("unresolved symbol %s\n", sym->name);
+					error_msg("unresolved symbol %s", sym->name);
 					ret = 0;
 				}
 			}
@@ -2599,11 +2847,11 @@ int obj_relocate(struct obj_file *f, ElfW(Addr) base)
 				errmsg = "Unhandled relocation";
 			  bad_reloc:
 				if (extsym) {
-					error_msg("%s of type %ld for %s\n", errmsg,
+					error_msg("%s of type %ld for %s", errmsg,
 							(long) ELFW(R_TYPE) (rel->r_info),
 							strtab + extsym->st_name);
 				} else {
-					error_msg("%s of type %ld\n", errmsg,
+					error_msg("%s of type %ld", errmsg,
 							(long) ELFW(R_TYPE) (rel->r_info));
 				}
 				ret = 0;
@@ -2649,7 +2897,7 @@ int obj_create_image(struct obj_file *f, char *image)
 	for (sec = f->load_order; sec; sec = sec->load_next) {
 		char *secimg;
 
-		if (sec->header.sh_size == 0)
+		if (sec->contents == 0 || sec->header.sh_size == 0)
 			continue;
 
 		secimg = image + (sec->header.sh_addr - base);
@@ -2688,25 +2936,25 @@ struct obj_file *obj_load(FILE * fp)
 		|| f->header.e_ident[EI_MAG1] != ELFMAG1
 		|| f->header.e_ident[EI_MAG2] != ELFMAG2
 		|| f->header.e_ident[EI_MAG3] != ELFMAG3) {
-		error_msg("not an ELF file\n");
+		error_msg("not an ELF file");
 		return NULL;
 	}
 	if (f->header.e_ident[EI_CLASS] != ELFCLASSM
 		|| f->header.e_ident[EI_DATA] != ELFDATAM
 		|| f->header.e_ident[EI_VERSION] != EV_CURRENT
 		|| !MATCH_MACHINE(f->header.e_machine)) {
-		error_msg("ELF file not for this architecture\n");
+		error_msg("ELF file not for this architecture");
 		return NULL;
 	}
 	if (f->header.e_type != ET_REL) {
-		error_msg("ELF file not a relocatable object\n");
+		error_msg("ELF file not a relocatable object");
 		return NULL;
 	}
 
 	/* Read the section headers.  */
 
 	if (f->header.e_shentsize != sizeof(ElfW(Shdr))) {
-		error_msg("section header size mismatch: %lu != %lu\n",
+		error_msg("section header size mismatch: %lu != %lu",
 				(unsigned long) f->header.e_shentsize,
 				(unsigned long) sizeof(ElfW(Shdr)));
 		return NULL;
@@ -2734,7 +2982,7 @@ struct obj_file *obj_load(FILE * fp)
 		sec->header = section_headers[i];
 		sec->idx = i;
 
-		switch (sec->header.sh_type) {
+		if(sec->header.sh_size) switch (sec->header.sh_type) {
 		case SHT_NULL:
 		case SHT_NOTE:
 		case SHT_NOBITS:
@@ -2759,11 +3007,11 @@ struct obj_file *obj_load(FILE * fp)
 
 #if SHT_RELM == SHT_REL
 		case SHT_RELA:
-			error_msg("RELA relocations not supported on this architecture\n");
+			error_msg("RELA relocations not supported on this architecture");
 			return NULL;
 #else
 		case SHT_REL:
-			error_msg("REL relocations not supported on this architecture\n");
+			error_msg("REL relocations not supported on this architecture");
 			return NULL;
 #endif
 
@@ -2776,7 +3024,7 @@ struct obj_file *obj_load(FILE * fp)
 				break;
 			}
 
-			error_msg("can't handle sections of type %ld\n",
+			error_msg("can't handle sections of type %ld",
 					(long) sec->header.sh_type);
 			return NULL;
 		}
@@ -2805,7 +3053,7 @@ struct obj_file *obj_load(FILE * fp)
 				ElfW(Sym) * sym;
 
 				if (sec->header.sh_entsize != sizeof(ElfW(Sym))) {
-					error_msg("symbol size mismatch: %lu != %lu\n",
+					error_msg("symbol size mismatch: %lu != %lu",
 							(unsigned long) sec->header.sh_entsize,
 							(unsigned long) sizeof(ElfW(Sym)));
 					return NULL;
@@ -2837,7 +3085,7 @@ struct obj_file *obj_load(FILE * fp)
 
 		case SHT_RELM:
 			if (sec->header.sh_entsize != sizeof(ElfW(RelM))) {
-				error_msg("relocation entry size mismatch: %lu != %lu\n",
+				error_msg("relocation entry size mismatch: %lu != %lu",
 						(unsigned long) sec->header.sh_entsize,
 						(unsigned long) sizeof(ElfW(RelM)));
 				return NULL;
@@ -2880,6 +3128,7 @@ extern int insmod_main( int argc, char **argv)
 	ElfW(Addr) m_addr;
 	FILE *fp;
 	struct obj_file *f;
+	struct stat st;
 	char m_name[BUFSIZ + 1] = "\0";
 	int exit_status = EXIT_FAILURE;
 	int m_has_modinfo;
@@ -2916,12 +3165,12 @@ extern int insmod_main( int argc, char **argv)
 				 * loading the same module 50 times concurrently. */
 				break;
 			default:
-				usage(insmod_usage);
+				show_usage();
 		}
 	}
 	
 	if (argv[optind] == NULL) {
-		usage(insmod_usage);
+		show_usage();
 	}
 
 	/* Grab the module name */
@@ -2941,7 +3190,8 @@ extern int insmod_main( int argc, char **argv)
 	strcat(m_fullName, ".o");
 
 	/* Get a filedesc for the module */
-	if ((fp = fopen(argv[optind], "r")) == NULL) {
+	if (stat(argv[optind], &st) < 0 || !S_ISREG(st.st_mode) ||
+			(fp = fopen(argv[optind], "r")) == NULL) {
 		/* Hmpf.  Could not open it. Search through _PATH_MODULES to find a module named m_name */
 		if (recursive_action(_PATH_MODULES, TRUE, FALSE, FALSE,
 							findNamedModule, 0, m_fullName) == FALSE) 
@@ -2949,11 +3199,11 @@ extern int insmod_main( int argc, char **argv)
 			if (m_filename[0] == '\0'
 				|| ((fp = fopen(m_filename, "r")) == NULL)) 
 			{
-				error_msg("No module named '%s' found in '%s'\n", m_fullName, _PATH_MODULES);
+				error_msg("No module named '%s' found in '%s'", m_fullName, _PATH_MODULES);
 				return EXIT_FAILURE;
 			}
 		} else
-			error_msg_and_die("No module named '%s' found in '%s'\n", m_fullName, _PATH_MODULES);
+			error_msg_and_die("No module named '%s' found in '%s'", m_fullName, _PATH_MODULES);
 	} else
 		memcpy(m_filename, argv[optind], strlen(argv[optind]));
 
@@ -2976,7 +3226,7 @@ extern int insmod_main( int argc, char **argv)
 		m_version = old_get_module_version(f, m_strversion);
 		if (m_version == -1) {
 			error_msg("couldn't find the kernel version the module was "
-					"compiled for\n");
+					"compiled for");
 			goto out;
 		}
 	}
@@ -2985,12 +3235,12 @@ extern int insmod_main( int argc, char **argv)
 		if (flag_force_load) {
 			error_msg("Warning: kernel-module version mismatch\n"
 					"\t%s was compiled for kernel version %s\n"
-					"\twhile this kernel is version %s\n",
+					"\twhile this kernel is version %s",
 					m_filename, m_strversion, k_strversion);
 		} else {
 			error_msg("kernel-module version mismatch\n"
 					"\t%s was compiled for kernel version %s\n"
-					"\twhile this kernel is version %s.\n",
+					"\twhile this kernel is version %s.",
 					m_filename, m_strversion, k_strversion);
 			goto out;
 		}
@@ -3006,7 +3256,7 @@ extern int insmod_main( int argc, char **argv)
 			goto out;
 		k_crcs = new_is_kernel_checksummed();
 #else
-		error_msg("Not configured to support new kernels\n");
+		error_msg("Not configured to support new kernels");
 		goto out;
 #endif
 	} else {
@@ -3015,7 +3265,7 @@ extern int insmod_main( int argc, char **argv)
 			goto out;
 		k_crcs = old_is_kernel_checksummed();
 #else
-		error_msg("Not configured to support old kernels\n");
+		error_msg("Not configured to support old kernels");
 		goto out;
 #endif
 	}
@@ -3072,10 +3322,10 @@ extern int insmod_main( int argc, char **argv)
 	m_addr = create_module(m_name, m_size);
 	if (m_addr==-1) switch (errno) {
 	case EEXIST:
-		error_msg("A module named %s already exists\n", m_name);
+		error_msg("A module named %s already exists", m_name);
 		goto out;
 	case ENOMEM:
-		error_msg("Can't allocate kernel memory for module; needed %lu bytes\n",
+		error_msg("Can't allocate kernel memory for module; needed %lu bytes",
 				m_size);
 		goto out;
 	default:

@@ -22,13 +22,14 @@
  *
  */
 
-#include "busybox.h"
 #include <errno.h>
 #include <stdio.h>
 #include <getopt.h>
 #include <stdlib.h>
+#include <string.h>
+#include "busybox.h"
 
-int head(int len, FILE *fp)
+static int head(int len, FILE *fp)
 {
 	int i;
 	char *input;
@@ -57,7 +58,7 @@ int head_main(int argc, char **argv)
 				break;
 			/* fallthrough */
 		default:
-			usage(head_usage);
+			show_usage();
 		}
 	}
 

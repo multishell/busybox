@@ -22,18 +22,19 @@
  *
  */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <mntent.h>
 #include <dirent.h>
 #include <errno.h>
+#include <string.h>
 #include <stdlib.h>
 #include <sys/mount.h>
 #include <sys/syscall.h>
 #include <linux/unistd.h>
+#include "busybox.h"
 
-_syscall2(int, swapon, const char *, path, int, flags);
-_syscall1(int, swapoff, const char *, path);
+static _syscall2(int, swapon, const char *, path, int, flags);
+static _syscall1(int, swapoff, const char *, path);
 
 
 static int whichApp;
@@ -95,7 +96,7 @@ extern int swap_on_off_main(int argc, char **argv)
 					struct stat statBuf;
 
 					if (stat("/etc/fstab", &statBuf) < 0)
-						error_msg_and_die("/etc/fstab file missing\n");
+						error_msg_and_die("/etc/fstab file missing");
 				}
 				do_em_all();
 				break;
@@ -107,5 +108,5 @@ extern int swap_on_off_main(int argc, char **argv)
 	return EXIT_SUCCESS;
 
   usage_and_exit:
-	usage((whichApp == SWAPON_APP) ? swapon_usage : swapoff_usage);
+	show_usage();
 }

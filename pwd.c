@@ -21,12 +21,14 @@
  *
  */
 
-#include "busybox.h"
+/* getopt not needed */
+
 #include <stdio.h>
 #include <dirent.h>
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include "busybox.h"
 
 extern int pwd_main(int argc, char **argv)
 {

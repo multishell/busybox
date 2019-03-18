@@ -20,7 +20,6 @@
  *
  */
 
-#include "busybox.h"
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -28,6 +27,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/ioctl.h>
+#include "busybox.h"
 
 /* From <linux/kd.h> */
 struct kbentry {
@@ -48,7 +48,7 @@ int dumpkmap_main(int argc, char **argv)
 	char flags[MAX_NR_KEYMAPS], magic[] = "bkeymap";
 
 	if (argc>=2 && *argv[1]=='-') {
-		usage(dumpkmap_usage);
+		show_usage();
 	}
 
 	fd = open("/dev/tty0", O_RDWR);
@@ -81,7 +81,7 @@ int dumpkmap_main(int argc, char **argv)
 				ke.kb_table = i;
 				if (ioctl(fd, KDGKBENT, &ke) < 0) {
 				
-					error_msg("ioctl returned: %s, %s, %s, %xqq\n",strerror(errno),(char *)&ke.kb_index,(char *)&ke.kb_table,(int)&ke.kb_value);
+					error_msg("ioctl returned: %s, %s, %s, %xqq", strerror(errno),(char *)&ke.kb_index,(char *)&ke.kb_table,(int)&ke.kb_value);
 					}
 				else {
 					write(1,(void*)&ke.kb_value,2);	

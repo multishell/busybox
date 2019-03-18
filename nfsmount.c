@@ -33,25 +33,25 @@
  * nfsmount.c,v 1.1.1.1 1993/11/18 08:40:51 jrs Exp
  */
 
-#include "busybox.h"
-#undef FALSE
-#undef TRUE
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
 #include <netdb.h>
-#include <rpc/rpc.h>
-#include <rpc/pmap_prot.h>
-#include <rpc/pmap_clnt.h>
 #include <sys/socket.h>
-#include <sys/time.h>
+#include <time.h>
 #include <sys/utsname.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-
-#include "nfsmount.h"
+#include <stdlib.h>
+#include "busybox.h"
+#undef TRUE
+#undef FALSE
+#include <rpc/rpc.h>
+#include <rpc/pmap_prot.h>
+#include <rpc/pmap_clnt.h>
 #include <linux/nfs.h>  /* For the kernels nfs stuff */
+#include "nfsmount.h"
 
 #ifndef NFS_FHSIZE
 static const int NFS_FHSIZE = 32;
@@ -93,7 +93,9 @@ static const int MS_NODIRATIME = 2048;    /* Do not update directory access time
  * so it is easiest to ignore the kernel altogether (at compile time).
  */
 
-static const int NFS_MOUNT_VERSION = 4;
+/* NOTE: Do not make this into a 'static const int' because the pre-processor
+ * needs to test this value in some #if statements. */
+#define NFS_MOUNT_VERSION 4
 
 struct nfs2_fh {
         char                    data[32];
@@ -181,7 +183,8 @@ static int nfs_mount_version;
  *	nfs_mount_version: version this source and running kernel can handle
  */
 static void
-find_kernel_nfs_mount_version(void) {
+find_kernel_nfs_mount_version(void)
+{
 	static int kernel_version = 0;
 
 	if (kernel_version)
@@ -191,15 +194,17 @@ find_kernel_nfs_mount_version(void) {
 
 	kernel_version = get_kernel_revision();
 	if (kernel_version) {
-	     if (kernel_version < MAKE_VERSION(2,1,32))
-		  nfs_mount_version = 1;
-	     else if (kernel_version < MAKE_VERSION(2,3,99))
-		  nfs_mount_version = 3;
-	     else
-		  nfs_mount_version = 4; /* since 2.3.99pre4 */
+		if (kernel_version < MAKE_VERSION(2,1,32))
+			nfs_mount_version = 1;
+		else if (kernel_version < MAKE_VERSION(2,2,18) ||
+				(kernel_version >=   MAKE_VERSION(2,3,0) &&
+				 kernel_version < MAKE_VERSION(2,3,99)))
+			nfs_mount_version = 3;
+		else
+			nfs_mount_version = 4; /* since 2.3.99pre4 */
 	}
 	if (nfs_mount_version > NFS_MOUNT_VERSION)
-	     nfs_mount_version = NFS_MOUNT_VERSION;
+		nfs_mount_version = NFS_MOUNT_VERSION;
 }
 
 static struct pmap *
@@ -305,7 +310,7 @@ int nfsmount(const char *spec, const char *node, int *flags,
 	msock = fsock = -1;
 	mclient = NULL;
 	if (strlen(spec) >= sizeof(hostdir)) {
-		error_msg("excessively long host:dir argument\n");
+		error_msg("excessively long host:dir argument");
 		goto fail;
 	}
 	strcpy(hostdir, spec);
@@ -317,10 +322,10 @@ int nfsmount(const char *spec, const char *node, int *flags,
 		   until they can be fully supported. (mack@sgi.com) */
 		if ((s = strchr(hostdir, ','))) {
 			*s = '\0';
-			error_msg("warning: multiple hostnames not supported\n");
+			error_msg("warning: multiple hostnames not supported");
 		}
 	} else {
-		error_msg("directory to mount not in host:dir format\n");
+		error_msg("directory to mount not in host:dir format");
 		goto fail;
 	}
 
@@ -330,11 +335,11 @@ int nfsmount(const char *spec, const char *node, int *flags,
 #endif
 	{
 		if ((hp = gethostbyname(hostname)) == NULL) {
-			error_msg("can't get address for %s\n", hostname);
+			error_msg("can't get address for %s", hostname);
 			goto fail;
 		} else {
 			if (hp->h_length > sizeof(struct in_addr)) {
-				error_msg("got bad hp->h_length\n");
+				error_msg("got bad hp->h_length");
 				hp->h_length = sizeof(struct in_addr);
 			}
 			memcpy(&server_addr.sin_addr,
@@ -351,7 +356,7 @@ int nfsmount(const char *spec, const char *node, int *flags,
 	if (!old_opts)
 		old_opts = "";
 	if (strlen(old_opts) + strlen(s) + 10 >= sizeof(new_opts)) {
-		error_msg("excessively long option argument\n");
+		error_msg("excessively long option argument");
 		goto fail;
 	}
 	sprintf(new_opts, "%s%saddr=%s",
@@ -511,11 +516,11 @@ int nfsmount(const char *spec, const char *node, int *flags,
 		data.flags |= (nolock ? NFS_MOUNT_NONLM : 0);
 #endif
 	if (nfsvers > MAX_NFSPROT) {
-		error_msg("NFSv%d not supported!\n", nfsvers);
+		error_msg("NFSv%d not supported!", nfsvers);
 		return 0;
 	}
 	if (mountvers > MAX_NFSPROT) {
-		error_msg("NFSv%d not supported!\n", nfsvers);
+		error_msg("NFSv%d not supported!", nfsvers);
 		return 0;
 	}
 	if (nfsvers && !mountvers)
@@ -575,11 +580,11 @@ int nfsmount(const char *spec, const char *node, int *flags,
 	    mount_server_addr.sin_addr.s_addr = inet_addr(hostname);
 	  } else {
 		  if ((hp = gethostbyname(mounthost)) == NULL) {
-			  error_msg("can't get address for %s\n", hostname);
+			  error_msg("can't get address for %s", hostname);
 			  goto fail;
 		  } else {
 			  if (hp->h_length > sizeof(struct in_addr)) {
-				  error_msg("got bad hp->h_length?\n");
+				  error_msg("got bad hp->h_length?");
 				  hp->h_length = sizeof(struct in_addr);
 			  }
 			  mount_server_addr.sin_family = AF_INET;
@@ -714,7 +719,7 @@ int nfsmount(const char *spec, const char *node, int *flags,
 
 	if (nfsvers == 2) {
 		if (status.nfsv2.fhs_status != 0) {
-			error_msg("%s:%s failed, reason given by server: %s\n",
+			error_msg("%s:%s failed, reason given by server: %s",
 				hostname, dirname,
 				nfs_strerror(status.nfsv2.fhs_status));
 			goto fail;
@@ -732,7 +737,7 @@ int nfsmount(const char *spec, const char *node, int *flags,
 #if NFS_MOUNT_VERSION >= 4
 		fhandle3 *fhandle;
 		if (status.nfsv3.fhs_status != 0) {
-			error_msg("%s:%s failed, reason given by server: %s\n",
+			error_msg("%s:%s failed, reason given by server: %s",
 				hostname, dirname,
 				nfs_strerror(status.nfsv3.fhs_status));
 			goto fail;
@@ -881,7 +886,7 @@ static char *nfs_strerror(int stat)
 	return buf;
 }
 
-bool_t
+static bool_t
 xdr_fhandle (XDR *xdrs, fhandle objp)
 {
 	//register int32_t *buf;

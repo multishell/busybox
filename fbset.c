@@ -24,7 +24,6 @@
  *     Geert Uytterhoeven (Geert.Uytterhoeven@cs.kuleuven.ac.be)
  */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -33,6 +32,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include "busybox.h"
 
 #define DEFAULTFBDEV  "/dev/fb0"
 #define DEFAULTFBMODE "/etc/fb.modes"
@@ -42,7 +42,6 @@ static const int OPT_INFO     = (1 << 1);
 static const int OPT_READMODE = (1 << 2);
 
 enum {
-	CMD_HELP = 0,
 	CMD_FB = 1,
 	CMD_DB = 2,
 	CMD_GEOMETRY = 3,
@@ -132,13 +131,12 @@ struct fb_var_screeninfo {
 };
 
 
-struct cmdoptions_t {
+static struct cmdoptions_t {
 	char *name;
 	unsigned char param_count;
 	unsigned char code;
 } g_cmdoptions[] = {
 	{
-	"-h", 0, CMD_HELP}, {
 	"-fb", 1, CMD_FB}, {
 	"-db", 1, CMD_DB}, {
 	"-a", 0, CMD_ALL}, {
@@ -150,10 +148,8 @@ struct cmdoptions_t {
 	"-vsync", 1, CMD_VSYNC}, {
 	"-laced", 1, CMD_LACED}, {
 	"-double", 1, CMD_DOUBLE}, {
-	"-help", 0, CMD_HELP}, {
 	"-n", 0, CMD_CHANGE}, {
 #ifdef BB_FEATURE_FBSET_FANCY
-	"-help", 0, CMD_HELP}, {
 	"-all", 0, CMD_ALL}, {
 	"-xres", 1, CMD_XRES}, {
 	"-yres", 1, CMD_YRES}, {
@@ -198,8 +194,7 @@ static int readmode(struct fb_var_screeninfo *base, const char *fn,
 	char buf[256];
 	char *p = buf;
 
-	if ((f = fopen(fn, "r")) == NULL)
-		perror_msg_and_die("readmode(fopen)");
+	f = xfopen(fn, "r");
 	while (!feof(f)) {
 		fgets(buf, sizeof(buf), f);
 		if ((p = strstr(buf, "mode ")) || (p = strstr(buf, "mode\t"))) {
@@ -284,7 +279,7 @@ static int readmode(struct fb_var_screeninfo *base, const char *fn,
 		}
 	}
 #else
-	error_msg( "mode reading not compiled in\n");
+	error_msg( "mode reading not compiled in");
 #endif
 	return 0;
 }
@@ -334,26 +329,6 @@ static void showmode(struct fb_var_screeninfo *v)
 	printf("endmode\n\n");
 }
 
-static void fbset_usage(void)
-{
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	int i;
-#endif
-
-#ifndef STANDALONE
-	fprintf(stderr, "BusyBox v%s (%s) multi-call binary -- GPL2\n\n",
-			BB_VER, BB_BT);
-#endif
-	fprintf(stderr, "Usage: fbset [options] [mode]\n");
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	fprintf(stderr, "\nShows and modifies frame buffer device settings\n\n");
-	fprintf(stderr, "The following options are recognized:\n");
-	for (i = 0; g_cmdoptions[i].name; i++)
-		fprintf(stderr, "\t%s\n", g_cmdoptions[i].name);
-#endif
-	exit(-1);
-}
-
 #ifdef STANDALONE
 int main(int argc, char **argv)
 #else
@@ -375,10 +350,8 @@ extern int fbset_main(int argc, char **argv)
 		for (i = 0; g_cmdoptions[i].name; i++) {
 			if (!strcmp(thisarg, g_cmdoptions[i].name)) {
 				if (argc - 1 < g_cmdoptions[i].param_count)
-					fbset_usage();
+					show_usage();
 				switch (g_cmdoptions[i].code) {
-				case CMD_HELP:
-					fbset_usage();
 				case CMD_FB:
 					fbdev = argv[1];
 					break;
@@ -423,7 +396,7 @@ extern int fbset_main(int argc, char **argv)
 				mode = *argv;
 				g_options |= OPT_READMODE;
 			} else {
-				fbset_usage();
+				show_usage();
 			}
 		}
 	}
@@ -434,7 +407,7 @@ extern int fbset_main(int argc, char **argv)
 		perror_msg_and_die("fbset(ioctl)");
 	if (g_options & OPT_READMODE) {
 		if (!readmode(&var, modefile, mode)) {
-			error_msg("Unknown video mode `%s'\n", mode);
+			error_msg("Unknown video mode `%s'", mode);
 			return EXIT_FAILURE;
 		}
 	}

@@ -39,35 +39,49 @@
 //#define BB_FEATURE_SH_BACKTICKS
 //
 //If, then, else, etc. support..  This should now behave basically
-//like any other Bourne shell...
+//like any other Bourne shell -- sortof...
 #define BB_FEATURE_SH_IF_EXPRESSIONS
 //
-/* This is currently a little broken... */
-//#define HANDLE_CONTINUATION_CHARS
+/* This is currently sortof broken, only for the brave... */
+#undef HANDLE_CONTINUATION_CHARS
+//
+/* This would be great -- if wordexp wouldn't strip all quoting
+ * out from the target strings...  As is, a parser needs  */
+#undef BB_FEATURE_SH_WORDEXP
 //
 //For debugging/development on the shell only...
 //#define DEBUG_SHELL
 
 
-#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <glob.h>
 #include <signal.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <getopt.h>
+
+#undef BB_FEATURE_SH_WORDEXP
+
+#if BB_FEATURE_SH_WORDEXP
+#include <wordexp.h>
+#define expand_t	wordexp_t
+#undef BB_FEATURE_SH_BACKTICKS
+#else
+#include <glob.h>
+#define expand_t	glob_t
+#endif	
+#include "busybox.h"
 #include "cmdedit.h"
+
 
 static const int MAX_LINE = 256;	/* size of input buffer for cwd data */
 static const int MAX_READ = 128;	/* size of input buffer for `read' builtin */
 #define JOB_STATUS_FORMAT "[%d] %-22s %.40s\n"
-extern size_t NUM_APPLETS;
 
 
 enum redir_type { REDIRECT_INPUT, REDIRECT_OVERWRITE,
@@ -97,8 +111,6 @@ struct child_prog {
 	char **argv;				/* program name and arguments */
 	int num_redirects;			/* elements in redirection array */
 	struct redir_struct *redirects;	/* I/O redirects */
-	glob_t glob_result;			/* result of parameter globbing */
-	int free_glob;				/* should we globfree(&glob_result)? */
 	int is_stopped;				/* is the program currently running? */
 	struct job *family;			/* pointer back to the child's parent job */
 };
@@ -154,6 +166,7 @@ static int run_command_predicate(char *cmd);
 /* function prototypes for shell stuff */
 static void mark_open(int fd);
 static void mark_closed(int fd);
+static void close_all(void);
 static void checkjobs(struct jobset *job_list);
 static int get_command(FILE * source, char *command);
 static int parse_command(char **command_ptr, struct job *job, int *inbg);
@@ -207,15 +220,19 @@ static char *local_pending_command = NULL;
 static struct jobset job_list = { NULL, NULL };
 static int argc;
 static char **argv;
-static struct close_me *close_me_head = NULL;
+static struct close_me *close_me_head;
 #ifdef BB_FEATURE_SH_ENVIRONMENT
-static int last_bg_pid=-1;
-static int last_return_code=-1;
-static int show_x_trace=FALSE;
+static int last_bg_pid;
+static int last_return_code;
+static int show_x_trace;
 #endif
 #ifdef BB_FEATURE_SH_IF_EXPRESSIONS
 static char syntax_err[]="syntax error near unexpected token";
 #endif
+
+static char *PS1;
+static char *PS2;
+
 
 #ifdef DEBUG_SHELL
 static inline void debug_printf(const char *format, ...)
@@ -276,7 +293,7 @@ static int builtin_cd(struct child_prog *child)
 	else
 		newdir = child->argv[1];
 	if (chdir(newdir)) {
-		printf("cd: %s: %s\n", newdir, strerror(errno));
+		printf("cd: %s: %m\n", newdir);
 		return EXIT_FAILURE;
 	}
 	getcwd(cwd, sizeof(char)*MAX_LINE);
@@ -301,6 +318,7 @@ static int builtin_exec(struct child_prog *child)
 	if (child->argv[1] == NULL)
 		return EXIT_SUCCESS;   /* Really? */
 	child->argv++;
+	close_all();
 	pseudo_exec(child);
 	/* never returns */
 }
@@ -321,13 +339,13 @@ static int builtin_fg_bg(struct child_prog *child)
 	struct job *job=NULL;
 	
 	if (!child->argv[1] || child->argv[2]) {
-		error_msg("%s: exactly one argument is expected\n",
+		error_msg("%s: exactly one argument is expected",
 				child->argv[0]);
 		return EXIT_FAILURE;
 	}
 
 	if (sscanf(child->argv[1], "%%%d", &jobNum) != 1) {
-		error_msg("%s: bad argument '%s'\n",
+		error_msg("%s: bad argument '%s'",
 				child->argv[0], child->argv[1]);
 		return EXIT_FAILURE;
 	}
@@ -339,7 +357,7 @@ static int builtin_fg_bg(struct child_prog *child)
 	}
 
 	if (!job) {
-		error_msg("%s: unknown job %d\n",
+		error_msg("%s: unknown job %d",
 				child->argv[0], jobNum);
 		return EXIT_FAILURE;
 	}
@@ -414,13 +432,20 @@ static int builtin_pwd(struct child_prog *dummy)
 static int builtin_export(struct child_prog *child)
 {
 	int res;
+	char *v = child->argv[1];
 
-	if (child->argv[1] == NULL) {
+	if (v == NULL) {
 		return (builtin_env(child));
 	}
-	res = putenv(child->argv[1]);
+	res = putenv(v);
 	if (res)
-		fprintf(stderr, "export: %s\n", strerror(errno));
+		fprintf(stderr, "export: %m\n");
+#ifndef BB_FEATURE_SH_SIMPLE_PROMPT
+	if (strncmp(v, "PS1=", 4)==0)
+		PS1 = getenv("PS1");
+	else if (strncmp(v, "PS2=", 4)==0)
+		PS2 = getenv("PS2");
+#endif
 	return (res);
 }
 
@@ -450,7 +475,7 @@ static int builtin_read(struct child_prog *child)
 		if((s = strdup(string)))
 			res = putenv(s);
 		if (res)
-			fprintf(stderr, "read: %s\n", strerror(errno));
+			fprintf(stderr, "read: %m\n");
 	}
 	else
 		fgets(string, sizeof(string), stdin);
@@ -492,7 +517,7 @@ static int builtin_then(struct child_prog *child)
 	debug_printf( "job=%p entering builtin_then ('%s')-- context=%d\n", cmd, charptr1, cmd->job_context);
 	if (! (cmd->job_context & (IF_TRUE_CONTEXT|IF_FALSE_CONTEXT))) {
 		shell_context = 0; /* Reset the shell's context on an error */
-		error_msg("%s `then'\n", syntax_err);
+		error_msg("%s `then'", syntax_err);
 		return EXIT_FAILURE;
 	}
 
@@ -520,7 +545,7 @@ static int builtin_else(struct child_prog *child)
 
 	if (! (cmd->job_context & THEN_EXP_CONTEXT)) {
 		shell_context = 0; /* Reset the shell's context on an error */
-		error_msg("%s `else'\n", syntax_err);
+		error_msg("%s `else'", syntax_err);
 		return EXIT_FAILURE;
 	}
 	/* If the if result was TRUE, skip the 'else' stuff */
@@ -543,7 +568,7 @@ static int builtin_fi(struct child_prog *child)
 	debug_printf( "job=%p entering builtin_fi ('%s')-- context=%d\n", cmd, "", cmd->job_context);
 	if (! (cmd->job_context & (IF_TRUE_CONTEXT|IF_FALSE_CONTEXT))) {
 		shell_context = 0; /* Reset the shell's context on an error */
-		error_msg("%s `fi'\n", syntax_err);
+		error_msg("%s `fi'", syntax_err);
 		return EXIT_FAILURE;
 	}
 	/* Clear out the if and then context bits */
@@ -630,9 +655,11 @@ static void mark_closed(int fd)
 
 static void close_all()
 {
-	struct close_me *c;
-	for (c=close_me_head; c; c=c->next) {
+	struct close_me *c, *tmp;
+	for (c=close_me_head; c; c=tmp) {
 		close(c->fd);
+		tmp=c->next;
+		free(c);
 	}
 	close_me_head = NULL;
 }
@@ -642,19 +669,22 @@ static void close_all()
 static void free_job(struct job *cmd)
 {
 	int i;
+	struct jobset *keep;
 
 	for (i = 0; i < cmd->num_progs; i++) {
 		free(cmd->progs[i].argv);
 		if (cmd->progs[i].redirects)
 			free(cmd->progs[i].redirects);
-		if (cmd->progs[i].free_glob)
-			globfree(&cmd->progs[i].glob_result);
 	}
-	free(cmd->progs);
+	if (cmd->progs)
+		free(cmd->progs);
 	if (cmd->text)
 		free(cmd->text);
-	free(cmd->cmdbuf);
+	if (cmd->cmdbuf)
+		free(cmd->cmdbuf);
+	keep = cmd->job_list;
 	memset(cmd, 0, sizeof(struct job));
+	cmd->job_list = keep;
 }
 
 /* remove a job from the job_list */
@@ -748,8 +778,7 @@ static int setup_redirects(struct child_prog *prog, int squirrel[])
 		if (openfd < 0) {
 			/* this could get lost if stderr has been redirected, but
 			   bash and ash both lose it as well (though zsh doesn't!) */
-			error_msg("error opening %s: %s\n", redir->filename,
-					strerror(errno));
+			perror_msg("error opening %s", redir->filename);
 			return 1;
 		}
 
@@ -779,35 +808,38 @@ static void restore_redirects(int squirrel[])
 	}
 }
 
-static char* setup_prompt_string(int state)
+static inline void cmdedit_set_initial_prompt(void)
 {
-	char user[9],buf[255],*s;
-	char prompt[3];
-	char prompt_str[BUFSIZ];
+#ifdef BB_FEATURE_SH_SIMPLE_PROMPT
+	PS1 = NULL;
+	PS2 = "> ";
+#else
+	PS1 = getenv("PS1");
+	if(PS1==0) {
+		PS1 = "\\w \\$ ";
+	}
+	PS2 = getenv("PS2");
+	if(PS2==0) 
+		PS2 = "> ";
+#endif	
+}
 
+static inline void setup_prompt_string(char **prompt_str)
+{
+#ifdef BB_FEATURE_SH_SIMPLE_PROMPT
 	/* Set up the prompt */
-	if (state == 0) {
-		/* get User Name and setup prompt */
-		strcpy(prompt,( geteuid() != 0 ) ? "$ ":"# ");
-		my_getpwuid(user, geteuid());
-
-		/* get HostName */
-		gethostname(buf, 255);
-		s = strchr(buf, '.');
-		if (s) {
-			*s = 0;
-		}
+	if (shell_context == 0) {
+		if (PS1)
+			free(PS1);
+		PS1=xmalloc(strlen(cwd)+4);
+		sprintf(PS1, "%s %s", cwd, ( geteuid() != 0 ) ?  "$ ":"# ");
+		*prompt_str = PS1;
 	} else {
-		strcpy(prompt,"> ");
+		*prompt_str = PS2;
 	}
-
-	if (state == 0) {
-		snprintf(prompt_str, BUFSIZ-1, "[%s@%s %s]%s", user, buf, 
-				get_last_path_component(cwd), prompt);
-	} else {
-		sprintf(prompt_str, "%s", prompt);
-	}
-	return(strdup(prompt_str));  /* Must free this memory */
+#else
+	*prompt_str = (shell_context==0)? PS1 : PS2;
+#endif	
 }
 
 static int get_command(FILE * source, char *command)
@@ -826,23 +858,20 @@ static int get_command(FILE * source, char *command)
 	}
 
 	if (source == stdin) {
-		prompt_str = setup_prompt_string(shell_context);
+		setup_prompt_string(&prompt_str);
 
-#ifdef BB_FEATURE_SH_COMMAND_EDITING
+#ifdef BB_FEATURE_COMMAND_EDITING
 		/*
 		** enable command line editing only while a command line
 		** is actually being read; otherwise, we'll end up bequeathing
 		** atexit() handlers and other unwanted stuff to our
 		** child processes (rob@sysgo.de)
 		*/
-		cmdedit_init();
 		cmdedit_read_input(prompt_str, command);
-		free(prompt_str);
 		cmdedit_terminate();
 		return 0;
 #else
 		fputs(prompt_str, stdout);
-		free(prompt_str);
 #endif
 	}
 
@@ -853,7 +882,7 @@ static int get_command(FILE * source, char *command)
 	}
 
 	/* remove trailing newline */
-	command[strlen(command) - 1] = '\0';
+	chomp(command);
 
 	return 0;
 }
@@ -878,112 +907,258 @@ static char* itoa(register int i)
 		*--b = '-';
 	return b;
 }
-#endif
+#endif	
 
-static void expand_argument(struct child_prog *prog, int *argcPtr,
-							 int *argv_alloced_ptr)
+#if defined BB_FEATURE_SH_ENVIRONMENT && ! defined BB_FEATURE_SH_WORDEXP
+char * strsep_space( char *string, int * index)
 {
-	int argc_l = *argcPtr;
-	int argv_alloced = *argv_alloced_ptr;
-	int rc;
-	int flags;
-	int i;
-	char *src, *dst, *var;
+	char *token, *begin;
 
-	if (argc_l > 1) {				/* cmd->glob_result is already initialized */
-		flags = GLOB_APPEND;
-		i = prog->glob_result.gl_pathc;
-	} else {
-		prog->free_glob = 1;
-		flags = 0;
-		i = 0;
+	begin = string;
+
+	/* Short circuit the trivial case */
+	if ( !string || ! string[*index])
+		return NULL;
+
+	/* Find the end of the token. */
+	while( string && string[*index] && !isspace(string[*index]) ) {
+		(*index)++;
 	}
-	/* do shell variable substitution */
-	if(*prog->argv[argc_l - 1] == '$') {
-		if ((var = getenv(prog->argv[argc_l - 1] + 1))) {
-			prog->argv[argc_l - 1] = var;
-		} 
+
+	/* Find the end of any whitespace trailing behind 
+	 * the token and let that be part of the token */
+	while( string && string[*index] && isspace(string[*index]) ) {
+		(*index)++;
+	}
+
+	if (! string && *index==0) {
+		/* Nothing useful was found */
+		return NULL;
+	}
+
+	token = xmalloc(*index+1);
+	token[*index] = '\0';
+	strncpy(token, string,  *index); 
+
+	return token;
+}
+#endif	
+
+
+static int expand_arguments(char *command)
+{
 #ifdef BB_FEATURE_SH_ENVIRONMENT
-		else {
-			switch(*(prog->argv[argc_l - 1] + 1)) {
-				case '?':
-					prog->argv[argc_l - 1] = itoa(last_return_code);
-					break;
-				case '$':
-					prog->argv[argc_l - 1] = itoa(getpid());
-					break;
-				case '#':
-					prog->argv[argc_l - 1] = itoa(argc-1);
-					break;
-				case '!':
-					if (last_bg_pid==-1)
-						*(prog->argv[argc_l - 1])='\0';
-					else
-						prog->argv[argc_l - 1] = itoa(last_bg_pid);
-					break;
-				case '0':case '1':case '2':case '3':case '4':
-				case '5':case '6':case '7':case '8':case '9':
-					{
-						int index=*(prog->argv[argc_l - 1] + 1)-48;
-						if (index >= argc) {
-							*(prog->argv[argc_l - 1])='\0';
-						} else {
-							prog->argv[argc_l - 1] = argv[index];
-						}
-					}
-					break;
-			}
-		}
+	expand_t expand_result;
+	char *src, *dst, *var;
+	int index = 0;
+	int i=0, length, total_length=0, retval;
+	const char *out_of_space = "out of space during expansion"; 
 #endif
+
+	/* get rid of the terminating \n */
+	chomp(command);
+	
+	/* Fix up escape sequences to be the Real Thing(tm) */
+	while( command && command[index]) {
+		if (command[index] == '\\') {
+			char *tmp = command+index+1;
+			command[index+1] = process_escape_sequence(  &tmp );
+			memmove(command+index, command+index+1, strlen(command+index));
+		}
+		index++;
 	}
 
-	if (strpbrk(prog->argv[argc_l - 1],"*[]?")!= NULL){
-		rc = glob(prog->argv[argc_l - 1], flags, NULL, &prog->glob_result);
-		if (rc == GLOB_NOSPACE) {
-			error_msg("out of space during glob operation\n");
-			return;
-		} else if (rc == GLOB_NOMATCH ||
-			   (!rc && (prog->glob_result.gl_pathc - i) == 1 &&
-				strcmp(prog->argv[argc_l - 1],
-						prog->glob_result.gl_pathv[i]) == 0)) {
-			/* we need to remove whatever \ quoting is still present */
-			src = dst = prog->argv[argc_l - 1];
-			while (*src) {
-				if (*src == '\\') {
-					src++; 
-					*dst++ = process_escape_sequence(&src);
-				} else { 
-					*dst++ = *src;
-					src++;
-				}
-			}
-			*dst = '\0';
-		} else if (!rc) {
-			argv_alloced += (prog->glob_result.gl_pathc - i);
-			prog->argv = xrealloc(prog->argv, argv_alloced * sizeof(*prog->argv));
-			memcpy(prog->argv + (argc_l - 1), prog->glob_result.gl_pathv + i,
-				   sizeof(*(prog->argv)) * (prog->glob_result.gl_pathc - i));
-			argc_l += (prog->glob_result.gl_pathc - i - 1);
-		}
-	}else{
-	 		src = dst = prog->argv[argc_l - 1];
-			while (*src) {
-				if (*src == '\\') {
-					src++; 
-					*dst++ = process_escape_sequence(&src);
-				} else { 
-					*dst++ = *src;
-					src++;
-				}
-			}
-			*dst = '\0';
-			
-			prog->glob_result.gl_pathc=0;
-			if (flags==0)
-				prog->glob_result.gl_pathv=NULL;
+#ifdef BB_FEATURE_SH_ENVIRONMENT
+
+
+#if BB_FEATURE_SH_WORDEXP
+	/* This first part uses wordexp() which is a wonderful C lib 
+	 * function which expands nearly everything.  */ 
+	retval = wordexp (command, &expand_result, WRDE_SHOWERR);
+	if (retval == WRDE_NOSPACE) {
+		/* Mem may have been allocated... */
+		wordfree (&expand_result);
+		error_msg(out_of_space);
+		return FALSE;
 	}
-	*argv_alloced_ptr = argv_alloced;
-	*argcPtr = argc_l;
+	if (retval < 0) {
+		/* Some other error.  */
+		error_msg("syntax error");
+		return FALSE;
+	}
+	
+	if (expand_result.we_wordc > 0) {
+		/* Convert from char** (one word per string) to a simple char*,
+		 * but don't overflow command which is BUFSIZ in length */
+		*command = '\0';
+		while (i < expand_result.we_wordc && total_length < BUFSIZ) {
+			length=strlen(expand_result.we_wordv[i])+1;
+			if (BUFSIZ-total_length-length <= 0) {
+				error_msg(out_of_space);
+				return FALSE;
+			}
+			strcat(command+total_length, expand_result.we_wordv[i++]);
+			strcat(command+total_length, " ");
+			total_length+=length;
+		}
+		wordfree (&expand_result);
+	}
+#else
+
+	/* Ok.  They don't have a recent glibc and they don't have uClibc.  Chances
+	 * are about 100% they don't have wordexp(). So instead the best we can do
+	 * is use glob and then fixup environment variables and such ourselves.
+	 * This is better then nothing, but certainly not perfect */
+
+	/* It turns out that glob is very stupid.  We have to feed it one word at a
+	 * time since it can't cope with a full string.  Here we convert command
+	 * (char*) into cmd (char**, one word per string) */
+	{
+        
+		int flags = GLOB_NOCHECK
+#ifdef GLOB_BRACE
+				| GLOB_BRACE
+#endif	
+#ifdef GLOB_TILDE
+				| GLOB_TILDE
+#endif	
+			;
+		char *tmpcmd, *cmd, *cmd_copy;
+		/* We need a clean copy, so strsep can mess up the copy while
+		 * we write stuff into the original (in a minute) */
+		cmd = cmd_copy = strdup(command);
+		*command = '\0';
+		for (index = 0, tmpcmd = cmd; 
+				(tmpcmd = strsep_space(cmd, &index)) != NULL; cmd += index, index=0) {
+			if (*tmpcmd == '\0')
+				break;
+			retval = glob(tmpcmd, flags, NULL, &expand_result);
+			free(tmpcmd); /* Free mem allocated by strsep_space */
+			if (retval == GLOB_NOSPACE) {
+				/* Mem may have been allocated... */
+				globfree (&expand_result);
+				error_msg(out_of_space);
+				return FALSE;
+			} else if (retval != 0) {
+				/* Some other error.  GLOB_NOMATCH shouldn't
+				 * happen because of the GLOB_NOCHECK flag in 
+				 * the glob call. */
+				error_msg("syntax error");
+				return FALSE;
+			} else {
+			/* Convert from char** (one word per string) to a simple char*,
+			 * but don't overflow command which is BUFSIZ in length */
+				for (i=0; i < expand_result.gl_pathc; i++) {
+					length=strlen(expand_result.gl_pathv[i]);
+					if (total_length+length+1 >= BUFSIZ) {
+						error_msg(out_of_space);
+						return FALSE;
+					}
+					if (i>0) {
+						strcat(command+total_length, " ");
+						total_length+=1;
+					}
+					strcat(command+total_length, expand_result.gl_pathv[i]);
+					total_length+=length;
+				}
+				globfree (&expand_result);
+			}
+		}
+		free(cmd_copy);
+		trim(command);
+	}
+	
+#endif	
+
+	/* Now do the shell variable substitutions which 
+	 * wordexp can't do for us, namely $? and $! */
+	src = command;
+	while((dst = strchr(src,'$')) != NULL){
+		var = NULL;
+		switch(*(dst+1)) {
+			case '?':
+				var = itoa(last_return_code);
+				break;
+			case '!':
+				if (last_bg_pid==-1)
+					*(var)='\0';
+				else
+					var = itoa(last_bg_pid);
+				break;
+				/* Everything else like $$, $#, $[0-9], etc should all be
+				 * expanded by wordexp(), so we can in theory skip that stuff
+				 * here, but just to be on the safe side (i.e. since uClibc
+				 * wordexp doesn't do this stuff yet), lets leave it in for
+				 * now. */
+			case '$':
+				var = itoa(getpid());
+				break;
+			case '#':
+				var = itoa(argc-1);
+				break;
+			case '0':case '1':case '2':case '3':case '4':
+			case '5':case '6':case '7':case '8':case '9':
+				{
+					int index=*(dst + 1)-48;
+					if (index >= argc) {
+						var='\0';
+					} else {
+						var = argv[index];
+					}
+				}
+				break;
+
+		}
+		if (var) {
+			/* a single character construction was found, and 
+			 * already handled in the case statement */
+			src=dst+2;
+		} else {
+			/* Looks like an environment variable */
+			char delim_hold;
+			int num_skip_chars=1;
+			int dstlen = strlen(dst);
+			/* Is this a ${foo} type variable? */
+			if (dstlen >=2 && *(dst+1) == '{') {
+				src=strchr(dst+1, '}');
+				num_skip_chars=2;
+			} else {
+				src=strpbrk(dst+1, " \t~`!$^&*()=|\\[];\"'<>?./");
+			}
+			if (src == NULL) {
+				src = dst+dstlen;
+			}
+			delim_hold=*src;
+			*src='\0';  /* temporary */
+			var = getenv(dst + num_skip_chars);
+			*src=delim_hold;
+			if (num_skip_chars==2) {
+				src++;
+			}
+		}
+		if (var == NULL) {
+			/* Seems we got an un-expandable variable.  So delete it. */
+			var = "";
+		}
+		{
+			int subst_len = strlen(var);
+			int trail_len = strlen(src);
+			if (dst+subst_len+trail_len >= command+BUFSIZ) {
+				error_msg(out_of_space);
+				return FALSE;
+			}
+			/* Move stuff to the end of the string to accommodate
+			 * filling the created gap with the new stuff */
+			memmove(dst+subst_len, src, trail_len);
+			*(dst+subst_len+trail_len)='\0';
+			/* Now copy in the new stuff */
+			memcpy(dst, var, subst_len);
+			src = dst+subst_len;
+		}
+	}
+
+#endif	
+	return TRUE;
 }
 
 /* Return cmd->num_progs as 0 if no command is present (e.g. an empty
@@ -1031,7 +1206,6 @@ static int parse_command(char **command_ptr, struct job *job, int *inbg)
 	prog = job->progs;
 	prog->num_redirects = 0;
 	prog->redirects = NULL;
-	prog->free_glob = 0;
 	prog->is_stopped = 0;
 	prog->family = job;
 
@@ -1048,7 +1222,7 @@ static int parse_command(char **command_ptr, struct job *job, int *inbg)
 			if (*src == '\\') {
 				src++;
 				if (!*src) {
-					error_msg("character expected after \\\n");
+					error_msg("character expected after \\");
 					free_job(job);
 					return 1;
 				}
@@ -1071,7 +1245,6 @@ static int parse_command(char **command_ptr, struct job *job, int *inbg)
 										  sizeof(*prog->argv) *
 										  argv_alloced);
 				}
-				expand_argument(prog, &argc_l, &argv_alloced);
 				prog->argv[argc_l] = buf;
 			}
 		} else
@@ -1104,7 +1277,6 @@ static int parse_command(char **command_ptr, struct job *job, int *inbg)
 
 					if (*chptr && *prog->argv[argc_l]) {
 						buf++, argc_l++;
-						expand_argument(prog, &argc_l, &argv_alloced);
 						prog->argv[argc_l] = buf;
 					}
 				}
@@ -1132,7 +1304,7 @@ static int parse_command(char **command_ptr, struct job *job, int *inbg)
 					chptr++;
 
 				if (!*chptr) {
-					error_msg("file name expected after %c\n", *src);
+					error_msg("file name expected after %c", *(src-1));
 					free_job(job);
 					job->num_progs=0;
 					return 1;
@@ -1151,7 +1323,7 @@ static int parse_command(char **command_ptr, struct job *job, int *inbg)
 				if (*prog->argv[argc_l])
 					argc_l++;
 				if (!argc_l) {
-					error_msg("empty command in pipe\n");
+					error_msg("empty command in pipe");
 					free_job(job);
 					job->num_progs=0;
 					return 1;
@@ -1165,7 +1337,6 @@ static int parse_command(char **command_ptr, struct job *job, int *inbg)
 				prog = job->progs + (job->num_progs - 1);
 				prog->num_redirects = 0;
 				prog->redirects = NULL;
-				prog->free_glob = 0;
 				prog->is_stopped = 0;
 				prog->family = job;
 				argc_l = 0;
@@ -1179,7 +1350,7 @@ static int parse_command(char **command_ptr, struct job *job, int *inbg)
 					src++;
 
 				if (!*src) {
-					error_msg("empty command in pipe\n");
+					error_msg("empty command in pipe");
 					free_job(job);
 					job->num_progs=0;
 					return 1;
@@ -1287,7 +1458,7 @@ static int parse_command(char **command_ptr, struct job *job, int *inbg)
 					printf("erik: found a continue char at EOL...\n");
 					command = (char *) xcalloc(BUFSIZ, sizeof(char));
 					if (get_command(input, command)) {
-						error_msg("character expected after \\\n");
+						error_msg("character expected after \\");
 						free(command);
 						free_job(job);
 						return 1;
@@ -1303,7 +1474,7 @@ static int parse_command(char **command_ptr, struct job *job, int *inbg)
 					free(command);
 					break;
 #else
-					error_msg("character expected after \\\n");
+					error_msg("character expected after \\");
 					free(command);
 					free_job(job);
 					return 1;
@@ -1321,7 +1492,6 @@ static int parse_command(char **command_ptr, struct job *job, int *inbg)
 
 	if (*prog->argv[argc_l]) {
 		argc_l++;
-		expand_argument(prog, &argc_l, &argv_alloced);
 	}
 	if (!argc_l) {
 		free_job(job);
@@ -1351,7 +1521,7 @@ static int pseudo_exec(struct child_prog *child)
 {
 	struct built_in_command *x;
 #ifdef BB_FEATURE_SH_STANDALONE_SHELL
-	struct BB_applet search_applet, *applet;
+	char *name;
 #endif
 
 	/* Check if the command matches any of the non-forking builtins.
@@ -1384,7 +1554,7 @@ static int pseudo_exec(struct child_prog *child)
 	 * /bin/foo invocation will fork and exec /bin/foo, even if
 	 * /bin/foo is a symlink to busybox.
 	 */
-	search_applet.name = child->argv[0];
+	name = child->argv[0];
 
 #ifdef BB_FEATURE_SH_APPLETS_ALWAYS_WIN
 	/* If you enable BB_FEATURE_SH_APPLETS_ALWAYS_WIN, then
@@ -1392,19 +1562,15 @@ static int pseudo_exec(struct child_prog *child)
 	 * /bin/cat exists on the filesystem and is _not_ busybox.
 	 * Some systems want this, others do not.  Choose wisely.  :-)
 	 */
-	search_applet.name = get_last_path_component(search_applet.name);
+	name = get_last_path_component(name);
 #endif
 
-	/* Do a binary search to find the applet entry given the name. */
-	applet = bsearch(&search_applet, applets, NUM_APPLETS,
-			sizeof(struct BB_applet), applet_name_compare);
-	if (applet != NULL) {
-		int argc_l;
-		char** argv=child->argv;
-		for(argc_l=0;*argv!=NULL; argv++, argc_l++);
-		applet_name=applet->name;
-		optind = 1;
-		exit((*(applet->main)) (argc_l, child->argv));
+	{
+	    char** argv=child->argv;
+	    int argc_l;
+	    for(argc_l=0;*argv!=NULL; argv++, argc_l++);
+	    optind = 1;
+	    run_applet_by_name(name, argc_l, child->argv);
 	}
 #endif
 
@@ -1593,10 +1759,18 @@ static int busy_loop(FILE * input)
 				next_command = command;
 			}
 
+			if (expand_arguments(next_command) == FALSE) {
+				free(command);
+				command = (char *) xcalloc(BUFSIZ, sizeof(char));
+				next_command = NULL;
+				continue;
+			}
+
 			if (!parse_command(&next_command, &newjob, &inbg) &&
 				newjob.num_progs) {
 				int pipefds[2] = {-1,-1};
-				debug_printf( "job=%p being fed to run_command by busy_loop()'\n", &newjob);
+				debug_printf( "job=%p fed to run_command by busy_loop()'\n", 
+						&newjob);
 				run_command(&newjob, inbg, pipefds);
 			}
 			else {
@@ -1620,9 +1794,9 @@ static int busy_loop(FILE * input)
 
 #ifdef BB_FEATURE_SH_ENVIRONMENT
 				last_return_code=WEXITSTATUS(status);
-#endif
 				debug_printf("'%s' exited -- return code %d\n",
 						job_list.fg->text, last_return_code);
+#endif
 				if (!job_list.fg->running_progs) {
 					/* child exited */
 					remove_job(&job_list, job_list.fg);
@@ -1684,18 +1858,17 @@ int shell_main(int argc_l, char **argv_l)
 	argc = argc_l;
 	argv = argv_l;
 
+	/* These variables need re-initializing when recursing */
 	shell_context = 0;
 	cwd=NULL;
-#ifdef BB_FEATURE_SH_STANDALONE_SHELL
-	/* These variables need re-initializing when recursing */
 	local_pending_command = NULL;
+	close_me_head = NULL;
 	job_list.head = NULL;
 	job_list.fg = NULL;
 #ifdef BB_FEATURE_SH_ENVIRONMENT
-	last_bg_pid=-1;
-	last_return_code=-1;
+	last_bg_pid=1;
+	last_return_code=1;
 	show_x_trace=FALSE;
-#endif
 #endif
 
 	if (argv[0] && argv[0][0] == '-') {
@@ -1718,7 +1891,7 @@ int shell_main(int argc_l, char **argv_l)
 			case 'c':
 				input = NULL;
 				if (local_pending_command != 0)
-					error_msg_and_die("multiple -c arguments\n");
+					error_msg_and_die("multiple -c arguments");
 				local_pending_command = xstrdup(argv[optind]);
 				optind++;
 				argv = argv+optind;
@@ -1732,7 +1905,7 @@ int shell_main(int argc_l, char **argv_l)
 				interactive = TRUE;
 				break;
 			default:
-				usage(shell_usage);
+				show_usage();
 		}
 	}
 	/* A shell is interactive if the `-i' flag was given, or if all of
@@ -1765,5 +1938,13 @@ int shell_main(int argc_l, char **argv_l)
 	atexit(free_memory);
 #endif
 
+#ifdef BB_FEATURE_COMMAND_EDITING
+	cmdedit_set_initial_prompt();
+#else
+	PS1 = NULL;
+	PS2 = "> ";
+#endif
+	
 	return (busy_loop(input));
 }
+

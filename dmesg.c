@@ -15,7 +15,6 @@
  * Support, replaced getopt, added some gotos for redundant stuff.
  */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
@@ -33,6 +32,7 @@ static inline _syscall3(int, klogctl, int, type, char *, b, int, len);
 #else
 # include <sys/klog.h>
 #endif
+#include "busybox.h"
 
 int dmesg_main(int argc, char **argv)
 {
@@ -53,21 +53,21 @@ int dmesg_main(int argc, char **argv)
 		case 'n':
 			cmd = 8;
 			if (optarg == NULL)
-				usage(dmesg_usage);
+				show_usage();
 			level = atoi(optarg);
 			break;
 		case 's':
 			if (optarg == NULL)
-				usage(dmesg_usage);
+				show_usage();
 			bufsize = atoi(optarg);
 			break;
 		default:
-			usage(dmesg_usage);
+			show_usage();
 		}
 	}			
 
 	if (optind < argc) {
-		goto end;
+		show_usage();
 	}
 
 	if (cmd == 8) {
@@ -97,7 +97,4 @@ int dmesg_main(int argc, char **argv)
 	if (lastc != '\n')
 		putchar('\n');
 	return EXIT_SUCCESS;
-  end:
-	usage(dmesg_usage);
-	return EXIT_FAILURE;
 }

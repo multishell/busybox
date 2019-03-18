@@ -21,8 +21,10 @@
  *
  */
 
-#include "busybox.h"
+/* getopt not needed */
+
 #include <stdlib.h>
+#include "busybox.h"
 #include <string.h>
 
 extern int basename_main(int argc, char **argv)
@@ -31,7 +33,7 @@ extern int basename_main(int argc, char **argv)
 	char *s;
 
 	if ((argc < 2) || (**(argv + 1) == '-')) {
-		usage(basename_usage);
+		show_usage();
 	}
 
 	argv++;

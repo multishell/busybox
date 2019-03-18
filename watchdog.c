@@ -20,18 +20,20 @@
  *
  */
 
-#include "busybox.h"
+/* getopt not needed */
+
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include "busybox.h"
 
 extern int watchdog_main(int argc, char **argv)
 {
 	int fd;
 
 	if (argc != 2) {
-		usage(watchdog_usage);
+		show_usage();
 	}
 
 	if ((fd=open(argv[1], O_WRONLY)) == -1) {

@@ -21,7 +21,6 @@
  */
 
 
-#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -30,6 +29,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <unistd.h>
+#include "busybox.h"
 
 static const int KILL = 0;
 static const int KILLALL = 1;
@@ -39,7 +39,7 @@ struct signal_name {
 	int number;
 };
 
-const struct signal_name signames[] = {
+static const struct signal_name signames[] = {
 	/* POSIX signals */
 	{ "HUP",	SIGHUP },	/* 1 */
 	{ "INT",	SIGINT }, 	/* 2 */
@@ -124,22 +124,19 @@ const struct signal_name signames[] = {
 extern int kill_main(int argc, char **argv)
 {
 	int whichApp, sig = SIGTERM;
-	const char *appUsage;
 
 #ifdef BB_KILLALL
 	/* Figure out what we are trying to do here */
 	whichApp = (strcmp(applet_name, "killall") == 0)? KILLALL : KILL; 
-	appUsage = (whichApp == KILLALL)?  killall_usage : kill_usage;
 #else
 	whichApp = KILL;
-	appUsage = kill_usage;
 #endif
 
 	argc--;
 	argv++;
 	/* Parse any options */
 	if (argc < 1)
-		usage(appUsage);
+		show_usage();
 
 	while (argc > 0 && **argv == '-') {
 		while (*++(*argv)) {
@@ -163,7 +160,7 @@ extern int kill_main(int argc, char **argv)
 				}
 				break;
 			case '-':
-				usage(appUsage);
+				show_usage();
 			default:
 				{
 					if (isdigit(**argv)) {
@@ -223,7 +220,7 @@ extern int kill_main(int argc, char **argv)
 			pidList = find_pid_by_name( *argv);
 			if (!pidList) {
 				all_found = FALSE;
-				error_msg( "%s: no process killed\n", *argv);
+				error_msg( "%s: no process killed", *argv);
 			}
 
 			for(; pidList && *pidList!=0; pidList++) {
@@ -246,5 +243,5 @@ extern int kill_main(int argc, char **argv)
 
 
   end:
-	error_msg_and_die( "bad signal name: %s\n", *argv);
+	error_msg_and_die( "bad signal name: %s", *argv);
 }

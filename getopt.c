@@ -62,20 +62,19 @@ typedef enum {BASH,TCSH} shell_t;
 
 
 /* Some global variables that tells us how to parse. */
-shell_t shell=BASH; /* The shell we generate output for. */
-int quiet_errors=0; /* 0 is not quiet. */
-int quiet_output=0; /* 0 is not quiet. */
-int quote=1; /* 1 is do quote. */
-int alternative=0; /* 0 is getopt_long, 1 is getopt_long_only */
+static shell_t shell=BASH; /* The shell we generate output for. */
+static int quiet_errors=0; /* 0 is not quiet. */
+static int quiet_output=0; /* 0 is not quiet. */
+static int quote=1; /* 1 is do quote. */
+static int alternative=0; /* 0 is getopt_long, 1 is getopt_long_only */
 
 /* Function prototypes */
-const char *normalize(const char *arg);
-int generate_output(char * argv[],int argc,const char *optstr,
+static const char *normalize(const char *arg);
+static int generate_output(char * argv[],int argc,const char *optstr,
                     const struct option *longopts);
-void add_long_options(char *options);
-void add_longopt(const char *name,int has_arg);
-void set_shell(const char *new_shell);
-void set_initial_shell(void);
+static void add_long_options(char *options);
+static void add_longopt(const char *name,int has_arg);
+static void set_shell(const char *new_shell);
 
 
 /*
@@ -258,7 +257,7 @@ void add_long_options(char *options)
                                         arg_opt=required_argument;
                                 }
                                 if (strlen(tokptr) == 0)
-                                        error_msg("empty long option after -l or --long argument\n");
+                                        error_msg("empty long option after -l or --long argument");
                         }
                         add_longopt(tokptr,arg_opt);
                 }
@@ -277,7 +276,7 @@ void set_shell(const char *new_shell)
         else if (!strcmp(new_shell,"csh"))
                 shell=TCSH;
         else
-                error_msg("unknown shell after -s or --shell argument\n");
+                error_msg("unknown shell after -s or --shell argument");
 }
 
 
@@ -326,7 +325,7 @@ int getopt_main(int argc, char *argv[])
                         printf(" --\n");
                         exit(0);
                 } else
-                        error_msg_and_die("missing optstring argument\n");
+                        error_msg_and_die("missing optstring argument");
         }
 
         if (argv[1][0] != '-' || compatible) {
@@ -372,12 +371,12 @@ int getopt_main(int argc, char *argv[])
                         quote=0;
                         break;
                 default:
-                        usage(getopt_usage);
+                        show_usage();
                 }
 
         if (!optstr) {
                 if (optind >= argc)
-                        error_msg_and_die("missing optstring argument\n");
+                        error_msg_and_die("missing optstring argument");
                 else {
                         optstr=xmalloc(strlen(argv[optind])+1);
                         strcpy(optstr,argv[optind]);

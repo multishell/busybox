@@ -154,6 +154,9 @@ static int get_address(struct sed_cmd *sed_cmd, const char *str, int *line, rege
 {
 	char *my_str = strdup(str);
 	int idx = 0;
+	char olddelimiter;
+	olddelimiter = sed_cmd->delimiter;
+	sed_cmd->delimiter = '/';
 
 	if (isdigit(my_str[idx])) {
 		do {
@@ -169,7 +172,7 @@ static int get_address(struct sed_cmd *sed_cmd, const char *str, int *line, rege
 	else if (my_str[idx] == '/') {
 		idx = index_of_next_unescaped_regexp_delim(sed_cmd, my_str, ++idx);
 		if (idx == -1)
-			error_msg_and_die("unterminated match expression\n");
+			error_msg_and_die("unterminated match expression");
 		my_str[idx] = '\0';
 		*regex = (regex_t *)xmalloc(sizeof(regex_t));
 		xregcomp(*regex, my_str+1, 0);
@@ -177,11 +180,12 @@ static int get_address(struct sed_cmd *sed_cmd, const char *str, int *line, rege
 	}
 	else {
 		error_msg("get_address: no address found in string\n"
-				"\t(you probably didn't check the string you passed me)\n");
+				"\t(you probably didn't check the string you passed me)");
 		idx = -1;
 	}
 
 	free(my_str);
+	sed_cmd->delimiter = olddelimiter;
 	return idx;
 }
 
@@ -213,7 +217,7 @@ static int parse_subst_cmd(struct sed_cmd *sed_cmd, const char *substr)
 	/* verify that the 's' is followed by something.  That something
 	 * (typically a 'slash') is now our regexp delimiter... */
 	if (!substr[++idx])
-		error_msg_and_die("bad format in substitution expression\n");
+		error_msg_and_die("bad format in substitution expression");
 	else
 	    sed_cmd->delimiter=substr[idx];
 
@@ -221,7 +225,7 @@ static int parse_subst_cmd(struct sed_cmd *sed_cmd, const char *substr)
 	oldidx = idx+1;
 	idx = index_of_next_unescaped_regexp_delim(sed_cmd, substr, ++idx);
 	if (idx == -1)
-		error_msg_and_die("bad format in substitution expression\n");
+		error_msg_and_die("bad format in substitution expression");
 	match = strdup_substr(substr, oldidx, idx);
 
 	/* determine the number of back references in the match string */
@@ -240,7 +244,7 @@ static int parse_subst_cmd(struct sed_cmd *sed_cmd, const char *substr)
 	oldidx = idx+1;
 	idx = index_of_next_unescaped_regexp_delim(sed_cmd, substr, ++idx);
 	if (idx == -1)
-		error_msg_and_die("bad format in substitution expression\n");
+		error_msg_and_die("bad format in substitution expression");
 	sed_cmd->replace = strdup_substr(substr, oldidx, idx);
 
 	/* process the flags */
@@ -260,7 +264,7 @@ static int parse_subst_cmd(struct sed_cmd *sed_cmd, const char *substr)
 				if (strchr("; \t\v\n\r", substr[idx]))
 					goto out;
 				/* else */
-				error_msg_and_die("bad option in substitution expression\n");
+				error_msg_and_die("bad option in substitution expression");
 		}
 	}
 
@@ -302,7 +306,7 @@ static int parse_edit_cmd(struct sed_cmd *sed_cmd, const char *editstr)
 	 */
 
 	if (editstr[1] != '\\' && (editstr[2] != '\n' || editstr[2] != '\r'))
-		error_msg_and_die("bad format in edit expression\n");
+		error_msg_and_die("bad format in edit expression");
 
 	/* store the edit line text */
 	/* make editline big enough to accomodate the extra '\n' we will tack on
@@ -366,9 +370,9 @@ static char *parse_cmd_str(struct sed_cmd *sed_cmd, const char *cmdstr)
 
 	/* last part (mandatory) will be a command */
 	if (cmdstr[idx] == '\0')
-		error_msg_and_die("missing command\n");
+		error_msg_and_die("missing command");
 	if (!strchr("pdsaic", cmdstr[idx])) /* <-- XXX add new commands here */
-		error_msg_and_die("invalid command\n");
+		error_msg_and_die("invalid command");
 	sed_cmd->cmd = cmdstr[idx];
 
 	/* special-case handling for (s)ubstitution */
@@ -378,7 +382,7 @@ static char *parse_cmd_str(struct sed_cmd *sed_cmd, const char *cmdstr)
 	/* special-case handling for (a)ppend, (i)nsert, and (c)hange */
 	else if (strchr("aic", cmdstr[idx])) {
 		if (sed_cmd->end_line || sed_cmd->end_match)
-			error_msg_and_die("only a beginning address can be specified for edit commands\n");
+			error_msg_and_die("only a beginning address can be specified for edit commands");
 		idx += parse_edit_cmd(sed_cmd, &cmdstr[idx]);
 	}
 	/* if it was a single-letter command (such as 'p' or 'd') we need to
@@ -436,8 +440,7 @@ static void load_cmd_file(char *filename)
 		}
 		/* eat trailing newline (if any) --if I don't do this, edit commands
 		 * (aic) will print an extra newline */
-		if (line[strlen(line)-1] == '\n')
-			line[strlen(line)-1] = 0;
+		chomp(line);
 		add_cmd_str(line);
 		free(line);
 	}
@@ -671,11 +674,8 @@ extern int sed_main(int argc, char **argv)
 #endif
 
 	/* do normal option parsing */
-	while ((opt = getopt(argc, argv, "hne:f:")) > 0) {
+	while ((opt = getopt(argc, argv, "ne:f:")) > 0) {
 		switch (opt) {
-			case 'h':
-				usage(sed_usage);
-				break;
 			case 'n':
 				be_quiet++;
 				break;
@@ -685,6 +685,8 @@ extern int sed_main(int argc, char **argv)
 			case 'f': 
 				load_cmd_file(optarg);
 				break;
+			default:
+				show_usage();
 		}
 	}
 
@@ -692,7 +694,7 @@ extern int sed_main(int argc, char **argv)
 	 * argv[optind] should be the pattern. no pattern, no worky */
 	if (ncmds == 0) {
 		if (argv[optind] == NULL)
-			usage(sed_usage);
+			show_usage();
 		else {
 			add_cmd_str(argv[optind]);
 			optind++;

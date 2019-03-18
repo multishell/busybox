@@ -1,10 +1,10 @@
 /* vi: set sw=4 ts=4: */
-#include "busybox.h"
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
 #include <stdlib.h>
+#include "busybox.h"
 
 #undef APPLET
 #undef APPLET_NOUSAGE
@@ -87,8 +87,7 @@ static void install_links(const char *busybox, int use_symbolic_links)
 
 int main(int argc, char **argv)
 {
-	struct BB_applet search_applet, *applet;
-	const char				*s;
+	const char *s;
 
 	for (s = applet_name = argv[0]; *s != '\0';) {
 		if (*s++ == '/')
@@ -103,17 +102,8 @@ int main(int argc, char **argv)
 	}
 #endif
 
-	/* Do a binary search to find the applet entry given the name. */
-	search_applet.name = applet_name;
-	applet = bsearch(&search_applet, applets, NUM_APPLETS,
-			sizeof(struct BB_applet), applet_name_compare);
-	if (applet != NULL) {
-		if (applet->usage && argv[1] && strcmp(argv[1], "--help") == 0)
-			usage(applet->usage); 
-		exit((*(applet->main)) (argc, argv));
-	}
-
-	error_msg_and_die("applet not found\n");
+	run_applet_by_name(applet_name, argc, argv);
+	error_msg_and_die("applet not found");
 }
 
 
@@ -176,7 +166,7 @@ int busybox_main(int argc, char **argv)
 			}
 		}
 		fprintf(stderr, "\n\n");
-		exit(-1);
+		exit(0);
 	}
 
 	/* Flag that we've been here already */

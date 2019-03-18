@@ -35,6 +35,15 @@
 #include "dmalloc.h"
 #endif
 
+#include <features.h>
+/* Stupid libc doesn't have a reliable way for use to know 
+ * that libc5 is being used.   Assume this is good enough */ 
+#if ! defined __GLIBC__ && ! defined __UCLIBC__
+/* libc5 doesn't define socklen_t */
+typedef unsigned int socklen_t;
+#endif	
+
+
 /* Some useful definitions */
 #define FALSE   ((int) 0)
 #define TRUE    ((int) 1)
@@ -72,7 +81,6 @@ struct BB_applet {
 	const	char*	name;
 	int	(*main)(int argc, char** argv);
 	enum	Location	location;
-	const	char*	usage;
 };
 /* From busybox.c */
 extern const struct BB_applet applets[];
@@ -88,13 +96,12 @@ extern const struct BB_applet applets[];
 #undef PROTOTYPES
 
 extern const char *applet_name;
-extern int applet_name_compare(const void *x, const void *y);
 
-extern void usage(const char *usage) __attribute__ ((noreturn));
-extern void error_msg(const char *s, ...) __attribute__ ((format (printf, 1, 2)));
-extern void error_msg_and_die(const char *s, ...) __attribute__ ((noreturn, format (printf, 1, 2)));
-extern void perror_msg(const char *s, ...) __attribute__ ((format (printf, 1, 2)));
-extern void perror_msg_and_die(const char *s, ...) __attribute__ ((noreturn, format (printf, 1, 2)));
+extern void show_usage(void) __attribute__ ((noreturn));
+extern void error_msg(const char *s, ...);
+extern void error_msg_and_die(const char *s, ...) __attribute__ ((noreturn));
+extern void perror_msg(const char *s, ...);
+extern void perror_msg_and_die(const char *s, ...) __attribute__ ((noreturn));
 
 const char *mode_string(int mode);
 const char *time_string(time_t timeVal);
@@ -152,6 +159,10 @@ extern char process_escape_sequence(char **ptr);
 extern char *get_last_path_component(char *path);
 extern FILE *wfopen(const char *path, const char *mode);
 extern FILE *xfopen(const char *path, const char *mode);
+extern void chomp(char *s);
+extern void trim(char *s);
+extern struct BB_applet *find_applet_by_name(const char *name);
+void run_applet_by_name(const char *name, int argc, char **argv);
 
 #ifndef DMALLOC
 extern void *xmalloc (size_t size);
@@ -160,23 +171,25 @@ extern void *xcalloc(size_t nmemb, size_t size);
 extern char *xstrdup (const char *s);
 #endif
 extern char *xstrndup (const char *s, int n);
+extern char * safe_strncpy(char *dst, const char *src, size_t size);
 
 struct suffix_mult {
 	char *suffix;
 	int mult;
 };
 
-extern unsigned long parse_number(const char *numstr, struct suffix_mult *suffixes);
+extern unsigned long parse_number(const char *numstr,
+		const struct suffix_mult *suffixes);
 
 
 /* These parse entries in /etc/passwd and /etc/group.  This is desirable
  * for BusyBox since we want to avoid using the glibc NSS stuff, which
  * increases target size and is often not needed embedded systems.  */
-extern long my_getpwnam(char *name);
-extern long my_getgrnam(char *name);
+extern long my_getpwnam(const char *name);
+extern long my_getgrnam(const char *name);
 extern void my_getpwuid(char *name, long uid);
 extern void my_getgrgid(char *group, long gid);
-extern long my_getpwnamegid(char *name);
+extern long my_getpwnamegid(const char *name);
 
 extern int device_open(char *device, int mode);
 
@@ -199,6 +212,11 @@ int nfsmount(const char *spec, const char *node, int *flags,
 #ifndef RB_POWER_OFF
 /* Stop system and switch power off if possible.  */
 #define RB_POWER_OFF   0x4321fedc
+#endif
+
+#if defined(BB_KLOGD) || defined(BB_LOGGER)
+void syslog_msg_with_name(const char *name, int facility, int pri, const char *msg);
+void syslog_msg(int facility, int pri, const char *msg);
 #endif
 
 /* Include our own copy of struct sysinfo to avoid binary compatability
@@ -230,11 +248,13 @@ extern int sysinfo (struct sysinfo* info);
 #endif
 
 #ifdef BB_FEATURE_HUMAN_READABLE
-char *format(unsigned long val, unsigned long hr);
-#define KILOBYTE 1024
-#define MEGABYTE (KILOBYTE*1024)
-#define GIGABYTE (MEGABYTE*1024)
+const char *make_human_readable_str(unsigned long val, unsigned long hr);
 #endif
+enum {
+	KILOBYTE = 1024,
+	MEGABYTE = (KILOBYTE*1024),
+	GIGABYTE = (MEGABYTE*1024)
+};
 
 #ifdef BB_FEATURE_BUFFERS_GO_ON_STACK
 #define RESERVE_BB_BUFFER(buffer,len)           char buffer[len]
@@ -242,6 +262,10 @@ char *format(unsigned long val, unsigned long hr);
 #else
 #define RESERVE_BB_BUFFER(buffer,len)           char *buffer=xmalloc(len)
 #define RESERVE_BB_UBUFFER(buffer,len) unsigned char *buffer=xmalloc(len)
+#endif
+
+#if defined(BB_FEATURE_RM_INTERACTIVE) && defined(BB_RM)
+int ask_confirmation(void);
 #endif
 
 #endif /* _BB_INTERNAL_H_ */

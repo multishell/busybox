@@ -30,7 +30,6 @@
  *
  */
 
-#include "busybox.h"
 #include <termios.h>
 #include <unistd.h>
 #include <errno.h>
@@ -43,6 +42,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include "busybox.h"
 
 #if 0
 static const int DOTRACE = 1;
@@ -325,7 +325,7 @@ static void putiac1(byte c)
 
 /* ******************************* */
 
-char const escapecharis[] = "\r\nEscape character is ";
+static char const escapecharis[] = "\r\nEscape character is ";
 
 static void setConMode()
 {
@@ -498,7 +498,7 @@ extern int telnet_main(int argc, char** argv)
 
 	cfmakeraw(&G.termios_raw);
 	
-	if (argc < 2)	usage(telnet_usage);
+	if (argc < 2)	show_usage();
 	port = (argc > 2)? getport(argv[2]): 23;
 	
 	G.buf = xmalloc(DATABUFSIZE);
@@ -584,7 +584,7 @@ static int getport(char * p)
 
 	if ((unsigned)(port - 1 ) > 65534)
 	{
-		error_msg_and_die("%s: bad port number\n", p);
+		error_msg_and_die("%s: bad port number", p);
 	}
 	return port;
 }
@@ -596,7 +596,7 @@ static struct in_addr getserver(char * host)
 	struct hostent * he;
 	if ((he = gethostbyname(host)) == NULL)
 	{
-		error_msg_and_die("%s: Unknown host\n", host);
+		error_msg_and_die("%s: Unknown host", host);
 	}
 	memcpy(&addr, he->h_addr, sizeof addr);
 

@@ -20,22 +20,22 @@
  *
  */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "busybox.h"
 
 extern int logname_main(int argc, char **argv)
 {
 	char user[9];
 
 	if (argc > 1)
-		usage(logname_usage);
+		show_usage();
 
 	my_getpwuid(user, geteuid());
 	if (*user) {
 		puts(user);
 		return EXIT_SUCCESS;
 	}
-	error_msg_and_die("no login name\n");
+	error_msg_and_die("no login name");
 }

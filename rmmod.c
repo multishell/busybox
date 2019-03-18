@@ -21,13 +21,14 @@
  *
  */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <getopt.h>
 #include <sys/syscall.h>
 #include <linux/unistd.h>
+#include "busybox.h"
 #define __LIBRARY__
 
 
@@ -37,32 +38,30 @@ _syscall1(int, delete_module, const char *, name)
 
 extern int rmmod_main(int argc, char **argv)
 {
-	int ret = EXIT_SUCCESS;
-	if (argc <= 1) {
-		usage(rmmod_usage);
-	}
+	int n, ret = EXIT_SUCCESS;
 
-	/* Parse any options */
-	while (--argc > 0 && **(++argv) == '-') {
-		while (*(++(*argv))) {
-			switch (**argv) {
+	/* Parse command line. */
+	while ((n = getopt(argc, argv, "a")) != EOF) {
+		switch (n) {
 			case 'a':
 				/* Unload _all_ unused modules via NULL delete_module() call */
 				if (delete_module(NULL))
 					perror_msg_and_die("rmmod");
 				return EXIT_SUCCESS;
 			default:
-				usage(rmmod_usage);
-			}
+				show_usage();
 		}
 	}
 
-	while (argc-- > 0) {
-		if (delete_module(*argv) < 0) {
-			perror_msg("%s", *argv);
+	if (optind == argc)
+			show_usage();
+
+	for (n = optind; n < argc; n++) {
+		if (delete_module(argv[n]) < 0) {
+			perror_msg("%s", argv[n]);
 			ret = EXIT_FAILURE;
 		}
-		argv++;
 	}
+
 	return(ret);
 }

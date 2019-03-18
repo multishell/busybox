@@ -1,6 +1,6 @@
 /* vi: set sw=4 ts=4: */
 /*
- * $Id: ping.c,v 1.35 2001/01/27 08:24:37 andersen Exp $
+ * $Id: ping.c,v 1.39 2001/03/14 01:23:07 andersen Exp $
  * Mini ping implementation for busybox
  *
  * Copyright (C) 1999 by Randolph Chung <tausq@debian.org>
@@ -31,7 +31,6 @@
  * Original copyright notice is retained at the end of this file.
  */
 
-#include "busybox.h"
 #include <sys/param.h>
 #include <sys/socket.h>
 #include <sys/file.h>
@@ -50,13 +49,12 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
+#include "busybox.h"
 
 
 /* It turns out that libc5 doesn't have proper icmp support
  * built into it header files, so we have to supplement it */
 #if ! defined __GLIBC__ && ! defined __UCLIBC__
-typedef unsigned int socklen_t;
-
 static const int ICMP_MINLEN = 8;				/* abs minimum */
 
 struct icmp_ra_addr
@@ -203,7 +201,7 @@ static void ping(const char *host)
 
 	pingaddr.sin_family = AF_INET;
 	if (!(h = gethostbyname(host))) {
-		error_msg("unknown host %s\n", host);
+		error_msg("unknown host %s", host);
 		exit(1);
 	}
 	memcpy(&pingaddr.sin_addr, h->h_addr, sizeof(pingaddr.sin_addr));
@@ -251,7 +249,7 @@ extern int ping_main(int argc, char **argv)
 	argc--;
 	argv++;
 	if (argc < 1)
-		usage(ping_usage);
+		show_usage();
 	ping(*argv);
 	return EXIT_SUCCESS;
 }
@@ -324,7 +322,7 @@ static void sendping(int junk)
 	if (i < 0)
 		perror_msg_and_die("sendto");
 	else if ((size_t)i != sizeof(packet))
-		error_msg_and_die("ping wrote %d chars; %d expected\n", i,
+		error_msg_and_die("ping wrote %d chars; %d expected", i,
 			   (int)sizeof(packet));
 
 	signal(SIGALRM, sendping);
@@ -419,7 +417,7 @@ static void unpack(char *buf, int sz, struct sockaddr_in *from)
 		printf("\n");
 	} else 
 		if (icmppkt->icmp_type != ICMP_ECHO)
-			error_msg("Warning: Got ICMP %d (%s)\n",
+			error_msg("Warning: Got ICMP %d (%s)",
 					icmppkt->icmp_type, icmp_type_name (icmppkt->icmp_type));
 }
 
@@ -437,7 +435,7 @@ static void ping(const char *host)
 	if ((pingsock = socket(AF_INET, SOCK_RAW,
 						   (proto ? proto->p_proto : 1))) < 0) {	/* 1 == ICMP */
 		if (errno == EPERM)
-			error_msg_and_die("permission denied. (are you root?)\n");
+			error_msg_and_die("permission denied. (are you root?)");
 		else
 			perror_msg_and_die("creating a raw socket");
 	}
@@ -449,12 +447,12 @@ static void ping(const char *host)
 
 	pingaddr.sin_family = AF_INET;
 	if (!(h = gethostbyname(host))) {
-		error_msg("unknown host %s\n", host);
+		error_msg("unknown host %s", host);
 		exit(1);
 	}
 
 	if (h->h_addrtype != AF_INET) {
-		error_msg("unknown address type; only AF_INET is currently supported.\n");
+		error_msg("unknown address type; only AF_INET is currently supported.");
 		exit(1);
 	}
 
@@ -522,24 +520,24 @@ extern int ping_main(int argc, char **argv)
 			break;
 		case 'c':
 			if (--argc <= 0)
-			        usage(ping_usage);
+			        show_usage();
 			argv++;
 			pingcount = atoi(*argv);
 			break;
 		case 's':
 			if (--argc <= 0)
-			        usage(ping_usage);
+			        show_usage();
 			argv++;
 			datalen = atoi(*argv);
 			break;
 		default:
-			usage(ping_usage);
+			show_usage();
 		}
 		argc--;
 		argv++;
 	}
 	if (argc < 1)
-		usage(ping_usage);
+		show_usage();
 
 	myid = getpid() & 0xFFFF;
 	ping(*argv);

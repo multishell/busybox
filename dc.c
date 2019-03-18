@@ -1,10 +1,11 @@
 /* vi: set sw=4 ts=4: */
-#include "busybox.h"
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <math.h>
+#include "busybox.h"
 
 /* Tiny RPN calculator, because "expr" didn't give me bitwise operations. */
 
@@ -14,14 +15,14 @@ static unsigned int pointer;
 static void push(double a)
 {
 	if (pointer >= (sizeof(stack) / sizeof(*stack)))
-		error_msg_and_die("stack overflow\n");
+		error_msg_and_die("stack overflow");
 	stack[pointer++] = a;
 }
 
 static double pop()
 {
 	if (pointer == 0)
-		error_msg_and_die("stack underflow\n");
+		error_msg_and_die("stack underflow");
 	return stack[--pointer];
 }
 
@@ -120,7 +121,7 @@ static void stack_machine(const char *argument)
 		}
 		o++;
 	}
-	error_msg_and_die("%s: syntax error.\n", argument);
+	error_msg_and_die("%s: syntax error.", argument);
 }
 
 /* return pointer to next token in buffer and set *buffer to one char
@@ -169,7 +170,7 @@ int dc_main(int argc, char **argv)
 		}
 	} else {
 		if (*argv[1]=='-')
-			usage(dc_usage);
+			show_usage();
 		while (argc >= 2) {
 			stack_machine(argv[1]);
 			argv++;

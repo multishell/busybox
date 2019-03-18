@@ -6,6 +6,10 @@
  * Copyright (C) 1999,2000,2001 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
+ * INTERACTIVE feature Copyright (C) 2001 by Alcove
+ *   written by Christophe Boyanique <Christophe.Boyanique@fr.alcove.com>
+ *   for Ipanema Technologies
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -22,7 +26,6 @@
  *
  */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <time.h>
 #include <utime.h>
@@ -30,14 +33,25 @@
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include "busybox.h"
 
 static int recursiveFlag = FALSE;
 static int forceFlag = FALSE;
+#ifdef BB_FEATURE_RM_INTERACTIVE
+	static int interactiveFlag = FALSE;
+#endif
 static const char *srcName;
 
 
 static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
 {
+#ifdef BB_FEATURE_RM_INTERACTIVE
+	if (interactiveFlag == TRUE) {
+		printf("rm: remove `%s'? ", fileName);
+		if (ask_confirmation() == 0)
+			return (TRUE);
+	}
+#endif
 	if (unlink(fileName) < 0) {
 		perror_msg("%s", fileName);
 		return (FALSE);
@@ -52,6 +66,13 @@ static int dirAction(const char *fileName, struct stat *statbuf, void* junk)
 		perror_msg("%s", fileName);
 		return (FALSE);
 	} 
+#ifdef BB_FEATURE_RM_INTERACTIVE
+	if (interactiveFlag == TRUE) {
+		printf("rm: remove directory `%s'? ", fileName);
+		if (ask_confirmation() == 0)
+			return (TRUE);
+	}
+#endif
 	if (rmdir(fileName) < 0) {
 		perror_msg("%s", fileName);
 		return (FALSE);
@@ -79,12 +100,20 @@ extern int rm_main(int argc, char **argv)
 						break;
 					case 'f':
 						forceFlag = TRUE;
+#ifdef BB_FEATURE_RM_INTERACTIVE
+						interactiveFlag = FALSE;
+#endif
+						break;
+					case 'i':
+#ifdef BB_FEATURE_RM_INTERACTIVE
+						interactiveFlag = TRUE;
+#endif
 						break;
 					case '-':
 						stopIt = TRUE;
 						break;
 					default:
-						usage(rm_usage);
+						show_usage();
 				}
 			argc--;
 			argv++;
@@ -94,7 +123,7 @@ extern int rm_main(int argc, char **argv)
 	}
 
 	if (argc < 1 && forceFlag == FALSE) {
-		usage(rm_usage);
+		show_usage();
 	}
 
 	while (argc-- > 0) {

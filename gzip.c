@@ -29,11 +29,6 @@
  *
  */
 
-#include "busybox.h"
-#define BB_DECLARE_EXTERN
-#define bb_need_memory_exhausted
-#include "messages.c"
-
 /* These defines are very important for BusyBox.  Without these,
  * huge chunks of ram are pre-allocated making the BusyBox bss 
  * size Freaking Huge(tm), which is a bad thing.*/
@@ -43,9 +38,15 @@
 /* I don't like nested includes, but the string and io functions are used
  * too often
  */
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include "busybox.h"
+#define BB_DECLARE_EXTERN
+#define bb_need_memory_exhausted
+#include "messages.c"
+
 #define memzero(s, n)     memset ((void *)(s), 0, (n))
 
 #ifndef RETSIGTYPE
@@ -1382,7 +1383,7 @@ int length;
 			   (char *) window + start, length) != EQUAL) {
 		fprintf(stderr,
 				" start %d, match %d, length %d\n", start, match, length);
-		error_msg("invalid match\n");
+		error_msg("invalid match");
 	}
 	if (verbose > 1) {
 		fprintf(stderr, "\\[%d,%d]", start - match, length);
@@ -1628,12 +1629,6 @@ ulg deflate()
 #  include <unistd.h>
 #endif
 
-#if defined(STDC_HEADERS) || !defined(NO_STDLIB_H)
-#  include <stdlib.h>
-#else
-extern int errno;
-#endif
-
 #if defined(DIRENT)
 #  include <dirent.h>
 typedef struct dirent dir_type;
@@ -1812,7 +1807,7 @@ int gzip_main(int argc, char **argv)
 			case 'd':
 				exit(gunzip_main(argc, argv));
 			default:
-				usage(gzip_usage);
+				show_usage();
 			}
 		}
 	}
@@ -1822,9 +1817,9 @@ int gzip_main(int argc, char **argv)
 	}
 
 	if (isatty(fileno(stdin)) && fromstdin==1 && force==0)
-		error_msg_and_die( "data not read from terminal. Use -f to force it.\n");
+		error_msg_and_die( "data not read from terminal. Use -f to force it.");
 	if (isatty(fileno(stdout)) && tostdout==1 && force==0)
-		error_msg_and_die( "data not written to terminal. Use -f to force it.\n");
+		error_msg_and_die( "data not written to terminal. Use -f to force it.");
 
 	foreground = signal(SIGINT, SIG_IGN) != SIG_IGN;
 	if (foreground) {
@@ -1865,7 +1860,7 @@ int gzip_main(int argc, char **argv)
 	} else {
 		/* Open up the input file */
 		if (argc <= 0)
-			usage(gzip_usage);
+			show_usage();
 		strncpy(ifname, *argv, MAX_PATH_LEN);
 
 		/* Open input file */
@@ -2894,7 +2889,7 @@ int eof;						/* true if this is the last block for a file */
 #endif
 		/* Since LIT_BUFSIZE <= 2*WSIZE, the input data must be there: */
 		if (buf == (char *) 0)
-			error_msg("block vanished\n");
+			error_msg("block vanished");
 
 		copy_block(buf, (unsigned) stored_len, 0);	/* without header */
 		compressed_len = stored_len << 3;
@@ -3077,7 +3072,7 @@ local void set_file_type()
 		bin_freq += dyn_ltree[n++].Freq;
 	*file_type = bin_freq > (ascii_freq >> 2) ? BINARY : ASCII;
 	if (*file_type == BINARY && translate_eol) {
-		error_msg("-l used on binary file\n");
+		error_msg("-l used on binary file");
 	}
 }
 
@@ -3096,12 +3091,6 @@ local void set_file_type()
 #endif
 #ifndef NO_FCNTL_H
 #  include <fcntl.h>
-#endif
-
-#if defined(STDC_HEADERS) || !defined(NO_STDLIB_H)
-#  include <stdlib.h>
-#else
-extern int errno;
 #endif
 
 /* ===========================================================================
@@ -3239,7 +3228,7 @@ char *env;						/* name of environment variable */
 
 	/* Copy the program name first */
 	if (oargc-- < 0)
-		error_msg("argc<=0\n");
+		error_msg("argc<=0");
 	*(nargv++) = *(oargv++);
 
 	/* Then copy the environment args */

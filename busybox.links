@@ -27,6 +27,8 @@
 /sbin/init
 /bin/kill
 /usr/bin/killall
+/sbin/klogd
+/linuxrc
 /bin/ln
 /usr/bin/logger
 /bin/ls

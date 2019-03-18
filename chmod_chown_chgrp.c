@@ -22,16 +22,16 @@
  *
  */
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include "busybox.h"
 #define BB_DECLARE_EXTERN
 #define bb_need_invalid_option
 #define bb_need_too_few_args
 #include "messages.c"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
 
 
 static long uid = -1;
@@ -65,7 +65,7 @@ static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
 	case CHMOD_APP:
 		/* Parse the specified modes */
 		if (parse_mode(theMode, &(statbuf->st_mode)) == FALSE) {
-			error_msg_and_die( "unknown mode: %s\n", theMode);
+			error_msg_and_die( "unknown mode: %s", theMode);
 		}
 		if (chmod(fileName, statbuf->st_mode) == 0)
 			return (TRUE);
@@ -81,17 +81,13 @@ int chmod_chown_chgrp_main(int argc, char **argv)
 	int recursiveFlag = FALSE;
 	char *groupName=NULL;
 	char *p=NULL;
-	const char *appUsage;
 
-	whichApp = (strcmp(applet_name, "chown") == 0)? 
-			CHOWN_APP : (strcmp(applet_name, "chmod") == 0)? 
-				CHMOD_APP : CHGRP_APP;
-
-	appUsage = (whichApp == CHOWN_APP)? 
-			chown_usage : (whichApp == CHMOD_APP) ? chmod_usage : chgrp_usage;
+	whichApp = (applet_name[2]=='o')?           /* chown */
+		CHOWN_APP : (applet_name[2]=='m')?      /* chmod */
+		CHMOD_APP : CHGRP_APP;
 
 	if (argc < 2)
-		usage(appUsage);
+		show_usage();
 	argv++;
 
 	/* Parse options */
@@ -126,8 +122,6 @@ int chmod_chown_chgrp_main(int argc, char **argv)
 			gid = strtoul(groupName, &p, 10);	/* maybe it's already numeric */
 			if (groupName == p)
 				gid = my_getgrnam(groupName);
-			if (gid == -1)
-				goto bad_group;
 		} else {
 			groupName = strchr(*argv, '.');
 			if (groupName == NULL)
@@ -137,8 +131,6 @@ int chmod_chown_chgrp_main(int argc, char **argv)
 				gid = strtoul(groupName, &p, 10);
 				if (groupName == p)
 					gid = my_getgrnam(groupName);
-				if (gid == -1)
-					goto bad_group;
 			} else
 				gid = -1;
 		}
@@ -149,9 +141,6 @@ int chmod_chown_chgrp_main(int argc, char **argv)
 			uid = strtoul(*argv, &p, 10);	/* if numeric ... */
 			if (*argv == p)
 				uid = my_getpwnam(*argv);
-			if (uid == -1) {
-				error_msg_and_die( "unknown user name: %s\n", *argv);
-			}
 		}
 	}
 
@@ -166,8 +155,6 @@ int chmod_chown_chgrp_main(int argc, char **argv)
 	}
 	return EXIT_SUCCESS;
 
-  bad_group:
-	error_msg_and_die( "unknown group name: %s\n", groupName);
 }
 
 /*

@@ -20,16 +20,17 @@
  *
  */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <getopt.h>
+#include <string.h>
 #include <stdlib.h>
+#include "busybox.h"
 
 static int total_lines, total_words, total_chars, max_length;
 static int print_lines, print_words, print_chars, print_length;
 
-void print_counts(int lines, int words, int chars, int length,
-				  const char *name)
+static void print_counts(int lines, int words, int chars, int length,
+				  		 const char *name)
 {
 	char const *space = "";
 
@@ -126,7 +127,7 @@ int wc_main(int argc, char **argv)
 				print_words = 1;
 				break;
 			default:
-				usage(wc_usage);
+				show_usage();
 			}
 	}
 

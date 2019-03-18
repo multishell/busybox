@@ -24,12 +24,12 @@
  * Original copyright notice is retained at the end of this file.
  */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include "busybox.h"
 #define BB_DECLARE_EXTERN
 #define bb_need_write_error
 #include "messages.c"
@@ -170,7 +170,7 @@ extern int tr_main(int argc, char **argv)
 				sq_fl = TRUE;
 				break;
 			default:
-				usage(tr_usage);
+				show_usage();
 			}
 		}
 		index++;
@@ -186,7 +186,7 @@ extern int tr_main(int argc, char **argv)
 			input_length = complement(input, input_length);
 		if (argv[index] != NULL) {
 			if (*argv[index] == '\0')
-				error_msg_and_die("STRING2 cannot be empty\n");
+				error_msg_and_die("STRING2 cannot be empty");
 			output_length = expand(argv[index], output);
 			map(input, input_length, output, output_length);
 		}

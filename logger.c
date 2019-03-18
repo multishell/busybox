@@ -21,7 +21,6 @@
  *
  */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -30,6 +29,7 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "busybox.h"
 #if !defined BB_SYSLOGD
 
 #define SYSLOG_NAMES
@@ -40,6 +40,7 @@
  * structures.  Argh.... bad libc, bad, bad...
  */
 #include <sys/syslog.h>
+
 typedef struct _code {
 	char *c_name;
 	int c_val;
@@ -87,14 +88,14 @@ static int pencode(char *s)
 		*s = '\0';
 		fac = decode(save, facilitynames);
 		if (fac < 0)
-			error_msg_and_die("unknown facility name: %s\n", save);
+			error_msg_and_die("unknown facility name: %s", save);
 		*s++ = '.';
 	} else {
 		s = save;
 	}
 	lev = decode(s, prioritynames);
 	if (lev < 0)
-		error_msg_and_die("unknown priority name: %s\n", save);
+		error_msg_and_die("unknown priority name: %s", save);
 	return ((lev & LOG_PRIMASK) | (fac & LOG_FACMASK));
 }
 
@@ -122,7 +123,7 @@ extern int logger_main(int argc, char **argv)
 				strncpy(name, optarg, sizeof(name));
 				break;
 			default:
-				usage(logger_usage);
+				show_usage();
 		}
 	}
 
@@ -147,9 +148,10 @@ extern int logger_main(int argc, char **argv)
 		message[strlen(message)-1] = '\0';
 	}
 
-	openlog(name, option, (pri | LOG_FACMASK));
+	/*openlog(name, option, (pri | LOG_FACMASK));
 	syslog(pri, "%s", message);
-	closelog();
+	closelog();*/
+	syslog_msg_with_name(name,(pri | LOG_FACMASK),pri,message);
 	return EXIT_SUCCESS;
 }
 

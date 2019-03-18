@@ -20,11 +20,11 @@
  *
  */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include "busybox.h"
 
 extern int tty_main(int argc, char **argv)
 {
@@ -32,7 +32,7 @@ extern int tty_main(int argc, char **argv)
 
 	if (argc > 1) {
 		if (argv[1][0] != '-' || argv[1][1] != 's')
-			usage(tty_usage);
+			show_usage();
 	} else {
 		tty = ttyname(0);
 		if (tty)

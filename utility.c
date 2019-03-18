@@ -25,6 +25,21 @@
  *
  */
 
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <dirent.h>
+#include <time.h>
+#include <utime.h>
+#include <unistd.h>
+#include <ctype.h>
+#include <stdlib.h>
+#include <limits.h>
+#include <stdarg.h>
+#include <sys/ioctl.h>
+#include <sys/utsname.h>		/* for uname(2) */
+
 #include "busybox.h"
 #if defined (BB_CHMOD_CHOWN_CHGRP) \
  || defined (BB_CP_MV)		   \
@@ -41,19 +56,6 @@
 #define BB_DECLARE_EXTERN
 #include "messages.c"
 
-#include <stdio.h>
-#include <string.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <dirent.h>
-#include <time.h>
-#include <utime.h>
-#include <unistd.h>
-#include <ctype.h>
-#include <stdlib.h>
-#include <sys/ioctl.h>
-#include <sys/utsname.h>		/* for uname(2) */
-
 #include "pwd_grp/pwd.h"
 #include "pwd_grp/grp.h"
 
@@ -61,35 +63,45 @@
 #include <sys/syscall.h>
 #include <linux/unistd.h>
 
-/* Busybox mount uses either /proc/filesystems or /dev/mtab to get the 
- * list of available filesystems used for the -t auto option */ 
-#if defined BB_FEATURE_USE_PROCFS && defined BB_FEATURE_USE_DEVPS_PATCH
-//#error Sorry, but busybox can't use both /proc and /dev/ps at the same time -- Pick one and try again.
-#error "Sorry, but busybox can't use both /proc and /dev/ps at the same time -- Pick one and try again."
-#endif
-
-
+/* Busybox mount uses either /proc/mounts or /dev/mtab to 
+ * get the list of currently mounted filesystems */ 
 #if defined BB_MOUNT || defined BB_UMOUNT || defined BB_DF
 #  if defined BB_MTAB
 const char mtab_file[] = "/etc/mtab";
 #  else
-#    if defined BB_FEATURE_USE_PROCFS
-const char mtab_file[] = "/proc/mounts";
-#    else
 #      if defined BB_FEATURE_USE_DEVPS_PATCH
 const char mtab_file[] = "/dev/mtab";
 #    else
-#        error With (BB_MOUNT||BB_UMOUNT||BB_DF) defined, you must define either BB_MTAB or ( BB_FEATURE_USE_PROCFS | BB_FEATURE_USE_DEVPS_PATCH)
+const char mtab_file[] = "/proc/mounts";
 #    endif
-#  endif
 #  endif
 #endif
 
-extern void usage(const char *usage)
+#if defined(BB_KLOGD) || defined(BB_LOGGER)
+#include <syslog.h>
+#endif
+
+static struct BB_applet *applet_using;
+
+extern void show_usage(void)
 {
-	fprintf(stderr, "%s\n\nUsage: %s\n", full_version, usage);
+	const char *format_string;
+	const char *usage_string = usage_messages;
+	int i;
+
+	for (i = applet_using - applets; i > 0; ) {
+		if (!*usage_string++) {
+			--i;
+		}
+	}
+	format_string = "%s\n\nUsage: %s %s\n\n";
+	if(*usage_string == 0)
+		format_string = "%s\n\nNo help available.\n\n";
+	fprintf(stderr, format_string,
+			full_version, applet_using->name, usage_string);
 	exit(EXIT_FAILURE);
 }
+
 
 static void verror_msg(const char *s, va_list p)
 {
@@ -105,6 +117,7 @@ extern void error_msg(const char *s, ...)
 	va_start(p, s);
 	verror_msg(s, p);
 	va_end(p);
+	putc('\n', stderr);
 }
 
 extern void error_msg_and_die(const char *s, ...)
@@ -114,6 +127,7 @@ extern void error_msg_and_die(const char *s, ...)
 	va_start(p, s);
 	verror_msg(s, p);
 	va_end(p);
+	putc('\n', stderr);
 	exit(EXIT_FAILURE);
 }
 
@@ -145,7 +159,7 @@ extern void perror_msg_and_die(const char *s, ...)
 	exit(EXIT_FAILURE);
 }
 
-#if defined BB_INIT || defined BB_MKSWAP || defined BB_MOUNT || defined BB_NFSMOUNT
+#if defined BB_INIT || defined BB_MKSWAP || defined BB_MOUNT || defined BB_NFSMOUNT || defined BB_FEATURE_IFCONFIG_STATUS
 /* Returns kernel version encoded as major*65536 + minor*256 + patch,
  * so, for example,  to check if the kernel is greater than 2.2.11:
  *     if (get_kernel_revision() <= 2*65536+2*256+11) { <stuff> }
@@ -153,16 +167,21 @@ extern void perror_msg_and_die(const char *s, ...)
 extern int get_kernel_revision(void)
 {
 	struct utsname name;
-	int major = 0, minor = 0, patch = 0;
+	char *s;
+	int i, r;
 
 	if (uname(&name) == -1) {
 		perror_msg("cannot get system information");
 		return (0);
 	}
-	major = atoi(strtok(name.release, "."));
-	minor = atoi(strtok(NULL, "."));
-	patch = atoi(strtok(NULL, "."));
-	return major * 65536 + minor * 256 + patch;
+
+	s = name.release;
+	r = 0;
+	for (i=0 ; i<3 ; i++) {
+		r = r * 256 + atoi(strtok(s, "."));
+		s = NULL;
+	}
+	return r;
 }
 #endif                                                 /* BB_INIT */
 
@@ -174,19 +193,34 @@ _syscall1(int, sysinfo, struct sysinfo *, info);
 
 #if defined BB_MOUNT || defined BB_UMOUNT
 
-#ifndef __NR_umount2
-static const int __NR_umount2 = 52;
-#endif
-
 /* Include our own version of <sys/mount.h>, since libc5 doesn't
  * know about umount2 */
 extern _syscall1(int, umount, const char *, special_file);
-extern _syscall2(int, umount2, const char *, special_file, int, flags);
 extern _syscall5(int, mount, const char *, special_file, const char *, dir,
 		const char *, fstype, unsigned long int, rwflag, const void *, data);
+#ifndef __NR_umount2
+# warning This kernel does not support the umount2 syscall
+# warning The umount2 system call is being stubbed out...
+	int umount2(const char * special_file, int flags)
+	{
+		/* BusyBox was compiled against a kernel that did not support
+		 *  the umount2 system call.  To make this application work,
+		 *  you will need to recompile with a kernel supporting the
+		 *  umount2 system call.
+		 */
+		fprintf(stderr, "\n\nTo make this application work, you will need to recompile\n");
+		fprintf(stderr, "with a kernel supporting the umount2 system call. -Erik\n\n");
+		errno=ENOSYS;
+		return -1;
+	}
+# else
+   extern _syscall2(int, umount2, const char *, special_file, int, flags);
+# endif
 #endif
 
-#if defined BB_INSMOD || defined BB_LSMOD
+
+
+#if defined BB_FEATURE_NEW_MODULE_INTERFACE && ( defined BB_INSMOD || defined BB_LSMOD )
 #ifndef __NR_query_module
 static const int __NR_query_module = 167;
 #endif
@@ -320,7 +354,7 @@ int copy_file_chunk(int srcfd, int dstfd, size_t chunksize)
 #endif
 
 
-#if defined (BB_CP_MV)
+#if defined (BB_CP_MV) || defined BB_DPKG
 /*
  * Copy one file to another, while possibly preserving its modes, times, and
  * modes.  Returns TRUE if successful, or FALSE on a failure with an error
@@ -361,7 +395,7 @@ copy_file(const char *srcName, const char *destName,
 
 	if ((srcStatBuf.st_dev == dstStatBuf.st_dev) &&
 		(srcStatBuf.st_ino == dstStatBuf.st_ino)) {
-		error_msg("Copying file \"%s\" to itself\n", srcName);
+		error_msg("Copying file \"%s\" to itself", srcName);
 		return FALSE;
 	}
 
@@ -673,39 +707,37 @@ int recursive_action(const char *fileName,
 			perror_msg("%s", fileName);
 			return FALSE;
 		}
+		status = TRUE;
 		while ((next = readdir(dir)) != NULL) {
-			char nextFile[BUFSIZ + 1];
+			char nextFile[PATH_MAX];
 
 			if ((strcmp(next->d_name, "..") == 0)
-				|| (strcmp(next->d_name, ".") == 0)) {
+					|| (strcmp(next->d_name, ".") == 0)) {
 				continue;
 			}
-			if (strlen(fileName) + strlen(next->d_name) + 1 > BUFSIZ) {
+			if (strlen(fileName) + strlen(next->d_name) + 1 > PATH_MAX) {
 				error_msg(name_too_long);
 				return FALSE;
 			}
 			memset(nextFile, 0, sizeof(nextFile));
-			sprintf(nextFile, "%s/%s", fileName, next->d_name);
-			status =
-				recursive_action(nextFile, TRUE, followLinks, depthFirst,
-								fileAction, dirAction, userData);
-			if (status == FALSE) {
-				closedir(dir);
-				return FALSE;
+			if (fileName[strlen(fileName)-1] == '/')
+				sprintf(nextFile, "%s%s", fileName, next->d_name);
+			else
+				sprintf(nextFile, "%s/%s", fileName, next->d_name);
+			if (recursive_action(nextFile, TRUE, followLinks, depthFirst,
+						fileAction, dirAction, userData) == FALSE) {
+				status = FALSE;
 			}
 		}
-		status = closedir(dir);
-		if (status < 0) {
-			perror_msg("%s", fileName);
-			return FALSE;
-		}
+		closedir(dir);
 		if (dirAction != NULL && depthFirst == TRUE) {
-			status = dirAction(fileName, &statbuf, userData);
-			if (status == FALSE) {
+			if (dirAction(fileName, &statbuf, userData) == FALSE) {
 				perror_msg("%s", fileName);
 				return FALSE;
 			}
 		}
+		if (status == FALSE)
+			return FALSE;
 	} else {
 		if (fileAction == NULL)
 			return TRUE;
@@ -757,102 +789,100 @@ extern int create_path(const char *name, int mode)
  || defined (BB_MKFIFO) || defined (BB_MKNOD) || defined (BB_AR)
 /* [ugoa]{+|-|=}[rwxst] */
 
-
-
 extern int parse_mode(const char *s, mode_t * theMode)
 {
-	mode_t andMode =
+	static const mode_t group_set[] = { 
+		S_ISUID | S_IRWXU,		/* u */
+		S_ISGID | S_IRWXG,		/* g */
+		S_IRWXO,				/* o */
+		S_ISUID | S_ISGID | S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO /* a */
+	};
 
+	static const mode_t mode_set[] = {
+		S_IRUSR | S_IRGRP | S_IROTH, /* r */
+		S_IWUSR | S_IWGRP | S_IWOTH, /* w */
+		S_IXUSR | S_IXGRP | S_IXOTH, /* x */
+		S_ISUID | S_ISGID,		/* s */
+		S_ISVTX					/* t */
+	};
+
+	static const char group_string[] = "ugoa";
+	static const char mode_string[] = "rwxst";
+
+	const char *p;
+
+	mode_t andMode =
 		S_ISVTX | S_ISUID | S_ISGID | S_IRWXU | S_IRWXG | S_IRWXO;
 	mode_t orMode = 0;
-	mode_t mode = 0;
-	mode_t groups = 0;
+	mode_t mode;
+	mode_t groups;
 	char type;
 	char c;
 
-	if (s==NULL)
+	if (s==NULL) {
 		return (FALSE);
+	}
 
 	do {
-		for (;;) {
-			switch (c = *s++) {
-			case '\0':
-				return -1;
-			case 'u':
-				groups |= S_ISUID | S_IRWXU;
-				continue;
-			case 'g':
-				groups |= S_ISGID | S_IRWXG;
-				continue;
-			case 'o':
-				groups |= S_IRWXO;
-				continue;
-			case 'a':
-				groups |= S_ISUID | S_ISGID | S_IRWXU | S_IRWXG | S_IRWXO;
-				continue;
-			case '+':
+		mode = 0;
+		groups = 0;
+	NEXT_GROUP:
+		if ((c = *s++) == '\0') {
+			return -1;
+		}
+		for (p=group_string ; *p ; p++) {
+			if (*p == c) {
+				groups |= group_set[(int)(p-group_string)];
+				goto NEXT_GROUP;
+			}
+		}
+		switch (c) {
 			case '=':
+			case '+':
 			case '-':
 				type = c;
-				if (groups == 0)	/* The default is "all" */
-					groups |=
-						S_ISUID | S_ISGID | S_IRWXU | S_IRWXG | S_IRWXO;
+				if (groups == 0) { /* The default is "all" */
+					groups |= S_ISUID | S_ISGID | S_ISVTX
+							| S_IRWXU | S_IRWXG | S_IRWXO;
+				}
 				break;
 			default:
-				if (isdigit(c) && c >= '0' && c <= '7' &&
-					mode == 0 && groups == 0) {
+				if ((c < '0') || (c > '7') || (mode | groups)) {
+					return (FALSE);
+				} else {
 					*theMode = strtol(--s, NULL, 8);
 					return (TRUE);
-				} else
-					return (FALSE);
-			}
-			break;
+				}
 		}
 
-		while ((c = *s++) != '\0') {
-			switch (c) {
-			case ',':
-				break;
-			case 'r':
-				mode |= S_IRUSR | S_IRGRP | S_IROTH;
-				continue;
-			case 'w':
-				mode |= S_IWUSR | S_IWGRP | S_IWOTH;
-				continue;
-			case 'x':
-				mode |= S_IXUSR | S_IXGRP | S_IXOTH;
-				continue;
-			case 's':
-				mode |= S_IXGRP | S_ISUID | S_ISGID;
-				continue;
-			case 't':
-				mode |= 0;
-				continue;
-			default:
-				*theMode &= andMode;
-				*theMode |= orMode;
-				return (TRUE);
+	NEXT_MODE:
+		if (((c = *s++) != '\0') && (c != ',')) {
+			for (p=mode_string ; *p ; p++) {
+				if (*p == c) {
+					mode |= mode_set[(int)(p-mode_string)];
+					goto NEXT_MODE;
+				}
 			}
-			break;
+			break;				/* We're done so break out of loop.*/
 		}
 		switch (type) {
-		case '=':
-			andMode &= ~(groups);
-			/* fall through */
-		case '+':
-			orMode |= mode & groups;
-			break;
-		case '-':
-			andMode &= ~(mode & groups);
-			orMode &= andMode;
-			break;
+			case '=':
+				andMode &= ~(groups); /* Now fall through. */
+			case '+':
+				orMode |= mode & groups;
+				break;
+			case '-':
+				andMode &= ~(mode & groups);
+				orMode &= ~(mode & groups);
+				break;
 		}
 	} while (c == ',');
+
 	*theMode &= andMode;
 	*theMode |= orMode;
-	return (TRUE);
-}
 
+	return TRUE;
+}
 
 #endif
 /* BB_CHMOD_CHOWN_CHGRP || BB_MKDIR || BB_MKFIFO || BB_MKNOD */
@@ -864,29 +894,32 @@ extern int parse_mode(const char *s, mode_t * theMode)
 #if defined BB_CHMOD_CHOWN_CHGRP || defined BB_PS || defined BB_LS \
  || defined BB_TAR || defined BB_ID || defined BB_LOGGER \
  || defined BB_LOGNAME || defined BB_WHOAMI || defined BB_SH
+
+#if defined BB_CHMOD_CHOWN_CHGRP || defined BB_ID
 /* returns a uid given a username */
-long my_getpwnam(char *name)
+long my_getpwnam(const char *name)
 {
 	struct passwd *myuser;
 
 	myuser  = getpwnam(name);
 	if (myuser==NULL)
-		error_msg_and_die( "unknown username: %s\n", name);
+		error_msg_and_die("unknown user name: %s", name);
 
 	return myuser->pw_uid;
 }
 
 /* returns a gid given a group name */
-long my_getgrnam(char *name)
+long my_getgrnam(const char *name)
 {
 	struct group *mygroup;
 
 	mygroup  = getgrnam(name);
 	if (mygroup==NULL)
-		error_msg_and_die( "unknown group: %s\n", name);
+		error_msg_and_die("unknown group name: %s", name);
 
 	return (mygroup->gr_gid);
 }
+#endif
 
 /* gets a username given a uid */
 void my_getpwuid(char *name, long uid)
@@ -895,9 +928,9 @@ void my_getpwuid(char *name, long uid)
 
 	myuser  = getpwuid(uid);
 	if (myuser==NULL)
-		error_msg_and_die( "unknown uid %ld\n", (long)uid);
-
-	strcpy(name, myuser->pw_name);
+		sprintf(name, "%-8ld ", (long)uid);
+	else
+		strcpy(name, myuser->pw_name);
 }
 
 /* gets a groupname given a gid */
@@ -907,25 +940,25 @@ void my_getgrgid(char *group, long gid)
 
 	mygroup  = getgrgid(gid);
 	if (mygroup==NULL)
-		error_msg_and_die( "unknown gid %ld\n", (long)gid);
-
-	strcpy(group, mygroup->gr_name);
+		sprintf(group, "%-8ld ", (long)gid);
+	else
+		strcpy(group, mygroup->gr_name);
 }
 
 #if defined BB_ID
 /* gets a gid given a user name */
-long my_getpwnamegid(char *name)
+long my_getpwnamegid(const char *name)
 {
 	struct group *mygroup;
 	struct passwd *myuser;
 
 	myuser=getpwnam(name);
 	if (myuser==NULL)
-		error_msg_and_die( "unknown user name: %s\n", name);
+		error_msg_and_die("unknown user name: %s", name);
 
 	mygroup  = getgrgid(myuser->pw_gid);
 	if (mygroup==NULL)
-		error_msg_and_die( "unknown gid %ld\n", (long)myuser->pw_gid);
+		error_msg_and_die("unknown gid %ld", (long)myuser->pw_gid);
 
 	return mygroup->gr_gid;
 }
@@ -1015,7 +1048,7 @@ int get_console_fd(char *tty_name)
 		if (is_a_console(fd))
 			return fd;
 
-	error_msg("Couldnt get a file descriptor referring to the console\n");
+	error_msg("Couldnt get a file descriptor referring to the console");
 	return -1;					/* total failure */
 }
 
@@ -1269,9 +1302,6 @@ extern pid_t* find_pid_by_name( char* pidName)
 	return pidList;
 }
 #else		/* BB_FEATURE_USE_DEVPS_PATCH */
-#if ! defined BB_FEATURE_USE_PROCFS
-#error Sorry, I depend on the /proc filesystem right now.
-#endif
 
 /* find_pid_by_name()
  *  
@@ -1350,8 +1380,9 @@ extern void *xcalloc(size_t nmemb, size_t size)
 }
 #endif
 
-#if defined BB_NFSMOUNT || defined BB_LS || defined BB_SH || defined BB_WGET || \
-	defined BB_DPKG_DEB || defined BB_TAR
+#if defined BB_NFSMOUNT || defined BB_LS || defined BB_SH || \
+	defined BB_WGET || defined BB_DPKG_DEB || defined BB_TAR || \
+	defined BB_LN
 # ifndef DMALLOC
 extern char * xstrdup (const char *s) {
 	char *t;
@@ -1374,16 +1405,23 @@ extern char * xstrndup (const char *s, int n) {
 	char *t;
 
 	if (s == NULL)
-		error_msg_and_die("xstrndup bug\n");
+		error_msg_and_die("xstrndup bug");
 
-	t = xmalloc(n+1);
-	strncpy(t,s,n);
-	t[n] = 0;
-
-	return t;
+	t = xmalloc(++n);
+	
+	return safe_strncpy(t,s,n);
 }
 #endif
 
+#if defined BB_IFCONFIG || defined BB_ROUTE || defined BB_NFSMOUNT || \
+    defined BB_FEATURE_MOUNT_LOOP
+/* Like strncpy but make sure the resulting string is always 0 terminated. */  
+extern char * safe_strncpy(char *dst, const char *src, size_t size)
+{   
+	dst[size-1] = '\0';
+	return strncpy(dst, src, size-1);   
+}
+#endif
 
 #if (__GLIBC__ < 2) && (defined BB_SYSLOGD || defined BB_INIT)
 extern int vdprintf(int d, const char *format, va_list ap)
@@ -1437,8 +1475,7 @@ extern int set_loop(const char *device, const char *file, int offset,
 	*loopro = (mode == O_RDONLY);
 
 	memset(&loopinfo, 0, sizeof(loopinfo));
-	strncpy(loopinfo.lo_name, file, LO_NAME_SIZE);
-	loopinfo.lo_name[LO_NAME_SIZE - 1] = 0;
+	safe_strncpy(loopinfo.lo_name, file, LO_NAME_SIZE);
 
 	loopinfo.lo_offset = offset;
 
@@ -1472,7 +1509,7 @@ extern char *find_unused_loop_device(void)
 		sprintf(dev, "/dev/loop%d", i);
 		if (stat(dev, &statbuf) == 0 && S_ISBLK(statbuf.st_mode)) {
 			if ((fd = open(dev, O_RDONLY)) >= 0) {
-				if (ioctl(fd, LOOP_GET_STATUS, &loopinfo) == -1) {
+				if (ioctl(fd, LOOP_GET_STATUS, &loopinfo) != 0) {
 					if (errno == ENXIO) {	/* probably free */
 						close(fd);
 						return strdup(dev);
@@ -1495,13 +1532,13 @@ extern int find_real_root_device_name(char* name)
 	char fileName[BUFSIZ];
 
 	if (stat("/", &rootStat) != 0) {
-		error_msg("could not stat '/'\n");
+		error_msg("could not stat '/'");
 		return( FALSE);
 	}
 
 	dir = opendir("/dev");
 	if (!dir) {
-		error_msg("could not open '/dev'\n");
+		error_msg("could not open '/dev'");
 		return( FALSE);
 	}
 
@@ -1586,53 +1623,48 @@ extern int print_file_by_name(char *filename)
 #if defined BB_ECHO || defined BB_SH || defined BB_TR
 char process_escape_sequence(char **ptr)
 {
-	char c;
+       static const char charmap[] = {
+		   'a',  'b',  'f',  'n',  'r',  't',  'v',  '\\', 0,
+	       '\a', '\b', '\f', '\n', '\r', '\t', '\v', '\\', '\\' };
 
-	switch (c = *(*ptr)++) {
-	case 'a':
-		c = '\a';
-		break;
-	case 'b':
-		c = '\b';
-		break;
-	case 'f':
-		c = '\f';
-		break;
-	case 'n':
-		c = '\n';
-		break;
-	case 'r':
-		c = '\r';
-		break;
-	case 't':
-		c = '\t';
-		break;
-	case 'v':
-		c = '\v';
-		break;
-	case '\\':
-		c = '\\';
-		break;
-	case '0': case '1': case '2': case '3':
-	case '4': case '5': case '6': case '7':
-		c -= '0';
-		if ('0' <= **ptr && **ptr <= '7') {
-			c = c * 8 + (*(*ptr)++ - '0');
-			if ('0' <= **ptr && **ptr <= '7')
-				c = c * 8 + (*(*ptr)++ - '0');
-		}
-		break;
-	default:
-		(*ptr)--;
-		c = '\\';
-		break;
-	}
-	return c;
+       const char *p;
+	   char *q;
+       int num_digits;
+       unsigned int n;
+
+       n = 0;
+	   q = *ptr;
+
+       for ( num_digits = 0 ; num_digits < 3 ; ++num_digits) {
+	       if ((*q < '0') || (*q > '7')) { /* not a digit? */
+		       break;
+	       }
+	       n = n * 8 + (*q++ - '0');
+       }
+
+       if (num_digits == 0) {	/* mnemonic escape sequence? */
+		   for (p=charmap ; *p ; p++) {
+			   if (*p == *q) {
+				   q++;
+				   break;
+			   }
+		   }
+		   n = *(p+(sizeof(charmap)/2));
+	   }
+
+	   /* doesn't hurt to fall through to here from mnemonic case */
+	   if (n > UCHAR_MAX) {	/* is octal code too big for a char? */
+		   n /= 8;			/* adjust value and */
+		   --q;				/* back up one char */
+	   }
+
+	   *ptr = q;
+	   return (char) n;
 }
 #endif
 
 #if defined BB_BASENAME || defined BB_LN || defined BB_SH || defined BB_INIT || \
-	defined BB_FEATURE_USE_PROCFS || defined BB_WGET
+	! defined BB_FEATURE_USE_DEVPS_PATCH || defined BB_WGET
 char *get_last_path_component(char *path)
 {
 	char *s=path+strlen(path)-1;
@@ -1660,7 +1692,7 @@ void xregcomp(regex_t *preg, const char *regex, int cflags)
 		int errmsgsz = regerror(ret, preg, NULL, 0);
 		char *errmsg = xmalloc(errmsgsz);
 		regerror(ret, preg, errmsg, errmsgsz);
-		error_msg_and_die("xregcomp: %s\n", errmsg);
+		error_msg_and_die("xregcomp: %s", errmsg);
 	}
 }
 #endif
@@ -1679,7 +1711,8 @@ FILE *wfopen(const char *path, const char *mode)
 
 #if defined BB_HOSTNAME || defined BB_LOADACM || defined BB_MORE \
  || defined BB_SED || defined BB_SH || defined BB_TAR || defined BB_UNIQ \
- || defined BB_WC || defined BB_CMP || defined BB_SORT
+ || defined BB_WC || defined BB_CMP || defined BB_SORT || defined BB_WGET \
+ || defined BB_MOUNT || defined BB_ROUTE || defined BB_MKFS_MINIX
 FILE *xfopen(const char *path, const char *mode)
 {
 	FILE *fp;
@@ -1689,36 +1722,62 @@ FILE *xfopen(const char *path, const char *mode)
 }
 #endif
 
-int applet_name_compare(const void *x, const void *y)
+static int applet_name_compare(const void *x, const void *y)
 {
-	const struct BB_applet *applet1 = x;
-	const struct BB_applet *applet2 = y;
+	const char *name = x;
+	const struct BB_applet *applet = y;
 
-	return strcmp(applet1->name, applet2->name);
+	return strcmp(name, applet->name);
 }
 
-#if defined BB_DD || defined BB_TAIL
-unsigned long parse_number(const char *numstr, struct suffix_mult *suffixes)
+extern size_t NUM_APPLETS;
+
+struct BB_applet *find_applet_by_name(const char *name)
 {
-	struct suffix_mult *sm;
+	return bsearch(name, applets, NUM_APPLETS, sizeof(struct BB_applet),
+			applet_name_compare);
+}
+
+void run_applet_by_name(const char *name, int argc, char **argv)
+{
+	/* Do a binary search to find the applet entry given the name. */
+	if ((applet_using = find_applet_by_name(name)) != NULL) {
+		applet_name = applet_using->name;
+		if (argv[1] && strcmp(argv[1], "--help") == 0)
+			show_usage();
+		exit((*(applet_using->main)) (argc, argv));
+	}
+}
+
+#if defined BB_DD || defined BB_TAIL || defined BB_STTY
+unsigned long parse_number(const char *numstr,
+		const struct suffix_mult *suffixes)
+{
+	const struct suffix_mult *sm;
 	unsigned long int ret;
 	int len;
 	char *end;
 	
 	ret = strtoul(numstr, &end, 10);
 	if (numstr == end)
-		error_msg_and_die("invalid number `%s'\n", numstr);
+		error_msg_and_die("invalid number `%s'", numstr);
 	while (end[0] != '\0') {
-		for (sm = suffixes; sm->suffix != NULL; sm++) {
-			len = strlen(sm->suffix);
-			if (strncmp(sm->suffix, end, len) == 0) {
-				ret *= sm->mult;
-				end += len;
-				break;
-			}
+		sm = suffixes;
+		while ( sm != 0 ) {
+			if(sm->suffix) {
+				len = strlen(sm->suffix);
+				if (strncmp(sm->suffix, end, len) == 0) {
+					ret *= sm->mult;
+					end += len;
+					break;
+				}
+			sm++;
+			
+			} else
+				sm = 0;
 		}
-		if (sm->suffix == NULL)
-			error_msg_and_die("invalid number `%s'\n", numstr);
+		if (sm == 0)
+			error_msg_and_die("invalid number `%s'", numstr);
 	}
 	return ret;
 }
@@ -1738,24 +1797,84 @@ ssize_t safe_read(int fd, void *buf, size_t count)
 #endif
 
 #ifdef BB_FEATURE_HUMAN_READABLE
-char *format(unsigned long val, unsigned long hr)
+const char *make_human_readable_str(unsigned long val, unsigned long hr)
 {
+	int i=0;
 	static char str[10] = "\0";
+	static const char strings[] = { 'k', 'M', 'G', 'T', 0 };
+	unsigned long divisor = 1;
 
 	if(val == 0)
 		return("0");
 	if(hr)
 		snprintf(str, 9, "%ld", val/hr);
-	else if(val >= GIGABYTE)
-		snprintf(str, 9, "%.1LfG", ((long double)(val)/GIGABYTE));
-	else if(val >= MEGABYTE)
-		snprintf(str, 9, "%.1LfM", ((long double)(val)/MEGABYTE));
-	else if(val >= KILOBYTE)
-		snprintf(str, 9, "%.1Lfk", ((long double)(val)/KILOBYTE));
-	else
-		snprintf(str, 9, "%ld", (val));
+	else {
+		while(val >= divisor && i <= 4) {
+			divisor=divisor<<10, i++;
+		} 
+		divisor=divisor>>10, i--;
+		snprintf(str, 9, "%.1Lf%c", (long double)(val)/divisor, strings[i]);
+	}
 	return(str);
 }
+#endif
+
+#if defined(BB_GREP) || defined(BB_HOSTNAME) || defined(BB_SED) || defined(BB_TAR) || defined(BB_WGET) || defined(BB_XARGS) || defined(BB_SH)
+void chomp(char *s)
+{
+	size_t len = strlen(s);
+
+	if (len == 0)
+		return;
+
+	if (s[len-1] == '\n')
+		s[len-1] = '\0';
+}
+#endif
+
+#if defined(BB_KLOGD) || defined(BB_LOGGER)
+void syslog_msg_with_name(const char *name, int facility, int pri, const char *msg)
+{
+ 	openlog(name, 0, facility);
+	syslog(pri, "%s", msg);
+	closelog();
+}
+
+void syslog_msg(int facility, int pri, const char *msg)
+{
+ 	syslog_msg_with_name(applet_using->name, facility, pri, msg);
+}
+#endif
+
+#if defined(BB_SH)
+void trim(char *s)
+{
+	/* trim trailing whitespace */
+	while (isspace(s[strlen(s)-1]))
+		s[strlen(s)-1]='\0';
+
+	/* trim leading whitespace */
+	memmove(s, &s[strspn(s, " \n\r\t\v")], strlen(s));
+
+}
+#endif
+
+#ifdef BB_FEATURE_RM_INTERACTIVE
+	#if defined (BB_CP_MV) || defined (BB_RM)
+int ask_confirmation()
+{
+	int c = '\0';
+	int ret = 0;
+
+	while (c != '\n') {
+		c = getchar();
+		if ( c != '\n' ) {
+			ret = ((c=='y')||(c=='Y')) ? 1 : 0;
+		}
+	}
+	return ret;
+}
+	#endif
 #endif
 
 /* END CODE */

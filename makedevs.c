@@ -7,13 +7,13 @@
  * known bugs: can't deal with alpha ranges
  */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include "busybox.h"
 
 int makedevs_main(int argc, char **argv)
 {
@@ -32,7 +32,7 @@ int makedevs_main(int argc, char **argv)
 	char buf[255];
 
 	if (argc < 7 || *argv[1]=='-')
-		usage(makedevs_usage);
+		show_usage();
 
 	switch (type[0]) {
 	case 'c':
@@ -45,7 +45,7 @@ int makedevs_main(int argc, char **argv)
 		mode = S_IFIFO;
 		break;
 	default:
-		usage(makedevs_usage);
+		show_usage();
 	}
 	mode |= 0660;
 

@@ -51,39 +51,41 @@ COMMON OPTIONS
 COMMANDS
     Currently defined functions include:
 
-    ar, basename, cat, chgrp, chmod, chown, chroot, chvt, clear, cp,
-    cut, date, dc, dd, deallocvt, df, dirname, dmesg, dos2unix,
-    dpkg-deb, du, dumpkmap, dutmp, echo, false, fbset, fdflush,
-    find, free, freeramdisk, fsck.minix, getopt, grep, gunzip, gzip,
-    halt, head, hostid, hostname, id, init, insmod, kill, killall,
+    ar, basename, busybox, cat, chgrp, chmod, chown, chroot, chvt,
+    clear, cmp, cp, cut, date, dc, dd, deallocvt, df, dirname,
+    dmesg, dos2unix, dpkg, dpkg-deb, du, dumpkmap, dutmp, echo,
+    expr, false, fbset, fdflush, find, free, freeramdisk,
+    fsck.minix, getopt, grep, gunzip, gzip, halt, head, hostid,
+    hostname, id, ifconfig, init, insmod, kill, killall, klogd,
     length, ln, loadacm, loadfont, loadkmap, logger, logname, ls,
-    lsmod, makedevs, mkdir, mkfifo, mkfs.minix, mknod, mkswap,
-    mktemp, more, mount, mt, mv, nc, nslookup, ping, poweroff,
-    printf, ps, pwd, rdate, reboot, renice, reset, rm, rmdir, rmmod,
-    sed, setkeycodes, sh, sleep, sort, swapoff, swapon, sync,
-    syslogd, tail, tar, tee, telnet, test, touch, tr, true, tty,
-    umount, uname, uniq, unix2dos, unrpm, update, uptime, usleep,
-    uudecode, uuencode, watchdog, wc, which, whoami, xargs, yes,
-    zcat, [
+    lsmod, makedevs, md5sum, mkdir, mkfifo, mkfs.minix, mknod,
+    mkswap, mktemp, more, mount, mt, mv, nc, nslookup, ping,
+    pivot_root, poweroff, printf, ps, pwd, rdate, readlink, reboot,
+    renice, reset, rm, rmdir, rmmod, route, rpmunpack, sed,
+    setkeycodes, sh, sleep, sort, stty, swapoff, swapon, sync,
+    syslogd, tail, tar, tee, telnet, test, tftp, touch, tr, true,
+    tty, umount, uname, uniq, unix2dos, update, uptime, usleep,
+    uudecode, uuencode, watchdog, wc, wget, which, whoami, xargs,
+    yes, zcat, [
 
-    -------------------------------
-
-    ar  Usage: ar [optxvV] archive [filenames]
+    *ar*
+        ar -[ovR]{ptx} archive filenames
 
         Extract or list files from an ar archive.
 
         Options:
 
-                o               preserve original dates
-                p               extract to stdout
-                t               list
-                x               extract
-                v               verbosely list files processed
+                -o              preserve original dates
+                -p              extract to stdout
+                -t              list
+                -x              extract
+                -v              verbosely list files processed
+                -R              recursive action
 
         -------------------------------
 
-    basename
-        Usage: basename FILE [SUFFIX]
+    *basename*
+        basename FILE [SUFFIX]
 
         Strips directory path and suffixes from FILE. If specified,
         also removes any trailing SUFFIX.
@@ -99,9 +101,10 @@ COMMANDS
 
         -------------------------------
 
-    cat Usage: cat [FILE ...]
+    *cat*
+        cat [FILE]...
 
-        Concatenates FILE(s) and prints them to the standard output.
+        Concatenates FILE(s) and prints them to stdout.
 
         Example:
 
@@ -110,14 +113,14 @@ COMMANDS
 
         -------------------------------
 
-    chgrp
-        Usage: chgrp [OPTION]... GROUP FILE...
+    *chgrp*
+        chgrp [OPTION]... GROUP FILE...
 
         Change the group membership of each FILE to GROUP.
 
         Options:
 
-                -R      change files and directories recursively
+                -R      Changes files and directories recursively.
 
         Example:
 
@@ -129,53 +132,15 @@ COMMANDS
 
         -------------------------------
 
-    chmod
-        Usage: chmod [-R] MODE[,MODE]... FILE...
+    *chmod*
+        chmod [-R] MODE[,MODE]... FILE...
 
-        Changes file access permissions for the specified FILE(s)
-        (or directories). Each MODE is defined by combining the
-        letters for WHO has access to the file, an OPERATOR for
-        selecting how the permissions should be changed, and a
-        PERMISSION for FILE(s) (or directories).
-
-        WHO may be chosen from
-
-                u       User who owns the file
-                g       Users in the file's Group
-                o       Other users not in the file's group
-                a       All users
-
-        OPERATOR may be chosen from
-
-                +       Add a permission
-                -       Remove a permission
-                =       Assign a permission
-
-        PERMISSION may be chosen from
-
-                r       Read
-                w       Write
-                x       Execute (or access for directories)
-                s       Set user (or group) ID bit
-                t       Sticky bit (for directories prevents removing files by non-owners)
-
-        Alternately, permissions can be set numerically where the
-        first three numbers are calculated by adding the octal
-        values, such as
-
-                4       Read
-                2       Write
-                1       Execute
-
-        An optional fourth digit can also be used to specify
-
-                4       Set user ID
-                2       Set group ID
-                1       Sticky bit
+        Each MODE is one or more of the letters ugoa, one of the
+        symbols +-= and one or more of the letters rwxst.
 
         Options:
 
-                -R      Change files and directories recursively.
+                -R      Changes files and directories recursively.
 
         Example:
 
@@ -190,15 +155,15 @@ COMMANDS
 
         -------------------------------
 
-    chown
-        Usage: chown [OPTION]... OWNER[<.|:>[GROUP] FILE...
+    *chown*
+        chown [OPTION]... OWNER[<.|:>[GROUP] FILE...
 
-        Changes the owner and/or group of each FILE to OWNER and/or
+        Change the owner and/or group of each FILE to OWNER and/or
         GROUP.
 
         Options:
 
-                -R      Changes files and directories recursively
+                -R      Changes files and directories recursively.
 
         Example:
 
@@ -213,8 +178,8 @@ COMMANDS
 
         -------------------------------
 
-    chroot
-        Usage: chroot NEWROOT [COMMAND...]
+    *chroot*
+        chroot NEWROOT [COMMAND...]
 
         Run COMMAND with root directory set to NEWROOT.
 
@@ -229,69 +194,76 @@ COMMANDS
 
         -------------------------------
 
-    chvt
-        Usage: chvt N
+    *chvt*
+        chvt N
 
         Changes the foreground virtual terminal to /dev/ttyN
 
         -------------------------------
 
-    clear
-        Clears the screen.
+    *clear*
+        clear
+
+        Clear screen.
 
         -------------------------------
 
-    cp  Usage: cp [OPTION]... SOURCE DEST
+    *cmp*
+        cmp FILE1 [FILE2]
 
-           or: cp [OPTION]... SOURCE... DIRECTORY
+        Compare files.
+
+        -------------------------------
+
+    *cp*
+        cp [OPTION]... SOURCE DEST
 
         Copies SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.
-
-        Options:
 
                 -a      Same as -dpR
                 -d      Preserves links
                 -p      Preserves file attributes if possible
+                -f      force (implied; ignored) - always set
                 -R      Copies directories recursively
 
         -------------------------------
 
-    cut Usage: cut [OPTION]... [FILE]...
+    *cut*
+        cut [OPTION]... [FILE]...
 
         Prints selected fields from each input FILE to standard
         output.
 
         Options:
 
-                        -b LIST Output only bytes from LIST
-                        -c LIST Output only characters from LIST
-                        -d CHAR Use CHAR instead of tab as the field delimiter
-                        -s      Output only the lines containing delimiter
-                        -f N    Print only these fields
-                        -n      Ignored
+                -b LIST         Output only bytes from LIST
+                -c LIST         Output only characters from LIST
+                -d CHAR         Use CHAR instead of tab as the field delimiter
+                -s              Output only the lines containing delimiter
+                -f N            Print only these fields
+                -n              Ignored
 
         Example:
 
-                $ echo "Hello world" | cut -f 1 -d ' '
+                $ echo Hello world | cut -f 1 -d ' '
                 Hello
-                $ echo "Hello world" | cut -f 2 -d ' '
+                $ echo Hello world | cut -f 2 -d ' '
                 world
 
         -------------------------------
 
-    date
-        Usage: date [OPTION]... [+FORMAT]
-
-          or:  date [OPTION] [MMDDhhmm[[CC]YY][.ss]]
+    *date*
+        date [OPTION]... [+FORMAT]
 
         Displays the current time in the given FORMAT, or sets the
         system date.
 
         Options:
 
-                -R      Outputs RFC-822 compliant date string
-                -s      Sets time described by STRING
-                -u      Prints or sets Coordinated Universal Time
+                -R              Outputs RFC-822 compliant date string
+                -d STRING       display time described by STRING, not `now'
+                -s              Sets time described by STRING
+                -u              Prints or sets Coordinated Universal Time
 
         Example:
 
@@ -300,20 +272,18 @@ COMMANDS
 
         -------------------------------
 
-    dc  Usage: dc expression ...
+    *dc*
+        dc expression ...
 
         This is a Tiny RPN calculator that understands the following
-        operations: +, -, /, *, and, or, not, eor. If no arguments
-        are given, dc will process input from STDIN.
-
-        The behaviour of BusyBox/dc deviates (just a little ;-) from
-        GNU/dc, but this will be remedied in the future.
+        operations: +, -, /, *, and, or, not, eor. i.e. 'dc 2 2 add'
+        -> 4, and 'dc 8 8 \* 2 2 + /' -> 16
 
         Example:
 
                 $ dc 2 2 +
                 4
-                $ dc 8 8 \* 2 2 + /
+                $ dc 8 8 * 2 2 + /
                 16
                 $ dc 0 1 and
                 0
@@ -324,19 +294,24 @@ COMMANDS
 
         -------------------------------
 
-    dd  Usage: dd [if=name] [of=name] [bs=n] [count=n] [skip=n] [seek=n]
+    *dd*
+        dd [if=FILE] [of=FILE] [bs=N] [count=N] [skip=N] [seek=N]
+        [conv=notrunc|sync]
 
         Copy a file, converting and formatting according to options
 
-                if=FILE read from FILE instead of stdin
-                of=FILE write to FILE instead of stdout
-                bs=n    read and write n bytes at a time
-                count=n copy only n input blocks
-                skip=n  skip n input blocks
-                seek=n  skip n output blocks
+                if=FILE         read from FILE instead of stdin
+                of=FILE         write to FILE instead of stdout
+                bs=N            read and write N bytes at a time
+                count=N         copy only N input blocks
+                skip=N          skip N input blocks
+                seek=N          skip N output blocks
+                conv=notrunc    don't truncate output file
+                conv=sync       pad blocks with zeros
 
-        Numbers may be suffixed by w (x2), k (x1024), b (x512), or M
-        (x1024^2)
+        Numbers may be suffixed by c (x1), w (x2), b (x512), kD
+        (x1000), k (x1024), MD (x1000000), M (x1048576), GD
+        (x1000000000) or G (x1073741824).
 
         Example:
 
@@ -346,16 +321,23 @@ COMMANDS
 
         -------------------------------
 
-    deallocvt
-        Usage: deallocvt N
+    *deallocvt*
+        deallocvt N
 
-        Deallocates unused virtual terminal /dev/ttyN
+        Deallocate unused virtual terminal /dev/ttyN
 
         -------------------------------
 
-    df  Usage: df [filesystem ...]
+    *df*
+        df [-hmk] [filesystem ...]
 
-        Prints the filesystem space used and space available.
+        Print the filesystem space used and space available.
+
+        Options:
+
+                -h      print sizes in human readable format (e.g., 1K 243M 2G )
+                -m      print sizes in megabytes
+                -k      print sizes in kilobytes(default) 
 
         Example:
 
@@ -369,10 +351,10 @@ COMMANDS
 
         -------------------------------
 
-    dirname
-        Usage: dirname NAME
+    *dirname*
+        dirname [FILENAME ...]
 
-        Strip non-directory suffix from file name
+        Strips non-directory suffix from FILENAME
 
         Example:
 
@@ -383,58 +365,80 @@ COMMANDS
 
         -------------------------------
 
-    dmesg
-        Usage: dmesg [-c] [-n level] [-s bufsize]
+    *dmesg*
+        dmesg [-c] [-n LEVEL] [-s SIZE]
 
-        Print or controls the kernel ring buffer.
-
-        -------------------------------
-
-    dos2unix
-        Usage: dos2unix < dosfile > unixfile
-
-        Converts a text file from dos format to unix format.
-
-        -------------------------------
-
-    dpkg-deb
-        Usage: dpkg-deb [-cexX] archive-file [directory]
-
-        Debian package archive (.deb) manipulation tool
+        Prints or controls the kernel ring buffer
 
         Options:
 
-                -c      Lists the contents of the filesystem tree archive
-                        portion  of  the  package archive.
-
-                -e      Extracts the control information files from a package
-                        archive into the specified directory.
-                
-                -x      Silently extracts the filesystem tree from a package
-                        archive into the specified directory.
-                
-                -X      Extracts the filesystem tree from a package archive
-                        into the specified directory, list files as it goes.
-
-        Example:
-
-                dpkg-deb -X ./busybox_0.48-1_i386.deb /tmp
+                -c              Clears the ring buffer's contents after printing
+                -n LEVEL        Sets console logging level
+                -s SIZE         Use a buffer of size SIZE
 
         -------------------------------
 
-    du  Usage: du [OPTION]... [FILE]...
+    *dos2unix*
+        dos2unix [option] [file]
 
-        Summarize disk space used for each FILE and/or directory.
-        Disk space is printed in units of 1k (i.e. 1024 bytes).
+        Converts a text file to/from dos format to unix format.
+
+        Options:
+
+                -u      output will be in UNIX format
+                -d      output will be in DOS format
+
+        - when no option is given then input format will be
+        automaticaly detected
+
+          and converted to the oposite format on output
+        - when no file is given, then stdin is used as input and stdout as output
+
+        -------------------------------
+
+    *dpkg*
+        dpkg [-i|-r|--unpack|--configure] my.deb
+
+        WORK IN PROGRESS, only usefull for debian-installer
+
+        -------------------------------
+
+    *dpkg_deb*
+        dpkg_deb [-cexX] file directory
+
+        Perform actions on debian packages (.debs)
+
+        Options:
+
+                -c      List contents of filesystem tree (verbose)
+                -l      List contents of filesystem tree (.list format)
+                -e      Extract control files to directory
+                -x      Exctract packages filesystem tree to directory
+                -X      Verbose extract
+
+        Example:
+
+                $ dpkg-deb -X ./busybox_0.48-1_i386.deb /tmp
+
+        -------------------------------
+
+    *du*
+        du [-lshmk] [FILE]...
+
+        Summarizes disk space used for each FILE and/or directory.
+        Disk space is printed in units of 1024 bytes.
 
         Options:
 
                 -l      count sizes many times if hard linked
                 -s      display only a total for each argument
+                -h      print sizes in human readable format (e.g., 1K 243M 2G )
+                -m      print sizes in megabytes
+                -k      print sizes in kilobytes(default) 
 
         Example:
 
-                $ ./BusyBox du
+                $ du
                 16      ./CVS
                 12      ./kernel-patches/CVS
                 80      ./kernel-patches
@@ -448,8 +452,8 @@ COMMANDS
 
         -------------------------------
 
-    dumpkmap
-        Usage: dumpkmap
+    *dumpkmap*
+        dumpkmap > keymap
 
         Prints out a binary keyboard translation table to standard
         output.
@@ -460,11 +464,11 @@ COMMANDS
 
         -------------------------------
 
-    dutmp
-        Usage: dutmp [FILE]
+    *dutmp*
+        dutmp [FILE]
 
         Dump utmp file format (pipe delimited) from FILE or stdin to
-        stdout.
+        stdout. (i.e. 'dutmp /var/run/utmp')
 
         Example:
 
@@ -479,8 +483,8 @@ COMMANDS
 
         -------------------------------
 
-    echo
-        Usage: echo [-neE] [ARG ...]
+    *echo*
+        echo [-neE] [ARG ...]
 
         Prints the specified ARGs to stdout
 
@@ -492,19 +496,25 @@ COMMANDS
 
         Example:
 
-                $ echo "Erik is cool"
+                $ echo Erik is cool
                 Erik is cool
-                $  echo -e "Erik\nis\ncool"
+                $  echo -e Erik
+                is
+                cool
                 Erik
                 is
                 cool
-                $ echo "Erik\nis\ncool"
-                Erik\nis\ncool
+                $ echo Erik
+                is
+                cool
+                Erik
+                is
+                cool
 
         -------------------------------
 
-    expr
-        Usage: expr EXPRESSION
+    *expr*
+        expr EXPRESSION
 
         Prints the value of EXPRESSION to standard output.
 
@@ -526,10 +536,12 @@ COMMANDS
                 STRING : REGEXP             anchored pattern match of REGEXP in STRING
                 match STRING REGEXP         same as STRING : REGEXP
                 substr STRING POS LENGTH    substring of STRING, POS counted from 1
-                index STRING CHARS          index in STRING where any CHARS is found, or 0
+                index STRING CHARS          index in STRING where any CHARS is found,
+                                            or 0
                 length STRING               length of STRING
-                quote TOKEN                 interpret TOKEN as a string, even if it is a
-                                                                                keyword like `match' or an operator like `/'
+                quote TOKEN                 interpret TOKEN as a string, even if
+                                            it is a keyword like `match' or an
+                                            operator like `/'
                 ( EXPRESSION )              value of EXPRESSION
 
         Beware that many operators need to be escaped or quoted for
@@ -540,8 +552,10 @@ COMMANDS
 
         -------------------------------
 
-    false
-        Returns an exit code of FALSE (1)
+    *false*
+        false
+
+        Return an exit code of FALSE (1).
 
         Example:
 
@@ -551,57 +565,45 @@ COMMANDS
 
         -------------------------------
 
-    fbset
-        Usage: fbset [options] [mode]
+    *fbset*
+        fbset [options] [mode]
 
-        Show and modify frame buffer device settings
-
-        Options:
-
-                -h
-                -fb
-                -db
-                -a
-                -i
-                -g
-                -t
-                -accel
-                -hsync
-                -vsync
-                -laced
-                -double
+        Show and modify frame buffer settings
 
         Example:
 
                 $ fbset
-                mode "1024x768-76"
-                                # D: 78.653 MHz, H: 59.949 kHz, V: 75.694 Hz
+                mode 1024x768-76
                                 geometry 1024 768 1024 768 16
-                                timings 12714 128 32 16 4 128 4
-                                accel false
-                                rgba 5/11,6/5,5/0,0/0
+                        timings 12714 128 32 16 4 128 4
+                        accel false
+                        rgba 5/11,6/5,5/0,0/0
                 endmode
 
         -------------------------------
 
-    fdflush
-        Usage: fdflush device
+    *fdflush*
+        fdflush DEVICE
 
-        Force floppy disk drive to detect disk change
+        Forces floppy disk drive to detect disk change
 
         -------------------------------
 
-    find
-        Usage: find [PATH...] [EXPRESSION]
+    *find*
+        find [PATH...] [EXPRESSION]
 
         Search for files in a directory hierarchy. The default PATH
         is the current directory; default EXPRESSION is '-print'
 
         EXPRESSION may consist of:
 
-                -follow                 Dereference symbolic links.
+                -follow         Dereference symbolic links.
                 -name PATTERN   File name (leading directories removed) matches PATTERN.
-                -print                  print the full file name followed by a newline to stdout.
+                -type X         Filetype matches X (where X is one of: f,d,l,b,c,...)
+                -perm PERMS     Permissions match any of (+NNN); all of (-NNN);
+                                or exactly (NNN)
+                -mtime TIME     Modified time is greater than (+N); less than (-N);
+                                or exactly (N) days
 
         Example:
 
@@ -610,23 +612,23 @@ COMMANDS
 
         -------------------------------
 
-    free
-        Usage: free
+    *free*
+        free
 
-        Displays the amount of free and used system memory.
+        Displays the amount of free and used system memory
 
         Example:
 
                 $ free
-                                          total         used         free       shared      buffers
+                              total         used         free       shared      buffers
                   Mem:       257628       248724         8904        59644        93124
                  Swap:       128516         8404       120112
                 Total:       386144       257128       129016
 
         -------------------------------
 
-    freeramdisk
-        Usage: freeramdisk DEVICE
+    *freeramdisk*
+        freeramdisk DEVICE
 
         Frees all memory used by the specified ramdisk.
 
@@ -636,8 +638,8 @@ COMMANDS
 
         -------------------------------
 
-    fsck.minix
-        Usage: fsck.minix [-larvsmf] /dev/name
+    *fsck_minix*
+        fsck_minix [-larvsmf] /dev/name
 
         Performs a consistency check for MINIX filesystems.
 
@@ -648,66 +650,63 @@ COMMANDS
                 -a      Perform automatic repairs
                 -v      verbose
                 -s      Outputs super-block information
-                -m      Activates MINIX-like "mode not cleared" warnings
+                -m      Activates MINIX-like mode not cleared warnings
                 -f      Force file system check.
 
         -------------------------------
 
-    getopt
-        Usage: getopt [OPTIONS]...
+    *getopt*
+        getopt [OPTIONS]...
 
         Parse command options
 
-        Options:
-
-               -a, --alternative            Allow long options starting with single -\n"
-               -l, --longoptions=longopts   Long options to be recognized\n"
-               -n, --name=progname          The name under which errors are reported\n"
-               -o, --options=optstring      Short options to be recognized\n"
-               -q, --quiet                  Disable error reporting by getopt(3)\n"
-               -Q, --quiet-output           No normal output\n"
-               -s, --shell=shell            Set shell quoting conventions\n"
-               -T, --test                   Test for getopt(1) version\n"
-               -u, --unqote                 Do not quote the output\n"
+                -a, --alternative               Allow long options starting with single -
+                -l, --longoptions=longopts      Long options to be recognized
+                -n, --name=progname             The name under which errors are reported
+                -o, --options=optstring Short options to be recognized
+                -q, --quiet                     Disable error reporting by getopt(3)
+                -Q, --quiet-output              No normal output
+                -s, --shell=shell               Set shell quoting conventions
+                -T, --test                      Test for getopt(1) version
+                -u, --unqote                    Do not quote the output
 
         Example:
 
                 $ cat getopt.test
-                #!/bin/sh
                 GETOPT=`getopt -o ab:c:: --long a-long,b-long:,c-long:: \
-                        -n 'example.busybox' -- "$@"`
+                       -n 'example.busybox' -- $@`
                 if [ $? != 0 ] ; then  exit 1 ; fi
-                eval set -- "$GETOPT"
+                eval set -- $GETOPT
                 while true ; do
-                  case $1 in
-                    -a|--a-long) echo "Option a" ; shift ;;
-                    -b|--b-long) echo "Option b, argument \`$2'" ; shift 2 ;;
-                    -c|--c-long)
-                      case "$2" in
-                        "") echo "Option c, no argument"; shift 2 ;;
-                        *)  echo "Option c, argument \`$2'" ; shift 2 ;;
-                      esac ;;
-                    --) shift ; break ;;
-                    *) echo "Internal error!" ; exit 1 ;;
-                  esac
+                 case $1 in
+                   -a|--a-long) echo Option a ; shift ;;
+                   -b|--b-long) echo Option b, argument `$2' ; shift 2 ;;
+                   -c|--c-long)
+                     case $2 in
+                       \) echo Option c, no argument; shift 2 ;;
+                       *)  echo Option c, argument `$2' ; shift 2 ;;
+                     esac ;;
+                   --) shift ; break ;;
+                   *) echo Internal error! ; exit 1 ;;
+                 esac
                 done
 
         -------------------------------
 
-    grep
-        Usage: grep [OPTIONS]... PATTERN [FILE]...
+    *grep*
+        grep [-ihHnqvs] pattern [files...]
 
         Search for PATTERN in each FILE or standard input.
 
         Options:
 
+                -H      prefix output lines with filename where match was found
                 -h      suppress the prefixing filename on output
                 -i      ignore case distinctions
                 -n      print line number with output lines
                 -q      be quiet. Returns 0 if result was found, 1 otherwise
                 -v      select non-matching lines
-
-        This version of grep matches full regular expressions.
+                -s      suppress file open/read error messages
 
         Example:
 
@@ -718,8 +717,8 @@ COMMANDS
 
         -------------------------------
 
-    gunzip
-        Usage: gunzip [OPTION]... FILE
+    *gunzip*
+        gunzip [OPTION]... FILE
 
         Uncompress FILE (or standard input if FILE is '-').
 
@@ -738,8 +737,8 @@ COMMANDS
 
         -------------------------------
 
-    gzip
-        Usage: gzip [OPTION]... FILE
+    *gzip*
+        gzip [OPTION]... FILE
 
         Compress FILE with maximum compression. When FILE is '-',
         reads standard input. Implies -c.
@@ -759,15 +758,15 @@ COMMANDS
 
         -------------------------------
 
-    halt
-        Usage: halt
+    *halt*
+        halt
 
-        This command halts the system.
+        Halt the system.
 
         -------------------------------
 
-    head
-        Usage: head [OPTION] [FILE]...
+    *head*
+        head [OPTION] [FILE]...
 
         Print first 10 lines of each FILE to standard output. With
         more than one FILE, precede each with a header giving the
@@ -786,17 +785,15 @@ COMMANDS
 
         -------------------------------
 
-    hostid
-        Usage: hostid
+    *hostid*
+        hostid
 
-        Prints out a unique 32-bit identifier for the current
-        machine. The 32-bit identifier is intended to be unique
-        among all UNIX systems in existence.
+        Print out a unique 32-bit identifier for the machine.
 
         -------------------------------
 
-    hostname
-        Usage: hostname [OPTION] {hostname | -F file}
+    *hostname*
+        hostname [OPTION] {hostname | -F file}
 
         Get or set the hostname or DNS domain name. If a hostname is
         given (or a file with the -F parameter), the host name will
@@ -816,13 +813,16 @@ COMMANDS
 
         -------------------------------
 
-    id  Print information for USERNAME or the current user
+    *id*
+        id [OPTIONS]... [USERNAME]
+
+        Print information for USERNAME or the current user
 
         Options:
 
                 -g      prints only the group ID
                 -u      prints only the user ID
-                        -n      print a name instead of a number (with for -ug)
+                -n      print a name instead of a number (with for -ug)
                 -r      prints the real user ID instead of the effective ID (with -ug)
 
         Example:
@@ -832,8 +832,26 @@ COMMANDS
 
         -------------------------------
 
-    init
-        Usage: init
+    *ifconfig*
+        ifconfig [-a] <interface> [<address>]
+
+        configure a network interface
+
+        Options:
+
+                [[-]broadcast [<address>]]  [[-]pointopoint [<address>]]
+                [netmask <address>]  [dstaddr <address>]
+                [outfill <NN>] [keepalive <NN>]
+                [hw ether <address>]  [metric <NN>]  [mtu <NN>]
+                [[-]trailers]  [[-]arp]  [[-]allmulti]
+                [multicast]  [[-]promisc]  [txqueuelen <NN>]  [[-]dynamic]
+                [mem_start <NN>]  [io_addr <NN>]  [irq <NN>]
+                [up|down] ...
+
+        -------------------------------
+
+    *init*
+        init
 
         Init is the parent of all processes.
 
@@ -866,7 +884,7 @@ COMMANDS
                         WARNING: This field has a non-traditional meaning for BusyBox init!
                         The id field is used by BusyBox init to specify the controlling tty for
                         the specified process to run on.  The contents of this field are
-                        appended to "/dev/" and used as-is.  There is no need for this field to
+                        appended to /dev/ and used as-is.  There is no need for this field to
                         be unique, although if it isn't you may have strange results.  If this
                         field is left blank, the controlling tty is set to the console.  Also
                         note that if BusyBox detects that a serial console is in use, then only
@@ -906,7 +924,7 @@ COMMANDS
                                 it.  Unlike sysvinit, BusyBox init does not stop processes from
                                 respawning out of control.  The 'askfirst' actions acts just like
                                 respawn, except that before running the specified process it
-                                displays the line "Please press Enter to activate this console."
+                                displays the line Please press Enter to activate this console.
                                 and then waits for the user to press enter before starting the
                                 specified process.  
 
@@ -920,55 +938,40 @@ COMMANDS
 
         Example /etc/inittab file:
 
-                # This is run first except when booting in single-user mode.
-                #
                 ::sysinit:/etc/init.d/rcS
-
-                # /bin/sh invocations on selected ttys
-                #
-                # Start an "askfirst" shell on the console (whatever that may be)
+                
                 ::askfirst:-/bin/sh
-                # Start an "askfirst" shell on /dev/tty2-4
                 tty2::askfirst:-/bin/sh
                 tty3::askfirst:-/bin/sh
                 tty4::askfirst:-/bin/sh
-
-                # /sbin/getty invocations for selected ttys
-                #
+                
                 tty4::respawn:/sbin/getty 38400 tty5
                 tty5::respawn:/sbin/getty 38400 tty6
-
-                # Example of how to put a getty on a serial line (for a terminal)
-                #
-                #::respawn:/sbin/getty -L ttyS0 9600 vt100
-                #::respawn:/sbin/getty -L ttyS1 9600 vt100
-                #
-                # Example how to put a getty on a modem line.
-                #::respawn:/sbin/getty 57600 ttyS2
-
-                # Stuff to do before rebooting
+                
+                
+                
                 ::ctrlaltdel:/bin/umount -a -r
                 ::ctrlaltdel:/sbin/swapoff -a
 
         -------------------------------
 
-    insmod
-        Usage: insmod [OPTION]... MODULE [symbol=value]...
+    *insmod*
+        insmod [OPTION]... MODULE [symbol=value]...
 
         Loads the specified kernel modules into the kernel.
 
         Options:
 
-                        -f      Force module to load into the wrong kernel version.
-                        -k      Make module autoclean-able.
-                        -v      verbose output
-                        -x      do not export externs
-                        -L      Prevent simultaneous loads of the same module
+                -f      Force module to load into the wrong kernel version.
+                -k      Make module autoclean-able.
+                -v      verbose output
+                -L      Lock to prevent simultaneous loads of a module
+                -x      do not export externs
 
         -------------------------------
 
-    kill
-        Usage: kill [-signal] process-id [process-id ...]
+    *kill*
+        kill [-signal] process-id [process-id ...]
 
         Send a signal (default is SIGTERM) to the specified
         process(es).
@@ -990,8 +993,8 @@ COMMANDS
 
         -------------------------------
 
-    killall
-        Usage: killall [-signal] process-name [process-name ...]
+    *killall*
+        killall [-signal] process-name [process-name ...]
 
         Send a signal (default is SIGTERM) to the specified
         process(es).
@@ -1006,39 +1009,52 @@ COMMANDS
 
         -------------------------------
 
-    length
-        Usage: length STRING
+    *klogd*
+        klogd -n
+
+        Kernel logger. Options:
+
+                -n      Run as a foreground process.
+
+        -------------------------------
+
+    *length*
+        length STRING
 
         Prints out the length of the specified STRING.
 
         Example:
 
-                $ length "Hello"
+                $ length Hello
                 5
 
         -------------------------------
 
-    ln  Usage: ln [OPTION] TARGET... LINK_NAME|DIRECTORY
+    *ln*
+        ln [OPTION] TARGET... LINK_NAME|DIRECTORY
 
         Create a link named LINK_NAME or DIRECTORY to the specified
-        TARGET You may use '--' to indicate that all following
-        arguments are non-options.
+        TARGET
+
+        You may use '--' to indicate that all following arguments
+        are non-options.
 
         Options:
 
                 -s      make symbolic links instead of hard links
                 -f      remove existing destination files
+                -n      no dereference symlinks - treat like normal file
 
         Example:
 
-            $ ln -s BusyBox /tmp/ls
-            $ ls -l /tmp/ls
-            lrwxrwxrwx    1 root     root            7 Apr 12 18:39 ls -> BusyBox*
+                $ ln -s BusyBox /tmp/ls
+                $ ls -l /tmp/ls
+                lrwxrwxrwx    1 root     root            7 Apr 12 18:39 ls -> BusyBox*
 
         -------------------------------
 
-    loadacm
-        Usage: loadacm
+    *loadacm*
+        loadacm < mapfile
 
         Loads an acm from standard input.
 
@@ -1048,8 +1064,8 @@ COMMANDS
 
         -------------------------------
 
-    loadfont
-        Usage: loadfont
+    *loadfont*
+        loadfont < font
 
         Loads a console font from standard input.
 
@@ -1059,8 +1075,8 @@ COMMANDS
 
         -------------------------------
 
-    loadkmap
-        Usage: loadkmap
+    *loadkmap*
+        loadkmap < keymap
 
         Loads a binary keyboard translation table from standard
         input.
@@ -1071,8 +1087,8 @@ COMMANDS
 
         -------------------------------
 
-    logger
-        Usage: logger [OPTION]... [MESSAGE]
+    *logger*
+        logger [OPTION]... [MESSAGE]
 
         Write MESSAGE to the system log. If MESSAGE is omitted, log
         stdin.
@@ -1086,12 +1102,12 @@ COMMANDS
 
         Example:
 
-                        $ logger "hello"
+                $ logger hello
 
         -------------------------------
 
-    logname
-        Usage: logname
+    *logname*
+        logname
 
         Print the name of the current user.
 
@@ -1102,38 +1118,58 @@ COMMANDS
 
         -------------------------------
 
-    ls  Usage: ls [-1acdelnpuxACFLR] [filenames...]
+    *logread*
+        logread
+
+        Shows the messages from syslogd (using circular buffer).
+
+        -------------------------------
+
+    *ls*
+        ls [-1AacCdeFilnpLRrSsTtuvwxXhk] [filenames...]
+
+        List directory contents
 
         Options:
 
+                -1      list files in a single column
+                -A      do not list implied . and ..
                 -a      do not hide entries starting with .
-                -c      with  -l:  show ctime (the time of last
-                        modification of file status information)
+                -C      list entries by columns
+                -c      with -l: show ctime
                 -d      list directory entries instead of contents
                 -e      list both full date and full time
+                -F      append indicator (one of */=@|) to entries
+                -i      list the i-node for each file
                 -l      use a long listing format
                 -n      list numeric UIDs and GIDs instead of names
                 -p      append indicator (one of /=@|) to entries
-                -u      with -l: show access time (the time of last
-                        access of the file)
+                -L      list entries pointed to by symbolic links
+                -R      list subdirectories recursively
+                -r      sort the listing in reverse order
+                -S      sort the listing by file size
+                -s      list the size of each file, in blocks
+                -T NUM  assume Tabstop every NUM columns
+                -t      with -l: show modification time
+                -u      with -l: show access time
+                -v      sort the listing by version
+                -w NUM  assume the terminal is NUM columns wide
                 -x      list entries by lines instead of by columns
-                -A      do not list implied . and ..
-                -C      list entries by columns
-                -F      append indicator (one of */=@|) to entries
-                -R  list subdirectories recursively
-                -L  list entries pointed to by symbolic links
+                -X      sort the listing by extension
+                -h      print sizes in human readable format (e.g., 1K 243M 2G )
+                -k      print sizes in kilobytes(default)  
 
         -------------------------------
 
-    lsmod
-        Usage: lsmod
+    *lsmod*
+        lsmod
 
-        Shows a list of all currently loaded kernel modules.
+        List the currently loaded kernel modules.
 
         -------------------------------
 
-    makedevs
-        Usage: makedevs NAME TYPE MAJOR MINOR FIRST LAST [s]
+    *makedevs*
+        makedevs NAME TYPE MAJOR MINOR FIRST LAST [s]
 
         Creates a range of block or character special files
 
@@ -1148,6 +1184,11 @@ COMMANDS
         that should be created. If 's' is the last argument, the
         base device is created as well.
 
+        For example:
+
+                makedevs /dev/ttyS c 4 66 2 63   ->  ttyS2-ttyS63
+                makedevs /dev/hda b 3 0 0 8 s    ->  hda,hda1-hda8
+
         Example:
 
                 $ makedevs /dev/ttyS c 4 66 2 63
@@ -1157,26 +1198,29 @@ COMMANDS
 
         -------------------------------
 
-    md5sum
-        Usage: md5sum [OPTION] [file ...]
+    *md5sum*
+        md5sum [OPTION] [FILE]... or: md5sum [OPTION] -c [FILE]
 
         Print or check MD5 checksums.
 
-        Options:
+        Options: With no FILE, or when FILE is -, read standard
+        input.
 
-                -b       read files in binary mode
-                -c       check MD5 sums against given list
-                -t       read files in text mode (default)
-                -g       read a string
+                -b      read files in binary mode
+                -c      check MD5 sums against given list
+                -t      read files in text mode (default)
+                -g      read a string
 
         The following two options are useful only when verifying
         checksums:
 
-                -s       don't output anything, status code shows success
-                -w       warn about improperly formated MD5 checksum lines
+                -s      don't output anything, status code shows success
+                -w      warn about improperly formated MD5 checksum lines
 
         Example:
 
+                $ md5sum < busybox
+                6fd11e98b98a58f64ff3398d7b324003
                 $ md5sum busybox
                 6fd11e98b98a58f64ff3398d7b324003  busybox
                 $ md5sum -c -
@@ -1186,15 +1230,15 @@ COMMANDS
 
         -------------------------------
 
-    mkdir
-        Usage: mkdir [OPTION] DIRECTORY...
+    *mkdir*
+        mkdir [OPTION] DIRECTORY...
 
         Create the DIRECTORY(ies), if they do not already exist
 
         Options:
 
                 -m      set permission mode (as in chmod), not rwxrwxrwx - umask
-                -p      no error if directory exists, make parent directories as needed
+                -p      no error if existing, make parent directories as needed
 
         Example:
 
@@ -1207,8 +1251,8 @@ COMMANDS
 
         -------------------------------
 
-    mkfifo
-        Usage: mkfifo [OPTIONS] name
+    *mkfifo*
+        mkfifo [OPTIONS] name
 
         Creates a named pipe (identical to 'mknod name p')
 
@@ -1218,8 +1262,8 @@ COMMANDS
 
         -------------------------------
 
-    mkfs.minix
-        Usage: mkfs.minix [-c | -l filename] [-nXX] [-iXX] /dev/name
+    *mkfs_minix*
+        mkfs_minix [-c | -l filename] [-nXX] [-iXX] /dev/name
         [blocks]
 
         Make a MINIX filesystem.
@@ -1228,14 +1272,14 @@ COMMANDS
 
                 -c              Check the device for bad blocks
                 -n [14|30]      Specify the maximum length of filenames
-                -i              Specify the number of inodes for the filesystem
+                -i INODES       Specify the number of inodes for the filesystem
                 -l FILENAME     Read the bad blocks list from FILENAME
                 -v              Make a Minix version 2 filesystem
 
         -------------------------------
 
-    mknod
-        Usage: mknod [OPTIONS] NAME TYPE MAJOR MINOR
+    *mknod*
+        mknod [OPTIONS] NAME TYPE MAJOR MINOR
 
         Create a special file (block, character, or pipe).
 
@@ -1243,9 +1287,11 @@ COMMANDS
 
                 -m      create the special file using the specified mode (default a=rw)
 
-        TYPEs include: b: Make a block (buffered) device. c or u:
-        Make a character (un-buffered) device. p: Make a named pipe.
-        MAJOR and MINOR are ignored for named pipes.
+        TYPEs include:
+
+                b:      Make a block (buffered) device.
+                c or u: Make a character (un-buffered) device.
+                p:      Make a named pipe. MAJOR and MINOR are ignored for named pipes.
 
         Example:
 
@@ -1254,8 +1300,8 @@ COMMANDS
 
         -------------------------------
 
-    mkswap
-        Usage: mkswap [-c] [-v0|-v1] device [block-count]
+    *mkswap*
+        mkswap [-c] [-v0|-v1] device [block-count]
 
         Prepare a disk partition to be used as a swap partition.
 
@@ -1263,13 +1309,14 @@ COMMANDS
 
                 -c              Check for read-ability.
                 -v0             Make version 0 swap [max 128 Megs].
-                -v1             Make version 1 swap [big!] (default for kernels > 2.1.117).
+                -v1             Make version 1 swap [big!] (default for kernels >
+                                2.1.117).
                 block-count     Number of block to use (default is entire partition).
 
         -------------------------------
 
-    mktemp
-        Usage: mktemp [-q] TEMPLATE
+    *mktemp*
+        mktemp [-q] TEMPLATE
 
         Creates a temporary file with its name based on TEMPLATE.
         TEMPLATE is any name with six `Xs' (i.e. /tmp/temp.XXXXXX).
@@ -1283,11 +1330,10 @@ COMMANDS
 
         -------------------------------
 
-    more
-        Usage: more [file ...]
+    *more*
+        more [FILE ...]
 
-        More is a filter for paging through text one screenful at a
-        time.
+        More is a filter for viewing FILE one screenful at a time.
 
         Example:
 
@@ -1295,19 +1341,22 @@ COMMANDS
 
         -------------------------------
 
-    mount
-        Usage: mount [flags] mount [flags] device directory [-o
-        options,more-options]
+    *mount*
+        mount [flags] device directory [-o options,more-options]
+
+        Mount a filesystem
 
         Flags:
 
-                -a:             Mount all file systems in fstab.
+                -a:             Mount all filesystems in fstab.
+                -f:             Fake Add entry to mount table but don't mount it.
+                -n:             Don't write a mount table entry.
                 -o option:      One of many filesystem options, listed below.
                 -r:             Mount the filesystem read-only.
                 -t fs-type:     Specify the filesystem type.
                 -w:             Mount for reading and writing (default).
 
-        Options for use with the "-o" flag:
+        Options for use with the -o flag:
 
                 async/sync:     Writes are asynchronous / synchronous.
                 atime/noatime:  Enable / disable updates to inode access times.
@@ -1315,10 +1364,12 @@ COMMANDS
                 exec/noexec:    Allow use of executable files / disallow them.
                 loop:           Mounts a file via loop device.
                 suid/nosuid:    Allow set-user-id-root programs / disallow them.
-                remount:        Re-mount a currently-mounted filesystem, changing its flags.
+                remount:        Re-mount a mounted filesystem, changing its flags.
                 ro/rw:          Mount for read-only / read-write.
-                There are EVEN MORE flags that are specific to each filesystem.
-                You'll have to see the written documentation for those.
+
+        There are EVEN MORE flags that are specific to each
+        filesystem. You'll have to see the written documentation for
+        those.
 
         Example:
 
@@ -1331,15 +1382,22 @@ COMMANDS
 
         -------------------------------
 
-    mt  Usage: mt [-f device] opcode value
+    *mt*
+        mt [-f device] opcode value
 
         Control magnetic tape drive operation
 
+        Available Opcodes:
+
+        bsf bsfm bsr bss datacompression drvbuffer eof eom erase fsf
+        fsfm fsr fss load lock mkpart nop offline ras1 ras2 ras3
+        reset retension rew rewoffline seek setblk setdensity
+        setpart tell unload unlock weof wset
+
         -------------------------------
 
-    mv  Usage: mv SOURCE DEST
-
-           or: mv SOURCE... DIRECTORY
+    *mv*
+        mv SOURCE DEST or: mv SOURCE... DIRECTORY
 
         Rename SOURCE to DEST, or move SOURCE(s) to DIRECTORY.
 
@@ -1349,15 +1407,15 @@ COMMANDS
 
         -------------------------------
 
-    nc  Usage: nc [IP] [port]
+    *nc*
+        nc [IP] [port]
 
         Netcat opens a pipe to IP:port
 
         Example:
 
                 $ nc foobar.somedomain.com 25
-                220 foobar ESMTP Exim 3.12 #1 Sat, 15 Apr 2000 00:03:02 -0600
-                help
+                220 foobar ESMTP Exim 3.12 help
                 214-Commands supported:
                 214-    HELO EHLO MAIL RCPT DATA AUTH
                 214     NOOP QUIT RSET HELP
@@ -1366,8 +1424,8 @@ COMMANDS
 
         -------------------------------
 
-    nslookup
-        Usage: nslookup [HOST]
+    *nslookup*
+        nslookup [HOST]
 
         Queries the nameserver for the IP address of the given HOST
 
@@ -1376,14 +1434,14 @@ COMMANDS
                 $ nslookup localhost
                 Server:     default
                 Address:    default
-
+                
                 Name:       debian
                 Address:    127.0.0.1
 
         -------------------------------
 
-    ping
-        Usage: ping [OPTION]... host
+    *ping*
+        ping [OPTION]... host
 
         Send ICMP ECHO_REQUEST packets to network hosts.
 
@@ -1393,38 +1451,51 @@ COMMANDS
                 -s SIZE         Send SIZE data bytes in packets (default=56).
                 -q              Quiet mode, only displays output at start
                                 and when finished.
+
         Example:
 
                 $ ping localhost
                 PING slag (127.0.0.1): 56 data bytes
                 64 bytes from 127.0.0.1: icmp_seq=0 ttl=255 time=20.1 ms
-
+                
                 --- debian ping statistics ---
                 1 packets transmitted, 1 packets received, 0% packet loss
                 round-trip min/avg/max = 20.1/20.1/20.1 ms
 
         -------------------------------
 
-    poweroff
-        Shuts down the system, and requests that the kernel turn off
-        power upon halting.
+    *pivot_root*
+        pivot_root new_root put_old
+
+        Move the current root file system to put_old and make
+        new_root the new root file system.
 
         -------------------------------
 
-    printf
-        Usage: printf format [argument...]
+    *poweroff*
+        poweroff
 
-        Formats and prints the given data in a manner similar to the
-        C printf command.
+        Halt the system and request that the kernel shut off the
+        power.
+
+        -------------------------------
+
+    *printf*
+        printf FORMAT [ARGUMENT...]
+
+        Formats and prints ARGUMENT(s) according to FORMAT, Where
+        FORMAT controls the output exactly as in C printf.
 
         Example:
 
-                $ printf "Val=%d\n" 5
+                $ printf Val=%d
+                 5
                 Val=5
 
         -------------------------------
 
-    ps  Usage: ps
+    *ps*
+        ps
 
         Report process status
 
@@ -1433,20 +1504,23 @@ COMMANDS
         Example:
 
                 $ ps
-          PID  Uid      Gid State Command
-            1 root     root     S init
-            2 root     root     S [kflushd]
-            3 root     root     S [kupdate]
-            4 root     root     S [kpiod]
-            5 root     root     S [kswapd]
-          742 andersen andersen S [bash]
-          743 andersen andersen S -bash
-          745 root     root     S [getty]
-         2990 andersen andersen R ps
+                  PID  Uid      Gid State Command
+                    1 root     root     S init
+                    2 root     root     S [kflushd]
+                    3 root     root     S [kupdate]
+                    4 root     root     S [kpiod]
+                    5 root     root     S [kswapd]
+                  742 andersen andersen S [bash]
+                  743 andersen andersen S -bash
+                  745 root     root     S [getty]
+                 2990 andersen andersen R ps
 
         -------------------------------
 
-    pwd Prints the full filename of the current working directory.
+    *pwd*
+        pwd
+
+        Print the full filename of the current working directory.
 
         Example:
 
@@ -1455,8 +1529,8 @@ COMMANDS
 
         -------------------------------
 
-    rdate
-        Usage: rdate [OPTION] HOST
+    *rdate*
+        rdate [OPTION] HOST
 
         Get and possibly set the system date and time from a remote
         HOST.
@@ -1468,13 +1542,22 @@ COMMANDS
 
         -------------------------------
 
-    reboot
-        Instructs the kernel to reboot the system.
+    *readlink*
+        readlink
+
+        Read a symbolic link.
 
         -------------------------------
 
-    renice
-        Usage: renice priority pid [pid ...]
+    *reboot*
+        reboot
+
+        Reboot the system.
+
+        -------------------------------
+
+    *renice*
+        renice priority pid [pid ...]
 
         Changes priority of running processes. Allowed priorities
         range from 20 (the process runs only when nothing else is
@@ -1483,20 +1566,22 @@ COMMANDS
 
         -------------------------------
 
-    reset
-        Usage: reset
+    *reset*
+        reset
 
         Resets the screen.
 
         -------------------------------
 
-    rm  Usage: rm [OPTION]... FILE...
+    *rm*
+        rm [OPTION]... FILE...
 
         Remove (unlink) the FILE(s). You may use '--' to indicate
         that all following arguments are non-options.
 
         Options:
 
+                -i              always prompt before removing each destinations
                 -f              remove existing destinations, never prompt
                 -r or -R        remove the contents of directories recursively
 
@@ -1506,19 +1591,17 @@ COMMANDS
 
         -------------------------------
 
-    rmdir
-        Usage: rmdir [OPTION]... DIRECTORY...
+    *rmdir*
+        rmdir [OPTION]... DIRECTORY...
 
         Remove the DIRECTORY(ies), if they are empty.
 
         Example:
 
-                # rmdir /tmp/foo
-
         -------------------------------
 
-    rmmod
-        Usage: rmmod [OPTION]... [MODULE]...
+    *rmmod*
+        rmmod [OPTION]... [MODULE]...
 
         Unloads the specified kernel modules from the kernel.
 
@@ -1532,42 +1615,44 @@ COMMANDS
 
         -------------------------------
 
-    sed Usage: sed [-n] -e script [file...]
+    *route*
+        route [{add|del|flush}]
 
-        Allowed sed scripts come in the following form:
+        Edit the kernel's routing tables
 
-                'ADDR [!] COMMAND'
+        -------------------------------
 
-                where address ADDR can be:
-                  NUMBER    Match specified line number
-                  $         Match last line
-                  /REGEXP/  Match specified regexp
-                  (! inverts the meaning of the match)
+    *rpmunpack*
+        rpmunpack < package.rpm | gunzip | cpio -idmuv
 
-                and COMMAND can be:
-                  s/regexp/replacement/[igp]
-                         which attempt to match regexp against the pattern space
-                         and if successful replaces the matched portion with replacement.
+        Extracts an rpm archive.
 
-                  aTEXT
-                         which appends TEXT after the pattern space
+        -------------------------------
+
+    *sed*
+        sed [-Vhnef] pattern [files...]
 
         Options:
 
-                -e      add the script to the commands to be executed
-                -n      suppress automatic printing of pattern space
+                -n              suppress automatic printing of pattern space
+                -e script       add the script to the commands to be executed
+                -f scriptfile   add the contents of script-file to the commands to be executed
+                -h              display this help message
 
-        This version of sed matches full regular expressions.
+        If no -e or -f is given, the first non-option argument is
+        taken as the sed script to interpret. All remaining
+        arguments are names of input files; if no input files are
+        specified, then the standard input is read.
 
         Example:
 
-                $ echo "foo" | sed -e 's/f[a-zA-Z]o/bar/g'
+                $ echo foo | sed -e 's/f[a-zA-Z]o/bar/g'
                 bar
 
         -------------------------------
 
-    setkeycodes
-        Usage: setkeycodes SCANCODE KEYCODE ...
+    *setkeycodes*
+        setkeycodes SCANCODE KEYCODE ...
 
         Set entries into the kernel's scancode-to-keycode map,
         allowing unusual keyboards to generate usable keycodes.
@@ -1577,28 +1662,29 @@ COMMANDS
 
         Example:
 
-                # setkeycodes e030 127
+                $ setkeycodes e030 127
 
         -------------------------------
 
-    sh  Usage: sh
+    *sh*
+        sh [FILE]... or: sh -c command [args]...
 
-        lash -- the BusyBox LAme SHell (command interpreter)
+        lash: The BusyBox LAme SHell (command interpreter)
 
         This command does not yet have proper documentation.
 
         Use lash just as you would use any other shell. It properly
         handles pipes, redirects, job control, can be used as the
-        shell for scripts (#!/bin/sh), and has a sufficient set of
-        builtins to do what is needed. It does not (yet) support
-        Bourne Shell syntax. If you need things like "if-then-else",
-        "while", and such, use ash or bash. If you just need a very
-        simple and extremely small shell, this will do the job.
+        shell for scripts, and has a sufficient set of builtins to
+        do what is needed. It does not (yet) support Bourne Shell
+        syntax. If you need things like if-then-else, while, and
+        such use ash or bash. If you just need a very simple and
+        extremely small shell, this will do the job.
 
         -------------------------------
 
-    sleep
-        Usage: sleep N
+    *sleep*
+        sleep N
 
         Pause for N seconds.
 
@@ -1609,14 +1695,19 @@ COMMANDS
 
         -------------------------------
 
-    sort
-        Usage: sort [-n] [-r] [FILE]...
+    *sort*
+        sort [-n] [-r] [FILE]...
 
         Sorts lines of text in the specified files
 
         Example:
 
-                $ echo -e "e\nf\nb\nd\nc\na" | sort
+                $ echo -e e
+                f
+                b
+                d
+                c
+                a | sort
                 a
                 b
                 c
@@ -1626,8 +1717,23 @@ COMMANDS
 
         -------------------------------
 
-    swapoff
-        Usage: swapoff [OPTION] [device]
+    *stty*
+        stty [-a|g] [-F device] [SETTING]...
+
+        Without arguments, prints baud rate, line discipline, and
+        deviations from stty sane.
+
+        Options:
+
+                -F device       open device instead of stdin
+                -a              print all current settings in human-readable form
+                -g              print in stty-readable form
+                [SETTING]       see documentation
+
+        -------------------------------
+
+    *swapoff*
+        swapoff [OPTION] [device]
 
         Stop swapping virtual memory pages on the given device.
 
@@ -1637,8 +1743,8 @@ COMMANDS
 
         -------------------------------
 
-    swapon
-        Usage: swapon [OPTION] [device]
+    *swapon*
+        swapon [OPTION] [device]
 
         Start swapping virtual memory pages on the given device.
 
@@ -1648,28 +1754,26 @@ COMMANDS
 
         -------------------------------
 
-    sync
-        Usage: sync
+    *sync*
+        sync
 
         Write all buffered filesystem blocks to disk.
 
         -------------------------------
 
-    syslogd
-        Usage: syslogd [OPTION]...
+    *syslogd*
+        syslogd [OPTION]...
 
-        Linux system and kernel (provides klogd) logging utility.
-        Note that this version of syslogd/klogd ignores
-        /etc/syslog.conf.
+        Linux system and kernel logging utility. Note that this
+        version of syslogd ignores /etc/syslog.conf.
 
         Options:
 
-                -m NUM  Interval between MARK lines (default=20min, 0=off)
+                -m NUM          Interval between MARK lines (default=20min, 0=off)
                 -n              Run as a foreground process
-                -K              Do not start up the klogd process
-                -O FILE Use an alternate log file (default=/var/log/messages)
-                -R HOST[:PORT]  Log remotely to IP or hostname on PORT (default PORT=514/UDP)
-                -L      Log locally as well as network logging (default is network only)
+                -O FILE         Use an alternate log file (default=/var/log/messages)
+                -R HOST[:PORT]  Log to IP or hostname on PORT (default PORT=514/UDP)
+                -L              Log locally and via network logging (default is network only)
 
         Example:
 
@@ -1678,8 +1782,8 @@ COMMANDS
 
         -------------------------------
 
-    tail
-        Usage: tail [OPTION] [FILE]...
+    *tail*
+        tail [OPTION]... [FILE]...
 
         Print last 10 lines of each FILE to standard output. With
         more than one FILE, precede each with a header giving the
@@ -1688,9 +1792,17 @@ COMMANDS
 
         Options:
 
-                -n NUM          Print last NUM lines instead of first 10
-                -f              Output data as the file grows.  This version
-                                of 'tail -f' supports only one file at a time.
+                -c N[kbm]       output the last N bytes
+                -n N[kbm]       print last N lines instead of last 10
+                -f              output data as the file grows
+                -q              never output headers giving file names
+                -s SEC          wait SEC seconds between reads with -f
+                -v              always output headers giving file names
+
+        If the first character of N (bytes or lines) is a '+',
+        output begins with the Nth item from the start of each file,
+        otherwise, print the last N items in the file. N bytes may
+        be suffixed by k (x1024), b (x512), or m (1024^2).
 
         Example:
 
@@ -1699,10 +1811,11 @@ COMMANDS
 
         -------------------------------
 
-    tar Usage: tar -[cxtvO] [--exclude File] [-f tarFile] [FILE] ...
+    *tar*
+        tar -[cxtvO] [--exclude File] [-X File][-f tarFile]
+        [FILE(s)] ...
 
-        Create, extract, or list files from a tar file. Note that
-        this version of tar treats hard links as separate files.
+        Create, extract, or list files from a tar file.
 
         Main operation mode:
 
@@ -1712,9 +1825,10 @@ COMMANDS
 
         File selection:
 
-                f               name of tarfile or "-" for stdin
+                f               name of tarfile or - for stdin
                 O               extract to stdout
                 exclude         file to exclude
+                X               file with names to exclude
 
         Informative output:
 
@@ -1727,7 +1841,8 @@ COMMANDS
 
         -------------------------------
 
-    tee Usage: tee [OPTION]... [FILE]...
+    *tee*
+        tee [OPTION]... [FILE]...
 
         Copy standard input to each FILE, and also to standard
         output.
@@ -1738,22 +1853,22 @@ COMMANDS
 
         Example:
 
-                $ echo "Hello" | tee /tmp/foo
+                $ echo Hello | tee /tmp/foo
                 $ cat /tmp/foo
                 Hello
 
         -------------------------------
 
-    telnet
-        Usage: telnet host [port]
+    *telnet*
+        telnet host [port]
 
         Telnet is used to establish interactive communication with
         another computer over a network using the TELNET protocol.
 
         -------------------------------
 
-    test, [
-        Usage: test EXPRESSION or [ EXPRESSION ]
+    *test*
+        test EXPRESSION or [ EXPRESSION ]
 
         Checks file types and compares values returning an exit code
         determined by the value of EXPRESSION.
@@ -1764,7 +1879,7 @@ COMMANDS
                 $ echo $?
                 1
                 $ test 1 -eq 1
-                $ echo $?
+                $ echo $? 
                 0
                 $ [ -d /etc ]
                 $ echo $?
@@ -1775,11 +1890,28 @@ COMMANDS
 
         -------------------------------
 
-    touch
-        Usage: touch [-c] file [file ...]
+    *tftp*
+        tftp command SOURCE DEST
 
-        Update the last-modified date on (or create) the selected
-        file[s].
+        Transfers a file from/to a tftp server using octet mode.
+
+        Commands:
+
+                get     Get file from server SOURCE and store to local DEST.
+                put     Put local file SOURCE to server DEST.
+
+        When nameing a server, use the syntax server:file.
+
+        -------------------------------
+
+    *touch*
+        touch [-c] file [file ...]
+
+        Update the last-modified date on the given file[s].
+
+        Options:
+
+                -c      Do not create any files
 
         Example:
 
@@ -1791,7 +1923,8 @@ COMMANDS
 
         -------------------------------
 
-    tr  Usage: tr [-cds] STRING1 [STRING2]
+    *tr*
+        tr [-cds] STRING1 [STRING2]
 
         Translate, squeeze, and/or delete characters from standard
         input, writing to standard output.
@@ -1804,13 +1937,15 @@ COMMANDS
 
         Example:
 
-                $ echo "gdkkn vnqkc" | tr [a-y] [b-z]
+                $ echo gdkkn vnqkc | tr [a-y] [b-z]
                 hello world
 
         -------------------------------
 
-    true
-        Returns an exit code of TRUE (0)
+    *true*
+        true
+
+        Return an exit code of TRUE (0).
 
         Example:
 
@@ -1820,7 +1955,8 @@ COMMANDS
 
         -------------------------------
 
-    tty Usage: tty
+    *tty*
+        tty
 
         Print the file name of the terminal connected to standard
         input.
@@ -1836,15 +1972,18 @@ COMMANDS
 
         -------------------------------
 
-    umount
-        Usage: umount [flags] filesystem|directory
+    *umount*
+        umount [flags] filesystem|directory
+
+        Unmount file systems
 
         Flags:
 
-                        -a:     Unmount all file systems
-                        -r:     Try to remount devices as read-only if mount is busy
-                        -f:     Force filesystem umount (i.e. unreachable NFS server)
-                        -l:     Do not free loop device (if a loop device has been used)
+                -a:     Unmount all file systems in /etc/mtab
+                -n:     Don't erase /etc/mtab entries
+                -r:     Try to remount devices as read-only if mount is busy
+                -f:     Force filesystem umount (i.e. unreachable NFS server)
+                -l:     Do not free loop device (if a loop device has been used)
 
         Example:
 
@@ -1852,8 +1991,8 @@ COMMANDS
 
         -------------------------------
 
-    uname
-        Usage: uname [OPTION]...
+    *uname*
+        uname [OPTION]...
 
         Print certain system information. With no OPTION, same as -
         s.
@@ -1871,46 +2010,45 @@ COMMANDS
         Example:
 
                 $ uname -a
-                Linux debian 2.2.15pre13 #5 Tue Mar 14 16:03:50 MST 2000 i686 unknown
+                Linux debian 2.2.15pre13 
 
         -------------------------------
 
-    uniq
-        Usage: uniq [OPTION]... [INPUT [OUTPUT]]
+    *uniq*
+        uniq [OPTION]... [INPUT [OUTPUT]]
 
         Discard all but one of successive identical lines from INPUT
         (or standard input), writing to OUTPUT (or standard output).
+
         Options:
 
-                -c              prefix lines by the number of occurrences
-                -d              only print duplicate lines
-                -u              only print unique lines
+                -c      prefix lines by the number of occurrences
+                -d      only print duplicate lines
+                -u      only print unique lines
 
         Example:
 
-                $ echo -e "a\na\nb\nc\nc\na" | sort | uniq
+                $ echo -e a
+                a
+                b
+                c
+                c
+                a | sort | uniq
                 a
                 b
                 c
 
         -------------------------------
 
-    unix2dos
-        Usage: unix2dos < unixfile > dosfile
+    *unix2dos*
+        unix2dos [option] [file]
 
-        Converts a text file from unix format to dos format.
-
-        -------------------------------
-
-    unrpm
-        Usage: unrpm < package.rpm | gzip -d | cpio -idmuv
-
-        Extracts an rpm archive.
+        See 'dos2unix --help' for help!
 
         -------------------------------
 
-    update
-        Usage: update [options]
+    *update*
+        update [options]
 
         Periodically flushes filesystem buffers.
 
@@ -1922,10 +2060,10 @@ COMMANDS
 
         -------------------------------
 
-    uptime
-        Usage: uptime
+    *uptime*
+        uptime
 
-        Tells how long the system has been running since boot.
+        Display the time since the last boot.
 
         Example:
 
@@ -1934,10 +2072,10 @@ COMMANDS
 
         -------------------------------
 
-    usleep
-        Usage: usleep N
+    *usleep*
+        usleep N
 
-        Pauses for N microseconds.
+        Pause for N microseconds.
 
         Example:
 
@@ -1946,8 +2084,21 @@ COMMANDS
 
         -------------------------------
 
-    uuencode
-        Usage: uuencode [OPTION] [INFILE] REMOTEFILE
+    *uudecode*
+        uudecode [FILE]...
+
+        Uudecode a file that is uuencoded.
+
+        Options:
+
+                -o FILE direct output to FILE$ uudecode -o busybox busybox.uu
+        $ ls B<-l> busybox
+        B<-rwxr>-xr-x   1 ams      ams        245264 Jun  7 21:35 busybox
+
+        -------------------------------
+
+    *uuencode*
+        uuencode [OPTION] [INFILE] REMOTEFILE
 
         Uuencode a file.
 
@@ -1959,38 +2110,21 @@ COMMANDS
 
                 $ uuencode busybox busybox
                 begin 755 busybox
-                M?T5,1@$!`0````````````(``P`!````L+@$"#0```!0N@,``````#0`(``&
-                .....
+                <encoded file snipped>
                 $ uudecode busybox busybox > busybox.uu
                 $
 
         -------------------------------
 
-    uudecode
-        Usage: uudecode [OPTION] [FILE]
+    *watchdog*
+        watchdog DEV
 
-        Uudecode a uuencoded file
-
-        Options:
-
-                -o FILE  direct output to FILE
-
-        Example:
-
-                $ uudecode -o busybox busybox.uu
-                $ ls -l busybox
-                -rwxr-xr-x   1 ams      ams        245264 Jun  7 21:35 busybox
+        Periodically write to watchdog device DEV
 
         -------------------------------
 
-    watchdog
-        Usage: watchdog device
-
-        Periodically writes to watchdog device device.
-
-        -------------------------------
-
-    wc  Usage: wc [OPTION]... [FILE]...
+    *wc*
+        wc [OPTION]... [FILE]...
 
         Print line, word, and byte counts for each FILE, and a total
         line if more than one FILE is specified. With no FILE, read
@@ -2010,8 +2144,20 @@ COMMANDS
 
         -------------------------------
 
-    which
-        Usage: which [COMMAND ...]
+    *wget*
+        wget [-c] [-O file] url
+
+        wget retrieves files via HTTP
+
+        Options:
+
+                -c      continue retrieval of aborted transfers
+                -O      save to filename ('-' for stdout)
+
+        -------------------------------
+
+    *which*
+        which [COMMAND ...]
 
         Locates a COMMAND.
 
@@ -2022,28 +2168,19 @@ COMMANDS
 
         -------------------------------
 
-    whoami
-        Usage: whoami
+    *whoami*
+        whoami
 
         Prints the user name associated with the current effective
         user id.
 
-        Example:
-
-                $ whoami
-                andersen
-
         -------------------------------
 
-    xargs
-        Usage: xargs [OPTIONS] [COMMAND] [ARGS...]
+    *xargs*
+        xargs [COMMAND] [ARGS...]
 
         Executes COMMAND on every item given by standard input.
 
-        Options:
-
-                        -t      Print the command just before it is run
-         
         Example:
 
                 $ ls | xargs gzip
@@ -2051,17 +2188,18 @@ COMMANDS
 
         -------------------------------
 
-    yes Usage: yes [OPTION]... [STRING]...
+    *yes*
+        yes [OPTION]... [STRING]...
 
         Repeatedly outputs a line with all specified STRING(s), or
-        `y'.
+        'y'.
 
         -------------------------------
 
-    zcat
-        This is essentially an alias for invoking "gunzip -c", where
-        it decompresses the file in question and send the output to
-        stdout.
+    *zcat*
+        zcat FILE
+
+        Uncompress to stdout.
 
         -------------------------------
 

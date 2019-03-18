@@ -20,11 +20,6 @@
  *
 */
 
-#include "busybox.h"
-#define BB_DECLARE_EXTERN
-#define bb_need_invalid_date
-#define bb_need_memory_exhausted
-#include "messages.c"
 #include <stdlib.h>
 #include <errno.h>
 #include <sys/time.h>
@@ -33,6 +28,11 @@
 #include <stdio.h>
 #include <string.h>
 #include <getopt.h>
+#include "busybox.h"
+#define BB_DECLARE_EXTERN
+#define bb_need_invalid_date
+#define bb_need_memory_exhausted
+#include "messages.c"
 
 
 /* This 'date' command supports only 2 time setting formats, 
@@ -46,7 +46,7 @@
 
 /* Default input handling to save suprising some people */
 
-struct tm *date_conv_time(struct tm *tm_time, const char *t_string)
+static struct tm *date_conv_time(struct tm *tm_time, const char *t_string)
 {
 	int nr;
 
@@ -73,7 +73,7 @@ struct tm *date_conv_time(struct tm *tm_time, const char *t_string)
 
 /* The new stuff for LRP */
 
-struct tm *date_conv_ftime(struct tm *tm_time, const char *t_string)
+static struct tm *date_conv_ftime(struct tm *tm_time, const char *t_string)
 {
 	struct tm t;
 
@@ -151,7 +151,7 @@ int date_main(int argc, char **argv)
 			case 's':
 				set_time = 1;
 				if ((date_str != NULL) || ((date_str = optarg) == NULL)) {
-					usage(date_usage);
+					show_usage();
 				}
 				break;
 			case 'u':
@@ -162,10 +162,10 @@ int date_main(int argc, char **argv)
 			case 'd':
 				use_arg = 1;
 				if ((date_str != NULL) || ((date_str = optarg) == NULL))
-					usage(date_usage);
+					show_usage();
 				break;
 			default:
-				usage(date_usage);
+				show_usage();
 		}
 	}
 
@@ -178,7 +178,7 @@ int date_main(int argc, char **argv)
 #if 0
 	else {
 		error_msg("date_str='%s'  date_fmt='%s'\n", date_str, date_fmt);
-		usage(date_usage);
+		show_usage();
 	}
 #endif
 

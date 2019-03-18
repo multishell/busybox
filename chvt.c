@@ -4,12 +4,15 @@
  *
  * busyboxed by Erik Andersen
  */
-#include "busybox.h"
+
+/* getopt not needed */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
+#include "busybox.h"
 
 /* From <linux/vt.h> */
 static const int VT_ACTIVATE = 0x5606;  /* make vt active */
@@ -20,7 +23,7 @@ int chvt_main(int argc, char **argv)
 	int fd, num;
 
 	if ((argc != 2) || (**(argv + 1) == '-'))
-		usage (chvt_usage);
+		show_usage();
 	fd = get_console_fd("/dev/console");
 	num = atoi(argv[1]);
 	if (ioctl(fd, VT_ACTIVATE, num))

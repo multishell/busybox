@@ -22,23 +22,23 @@
 /* Hacked to work with BusyBox by Alfred M. Szmidt */
 
 
-#include "busybox.h"
 
 #include <stdio.h>
 #include <errno.h>
 #include <getopt.h>
 #include <stdlib.h>
+#include "busybox.h"
 
 #define	RW (S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)
 
 static void encode __P ((void));
 
 /* Pointer to the translation table we currently use.  */
-const char *trans_ptr;
+static const char *trans_ptr;
 
 /* The two currently defined translation tables.  The first is the
    standard uuencoding, the second is base64 encoding.  */
-const char uu_std[64] = {
+static const char uu_std[64] = {
   '`', '!', '"', '#', '$', '%', '&', '\'',
   '(', ')', '*', '+', ',', '-', '.', '/',
   '0', '1', '2', '3', '4', '5', '6', '7',
@@ -49,7 +49,7 @@ const char uu_std[64] = {
   'X', 'Y', 'Z', '[', '\\', ']', '^', '_'
 };
 
-const char uu_base64[64] = {
+static const char uu_base64[64] = {
   'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
   'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
   'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
@@ -142,7 +142,7 @@ static void encode()
   }
 
   if (ferror (stdin))
-    error_msg("Read error\n");
+    error_msg("Read error");
 
   if (trans_ptr == uu_std) {
     putchar (ENC ('\0'));
@@ -167,7 +167,7 @@ int uuencode_main (int argc,
       break;
 
      default:
-      usage(uuencode_usage);
+      show_usage();
     }
   }
 
@@ -188,7 +188,7 @@ int uuencode_main (int argc,
 
    case 0:
    default:
-    usage(uuencode_usage);
+    show_usage();
   }
 
   printf("begin%s %o %s\n", trans_ptr == uu_std ? "" : "-base64",
@@ -196,7 +196,7 @@ int uuencode_main (int argc,
   encode();
   printf(trans_ptr == uu_std ? "end\n" : "====\n");
   if (ferror (stdout)) {
-    error_msg("Write error\n");
+    error_msg("Write error");
     return EXIT_FAILURE;
   }
   return EXIT_SUCCESS;

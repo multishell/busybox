@@ -86,7 +86,6 @@
  * enforced (but it's not much fun on a character device :-). 
  */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
@@ -97,6 +96,7 @@
 #include <termios.h>
 #include <mntent.h>
 #include <sys/param.h>
+#include "busybox.h"
 
  
  typedef unsigned char u8;
@@ -283,14 +283,9 @@ static void leave(int status)
 	exit(status);
 }
 
-static void show_usage(void)
-{
-	usage(fsck_minix_usage);
-}
-
 static void die(const char *str)
 {
-	error_msg("%s\n", str);
+	error_msg("%s", str);
 	leave(8);
 }
 
@@ -706,7 +701,7 @@ static void read_tables(void)
 	}
 }
 
-struct minix_inode *get_inode(unsigned int nr)
+static struct minix_inode *get_inode(unsigned int nr)
 {
 	struct minix_inode *inode;
 
@@ -754,7 +749,7 @@ struct minix_inode *get_inode(unsigned int nr)
 }
 
 #ifdef BB_FEATURE_MINIX2
-struct minix2_inode *get_inode2(unsigned int nr)
+static struct minix2_inode *get_inode2(unsigned int nr)
 {
 	struct minix2_inode *inode;
 

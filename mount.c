@@ -43,7 +43,6 @@
  *	
  */
 
-#include "busybox.h"
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
@@ -54,6 +53,7 @@
 #if defined BB_FEATURE_USE_DEVPS_PATCH
 #include <linux/devmtab.h> /* For Erik's nifty devmtab device driver */
 #endif
+#include "busybox.h"
 
 enum {
 	MS_MGC_VAL = 0xc0ed0000, /* Magic number indicatng "new" flags */
@@ -83,6 +83,11 @@ extern int mount (__const char *__special_file, __const char *__dir,
 			__const void *__data);
 extern int umount (__const char *__special_file);
 extern int umount2 (__const char *__special_file, int __flags);
+
+#include <sys/syscall.h>
+#include <linux/unistd.h>
+static int sysfs( int option, unsigned int fs_index, char * buf);
+_syscall3(int, sysfs, int, option, unsigned int, fs_index, char *, buf);
 
 
 extern const char mtab_file[];	/* Defined in utility.c */
@@ -128,24 +133,25 @@ do_mount(char *specialfile, char *dir, char *filesystemtype,
 #if defined BB_FEATURE_MOUNT_LOOP
 		if (use_loop==TRUE) {
 			int loro = flags & MS_RDONLY;
-			char *lofile = specialfile;
+			
+			lofile = specialfile;
 
 			specialfile = find_unused_loop_device();
 			if (specialfile == NULL) {
-				error_msg_and_die("Could not find a spare loop device\n");
+				error_msg_and_die("Could not find a spare loop device");
 			}
 			if (set_loop(specialfile, lofile, 0, &loro)) {
-				error_msg_and_die("Could not setup loop device\n");
+				error_msg_and_die("Could not setup loop device");
 			}
 			if (!(flags & MS_RDONLY) && loro) {	/* loop is ro, but wanted rw */
-				error_msg("WARNING: loop device is read-only\n");
+				error_msg("WARNING: loop device is read-only");
 				flags &= ~MS_RDONLY;
 			}
 		}
 #endif
 		status = mount(specialfile, dir, filesystemtype, flags, string_flags);
 		if (errno == EROFS) {
-			error_msg("%s is write-protected, mounting read-only\n", specialfile);
+			error_msg("%s is write-protected, mounting read-only", specialfile);
 			status = mount(specialfile, dir, filesystemtype, flags |= MS_RDONLY, string_flags);
 		}
 	}
@@ -171,7 +177,7 @@ do_mount(char *specialfile, char *dir, char *filesystemtype,
 #endif
 
 	if (errno == EPERM) {
-		error_msg_and_die("permission denied. Are you root?\n");
+		error_msg_and_die("permission denied. Are you root?");
 	}
 
 	return (FALSE);
@@ -225,84 +231,41 @@ parse_mount_options(char *options, int *flags, char *strflags)
 	}
 }
 
-int
+static int
 mount_one(char *blockDevice, char *directory, char *filesystemType,
 		  unsigned long flags, char *string_flags, int useMtab, int fakeIt,
 		  char *mtab_opts, int whineOnErrors)
 {
 	int status = 0;
 
-#if defined BB_FEATURE_USE_PROCFS
-	char buf[255];
 	if (strcmp(filesystemType, "auto") == 0) {
-		FILE *f = fopen("/proc/filesystems", "r");
+		static const char *strings[] = { "tmpfs", "shm", "proc", "ramfs", "devpts", 0 };
+		const char** nodevfss;
+		const int num_of_filesystems = sysfs(3, 0, 0);
+		char buf[255];
+		int i=0;
 
-		if (f == NULL)
-			return (FALSE);
+		filesystemType=buf;
 
-		while (fgets(buf, sizeof(buf), f) != NULL) {
-			filesystemType = buf;
-			if (*filesystemType == '\t') {	// Not a nodev filesystem
-
-				// Add NULL termination to each line
-				while (*filesystemType && *filesystemType != '\n')
-					filesystemType++;
-				*filesystemType = '\0';
-
-				filesystemType = buf;
-				filesystemType++;	// hop past tab
-
+		while(i < num_of_filesystems) {
+			sysfs(2, i++, filesystemType);
+			for (nodevfss = strings; *nodevfss; nodevfss++) {
+				if (!strcmp(filesystemType, *nodevfss)) {
+					break;
+				}
+			}
+			if (!*nodevfss) {
 				status = do_mount(blockDevice, directory, filesystemType,
-								  flags | MS_MGC_VAL, string_flags,
-								  useMtab, fakeIt, mtab_opts);
+					flags | MS_MGC_VAL, string_flags,
+					useMtab, fakeIt, mtab_opts);
 				if (status == TRUE)
 					break;
 			}
 		}
-		fclose(f);
-	} else
-#endif
-#if defined BB_FEATURE_USE_DEVPS_PATCH
-	if (strcmp(filesystemType, "auto") == 0) {
-		int fd, i, numfilesystems;
-		char device[] = "/dev/mtab";
-		struct k_fstype *fslist;
-
-		/* open device */ 
-		fd = open(device, O_RDONLY);
-		if (fd < 0)
-			perror_msg_and_die("open failed for `%s'", device);
-
-		/* How many filesystems?  We need to know to allocate enough space */
-		numfilesystems = ioctl (fd, DEVMTAB_COUNT_FILESYSTEMS);
-		if (numfilesystems<0)
-			perror_msg_and_die("\nDEVMTAB_COUNT_FILESYSTEMS");
-		fslist = (struct k_fstype *) xcalloc ( numfilesystems, sizeof(struct k_fstype));
-
-		/* Grab the list of available filesystems */
-		status = ioctl (fd, DEVMTAB_GET_FILESYSTEMS, fslist);
-		if (status<0)
-			perror_msg_and_die("\nDEVMTAB_GET_FILESYSTEMS");
-
-		/* Walk the list trying to mount filesystems 
-		 * that do not claim to be nodev filesystems */
-		for( i = 0 ; i < numfilesystems ; i++) {
-			if (fslist[i].mnt_nodev)
-				continue;
-			status = do_mount(blockDevice, directory, fslist[i].mnt_type,
-							  flags | MS_MGC_VAL, string_flags,
-							  useMtab, fakeIt, mtab_opts);
-			if (status == TRUE)
-				break;
-		}
-		free( fslist);
-		close(fd);
-	} else
-#endif
-	{
+	} else {
 		status = do_mount(blockDevice, directory, filesystemType,
-						  flags | MS_MGC_VAL, string_flags, useMtab,
-						  fakeIt, mtab_opts);
+				flags | MS_MGC_VAL, string_flags, useMtab,
+				fakeIt, mtab_opts);
 	}
 
 	if (status == FALSE) {
@@ -478,15 +441,15 @@ extern int mount_main(int argc, char **argv)
 			directory = strdup(m->mnt_dir);
 			filesystemType = strdup(m->mnt_type);
 singlemount:			
+			string_flags = strdup(string_flags);
 			rc = EXIT_SUCCESS;
 #ifdef BB_NFSMOUNT
 			if (strchr(device, ':') != NULL)
 				filesystemType = "nfs";
 			if (strcmp(filesystemType, "nfs") == 0) {
-				rc = nfsmount (device, directory, &flags,
-					&extra_opts, &string_flags, 1);
-				if ( rc != 0) {
-					perror_msg_and_die("nfsmount failed");	
+				if (nfsmount (device, directory, &flags, &extra_opts,
+							&string_flags, 1)) {
+					perror_msg("nfsmount failed");
 					rc = EXIT_FAILURE;
 				}
 			}
@@ -504,11 +467,11 @@ singlemount:
 		if (all == FALSE && fstabmount == TRUE && directory == NULL)
 			fprintf(stderr, "Can't find %s in /etc/fstab\n", device);
 	
-		exit(rc);
+		return rc;
 	}
 	
 	goto singlemount;
 	
 goodbye:
-	usage(mount_usage);
+	show_usage();
 }

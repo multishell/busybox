@@ -22,12 +22,12 @@
  *
  */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <mntent.h>
 #include <errno.h>
 #include <string.h>
 #include <stdlib.h>
+#include "busybox.h"
 
 
 static const int MNT_FORCE = 1;
@@ -81,7 +81,7 @@ void mtab_read(void)
 		return;
 
 	if ((fp = setmntent(mtab_file, "r")) == NULL) {
-		error_msg("Cannot open %s\n", mtab_file);
+		error_msg("Cannot open %s", mtab_file);
 		return;
 	}
 	while ((e = getmntent(fp))) {
@@ -181,7 +181,7 @@ static int do_umount(const char *name, int useMtab)
 	if (status != 0 && doForce == TRUE) {
 		status = umount2(blockDevice, MNT_FORCE);
 		if (status != 0) {
-			error_msg_and_die("forced umount of %s failed!\n", blockDevice);
+			error_msg_and_die("forced umount of %s failed!", blockDevice);
 		}
 	}
 #endif
@@ -189,9 +189,9 @@ static int do_umount(const char *name, int useMtab)
 		status = mount(blockDevice, name, NULL,
 					   MS_MGC_VAL | MS_REMOUNT | MS_RDONLY, NULL);
 		if (status == 0) {
-			error_msg("%s busy - remounted read-only\n", blockDevice);
+			error_msg("%s busy - remounted read-only", blockDevice);
 		} else {
-			error_msg("Cannot remount %s read-only\n", blockDevice);
+			error_msg("Cannot remount %s read-only", blockDevice);
 		}
 	}
 	if (status == 0) {
@@ -235,7 +235,7 @@ static int umount_all(int useMtab)
 extern int umount_main(int argc, char **argv)
 {
 	if (argc < 2) {
-		usage(umount_usage);
+		show_usage();
 	}
 #ifdef BB_FEATURE_CLEAN_UP
 	atexit(mtab_free);
@@ -269,7 +269,7 @@ extern int umount_main(int argc, char **argv)
 			case 'v':
 				break; /* ignore -v */
 			default:
-				usage(umount_usage);
+				show_usage();
 			}
 	}
 

@@ -3,12 +3,12 @@
  * disalloc.c - aeb - 940501 - Disallocate virtual terminal(s)
  * Renamed deallocvt.
  */
-#include "busybox.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
+#include "busybox.h"
 
 /* From <linux/vt.h> */
 static const int VT_DISALLOCATE = 0x5608;  /* free memory associated to vt */
@@ -19,7 +19,7 @@ int deallocvt_main(int argc, char *argv[])
 
 	//if ((argc > 2) || ((argv == 2) && (**(argv + 1) == '-')))
 	if (argc > 2)
-		usage(deallocvt_usage);
+		show_usage();
 
 	fd = get_console_fd("/dev/console");
 
@@ -31,9 +31,9 @@ int deallocvt_main(int argc, char *argv[])
 		for (i = 1; i < argc; i++) {
 			num = atoi(argv[i]);
 			if (num == 0)
-				error_msg("0: illegal VT number\n");
+				error_msg("0: illegal VT number");
 			else if (num == 1)
-				error_msg("VT 1 cannot be deallocated\n");
+				error_msg("VT 1 cannot be deallocated");
 			else if (ioctl(fd, VT_DISALLOCATE, num))
 				perror_msg_and_die("VT_DISALLOCATE");
 		}

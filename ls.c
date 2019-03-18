@@ -41,13 +41,15 @@
  * 1. requires lstat (BSD) - how do you do it without?
  */
 
-static const int TERMINAL_WIDTH = 80;		/* use 79 if your terminal has linefold bug */
-static const int COLUMN_WIDTH = 14;		/* default if AUTOWIDTH not defined */
-static const int COLUMN_GAP = 2;			/* includes the file type char, if present */
+enum {
+	TERMINAL_WIDTH = 80,		/* use 79 if terminal has linefold bug */
+	COLUMN_WIDTH = 14,			/* default if AUTOWIDTH not defined */
+	COLUMN_GAP = 2,				/* includes the file type char */
+};
+
 
 /************************************************************************/
 
-#include "busybox.h"
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <stdio.h>
@@ -55,17 +57,18 @@ static const int COLUMN_GAP = 2;			/* includes the file type char, if present */
 #include <dirent.h>
 #include <errno.h>
 #include <stdio.h>
-#ifdef BB_FEATURE_LS_TIMESTAMPS
-#include <time.h>
-#endif
 #include <string.h>
 #include <stdlib.h>
-
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/ioctl.h>
+#include "busybox.h"
 
-#ifndef NAJOR
+#ifdef BB_FEATURE_LS_TIMESTAMPS
+#include <time.h>
+#endif
+
+#ifndef MAJOR
 #define MAJOR(dev) (((dev)>>8)&0xff)
 #define MINOR(dev) ((dev)&0xff)
 #endif
@@ -153,9 +156,9 @@ struct dnode {				/* the basic node */
 };
 typedef struct dnode dnode_t;
 
-struct dnode **list_dir(char *);
-struct dnode **dnalloc(int);
-int list_single(struct dnode *);
+static struct dnode **list_dir(char *);
+static struct dnode **dnalloc(int);
+static int list_single(struct dnode *);
 
 static unsigned int disp_opts;
 static unsigned int style_fmt;
@@ -173,9 +176,9 @@ static unsigned int follow_links=FALSE;
 
 static unsigned short column = 0;
 #ifdef BB_FEATURE_AUTOWIDTH
-static unsigned short terminal_width;
-static unsigned short column_width;
-static unsigned short tabstops;
+static unsigned short terminal_width = TERMINAL_WIDTH;
+static unsigned short column_width = COLUMN_WIDTH;
+static unsigned short tabstops = COLUMN_GAP;
 #else
 static unsigned short column_width = COLUMN_WIDTH;
 #endif
@@ -183,7 +186,7 @@ static unsigned short column_width = COLUMN_WIDTH;
 static int status = EXIT_SUCCESS;
 
 #ifdef BB_FEATURE_HUMAN_READABLE
-unsigned long ls_disp_hr = KILOBYTE;
+static unsigned long ls_disp_hr = 0;
 #endif
 
 static int my_stat(struct dnode *cur)
@@ -253,7 +256,7 @@ static int is_subdir(struct dnode *dn)
 			strcmp(dn->name, "..") != 0);
 }
 
-int countdirs(struct dnode **dn, int nfiles)
+static int countdirs(struct dnode **dn, int nfiles)
 {
 	int i, dirs;
 
@@ -265,7 +268,7 @@ int countdirs(struct dnode **dn, int nfiles)
 	return(dirs);
 }
 
-int countsubdirs(struct dnode **dn, int nfiles)
+static int countsubdirs(struct dnode **dn, int nfiles)
 {
 	int i, subdirs;
 
@@ -277,7 +280,7 @@ int countsubdirs(struct dnode **dn, int nfiles)
 	return subdirs;
 }
 
-int countfiles(struct dnode **dnp)
+static int countfiles(struct dnode **dnp)
 {
 	int nfiles;
 	struct dnode *cur;
@@ -290,7 +293,7 @@ int countfiles(struct dnode **dnp)
 }
 
 /* get memory to hold an array of pointers */
-struct dnode **dnalloc(int num)
+static struct dnode **dnalloc(int num)
 {
 	struct dnode **p;
 
@@ -300,7 +303,7 @@ struct dnode **dnalloc(int num)
 	return(p);
 }
 
-void dfree(struct dnode **dnp)
+static void dfree(struct dnode **dnp)
 {
 	struct dnode *cur, *next;
 
@@ -316,7 +319,7 @@ void dfree(struct dnode **dnp)
 	free(dnp);	/* free the array holding the dnode pointers */
 }
 
-struct dnode **splitdnarray(struct dnode **dn, int nfiles, int which)
+static struct dnode **splitdnarray(struct dnode **dn, int nfiles, int which)
 {
 	int dncnt, i, d;
 	struct dnode **dnp;
@@ -356,7 +359,7 @@ struct dnode **splitdnarray(struct dnode **dn, int nfiles, int which)
 
 /*----------------------------------------------------------------------*/
 #ifdef BB_FEATURE_LS_SORTFILES
-int sortcmp(struct dnode *d1, struct dnode *d2)
+static int sortcmp(struct dnode *d1, struct dnode *d2)
 {
 	int cmp, dif;
 
@@ -393,7 +396,7 @@ int sortcmp(struct dnode *d1, struct dnode *d2)
 }
 
 /*----------------------------------------------------------------------*/
-void shellsort(struct dnode **dn, int size)
+static void shellsort(struct dnode **dn, int size)
 {
 	struct dnode *temp;
 	int gap, i, j;
@@ -417,7 +420,7 @@ void shellsort(struct dnode **dn, int size)
 #endif
 
 /*----------------------------------------------------------------------*/
-void showfiles(struct dnode **dn, int nfiles)
+static void showfiles(struct dnode **dn, int nfiles)
 {
 	int i, ncols, nrows, row, nc;
 #ifdef BB_FEATURE_AUTOWIDTH
@@ -434,9 +437,15 @@ void showfiles(struct dnode **dn, int nfiles)
 			((list_fmt & LIST_INO) ? 8 : 0) +
 			((list_fmt & LIST_BLOCKS) ? 5 : 0)
 			;
-		if (column_width < len) column_width= len;
+		if (column_width < len) 
+			column_width= len;
 	}
-	ncols= (int)(terminal_width / (column_width + COLUMN_GAP));
+	if (column_width >= 6)
+		ncols = (int)(terminal_width / (column_width + COLUMN_GAP));
+	else {
+		ncols = 1;
+		column_width = COLUMN_WIDTH;
+	}
 #else
 	ncols= TERMINAL_WIDTH;
 #endif
@@ -447,7 +456,12 @@ void showfiles(struct dnode **dn, int nfiles)
 			break;
 	}
 
-	nrows= nfiles / ncols;
+	if (ncols > 1) {
+		nrows = nfiles / ncols;
+	} else {
+		nrows = nfiles;
+		ncols = 1;
+	}
 	if ((nrows * ncols) < nfiles) nrows++; /* round up fractionals */
 
 	if (nrows > nfiles) nrows= nfiles;
@@ -467,7 +481,7 @@ void showfiles(struct dnode **dn, int nfiles)
 }
 
 /*----------------------------------------------------------------------*/
-void showdirs(struct dnode **dn, int ndirs)
+static void showdirs(struct dnode **dn, int ndirs)
 {
 	int i, nfiles;
 	struct dnode **subdnp;
@@ -510,7 +524,7 @@ void showdirs(struct dnode **dn, int ndirs)
 }
 
 /*----------------------------------------------------------------------*/
-struct dnode **list_dir(char *path)
+static struct dnode **list_dir(char *path)
 {
 	struct dnode *dn, *cur, **dnp;
 	struct dirent *entry;
@@ -561,7 +575,7 @@ struct dnode **list_dir(char *path)
 }
 
 /*----------------------------------------------------------------------*/
-int list_single(struct dnode *dn)
+static int list_single(struct dnode *dn)
 {
 	int i, len;
 	char scratch[BUFSIZ + 1];
@@ -596,7 +610,8 @@ int list_single(struct dnode *dn)
 				break;
 			case LIST_BLOCKS:
 #ifdef BB_FEATURE_HUMAN_READABLE
-				fprintf(stdout, "%5s ", format(dn->dstat.st_size, ls_disp_hr));
+				fprintf(stdout, "%5s ", make_human_readable_str(dn->dstat.st_blocks>>1,
+							(ls_disp_hr==TRUE)? 0: 1));
 #else
 #if _FILE_OFFSET_BITS == 64
 				printf("%4lld ", dn->dstat.st_blocks>>1);
@@ -617,15 +632,9 @@ int list_single(struct dnode *dn)
 			case LIST_ID_NAME:
 #ifdef BB_FEATURE_LS_USERNAME
 				my_getpwuid(scratch, dn->dstat.st_uid);
-				if (*scratch)
-					printf("%-8.8s ", scratch);
-				else
-					printf("%-8d ", dn->dstat.st_uid);
+				printf("%-8.8s ", scratch);
 				my_getgrgid(scratch, dn->dstat.st_gid);
-				if (*scratch)
-					printf("%-8.8s", scratch);
-				else
-					printf("%-8d", dn->dstat.st_gid);
+				printf("%-8.8s", scratch);
 				column += 17;
 				break;
 #endif
@@ -639,12 +648,13 @@ int list_single(struct dnode *dn)
 					printf("%4d, %3d ", (int)MAJOR(dn->dstat.st_rdev), (int)MINOR(dn->dstat.st_rdev));
 				} else {
 #ifdef BB_FEATURE_HUMAN_READABLE
-					fprintf(stdout, "%9s ", format(dn->dstat.st_size, ls_disp_hr));
+					fprintf(stdout, "%9s ", make_human_readable_str(dn->dstat.st_size,
+								(ls_disp_hr==TRUE)? 0: 1));
 #else
 #if _FILE_OFFSET_BITS == 64
-					printf("%9lld ", dn->dstat.st_size);
+					printf("%9lld ", dn->dstat.st_size>>1);
 #else
-					printf("%9ld ", dn->dstat.st_size);
+					printf("%9ld ", dn->dstat.st_size>>1);
 #endif
 #endif
 				}
@@ -727,13 +737,12 @@ extern int ls_main(int argc, char **argv)
 	time_fmt= TIME_MOD;
 #endif
 #ifdef BB_FEATURE_AUTOWIDTH
-		ioctl(fileno(stdout), TIOCGWINSZ, &win);
-		if (win.ws_row > 4)
-			column_width = win.ws_row - 2;
-		if (win.ws_col > 0)
-			terminal_width = win.ws_col - 1;
+	ioctl(fileno(stdout), TIOCGWINSZ, &win);
+	if (win.ws_row > 4)
+		column_width = win.ws_row - 2;
+	if (win.ws_col > 0)
+		terminal_width = win.ws_col - 1;
 #endif
-	tabstops = 8;
 	nfiles=0;
 
 	/* process options */
@@ -772,7 +781,7 @@ extern int ls_main(int argc, char **argv)
 				style_fmt = STYLE_LONG;
 				list_fmt |= LIST_LONG;
 #ifdef BB_FEATURE_HUMAN_READABLE
-				ls_disp_hr = 1;
+				ls_disp_hr = FALSE;
 #endif
 			break;
 			case 'n': list_fmt |= LIST_ID_NUMERIC; break;
@@ -819,11 +828,9 @@ extern int ls_main(int argc, char **argv)
 			case 'w': terminal_width= atoi(optarg); break;
 #endif
 #ifdef BB_FEATURE_HUMAN_READABLE
-			case 'h': ls_disp_hr = 0; break;
-			case 'k': ls_disp_hr = KILOBYTE; break;
-#else
-			case 'k': break;
+			case 'h': ls_disp_hr = TRUE; break;
 #endif
+			case 'k': break;
 			default:
 				goto print_usage_message;
 		}
@@ -921,5 +928,5 @@ extern int ls_main(int argc, char **argv)
 	return(status);
 
   print_usage_message:
-	usage(ls_usage);
+	show_usage();
 }

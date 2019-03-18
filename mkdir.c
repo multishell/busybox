@@ -21,15 +21,15 @@
  *
  */
 
+#include <stdio.h>
+#include <errno.h>
+#include <string.h>
+#include <stdlib.h>
 #include "busybox.h"
 #define bb_need_name_too_long
 #define BB_DECLARE_EXTERN
 #include "messages.c"
 
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
 
 static int parentFlag = FALSE;
 static mode_t mode = 0777;
@@ -48,12 +48,11 @@ extern int mkdir_main(int argc, char **argv)
 			switch (**argv) {
 			case 'm':
 				if (--argc == 0)
-					usage(mkdir_usage);
+					show_usage();
 				/* Find the specified modes */
 				mode = 0;
 				if (parse_mode(*(++argv), &mode) == FALSE) {
-					error_msg("Unknown mode: %s\n", *argv);
-					return EXIT_FAILURE;
+					error_msg_and_die("Unknown mode: %s", *argv);
 				}
 				/* Set the umask for this process so it doesn't 
 				 * screw up whatever the user just entered. */
@@ -64,7 +63,7 @@ extern int mkdir_main(int argc, char **argv)
 				parentFlag = TRUE;
 				break;
 			default:
-				usage(mkdir_usage);
+				show_usage();
 			}
 		}
 		argc--;
@@ -72,7 +71,7 @@ extern int mkdir_main(int argc, char **argv)
 	}
 
 	if (argc < 1) {
-		usage(mkdir_usage);
+		show_usage();
 	}
 
 	while (argc > 0) {
@@ -81,22 +80,19 @@ extern int mkdir_main(int argc, char **argv)
 		char buf[BUFSIZ + 1];
 
 		if (strlen(*argv) > BUFSIZ - 1) {
-			error_msg(name_too_long);
-			return EXIT_FAILURE;
+			error_msg_and_die(name_too_long);
 		}
 		strcpy(buf, *argv);
 		status = stat(buf, &statBuf);
 		if (parentFlag == FALSE && status != -1 && errno != ENOENT) {
-			error_msg("%s: File exists\n", buf);
-			return EXIT_FAILURE;
+			error_msg_and_die("%s: File exists", buf);
 		}
 		if (parentFlag == TRUE) {
 			strcat(buf, "/");
 			create_path(buf, mode);
 		} else {
 			if (mkdir(buf, mode) != 0 && parentFlag == FALSE) {
-				perror(buf);
-				return EXIT_FAILURE;
+				perror_msg_and_die(buf);
 			}
 		}
 		argc--;

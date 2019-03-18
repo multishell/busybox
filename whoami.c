@@ -20,10 +20,12 @@
  *
  */
 
-#include "busybox.h"
+/* getopt not needed */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include "busybox.h"
 
 extern int whoami_main(int argc, char **argv)
 {
@@ -31,12 +33,12 @@ extern int whoami_main(int argc, char **argv)
 	uid_t uid = geteuid();
 
 	if (argc > 1)
-		usage(whoami_usage);
+		show_usage();
 
 	my_getpwuid(user, uid);
 	if (*user) {
 		puts(user);
 		return EXIT_SUCCESS;
 	}
-	error_msg_and_die("cannot find username for UID %u\n", (unsigned) uid);
+	error_msg_and_die("cannot find username for UID %u", (unsigned) uid);
 }

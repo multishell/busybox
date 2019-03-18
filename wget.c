@@ -14,7 +14,6 @@
  *
  */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -33,6 +32,8 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
+#include "busybox.h"
+
 /* Stupid libc5 doesn't define this... */
 #ifndef timersub
 #define	timersub(a, b, result)						      \
@@ -46,22 +47,22 @@
   } while (0)
 #endif	
 
-void parse_url(char *url, char **uri_host, int *uri_port, char **uri_path);
-FILE *open_socket(char *host, int port);
-char *gethdr(char *buf, size_t bufsiz, FILE *fp, int *istrunc);
-void progressmeter(int flag);
+static void parse_url(char *url, char **uri_host, int *uri_port, char **uri_path);
+static FILE *open_socket(char *host, int port);
+static char *gethdr(char *buf, size_t bufsiz, FILE *fp, int *istrunc);
+static void progressmeter(int flag);
 
 /* Globals (can be accessed from signal handlers */
 static off_t filesize = 0;		/* content-length of the file */
 #ifdef BB_FEATURE_WGET_STATUSBAR
 static char *curfile;			/* Name of current file being transferred. */
 static struct timeval start;	/* Time a transfer started. */
-volatile unsigned long statbytes; /* Number of bytes transferred so far. */
+static volatile unsigned long statbytes; /* Number of bytes transferred so far. */
 /* For progressmeter() -- number of seconds before xfer considered "stalled" */
 static const int STALLTIME = 5;
 #endif
 		
-void close_and_delete_outfile(FILE* output, char *fname_out, int do_continue)
+static void close_and_delete_outfile(FILE* output, char *fname_out, int do_continue)
 {
 	if (output != stdout && do_continue==0) {
 		fclose(output);
@@ -105,12 +106,12 @@ int wget_main(int argc, char **argv)
 			fname_out = (strcmp(optarg, "-") == 0 ? (char *)1 : optarg);
 			break;
 		default:
-			usage(wget_usage);
+			show_usage();
 		}
 	}
 
 	if (argc - optind != 1)
-			usage(wget_usage);
+			show_usage();
 
 	/*
 	 * Use the proxy if necessary.
@@ -148,7 +149,7 @@ int wget_main(int argc, char **argv)
 #endif
 	}
 	if (do_continue && !fname_out)
-		error_msg_and_die("cannot specify continue (-c) without a filename (-O)\n");
+		error_msg_and_die("cannot specify continue (-c) without a filename (-O)");
 
 
 	/*
@@ -167,8 +168,7 @@ int wget_main(int argc, char **argv)
 	 * Open the output file stream.
 	 */
 	if (fname_out != (char *)1) {
-		if ( (output=fopen(fname_out, (do_continue ? "a" : "w"))) == NULL)
-			perror_msg_and_die("fopen(%s)", fname_out);
+		output = xfopen( fname_out, (do_continue ? "a" : "w") );
 	} else {
 		output = stdout;
 	}
@@ -201,7 +201,7 @@ int wget_main(int argc, char **argv)
 	 */
 	if (fgets(buf, sizeof(buf), sfp) == NULL) {
 		close_and_delete_outfile(output, fname_out, do_continue);
-		error_msg_and_die("no response from server\n");
+		error_msg_and_die("no response from server");
 	}
 	for (s = buf ; *s != '\0' && !isspace(*s) ; ++s)
 		;
@@ -217,6 +217,7 @@ int wget_main(int argc, char **argv)
 			/*FALLTHRU*/
 		default:
 			close_and_delete_outfile(output, fname_out, do_continue);
+			chomp(buf);
 			error_msg_and_die("server returned error %d: %s", atoi(s), buf);
 	}
 
@@ -231,7 +232,7 @@ int wget_main(int argc, char **argv)
 		}
 		if (strcasecmp(buf, "transfer-encoding") == 0) {
 			close_and_delete_outfile(output, fname_out, do_continue);
-			error_msg_and_die("server wants to do %s transfer encoding\n", s);
+			error_msg_and_die("server wants to do %s transfer encoding", s);
 			continue;
 		}
 	}
@@ -268,7 +269,7 @@ void parse_url(char *url, char **uri_host, int *uri_port, char **uri_path)
 	*uri_port = 80;
 
 	if (strncmp(url, "http://", 7) != 0)
-		error_msg_and_die("not an http url: %s\n", url);
+		error_msg_and_die("not an http url: %s", url);
 
 	*uri_host = url + 7;
 
@@ -298,7 +299,7 @@ FILE *open_socket(char *host, int port)
 	memset(&sin, 0, sizeof(sin));
 	sin.sin_family = AF_INET;
 	if ((hp = (struct hostent *) gethostbyname(host)) == NULL)
-		error_msg_and_die("cannot resolve %s\n", host);
+		error_msg_and_die("cannot resolve %s", host);
 	memcpy(&sin.sin_addr, hp->h_addr_list[0], hp->h_length);
 	sin.sin_port = htons(port);
 
@@ -339,7 +340,7 @@ char *gethdr(char *buf, size_t bufsiz, FILE *fp, int *istrunc)
 
 	/* verify we are at the end of the header name */
 	if (*s != ':')
-		error_msg_and_die("bad header line: %s\n", buf);
+		error_msg_and_die("bad header line: %s", buf);
 
 	/* locate the start of the header value */
 	for (*s++ = '\0' ; *s == ' ' || *s == '\t' ; ++s)
@@ -370,7 +371,7 @@ char *gethdr(char *buf, size_t bufsiz, FILE *fp, int *istrunc)
  */ 
 
 
-int
+static int
 getttywidth(void)
 {
 	struct winsize winsize;
@@ -381,7 +382,7 @@ getttywidth(void)
 		return (80);
 }
 
-void
+static void
 updateprogressmeter(int ignore)
 {
 	int save_errno = errno;
@@ -390,7 +391,7 @@ updateprogressmeter(int ignore)
 	errno = save_errno;
 }
 
-void
+static void
 alarmtimer(int wait)
 {
 	struct itimerval itv;
@@ -402,7 +403,7 @@ alarmtimer(int wait)
 }
 
 
-void
+static void
 progressmeter(int flag)
 {
 	static const char prefixes[] = " KMGTP";
@@ -533,7 +534,7 @@ progressmeter(int flag)
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	$Id: wget.c,v 1.23 2001/01/27 08:24:38 andersen Exp $
+ *	$Id: wget.c,v 1.29 2001/03/09 21:24:12 andersen Exp $
  */
 
 

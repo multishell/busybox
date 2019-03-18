@@ -13,11 +13,11 @@
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
  */
  
-#include "busybox.h" 
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
+#include "busybox.h" 
 
 /*
  * Some general definitions
@@ -44,7 +44,7 @@ static void myread(int num, char *buffer)
 	if (err < 0)
 		perror_msg_and_die(progname);
 	else
-		error_msg_and_die("Unexpected end of input file!\n");
+		error_msg_and_die("Unexpected end of input file!");
   }
 }
 
@@ -64,7 +64,7 @@ int rpmunpack_main(int argc, char **argv)
 
   /* Check for command line parameters */
 	if (argc>=2 && *argv[1]=='-') {
-           usage(rpmunpack_usage);
+           show_usage();
 	}
 
   /* Open input file */

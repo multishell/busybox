@@ -22,18 +22,18 @@
  *
  */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include "busybox.h"
 
 extern int rmdir_main(int argc, char **argv)
 {
 	int status = EXIT_SUCCESS;
 
 	if (argc == 1 || **(argv + 1) == '-')
-		usage(rmdir_usage);
+		show_usage();
 
 	while (--argc > 0) {
 		if (rmdir(*(++argv)) == -1) {

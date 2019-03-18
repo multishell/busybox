@@ -53,11 +53,11 @@ extern int id_main(int argc, char **argv)
 				name_not_number++;
 				break;
 			default:
-				usage(id_usage);
+				show_usage();
 		}
 	}
 
-	if (no_user && no_group) usage(id_usage);
+	if (no_user && no_group) show_usage();
 
 	if (argv[optind] == NULL) {
 		if (print_real) {
@@ -76,9 +76,6 @@ extern int id_main(int argc, char **argv)
 
 	pwnam=my_getpwnam(user);
 	grnam=my_getgrnam(group);
-	if (gid == -1 || pwnam==-1 || grnam==-1) {
-		error_msg_and_die("%s: No such user\n", user);
-	}
 
 	if (no_group) {
 		if(name_not_number && user)

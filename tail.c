@@ -21,7 +21,6 @@
  *
  */
 
-#include "busybox.h"
 
 #include <fcntl.h>
 #include <getopt.h>
@@ -29,19 +28,14 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include "busybox.h"
 
-static struct suffix_mult tail_suffixes[] = {
+static const struct suffix_mult tail_suffixes[] = {
 	{ "b", 512 },
 	{ "k", 1024 },
 	{ "m", 1048576 },
 	{ NULL, 0 }
 };
-
-#ifndef BB_FEATURE_SIMPLE_TAIL
-static struct suffix_mult null_suffixes[] = {
-	{ NULL, 0 }
-};
-#endif
 
 static const int BYTES = 0;
 static const int LINES = 1;
@@ -50,14 +44,14 @@ static char *tailbuf;
 static int taillen;
 static int newline;
 
-void tailbuf_append(char *buf, int len)
+static void tailbuf_append(char *buf, int len)
 {
 	tailbuf = xrealloc(tailbuf, taillen + len);
 	memcpy(tailbuf + taillen, buf, len);
 	taillen += len;
 }
 
-void tailbuf_trunc()
+static void tailbuf_trunc()
 {
 	char *s;
 	s = memchr(tailbuf, '\n', taillen);
@@ -96,14 +90,14 @@ int tail_main(int argc, char **argv)
 				hide_headers = 1;
 				break;
 			case 's':
-				sleep_period = parse_number(optarg, null_suffixes);
+				sleep_period = parse_number(optarg, 0);
 				break;
 			case 'v':
 				show_headers = 1;
 				break;
 #endif
 			default:
-				usage(tail_usage);
+				show_usage();
 		}
 	}
 

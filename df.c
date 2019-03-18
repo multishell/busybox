@@ -22,58 +22,76 @@
  *
  */
 
-#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <mntent.h>
 #include <sys/vfs.h>
 #include <getopt.h>
+#include "busybox.h"
 
 extern const char mtab_file[];	/* Defined in utility.c */
 #ifdef BB_FEATURE_HUMAN_READABLE
-unsigned long disp_hr = KILOBYTE; 
+static unsigned long df_disp_hr = KILOBYTE; 
 #endif
 
-static int df(char *device, const char *mountPoint)
+static int do_df(char *device, const char *mount_point)
 {
 	struct statfs s;
 	long blocks_used;
 	long blocks_percent_used;
+#ifdef BB_FEATURE_HUMAN_READABLE
+	long base;
+#endif	
 
-	if (statfs(mountPoint, &s) != 0) {
-		perror_msg("%s", mountPoint);
+	if (statfs(mount_point, &s) != 0) {
+		perror_msg("%s", mount_point);
 		return FALSE;
 	}
 
 	if (s.f_blocks > 0) {
 		blocks_used = s.f_blocks - s.f_bfree;
-		if(0 == blocks_used)
+		if(blocks_used == 0)
 			blocks_percent_used = 0;
-		else
+		else {
 			blocks_percent_used = (long)
 			  (blocks_used * 100.0 / (blocks_used + s.f_bavail) + 0.5);
+		}
 		if (strcmp(device, "/dev/root") == 0) {
 			/* Adjusts device to be the real root device,
 			 * or leaves device alone if it can't find it */
 			find_real_root_device_name( device);
 		}
 #ifdef BB_FEATURE_HUMAN_READABLE
-		printf("%-20s %9s",
-			   device,
-			   format((s.f_blocks * s.f_bsize), disp_hr));
-		printf(" %9s", format((s.f_blocks - s.f_bfree) * s.f_bsize, disp_hr));
-		printf(" %9s %3ld%% %s\n",
-			   format(s.f_bavail * s.f_bsize, disp_hr),
-			   blocks_percent_used, mountPoint);
+		switch (df_disp_hr) {
+			case MEGABYTE:
+				base = KILOBYTE;
+				break;
+			case KILOBYTE:
+				base = 1;
+				break;
+			default:
+				base = 0;
+		}
+		printf("%-20s %9s ", device,
+			   make_human_readable_str((unsigned long)(s.f_blocks * 
+					   (s.f_bsize/(double)KILOBYTE)), base));
+		printf("%9s ",
+			   make_human_readable_str((unsigned long)(
+					   (s.f_blocks - s.f_bfree) * 
+					   (s.f_bsize/(double)KILOBYTE)), base));
+		printf("%9s %3ld%% %s\n",
+			   make_human_readable_str((unsigned long)(s.f_bavail * 
+					   (s.f_bsize/(double)KILOBYTE)), base),
+			   blocks_percent_used, mount_point);
 #else
 		printf("%-20s %9ld %9ld %9ld %3ld%% %s\n",
-			   device,
-			   (long) (s.f_blocks * (s.f_bsize / 1024.0)),
-			   (long) ((s.f_blocks - s.f_bfree) * (s.f_bsize / 1024.0)),
-			   (long) (s.f_bavail * (s.f_bsize / 1024.0)),
-			   blocks_percent_used, mountPoint);
+				device,
+				(long) (s.f_blocks * (s.f_bsize / (double)KILOBYTE)),
+				(long) ((s.f_blocks - s.f_bfree)*(s.f_bsize/(double)KILOBYTE)),
+				(long) (s.f_bavail * (s.f_bsize / (double)KILOBYTE)),
+				blocks_percent_used, mount_point);
 #endif
-
 	}
 
 	return TRUE;
@@ -84,67 +102,64 @@ extern int df_main(int argc, char **argv)
 	int status = EXIT_SUCCESS;
 	int opt = 0;
 	int i = 0;
+	char disp_units_hdr[80] = "1k-blocks"; /* default display is kilobytes */
 
-	while ((opt = getopt(argc, argv, "?"
+	while ((opt = getopt(argc, argv, "k"
 #ifdef BB_FEATURE_HUMAN_READABLE
 	"hm"
 #endif
-	"k"
 )) > 0)
 	{
 		switch (opt) {
 #ifdef BB_FEATURE_HUMAN_READABLE
-			case 'h': disp_hr = 0;         break;
-			case 'm': disp_hr = MEGABYTE;  break;
-			case 'k': disp_hr = KILOBYTE;  break;
-#else
-			case 'k': break;
+			case 'h':
+				df_disp_hr = 0;
+				strcpy(disp_units_hdr, "     Size");
+				break;
+			case 'm':
+				df_disp_hr = MEGABYTE;
+				strcpy(disp_units_hdr, "1M-blocks");
+				break;
 #endif
-			case '?': goto print_df_usage; break;
+			case 'k':
+				/* default display is kilobytes */
+				break;
+			default:
+					  show_usage();
 		}
 	}
 
-	printf("%-20s %-14s %s %s %s %s\n", "Filesystem",
-#ifdef BB_FEATURE_HUMAN_READABLE
-		   (KILOBYTE == disp_hr) ? "1k-blocks" : "     Size",
-#else
-		   "1k-blocks",
-#endif
+	printf("%-20s %-14s %s %s %s %s\n", "Filesystem", disp_units_hdr,
 	       "Used", "Available", "Use%", "Mounted on");
 
-
 	if(optind < argc) {
-		struct mntent *mountEntry;
+		struct mntent *mount_entry;
 		for(i = optind; i < argc; i++)
 		{
-			if ((mountEntry = find_mount_point(argv[i], mtab_file)) == 0) {
-				error_msg("%s: can't find mount point.\n", argv[i]);
+			if ((mount_entry = find_mount_point(argv[i], mtab_file)) == 0) {
+				error_msg("%s: can't find mount point.", argv[i]);
 				status = EXIT_FAILURE;
-			} else if (!df(mountEntry->mnt_fsname, mountEntry->mnt_dir))
+			} else if (!do_df(mount_entry->mnt_fsname, mount_entry->mnt_dir))
 				status = EXIT_FAILURE;
 		}
 	} else {
-		FILE *mountTable;
-		struct mntent *mountEntry;
+		FILE *mount_table;
+		struct mntent *mount_entry;
 
-		mountTable = setmntent(mtab_file, "r");
-		if (mountTable == 0) {
+		mount_table = setmntent(mtab_file, "r");
+		if (mount_table == 0) {
 			perror_msg("%s", mtab_file);
 			return EXIT_FAILURE;
 		}
 
-		while ((mountEntry = getmntent(mountTable))) {
-			if (!df(mountEntry->mnt_fsname, mountEntry->mnt_dir))
+		while ((mount_entry = getmntent(mount_table))) {
+			if (!do_df(mount_entry->mnt_fsname, mount_entry->mnt_dir))
 				status = EXIT_FAILURE;
 		}
-		endmntent(mountTable);
+		endmntent(mount_table);
 	}
 
 	return status;
-
-print_df_usage:
-    usage(df_usage);
-    return(FALSE);
 }
 
 /*

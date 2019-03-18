@@ -25,13 +25,6 @@
  *
  */
 
-#include "busybox.h"
-#define BB_DECLARE_EXTERN
-#define bb_need_name_too_long
-#define bb_need_omitting_directory
-#define bb_need_not_a_directory
-#include "messages.c"
-
 #include <stdio.h>
 #include <time.h>
 #include <utime.h>
@@ -43,16 +36,18 @@
 #include <errno.h>
 #include <getopt.h>
 #include <stdlib.h>
+#include "busybox.h"
+#define BB_DECLARE_EXTERN
+#define bb_need_name_too_long
+#define bb_need_omitting_directory
+#define bb_need_not_a_directory
+#include "messages.c"
+
 
 static const int is_cp = 0;
 static const int is_mv = 1;
 static int         dz_i;		/* index into cp_mv_usage */
 
-static const char *cp_mv_usage[] =	/* .rodata */
-{
-	cp_usage,
-	mv_usage
-};
 
 static int recursiveFlag;
 static int followLinks;
@@ -184,7 +179,7 @@ extern int cp_mv_main(int argc, char **argv)
 	else
 		dz_i = is_mv;
 	if (argc < 3)
-		usage(cp_mv_usage[dz_i]);
+		show_usage();
 
 	if (dz_i == is_cp) {
 		recursiveFlag = preserveFlag = forceFlag = FALSE;
@@ -209,11 +204,11 @@ extern int cp_mv_main(int argc, char **argv)
 					forceFlag = TRUE;
 					break;
 				default:
-					usage(cp_mv_usage[is_cp]);
+					show_usage();
 				}
 		}
 		if ((argc - optind) < 2) {
-			usage(cp_mv_usage[dz_i]);
+			show_usage();
 		}
 	} else {					/* (dz_i == is_mv) */
 		/* Initialize optind to 1, since in libc5 optind
@@ -282,7 +277,7 @@ extern int cp_mv_main(int argc, char **argv)
 				if ((sb.st_ino == srcStatBuf.st_ino) &&
 					(sb.st_dev == srcStatBuf.st_dev)) {
 					error_msg("Cannot %s `%s' into a subdirectory of itself, "
-							"`%s/%s'\n", applet_name, baseSrcName,
+							"`%s/%s'", applet_name, baseSrcName,
 							baseDestName, baseSrcName);
 					state = -1;
 					continue;

@@ -22,21 +22,22 @@
  *
  */
 
-#include "busybox.h"
-#define BB_DECLARE_EXTERN
-#define bb_need_name_too_long
-#include "messages.c"
-
 #include <sys/types.h>
 #include <fcntl.h>
 #include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
+#include <string.h>
 #include <errno.h>
+#include "busybox.h"
+#define BB_DECLARE_EXTERN
+#define bb_need_name_too_long
+#include "messages.c"
+
 
 #ifdef BB_FEATURE_HUMAN_READABLE
-unsigned long du_disp_hr = KILOBYTE;
+static unsigned long disp_hr = KILOBYTE;
 #endif
 
 typedef void (Display) (long, char *);
@@ -48,8 +49,19 @@ static Display *print;
 
 static void print_normal(long size, char *filename)
 {
+	unsigned long base;
 #ifdef BB_FEATURE_HUMAN_READABLE
-	printf("%s\t%s\n", format((size * KILOBYTE), du_disp_hr), filename);
+	switch (disp_hr) {
+		case MEGABYTE:
+			base = KILOBYTE;
+			break;
+		case KILOBYTE:
+			base = 1;
+			break;
+		default:
+			base = 0;
+	}
+	printf("%s\t%s\n", make_human_readable_str(size, base), filename);
 #else
 	printf("%ld\t%s\n", size, filename);
 #endif
@@ -58,7 +70,7 @@ static void print_normal(long size, char *filename)
 static void print_summary(long size, char *filename)
 {
 	if (du_depth == 1) {
-printf("summary\n");
+		printf("summary\n");
 		print_normal(size, filename);
 	}
 }
@@ -156,14 +168,12 @@ int du_main(int argc, char **argv)
 					count_hardlinks = 1;
 					break;
 #ifdef BB_FEATURE_HUMAN_READABLE
-			case 'h': du_disp_hr = 0;        break;
-			case 'm': du_disp_hr = MEGABYTE; break;
-			case 'k': du_disp_hr = KILOBYTE; break;
-#else
-			case 'k': break;
+			case 'h': disp_hr = 0;        break;
+			case 'm': disp_hr = MEGABYTE; break;
 #endif
+			case 'k': break;
 			default:
-					usage(du_usage);
+					show_usage();
 			}
 	}
 
@@ -187,7 +197,7 @@ int du_main(int argc, char **argv)
 	return status;
 }
 
-/* $Id: du.c,v 1.36 2001/01/27 09:33:38 andersen Exp $ */
+/* $Id: du.c,v 1.43 2001/03/09 14:36:42 andersen Exp $ */
 /*
 Local Variables:
 c-file-style: "linux"

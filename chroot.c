@@ -22,18 +22,18 @@
  *
  */
 
-#include "busybox.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
+#include "busybox.h"
 
 int chroot_main(int argc, char **argv)
 {
 	char *prog;
 
 	if ((argc < 2) || (**(argv + 1) == '-')) {
-		usage(chroot_usage);
+		show_usage();
 	}
 	argc--;
 	argv++;

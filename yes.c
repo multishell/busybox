@@ -20,16 +20,18 @@
  *
  */
 
-#include "busybox.h"
+/* getopt not needed */
+
 #include <stdio.h>
 #include <stdlib.h>
+#include "busybox.h"
 
 extern int yes_main(int argc, char **argv)
 {
 	int i;
 
 	if (argc >= 2 && *argv[1] == '-')
-		usage(yes_usage);
+		show_usage();
 
 	if (argc == 1) {
 		while (1)

@@ -21,10 +21,11 @@
  *
  */
 
-#include "busybox.h"
+/* getopt not needed */
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "busybox.h"
 
 extern int which_main(int argc, char **argv)
 {
@@ -33,7 +34,7 @@ extern int which_main(int argc, char **argv)
 	int i, count=1, found, status = EXIT_SUCCESS;
 
 	if (argc <= 1 || **(argv + 1) == '-')
-		usage(which_usage);
+		show_usage();
 	argc--;
 
 	path_list = getenv("PATH");

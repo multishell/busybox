@@ -21,7 +21,6 @@
  *
  */
 
-#include "busybox.h"
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
@@ -32,6 +31,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netinet/in.h>
+#include "busybox.h"
 
 /*
  |  I'm only implementing non-interactive mode;
@@ -157,7 +157,7 @@ int nslookup_main(int argc, char **argv)
 	struct hostent *host;
 
 	if (argc < 2 || *argv[1]=='-') {
-		usage(nslookup_usage);
+		show_usage();
 	}
 
 	server_print();
@@ -170,4 +170,4 @@ int nslookup_main(int argc, char **argv)
 	return EXIT_SUCCESS;
 }
 
-/* $Id: nslookup.c,v 1.20 2001/01/27 09:33:38 andersen Exp $ */
+/* $Id: nslookup.c,v 1.22 2001/02/20 06:14:08 andersen Exp $ */

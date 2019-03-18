@@ -33,12 +33,14 @@
  * One function can handle multiple operators all of equal precedence,
  * provided they all associate ((x op x) op x). */
 
-#include "busybox.h"
+/* no getopt needed */
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <regex.h>
 #include <sys/types.h>
+#include "busybox.h"
 
 
 /* The kinds of value we can have.  */
@@ -76,14 +78,14 @@ int expr_main (int argc, char **argv)
 	VALUE *v;
 
 	if (argc == 1) {
-		error_msg_and_die("too few arguments\n");
+		error_msg_and_die("too few arguments");
 	}
 
 	args = argv + 1;
 
 	v = eval ();
 	if (*args)
-		error_msg_and_die ("syntax error\n");
+		error_msg_and_die ("syntax error");
 
 	if (v->type == integer)
 		printf ("%d\n", v->u.i);
@@ -218,7 +220,7 @@ static						\
 int name (l, r) VALUE *l; VALUE *r;		\
 {						\
   if (!toarith (l) || !toarith (r))		\
-    error_msg_and_die ("non-numeric argument\n");	\
+    error_msg_and_die ("non-numeric argument");	\
   return l->u.i op r->u.i;			\
 }
 
@@ -226,9 +228,9 @@ int name (l, r) VALUE *l; VALUE *r;		\
 int name (l, r) VALUE *l; VALUE *r;		\
 {						\
   if (!toarith (l) || !toarith (r))		\
-    error_msg_and_die ( "non-numeric argument\n");	\
+    error_msg_and_die ( "non-numeric argument");	\
   if (r->u.i == 0)				\
-    error_msg_and_die ( "division by zero\n");		\
+    error_msg_and_die ( "division by zero");		\
   return l->u.i op r->u.i;			\
 }
 
@@ -272,7 +274,7 @@ of a basic regular expression is not portable; it is being ignored",
 	re_syntax_options = RE_SYNTAX_POSIX_BASIC;
 	errmsg = re_compile_pattern (pv->u.s, len, &re_buffer);
 	if (errmsg) {
-		error_msg_and_die("%s\n", errmsg);
+		error_msg_and_die("%s", errmsg);
 	}
 
 	len = re_match (&re_buffer, sv->u.s, strlen (sv->u.s), 0, &re_regs);
@@ -303,19 +305,19 @@ static VALUE *eval7 (void)
 	VALUE *v;
 
 	if (!*args)
-		error_msg_and_die ( "syntax error\n");
+		error_msg_and_die ( "syntax error");
 
 	if (nextarg ("(")) {
 		args++;
 		v = eval ();
 		if (!nextarg (")"))
-			error_msg_and_die ( "syntax error\n");
+			error_msg_and_die ( "syntax error");
 			args++;
 			return v;
 		}
 
 	if (nextarg (")"))
-		error_msg_and_die ( "syntax error\n");
+		error_msg_and_die ( "syntax error");
 
 	return str_value (*args++);
 }
@@ -329,7 +331,7 @@ static VALUE *eval6 (void)
 	if (nextarg ("quote")) {
 		args++;
 		if (!*args)
-			error_msg_and_die ( "syntax error\n");
+			error_msg_and_die ( "syntax error");
 		return str_value (*args++);
 	}
 	else if (nextarg ("length")) {
