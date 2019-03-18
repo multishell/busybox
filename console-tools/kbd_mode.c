@@ -2,7 +2,7 @@
 /*
  * Mini kbd_mode implementation for busybox
  *
- * Copyright (C) 2007 Loïc Grenié <loic.grenie@gmail.com>
+ * Copyright (C) 2007 Loic Grenie <loic.grenie@gmail.com>
  *   written using Andries Brouwer <aeb@cwi.nl>'s kbd_mode from
  *   console-utils v0.2.3, licensed under GNU GPLv2
  *
@@ -46,7 +46,8 @@ int kbd_mode_main(int ATTRIBUTE_UNUSED argc, char **argv)
 		printf("The keyboard is in %s mode\n", mode);
 	} else {
 		opt = opt & UNICODE ? 3 : opt >> 1;
-		xioctl(fd, KDSKBMODE, opt);
+		/* double cast prevents warnings about widening conversion */
+		xioctl(fd, KDSKBMODE, (void*)(ptrdiff_t)opt);
 	}
 
 	if (ENABLE_FEATURE_CLEAN_UP)
