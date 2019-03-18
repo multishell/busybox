@@ -1,0 +1,446 @@
+Various bug fixes that apply to busybox 1.1.1, cherry-picked from the
+ongoing development branch.  This will form the basis for busybox 1.1.2,
+to be released on April 9.
+
+I'll append fixes to this as they come up.  (Check the file date, or the bug
+list below.)  This file is basically a concatenation of the following:
+
+http://busybox.net/downloads/patches/svn-14628.patch
+http://busybox.net/downloads/patches/svn-14643.patch
+http://busybox.net/downloads/patches/svn-14653.patch
+http://busybox.net/downloads/patches/svn-14665.patch
+http://busybox.net/downloads/patches/svn-14684.patch
+http://busybox.net/downloads/patches/svn-14681.patch
+http://busybox.net/downloads/patches/svn-14723.patch
+http://busybox.net/downloads/patches/svn-14740.patch
+http://busybox.net/downloads/patches/svn-14746.patch
+http://busybox.net/downloads/patches/svn-14749.patch
+http://busybox.net/downloads/patches/svn-14748.patch
+
+------------------------------------------------------------------------
+r14628 | landley | 2006-03-23 11:49:22 -0500 (Thu, 23 Mar 2006) | 2 lines
+Changed paths:
+   M /trunk/busybox/libbb/Makefile.in
+
+Bug spotted by Stephane Billiart: losetup depends on loop.c.
+
+ ------------------------------------------------------------------------
+Index: libbb/Makefile.in
+===================================================================
+--- libbb/Makefile.in	(revision 14627)
++++ libbb/Makefile.in	(revision 14628)
+@@ -39,6 +39,7 @@
+ # conditionally compiled objects:
+ LIBBB-$(CONFIG_FEATURE_SHADOWPASSWDS)+=pwd2spwd.c
+ LIBBB-$(CONFIG_FEATURE_MOUNT_LOOP)+= loop.c
++LIBBB-$(CONFIG_LOSETUP)+= loop.c
+ LIBBB-$(CONFIG_FEATURE_MTAB_SUPPORT)+= mtab.c
+ LIBBB-$(CONFIG_PASSWD)+= pw_encrypt.c
+ LIBBB-$(CONFIG_SULOGIN)+= pw_encrypt.c
+ ------------------------------------------------------------------------
+r14643 | aldot | 2006-03-24 04:48:18 -0500 (Fri, 24 Mar 2006) | 2 lines
+Changed paths:
+   M /trunk/busybox/util-linux/Makefile.in
+
+- make sure that we see freeramdisk only once
+
+ ------------------------------------------------------------------------
+Index: util-linux/Makefile.in
+===================================================================
+--- util-linux/Makefile.in	(revision 14642)
++++ util-linux/Makefile.in	(revision 14643)
+@@ -38,6 +38,8 @@
+ UTILLINUX-$(CONFIG_SWITCH_ROOT)   +=switch_root.o
+ UTILLINUX-$(CONFIG_UMOUNT)        +=umount.o
+ 
++UTILLINUX-y:=$(sort $(UTILLINUX-y))
++
+ ifneq ($(strip $(UTILLINUX-y)),)
+ libraries-y+=$(UTILLINUX_DIR)$(UTILLINUX_AR)
+ endif
+ ------------------------------------------------------------------------
+r14653 | landley | 2006-03-24 21:49:28 -0500 (Fri, 24 Mar 2006) | 2 lines
+Changed paths:
+   M /trunk/busybox/modutils/insmod.c
+
+Stephane Billiart found an endianness bug in insmod.
+
+ ------------------------------------------------------------------------
+Index: modutils/insmod.c
+===================================================================
+--- modutils/insmod.c	(revision 14652)
++++ modutils/insmod.c	(revision 14653)
+@@ -516,12 +516,6 @@
+ #include <elf.h>
+ #include <endian.h>
+ 
+-#if BB_LITTLE_ENDIAN
+-# define ELFDATAM	ELFDATA2LSB
+-#else
+-# define ELFDATAM	ELFDATA2MSB
+-#endif
+-
+ #ifndef ElfW
+ # if ELFCLASSM == ELFCLASS32
+ #  define ElfW(x)  Elf32_ ## x
+@@ -3331,7 +3325,8 @@
+ 		return NULL;
+ 	}
+ 	if (f->header.e_ident[EI_CLASS] != ELFCLASSM
+-			|| f->header.e_ident[EI_DATA] != ELFDATAM
++			|| f->header.e_ident[EI_DATA] != (BB_BIG_ENDIAN
++			   	? ELFDATA2MSB : ELFDATA2LSB)
+ 			|| f->header.e_ident[EI_VERSION] != EV_CURRENT
+ 			|| !MATCH_MACHINE(f->header.e_machine)) {
+ 		bb_error_msg("ELF file not for this architecture");
+ ------------------------------------------------------------------------
+r14665 | pgf | 2006-03-27 11:42:33 -0500 (Mon, 27 Mar 2006) | 2 lines
+Changed paths:
+   M /trunk/busybox/findutils/find.c
+
+prevent find from ever descending into an xdev'ed directory.
+
+ ------------------------------------------------------------------------
+Index: findutils/find.c
+===================================================================
+--- findutils/find.c	(revision 14664)
++++ findutils/find.c	(revision 14665)
+@@ -79,6 +79,15 @@
+ 
+ static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
+ {
++#ifdef CONFIG_FEATURE_FIND_XDEV
++	if (S_ISDIR(statbuf->st_mode) && xdev_count) {
++		int i;
++		for (i=0; i<xdev_count; i++) {
++			if (xdev_dev[i] != statbuf->st_dev)
++				return SKIP;
++		}
++	}
++#endif
+ 	if (pattern != NULL) {
+ 		const char *tmp = strrchr(fileName, '/');
+ 
+@@ -125,21 +134,6 @@
+ 			goto no_match;
+ 	}
+ #endif
+-#ifdef CONFIG_FEATURE_FIND_XDEV
+-	if (xdev_count) {
+-		int i;
+-		for (i=0; i<xdev_count; i++) {
+-			if (xdev_dev[i] == statbuf-> st_dev)
+-				break;
+-		}
+-		if (i == xdev_count) {
+-			if(S_ISDIR(statbuf->st_mode))
+-				return SKIP;
+-			else
+-				goto no_match;
+-		}
+-	}
+-#endif
+ #ifdef CONFIG_FEATURE_FIND_NEWER
+ 	if (newer_mtime != 0) {
+ 		time_t file_age = newer_mtime - statbuf->st_mtime;
+ ------------------------------------------------------------------------
+r14684 | landley | 2006-03-29 09:30:49 -0500 (Wed, 29 Mar 2006) | 3 lines
+Changed paths:
+   M /trunk/busybox/util-linux/mount.c
+
+Kumar Gala tracked down a problem with NFS mounting.  This is a different fix
+from his, but to the same problem.
+
+ ------------------------------------------------------------------------
+Index: util-linux/mount.c
+===================================================================
+--- util-linux/mount.c	(revision 14683)
++++ util-linux/mount.c	(revision 14684)
+@@ -184,6 +184,8 @@
+ {
+ 	llist_free(fslist);
+ }
++#else
++void delete_block_backed_filesystems(void);
+ #endif
+ 
+ #if ENABLE_FEATURE_MTAB_SUPPORT
+@@ -196,13 +198,10 @@
+ 
+ // Perform actual mount of specific filesystem at specific location.
+ 
+-static int mount_it_now(struct mntent *mp, int vfsflags)
++static int mount_it_now(struct mntent *mp, int vfsflags, char *filteropts)
+ {
+ 	int rc;
+-	char *filteropts = 0;
+ 
+-	parse_mount_options(mp->mnt_opts, &filteropts);
+-
+ 	if (fakeIt) { return 0; }
+ 
+ 	// Mount, with fallback to read-only if necessary.
+@@ -217,8 +216,6 @@
+ 		vfsflags |= MS_RDONLY;
+ 	}
+ 
+-    free(filteropts);
+-
+ 	// Abort entirely if permission denied.
+ 
+ 	if (rc && errno == EPERM)
+@@ -266,11 +263,11 @@
+ static int singlemount(struct mntent *mp)
+ {
+ 	int rc = 1, vfsflags;
+-	char *loopFile = 0;
++	char *loopFile = 0, *filteropts = 0;
+ 	llist_t *fl = 0;
+ 	struct stat st;
+ 
+-	vfsflags = parse_mount_options(mp->mnt_opts, 0);
++	vfsflags = parse_mount_options(mp->mnt_opts, &filteropts);
+ 
+ 	// Treat fstype "auto" as unspecified.
+ 
+@@ -282,16 +279,16 @@
+ 		(!mp->mnt_type || !strcmp(mp->mnt_type,"nfs")) &&
+ 		strchr(mp->mnt_fsname, ':') != NULL)
+ 	{
+-		char *options=0;
+-		parse_mount_options(mp->mnt_opts, &options);
+-		if (nfsmount(mp->mnt_fsname, mp->mnt_dir, &vfsflags, &options, 1)) {
++		if (nfsmount(mp->mnt_fsname, mp->mnt_dir, &vfsflags, &filteropts, 1)) {
+ 			bb_perror_msg("nfsmount failed");
+ 			return 1;
++		} else {
++			// Strangely enough, nfsmount() doesn't actually mount() anything.
++			rc = mount_it_now(mp, vfsflags, filteropts);
++			if (ENABLE_FEATURE_CLEAN_UP) free(filteropts);
++			
++			return rc;
+ 		}
+-
+-		// Strangely enough, nfsmount() doesn't actually mount() anything.
+-
+-		else return mount_it_now(mp, vfsflags);
+ 	}
+ 
+ 	// Look at the file.  (Not found isn't a failure for remount.)
+@@ -324,7 +321,7 @@
+ 	 * to the actual mount. */
+ 
+ 	if (mp->mnt_type || (vfsflags & (MS_REMOUNT | MS_BIND | MS_MOVE)))
+-		rc = mount_it_now(mp, vfsflags);
++		rc = mount_it_now(mp, vfsflags, filteropts);
+ 
+ 	// Loop through filesystem types until mount succeeds or we run out
+ 
+@@ -336,25 +333,26 @@
+ 
+ 		if (!fslist) {
+ 			fslist = get_block_backed_filesystems();
+-#if ENABLE_FEATURE_CLEAN_UP
+ 			if (ENABLE_FEATURE_CLEAN_UP && fslist)
+ 				atexit(delete_block_backed_filesystems);
+-#endif
+ 		}
+ 
+ 		for (fl = fslist; fl; fl = fl->link) {
+ 			mp->mnt_type = fl->data;
+ 
+-			if (!(rc = mount_it_now(mp,vfsflags))) break;
++			if (!(rc = mount_it_now(mp,vfsflags, filteropts))) break;
+ 
+ 			mp->mnt_type = 0;
+ 		}
+ 	}
+ 
+-	// Mount failed.  Clean up
++	if (ENABLE_FEATURE_CLEAN_UP) free(filteropts);
++
++	// If mount failed, clean up loop file (if any).
++
+ 	if (rc && loopFile) {
+ 		del_loop(mp->mnt_fsname);
+-		if(ENABLE_FEATURE_CLEAN_UP) {
++		if (ENABLE_FEATURE_CLEAN_UP) {
+ 			free(loopFile);
+ 			free(mp->mnt_fsname);
+ 		}
+ ------------------------------------------------------------------------
+r14681 | landley | 2006-03-28 14:19:19 -0500 (Tue, 28 Mar 2006) | 3 lines
+Changed paths:
+   M /trunk/busybox/util-linux/mount.c
+
+Bernhard Fischer spotted that we shouldn't free fstype if we didn't allocate
+it.
+
+ ------------------------------------------------------------------------
+Index: util-linux/mount.c
+===================================================================
+--- util-linux/mount.c	(revision 14680)
++++ util-linux/mount.c	(revision 14681)
+@@ -548,7 +548,6 @@
+ 	if (ENABLE_FEATURE_CLEAN_UP) {
+ 		free(storage_path);
+ 		free(cmdopts);
+-		free(fstype);
+ 	}
+ 
+ 	if(rc)
+ ------------------------------------------------------------------------
+r14723 | landley | 2006-04-01 12:32:52 -0500 (Sat, 01 Apr 2006) | 2 lines
+Changed paths:
+   M /trunk/busybox/util-linux/mount.c
+
+Bug spotted by Kumar Gala.  Hopefully this fixes it...
+
+ ------------------------------------------------------------------------
+Index: util-linux/mount.c
+===================================================================
+--- util-linux/mount.c	(revision 14722)
++++ util-linux/mount.c	(revision 14723)
+@@ -475,8 +475,9 @@
+ 
+ 		// Get next fstab entry
+ 
+-		if (!getmntent_r(fstab, mtcur, bb_common_bufsiz1,
+-					sizeof(bb_common_bufsiz1)))
++		if (!getmntent_r(fstab, mtcur, bb_common_bufsiz1
++					+ (mtcur==mtpair ? sizeof(bb_common_bufsiz1)/2 : 0),
++				sizeof(bb_common_bufsiz1)/2))
+ 		{
+ 			// Were we looking for something specific?
+ 
+ ------------------------------------------------------------------------
+r14740 | aldot | 2006-04-03 17:16:52 -0400 (Mon, 03 Apr 2006) | 2 lines
+Changed paths:
+   M /trunk/busybox/Makefile
+
+- make sure that we see all lib*/.c in IMA-mode even when not building the .so
+
+ ------------------------------------------------------------------------
+Index: Makefile
+===================================================================
+--- Makefile	(revision 14739)
++++ Makefile	(revision 14740)
+@@ -258,6 +258,7 @@
+ DO_INSTALL_LIBS:=$(LD_LIBBUSYBOX) \
+ 	$(LD_LIBBUSYBOX).$(MAJOR_VERSION) \
+ 	$(LD_LIBBUSYBOX).$(MAJOR_VERSION).$(MINOR_VERSION)
++endif # CONFIG_BUILD_LIBBUSYBOX
+ 
+ ifeq ($(strip $(CONFIG_BUILD_AT_ONCE)),y)
+ ifneq ($(strip $(CONFIG_FEATURE_SHARED_BUSYBOX)),y)
+@@ -269,7 +270,6 @@
+ else # CONFIG_BUILD_AT_ONCE
+ $(LIBBUSYBOX_SONAME): $(libbusybox-obj)
+ endif # CONFIG_BUILD_AT_ONCE
+-endif # CONFIG_BUILD_LIBBUSYBOX
+ 
+ ifeq ($(strip $(CONFIG_FEATURE_SHARED_BUSYBOX)),y)
+ LDBUSYBOX:=-L$(top_builddir) -lbusybox
+ ------------------------------------------------------------------------
+r14746 | landley | 2006-04-04 12:56:04 -0400 (Tue, 04 Apr 2006) | 2 lines
+Changed paths:
+   M /trunk/busybox/util-linux/mount.c
+
+You'd think there'd be a compiler warning for "pointless if", wouldn't you?
+
+ ------------------------------------------------------------------------
+Index: util-linux/mount.c
+===================================================================
+--- util-linux/mount.c	(revision 14745)
++++ util-linux/mount.c	(revision 14746)
+@@ -291,11 +291,11 @@
+ 		}
+ 	}
+ 
+-	// Look at the file.  (Not found isn't a failure for remount.)
++	// Look at the file.  (Not found isn't a failure for remount, or for
++	// a synthetic filesystem like proc or sysfs.)
+ 
+ 	if (lstat(mp->mnt_fsname, &st));
+-
+-	if (!(vfsflags & (MS_REMOUNT | MS_BIND | MS_MOVE))) {
++	else if (!(vfsflags & (MS_REMOUNT | MS_BIND | MS_MOVE))) {
+ 		// Do we need to allocate a loopback device for it?
+ 
+ 		if (ENABLE_FEATURE_MOUNT_LOOP && S_ISREG(st.st_mode)) {
+ ------------------------------------------------------------------------
+r14749 | landley | 2006-04-04 21:43:39 -0400 (Tue, 04 Apr 2006) | 3 lines
+Changed paths:
+   M /trunk/busybox/util-linux/mount.c
+
+Kumar spotted another bug: if we autodetect nfs and they haven't specified the
+fstype, it should be set to nfs.
+
+ ------------------------------------------------------------------------
+Index: util-linux/mount.c
+===================================================================
+--- util-linux/mount.c	(revision 14748)
++++ util-linux/mount.c	(revision 14749)
+@@ -284,6 +284,7 @@
+ 			return 1;
+ 		} else {
+ 			// Strangely enough, nfsmount() doesn't actually mount() anything.
++			mp->mnt_type = "nfs";
+ 			rc = mount_it_now(mp, vfsflags, filteropts);
+ 			if (ENABLE_FEATURE_CLEAN_UP) free(filteropts);
+ 			
+ ------------------------------------------------------------------------
+r14748 | landley | 2006-04-04 15:26:37 -0400 (Tue, 04 Apr 2006) | 2 lines
+Changed paths:
+   M /trunk/busybox/coreutils/comm.c
+
+Some tests were always true.  We need comm.tests...
+
+ ------------------------------------------------------------------------
+Index: coreutils/comm.c
+===================================================================
+--- coreutils/comm.c	(revision 14747)
++++ coreutils/comm.c	(revision 14748)
+@@ -4,21 +4,7 @@
+  *
+  * Copyright (C) 2005 by Robert Sullivan <cogito.ergo.cogito@gmail.com>
+  *
+- * This program is free software; you can redistribute it and/or modify
+- * it under the terms of the GNU General Public License as published by
+- * the Free Software Foundation; either version 2 of the License, or
+- * (at your option) any later version.
+- *
+- * This program is distributed in the hope that it will be useful,
+- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+- * General Public License for more details.
+- *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
+- * 02111-1307 USA
+- *
++ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
+  */
+ 
+ #include <stdio.h>
+@@ -75,16 +61,16 @@
+ 		fgets(thisline[i], LINE_LEN, streams[i]);
+ 	}
+ 
+-	while (thisline[0] || thisline[1]) {
++	while (*thisline[0] || *thisline[1]) {
+ 		int order = 0;
+ 
+ 		i = 0;
+ 		if (feof(streams[0])) i |= BB_EOF_0;
+ 		if (feof(streams[1])) i |= BB_EOF_1;
+ 
+-		if (!thisline[0])
++		if (!*thisline[0])
+ 			order = 1;
+-		else if (!thisline[1])
++		else if (!*thisline[1])
+ 			order = -1;
+ 		else {
+ 			int tl0_len, tl1_len;
