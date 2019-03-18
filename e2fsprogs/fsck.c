@@ -27,7 +27,6 @@
 
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <sys/signal.h>
 #include <sys/stat.h>
 #include <limits.h>
 #include <stdio.h>
@@ -104,10 +103,10 @@ struct fsck_instance {
  * assure that we only fsck one partition on a particular drive at any
  * one time.  Otherwise, the disk heads will be seeking all over the
  * place.  If the base device can not be determined, return NULL.
- * 
+ *
  * The base_device() function returns an allocated string which must
  * be freed.
- * 
+ *
  */
 
 
@@ -988,8 +987,7 @@ static int fs_match(struct fs_info *fs, struct fs_type_compile *cmp)
 /* Check if we should ignore this filesystem. */
 static int ignore(struct fs_info *fs)
 {
-	const char * const *ip;
-	int wanted = 0;
+	int wanted;
 	char *s;
 
 	/*
@@ -1007,15 +1005,11 @@ static int ignore(struct fs_info *fs)
 	if (!fs_match(fs, &fs_type_compiled)) return 1;
 
 	/* Are we ignoring this type? */
-	for(ip = ignored_types; *ip; ip++)
-		if (strcmp(fs->type, *ip) == 0) return 1;
+	if(compare_string_array(ignored_types, fs->type) >= 0)
+		return 1;
 
 	/* Do we really really want to check this fs? */
-	for(ip = really_wanted; *ip; ip++)
-		if (strcmp(fs->type, *ip) == 0) {
-			wanted = 1;
-			break;
-		}
+	wanted = compare_string_array(really_wanted, fs->type) >= 0;
 
 	/* See if the <fsck.fs> program is available. */
 	s = find_fsck(fs->type);
@@ -1366,7 +1360,7 @@ int fsck_main(int argc, char *argv[])
 		fstab = _PATH_MNTTAB;
 	load_fs_info(fstab);
 
-	e2fs_set_sbin_path();
+	fsck_path = e2fs_set_sbin_path();
 
 	if ((num_devices == 1) || (serialize))
 		interactive = 1;
@@ -1410,8 +1404,6 @@ int fsck_main(int argc, char *argv[])
 		}
 	}
 	status |= wait_many(FLAG_WAIT_ALL);
-	if (ENABLE_FEATURE_CLEAN_UP)
-		free(fsck_path);
 	blkid_put_cache(cache);
 	return status;
 }

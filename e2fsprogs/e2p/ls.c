@@ -6,12 +6,13 @@
  *                                 Universite Pierre et Marie Curie (Paris VI)
  *
  * Copyright (C) 1995, 1996, 1997  Theodore Ts'o <tytso@mit.edu>
- * 
+ *
  * This file can be redistributed under the terms of the GNU Library General
  * Public License
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <string.h>
 #include <grp.h>
@@ -190,11 +191,11 @@ void list_super2(struct ext2_super_block * sb, FILE *f)
 		"Block size:               %u\n"
 		"Fragment size:            %u\n",
 		str, sb->s_inodes_count, sb->s_blocks_count, sb->s_r_blocks_count,
-		sb->s_free_blocks_count, sb->s_free_inodes_count, 
+		sb->s_free_blocks_count, sb->s_free_inodes_count,
 		sb->s_first_data_block, EXT2_BLOCK_SIZE(sb), EXT2_FRAG_SIZE(sb));
 	free(str);
 	if (sb->s_reserved_gdt_blocks)
-		fprintf(f, "Reserved GDT blocks:      %u\n", 
+		fprintf(f, "Reserved GDT blocks:      %u\n",
 			sb->s_reserved_gdt_blocks);
 	fprintf(f,
 		"Blocks per group:         %u\n"

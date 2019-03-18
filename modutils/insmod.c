@@ -217,6 +217,14 @@ extern int insmod_ng_main( int argc, char **argv);
 #define ARCHDATAM       "__dbe_table"
 #endif
 
+/* Nios II */
+#if defined(__nios2__)
+#define MATCH_MACHINE(x) (x == EM_ALTERA_NIOS2)
+#define SHT_RELM	SHT_RELA
+#define Elf32_RelM	Elf32_Rela
+#define ELFCLASSM	ELFCLASS32
+#endif
+
 /* PowerPC */
 #if defined(__powerpc64__)
 #define MATCH_MACHINE(x) (x == EM_PPC64)
@@ -260,8 +268,8 @@ extern int insmod_ng_main( int argc, char **argv);
 #define CONFIG_USE_SINGLE
 /* the SH changes have only been tested in =little endian= mode */
 /* I'm not sure about big endian, so let's warn: */
-#if defined(__sh__) && defined(__BIG_ENDIAN__)
-#error insmod.c may require changes for use on big endian SH
+#if defined(__sh__) && BB_BIG_ENDIAN
+# error insmod.c may require changes for use on big endian SH
 #endif
 /* it may or may not work on the SH1/SH2... Error on those also */
 #if ((!(defined(__SH3__) || defined(__SH4__) || defined(__SH5__)))) && (defined(__sh__))
@@ -287,7 +295,7 @@ extern int insmod_ng_main( int argc, char **argv);
 #define CONFIG_PLT_ENTRY_SIZE 8
 #define CONFIG_USE_SINGLE
 #ifndef EM_CYGNUS_V850	/* grumble */
-#define EM_CYGNUS_V850 	0x9080
+#define EM_CYGNUS_V850	0x9080
 #endif
 #define SYMBOL_PREFIX	"_"
 #endif
@@ -335,7 +343,7 @@ extern int insmod_ng_main( int argc, char **argv);
 
 
 #ifndef MODUTILS_MODULE_H
-static const int MODUTILS_MODULE_H = 1;
+/* Why? static const int MODUTILS_MODULE_H = 1;*/
 
 #ident "$Id: insmod.c,v 1.126 2004/12/26 09:13:32 vapier Exp $"
 
@@ -356,9 +364,11 @@ static const int MODUTILS_MODULE_H = 1;
 #undef tgt_sizeof_char_p
 #undef tgt_sizeof_void_p
 #undef tgt_long
-static const int tgt_sizeof_long = 8;
-static const int tgt_sizeof_char_p = 8;
-static const int tgt_sizeof_void_p = 8;
+enum {
+	tgt_sizeof_long = 8,
+	tgt_sizeof_char_p = 8,
+	tgt_sizeof_void_p = 8
+};
 #define tgt_long		long long
 #endif
 
@@ -433,23 +443,26 @@ struct new_module_info
 };
 
 /* Bits of module.flags.  */
-static const int NEW_MOD_RUNNING = 1;
-static const int NEW_MOD_DELETED = 2;
-static const int NEW_MOD_AUTOCLEAN = 4;
-static const int NEW_MOD_VISITED = 8;
-static const int NEW_MOD_USED_ONCE = 16;
+enum {
+	NEW_MOD_RUNNING = 1,
+	NEW_MOD_DELETED = 2,
+	NEW_MOD_AUTOCLEAN = 4,
+	NEW_MOD_VISITED = 8,
+	NEW_MOD_USED_ONCE = 16
+};
 
 int init_module(const char *name, const struct new_module *);
 int query_module(const char *name, int which, void *buf,
 		size_t bufsize, size_t *ret);
 
 /* Values for query_module's which.  */
-
-static const int QM_MODULES = 1;
-static const int QM_DEPS = 2;
-static const int QM_REFS = 3;
-static const int QM_SYMBOLS = 4;
-static const int QM_INFO = 5;
+enum {
+	QM_MODULES = 1,
+	QM_DEPS = 2,
+	QM_REFS = 3,
+	QM_SYMBOLS = 4,
+	QM_INFO = 5
+};
 
 /*======================================================================*/
 /* The system calls unchanged between 2.0 and 2.1.  */
@@ -493,7 +506,7 @@ int delete_module(const char *);
 
 
 #ifndef MODUTILS_OBJ_H
-static const int MODUTILS_OBJ_H = 1;
+/* Why? static const int MODUTILS_OBJ_H = 1; */
 
 #ident "$Id: insmod.c,v 1.126 2004/12/26 09:13:32 vapier Exp $"
 
@@ -503,10 +516,10 @@ static const int MODUTILS_OBJ_H = 1;
 #include <elf.h>
 #include <endian.h>
 
-#if __BYTE_ORDER == __LITTLE_ENDIAN
-#define ELFDATAM	ELFDATA2LSB
-#elif __BYTE_ORDER == __BIG_ENDIAN
-#define ELFDATAM	ELFDATA2MSB
+#if BB_LITTLE_ENDIAN
+# define ELFDATAM	ELFDATA2LSB
+#else
+# define ELFDATAM	ELFDATA2MSB
 #endif
 
 #ifndef ElfW
@@ -687,12 +700,12 @@ static int obj_gpl_license(struct obj_file *f, const char **license);
 #ifdef SYMBOL_PREFIX
 #define SPFX	SYMBOL_PREFIX
 #else
-#define SPFX 	""
+#define SPFX	""
 #endif
 
 
 #define _PATH_MODULES	"/lib/modules"
-static const int STRVERSIONLEN = 32;
+enum { STRVERSIONLEN = 32 };
 
 /*======================================================================*/
 
@@ -852,8 +865,10 @@ arch_apply_relocation(struct obj_file *f,
 #if defined(CONFIG_USE_GOT_ENTRIES) || defined(CONFIG_USE_PLT_ENTRIES)
 	struct arch_symbol *isym = (struct arch_symbol *) sym;
 #endif
+#if defined(__arm__) || defined(__i386__) || defined(__mc68000__) || defined(__sh__) || defined(__s390__)
 #if defined(CONFIG_USE_GOT_ENTRIES)
 	ElfW(Addr) got = ifile->got ? ifile->got->header.sh_addr : 0;
+#endif
 #endif
 #if defined(CONFIG_USE_PLT_ENTRIES)
 	ElfW(Addr) plt = ifile->plt ? ifile->plt->header.sh_addr : 0;
@@ -884,7 +899,7 @@ arch_apply_relocation(struct obj_file *f,
 			 * (which is .got) similar to branch,
 			 * but is full 32 bits relative */
 
-			assert(got);
+			assert(got != 0);
 			*loc += got - dot;
 			break;
 
@@ -893,7 +908,7 @@ arch_apply_relocation(struct obj_file *f,
 			goto bb_use_plt;
 
 		case R_ARM_GOTOFF: /* address relative to the got */
-			assert(got);
+			assert(got != 0);
 			*loc += v - got;
 			break;
 
@@ -1125,6 +1140,170 @@ arch_apply_relocation(struct obj_file *f,
 				*loc = insnlo;
 				break;
 			}
+
+#elif defined(__nios2__)
+
+		case R_NIOS2_NONE:
+			break;
+
+		case R_NIOS2_BFD_RELOC_32:
+			*loc += v;
+			break;
+
+		case R_NIOS2_BFD_RELOC_16:
+			if (v > 0xffff) {
+				ret = obj_reloc_overflow;
+			}
+			*(short *)loc = v;
+			break;
+
+		case R_NIOS2_BFD_RELOC_8:
+			if (v > 0xff) {
+				ret = obj_reloc_overflow;
+			}
+			*(char *)loc = v;
+			break;
+
+		case R_NIOS2_S16:
+			{
+				Elf32_Addr word;
+
+				if ((Elf32_Sword)v > 0x7fff ||
+				    (Elf32_Sword)v < -(Elf32_Sword)0x8000) {
+					ret = obj_reloc_overflow;
+				}
+
+				word = *loc;
+				*loc = ((((word >> 22) << 16) | (v & 0xffff)) << 6) |
+				       (word & 0x3f);
+			}
+			break;
+
+		case R_NIOS2_U16:
+			{
+				Elf32_Addr word;
+
+				if (v > 0xffff) {
+					ret = obj_reloc_overflow;
+				}
+
+				word = *loc;
+				*loc = ((((word >> 22) << 16) | (v & 0xffff)) << 6) |
+				       (word & 0x3f);
+			}
+			break;
+
+		case R_NIOS2_PCREL16:
+			{
+				Elf32_Addr word;
+
+				v -= dot + 4;
+				if ((Elf32_Sword)v > 0x7fff ||
+				    (Elf32_Sword)v < -(Elf32_Sword)0x8000) {
+					ret = obj_reloc_overflow;
+				}
+
+				word = *loc;
+				*loc = ((((word >> 22) << 16) | (v & 0xffff)) << 6) | (word & 0x3f);
+			}
+			break;
+
+		case R_NIOS2_GPREL:
+			{
+				Elf32_Addr word, gp;
+				/* get _gp */
+				gp = obj_symbol_final_value(f, obj_find_symbol(f, SPFX "_gp"));
+				v-=gp;
+				if ((Elf32_Sword)v > 0x7fff ||
+						(Elf32_Sword)v < -(Elf32_Sword)0x8000) {
+					ret = obj_reloc_overflow;
+				}
+
+				word = *loc;
+				*loc = ((((word >> 22) << 16) | (v & 0xffff)) << 6) | (word & 0x3f);
+			}
+			break;
+
+		case R_NIOS2_CALL26:
+			if (v & 3)
+				ret = obj_reloc_dangerous;
+			if ((v >> 28) != (dot >> 28))
+				ret = obj_reloc_overflow;
+			*loc = (*loc & 0x3f) | ((v >> 2) << 6);
+			break;
+
+		case R_NIOS2_IMM5:
+			{
+				Elf32_Addr word;
+
+				if (v > 0x1f) {
+					ret = obj_reloc_overflow;
+				}
+
+				word = *loc & ~0x7c0;
+				*loc = word | ((v & 0x1f) << 6);
+			}
+			break;
+
+		case R_NIOS2_IMM6:
+			{
+				Elf32_Addr word;
+
+				if (v > 0x3f) {
+					ret = obj_reloc_overflow;
+				}
+
+				word = *loc & ~0xfc0;
+				*loc = word | ((v & 0x3f) << 6);
+			}
+			break;
+
+		case R_NIOS2_IMM8:
+			{
+				Elf32_Addr word;
+
+				if (v > 0xff) {
+					ret = obj_reloc_overflow;
+				}
+
+				word = *loc & ~0x3fc0;
+				*loc = word | ((v & 0xff) << 6);
+			}
+			break;
+
+		case R_NIOS2_HI16:
+			{
+				Elf32_Addr word;
+
+				word = *loc;
+				*loc = ((((word >> 22) << 16) | ((v >>16) & 0xffff)) << 6) |
+				       (word & 0x3f);
+			}
+			break;
+
+		case R_NIOS2_LO16:
+			{
+				Elf32_Addr word;
+
+				word = *loc;
+				*loc = ((((word >> 22) << 16) | (v & 0xffff)) << 6) |
+				       (word & 0x3f);
+			}
+			break;
+
+		case R_NIOS2_HIADJ16:
+			{
+				Elf32_Addr word1, word2;
+
+				word1 = *loc;
+				word2 = ((v >> 16) + ((v >> 15) & 1)) & 0xffff;
+				*loc = ((((word1 >> 22) << 16) | word2) << 6) |
+				       (word1 & 0x3f);
+			}
+			break;
+
+#elif defined(__powerpc64__)
+		/* PPC64 needs a 2.6 kernel, 2.4 module relocation irrelevant */
 
 #elif defined(__powerpc__)
 
@@ -1409,6 +1588,8 @@ arch_apply_relocation(struct obj_file *f,
 			break;
 # endif
 
+#else
+# warning "no idea how to handle relocations on your arch"
 #endif
 
 		default:
@@ -3727,7 +3908,7 @@ static void print_load_map(struct obj_file *f)
 
 #endif
 
-extern int insmod_main( int argc, char **argv)
+int insmod_main( int argc, char **argv)
 {
 	int opt;
 	int len;
@@ -3899,7 +4080,7 @@ extern int insmod_main( int argc, char **argv)
 	} else
 		m_filename = bb_xstrdup(argv[optind]);
 
-	if (!flag_quiet)
+	if (flag_verbose)
 		printf("Using %s\n", m_filename);
 
 #ifdef CONFIG_FEATURE_2_6_MODULES
@@ -4055,9 +4236,8 @@ out:
 #ifdef CONFIG_FEATURE_CLEAN_UP
 	if(fp)
 		fclose(fp);
-	if(tmp1) {
-		free(tmp1);
-	} else {
+	free(tmp1);
+	if(!tmp1) {
 		free(m_name);
 	}
 	free(m_filename);
@@ -4092,7 +4272,7 @@ static const char *moderror(int err)
 	}
 }
 
-extern int insmod_ng_main( int argc, char **argv)
+int insmod_ng_main( int argc, char **argv)
 {
 	int i;
 	int fd;
@@ -4128,7 +4308,7 @@ extern int insmod_ng_main( int argc, char **argv)
 
 	fstat(fd, &st);
 	len = st.st_size;
-	map = mmap(NULL, len, PROT_READ, MAP_SHARED, fd, 0);
+	map = mmap(NULL, len, PROT_READ, MAP_PRIVATE, fd, 0);
 	if (map == MAP_FAILED) {
 		bb_perror_msg_and_die("cannot mmap `%s'", filename);
 	}

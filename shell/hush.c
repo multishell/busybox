@@ -75,19 +75,7 @@
  *      maybe change map[] to use 2-bit entries
  *      (eventually) remove all the printf's
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 #include <ctype.h>     /* isalpha, isdigit */
 #include <unistd.h>    /* getpid */
@@ -113,10 +101,10 @@
 #include "cmdedit.h"
 #else
 #define bb_applet_name "hush"
-#include "standalone.h"
+//#include "standalone.h"
 #define hush_main main
 #undef CONFIG_FEATURE_SH_FANCY_PROMPT
-#define BB_BANNER
+#define BB_BANNER ""
 #endif
 #define SPECIAL_VAR_SYMBOL 03
 #define FLAG_EXIT_FROM_LOOP 1
@@ -245,20 +233,20 @@ struct variables {
 /* globals, connect us to the outside world
  * the first three support $?, $#, and $1 */
 static char **global_argv;
-static unsigned int global_argc;
-static unsigned int last_return_code;
+static int global_argc;
+static int last_return_code;
 extern char **environ; /* This is in <unistd.h>, but protected with __USE_GNU */
 
 /* "globals" within this file */
 static char *ifs;
-static char map[256];
+static unsigned char map[256];
 static int fake_mode;
 static int interactive;
 static struct close_me *close_me_head;
 static const char *cwd;
 static struct pipe *job_list;
 static unsigned int last_bg_pid;
-static unsigned int last_jobid;
+static int last_jobid;
 static unsigned int shell_terminal;
 static char *PS1;
 static char *PS2;
@@ -317,7 +305,7 @@ static void debug_printf(const char *format, ...)
 	va_end(args);
 }
 #else
-static inline void debug_printf(const char *format, ...) { }
+static inline void debug_printf(const char *format ATTRIBUTE_UNUSED, ...) { }
 #endif
 #define final_printf debug_printf
 
@@ -369,7 +357,7 @@ static int free_pipe(struct pipe *pi, int indent);
 /*  really run the final data structures: */
 static int setup_redirects(struct child_prog *prog, int squirrel[]);
 static int run_list_real(struct pipe *pi);
-static void pseudo_exec(struct child_prog *child) __attribute__ ((noreturn));
+static void pseudo_exec(struct child_prog *child) ATTRIBUTE_NORETURN;
 static int run_pipe_real(struct pipe *pi);
 /*   extended glob support: */
 static int globhack(const char *src, int flags, glob_t *pglob);
@@ -484,7 +472,7 @@ static int builtin_cd(struct child_prog *child)
 }
 
 /* built-in 'env' handler */
-static int builtin_env(struct child_prog *dummy)
+static int builtin_env(struct child_prog *dummy ATTRIBUTE_UNUSED)
 {
 	char **e = environ;
 	if (e == NULL) return EXIT_FAILURE;
@@ -616,7 +604,7 @@ static int builtin_fg_bg(struct child_prog *child)
 }
 
 /* built-in 'help' handler */
-static int builtin_help(struct child_prog *dummy)
+static int builtin_help(struct child_prog *dummy ATTRIBUTE_UNUSED)
 {
 	const struct built_in_command *x;
 
@@ -632,7 +620,7 @@ static int builtin_help(struct child_prog *dummy)
 }
 
 /* built-in 'jobs' handler */
-static int builtin_jobs(struct child_prog *child)
+static int builtin_jobs(struct child_prog *child ATTRIBUTE_UNUSED)
 {
 	struct pipe *job;
 	char *status_string;
@@ -650,7 +638,7 @@ static int builtin_jobs(struct child_prog *child)
 
 
 /* built-in 'pwd' handler */
-static int builtin_pwd(struct child_prog *dummy)
+static int builtin_pwd(struct child_prog *dummy ATTRIBUTE_UNUSED)
 {
 	puts(set_cwd());
 	return EXIT_SUCCESS;
@@ -1593,7 +1581,7 @@ static int run_list_real(struct pipe *pi)
 		if (rmode == RES_IN) continue;
 		if (rmode == RES_DO) {
 			if (!flag_rep) continue;
-		}	
+		}
 		if ((rmode == RES_DONE)) {
 			if (flag_rep) {
 				flag_restore = 1;
@@ -1794,17 +1782,17 @@ static int xglob(o_string *dest, int flags, glob_t *pglob)
 {
 	int gr;
 
- 	/* short-circuit for null word */
+	/* short-circuit for null word */
 	/* we can code this better when the debug_printf's are gone */
- 	if (dest->length == 0) {
- 		if (dest->nonnull) {
- 			/* bash man page calls this an "explicit" null */
- 			gr = globhack(dest->data, flags, pglob);
- 			debug_printf("globhack returned %d\n",gr);
- 		} else {
+	if (dest->length == 0) {
+		if (dest->nonnull) {
+			/* bash man page calls this an "explicit" null */
+			gr = globhack(dest->data, flags, pglob);
+			debug_printf("globhack returned %d\n",gr);
+		} else {
 			return 0;
 		}
- 	} else if (glob_needed(dest->data)) {
+	} else if (glob_needed(dest->data)) {
 		gr = glob(dest->data, flags, NULL, pglob);
 		debug_printf("glob returned %d\n",gr);
 		if (gr == GLOB_NOMATCH) {
@@ -2007,6 +1995,7 @@ static struct pipe *new_pipe(void) {
 	pi->progs = NULL;
 	pi->next = NULL;
 	pi->followup = 0;  /* invalid */
+	pi->r_mode = RES_NONE;
 	return pi;
 }
 
@@ -2122,7 +2111,7 @@ static int done_word(o_string *dest, struct p_context *ctx)
 			if (reserved_word(dest,ctx)) return ctx->w==RES_SNTX;
 		}
 		glob_target = &child->glob_result;
- 		if (child->argv) flags |= GLOB_APPEND;
+		if (child->argv) flags |= GLOB_APPEND;
 	}
 	gr = xglob(dest, flags, glob_target);
 	if (gr != 0) return 1;
@@ -2468,7 +2457,7 @@ int parse_string(o_string *dest, struct p_context *ctx, const char *src)
 int parse_stream(o_string *dest, struct p_context *ctx,
 	struct in_str *input, int end_trigger)
 {
-	unsigned int ch, m;
+	int ch, m;
 	int redir_fd;
 	redir_type redir_style;
 	int next;
@@ -2625,10 +2614,10 @@ int parse_stream(o_string *dest, struct p_context *ctx,
 	return 0;
 }
 
-static void mapset(const unsigned char *set, int code)
+static void mapset(const char *set, int code)
 {
 	const unsigned char *s;
-	for (s=set; *s; s++) map[*s] = code;
+	for (s = (const unsigned char *)set; *s; s++) map[(int)*s] = code;
 }
 
 static void update_ifs_map(void)
@@ -2823,7 +2812,8 @@ int hush_main(int argc, char **argv)
 	if (interactive) {
 		/* Looks like they want an interactive shell */
 #ifndef CONFIG_FEATURE_SH_EXTRA_QUIET
-		printf( "\n\n" BB_BANNER " hush - the humble shell v0.01 (testing)\n");
+		printf( "\n\n%s hush - the humble shell v0.01 (testing)\n",
+			BB_BANNER);
 		printf( "Enter 'help' for a list of built-in commands.\n\n");
 #endif
 		setup_job_control();

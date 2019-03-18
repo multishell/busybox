@@ -16,11 +16,17 @@ MODUTILS-$(CONFIG_LSMOD)		+= lsmod.o
 MODUTILS-$(CONFIG_MODPROBE)		+= modprobe.o
 MODUTILS-$(CONFIG_RMMOD)		+= rmmod.o
 
+ifneq ($(strip $(MODUTILS-y)),)
 libraries-y+=$(MODUTILS_DIR)$(MODUTILS_AR)
+endif
+
+MODUTILS_SRC-y:=$(patsubst %.o,$(srcdir)/%.c,$(MODUTILS-y))
+MODUTILS_SRC-a:=$(wildcard $(srcdir)/*.c)
+APPLET_SRC-y+=$(MODUTILS_SRC-y)
+APPLET_SRC-a+=$(MODUTILS_SRC-a)
 
 $(MODUTILS_DIR)$(MODUTILS_AR): $(patsubst %,$(MODUTILS_DIR)%, $(MODUTILS-y))
-	$(AR) $(ARFLAGS) $@ $(patsubst %,$(MODUTILS_DIR)%, $(MODUTILS-y))
+	$(do_ar)
 
 $(MODUTILS_DIR)%.o: $(srcdir)/%.c
-	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
-
+	$(compile.c)

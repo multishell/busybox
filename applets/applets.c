@@ -265,7 +265,7 @@ static void parse_config_file(void)
 				}
 
 				/* Now get the the user/group info. */
-		
+
 				s = (char *) bb_skip_whitespace(e);
 
 				/* Note: We require whitespace between the mode and the
@@ -330,7 +330,7 @@ static void parse_config_file(void)
 }
 
 #else
-#define parse_config_file(x)
+#define parse_config_file()
 #endif /* CONFIG_FEATURE_SUID_CONFIG */
 
 #ifdef CONFIG_FEATURE_SUID
@@ -405,7 +405,7 @@ static void check_suid (struct BB_applet *applet)
 
 
 
-extern void bb_show_usage (void)
+void bb_show_usage (void)
 {
   const char *format_string;
   const char *usage_string = usage_messages;

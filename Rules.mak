@@ -1,28 +1,21 @@
 # Rules.make for busybox
 #
-# Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+# Copyright (C) 1999-2005 by Erik Andersen <andersen@codepoet.org>
 #
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
+# Licensed under GPLv2, see the file LICENSE in this tarball for details.
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-# General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-#
+
+# Pull in the user's busybox configuration
+ifeq ($(filter $(noconfig_targets),$(MAKECMDGOALS)),)
+-include $(top_builddir)/.config
+endif
 
 #--------------------------------------------------------
 PROG      := busybox
 MAJOR_VERSION   :=1
 MINOR_VERSION   :=1
-SUBLEVEL_VERSION:=0
-EXTRAVERSION    :=-pre1
+SUBLEVEL_VERSION:=1
+EXTRAVERSION    :=
 VERSION   :=$(MAJOR_VERSION).$(MINOR_VERSION).$(SUBLEVEL_VERSION)$(EXTRAVERSION)
 BUILDTIME := $(shell TZ=UTC date -u "+%Y.%m.%d-%H:%M%z")
 
@@ -46,15 +39,7 @@ LD             = $(CROSS)ld
 NM             = $(CROSS)nm
 STRIP          = $(CROSS)strip
 CPP            = $(CC) -E
-# MAKEFILES      = $(top_builddir)/.config
-RM             = rm
-RM_F           = $(RM) -f
-LN             = ln
-LN_S           = $(LN) -s
-MKDIR          = mkdir
-MKDIR_P        = $(MKDIR) -p
-MV             = mv
-CP             = cp
+SED           ?= sed
 
 
 # What OS are you compiling busybox for?  This allows you to include
@@ -84,12 +69,19 @@ CFLAGS_EXTRA=$(subst ",, $(strip $(EXTRA_CFLAGS_OPTIONS)))
 # For other libraries, you are on your own.  But these may (or may not) help...
 #LDFLAGS+=-nostdlib
 #LIBRARIES:=$(LIBCDIR)/lib/libc.a -lgcc
-#CROSS_CFLAGS+=-nostdinc -I$(LIBCDIR)/include -I$(GCCINCDIR)
+#CROSS_CFLAGS+=-nostdinc -I$(LIBCDIR)/include -I$(GCCINCDIR) -funsigned-char
 #GCCINCDIR:=$(shell gcc -print-search-dirs | sed -ne "s/install: \(.*\)/\1include/gp")
 
 WARNINGS=-Wall -Wstrict-prototypes -Wshadow
-CFLAGS=-I$(top_builddir)/include -I$(top_srcdir)/include -I$(srcdir)
+CFLAGS+=-I$(top_builddir)/include -I$(top_srcdir)/include -I$(srcdir)
+
 ARFLAGS=cru
+
+
+# gcc centric. Perhaps fiddle with findstring gcc,$(CC) for the rest
+# get the CC MAJOR/MINOR version
+CC_MAJOR:=$(shell printf "%02d" $(shell echo __GNUC__ | $(CC) -E -xc - | tail -n 1))
+CC_MINOR:=$(shell printf "%02d" $(shell echo __GNUC_MINOR__ | $(CC) -E -xc - | tail -n 1))
 
 #--------------------------------------------------------
 export VERSION BUILDTIME HOSTCC HOSTCFLAGS CROSS CC AR AS LD NM STRIP CPP
@@ -108,11 +100,6 @@ TARGET_ARCH:=$(shell $(CC) -dumpmachine | sed -e s'/-.*//' \
 		)
 endif
 
-# Pull in the user's busybox configuration
-ifeq ($(filter $(noconfig_targets),$(MAKECMDGOALS)),)
--include $(top_builddir)/.config
-endif
-
 # A nifty macro to make testing gcc features easier
 check_gcc=$(shell \
 	if [ "$(1)" != "" ]; then \
@@ -120,14 +107,15 @@ check_gcc=$(shell \
 		then echo "$(1)"; else echo "$(2)"; fi \
 	fi)
 
-# Setup some shortcuts so that silent mode is silent like it should be
-ifeq ($(subst s,,$(MAKEFLAGS)),$(MAKEFLAGS))
-export MAKE_IS_SILENT=n
-SECHO=@echo
-else
-export MAKE_IS_SILENT=y
-SECHO=-@false
-endif
+# A not very robust macro to check for available ld flags
+check_ld=$(shell \
+	if [ "x$(1)" != "x" ]; then \
+		$(LD) --help | grep -q "\$(1)" && echo "-Wl,$(1)" ; \
+	fi)
+
+CFLAGS+=$(call check_gcc,-funsigned-char,)
+
+CFLAGS+=$(call check_gcc,-mmax-stack-frame=256,)
 
 #--------------------------------------------------------
 # Arch specific compiler optimization stuff should go here.
@@ -137,17 +125,46 @@ endif
 # use '-Os' optimization if available, else use -O2
 OPTIMIZATION:=$(call check_gcc,-Os,-O2)
 
+ifeq ($(CONFIG_BUILD_AT_ONCE),y)
+# gcc 2.95 exits with 0 for "unrecognized option"
+ifeq ($(strip $(shell [ $(CC_MAJOR) -ge 3 ] ; echo $$?)),0)
+	CFLAGS_COMBINE:=$(call check_gcc,--combine,)
+endif
+OPTIMIZATION+=$(call check_gcc,-funit-at-a-time,)
+# http://gcc.gnu.org/bugzilla/show_bug.cgi?id=25795
+#PROG_CFLAGS+=$(call check_gcc,-fwhole-program,)
+endif # CONFIG_BUILD_AT_ONCE
+
+LIB_LDFLAGS:=$(call check_ld,--enable-new-dtags,)
+#LIB_LDFLAGS+=$(call check_ld,--reduce-memory-overheads,)
+#LIB_LDFLAGS+=$(call check_ld,--as-needed,)
+#LIB_LDFLAGS+=$(call check_ld,--warn-shared-textrel,)
+
+
 # Some nice architecture specific optimizations
 ifeq ($(strip $(TARGET_ARCH)),arm)
 	OPTIMIZATION+=-fstrict-aliasing
 endif
 ifeq ($(strip $(TARGET_ARCH)),i386)
 	OPTIMIZATION+=$(call check_gcc,-march=i386,)
+# gcc-4.0 and older seem to benefit from these
+#ifneq ($(strip $(shell [ $(CC_MAJOR) -ge 4 -a $(CC_MINOR) -ge 1 ] ; echo $$?)),0)
 	OPTIMIZATION+=$(call check_gcc,-mpreferred-stack-boundary=2,)
-	OPTIMIZATION+=$(call check_gcc,-falign-functions=0 -falign-jumps=0 -falign-loops=0,\
+	OPTIMIZATION+=$(call check_gcc,-falign-functions=1 -falign-jumps=1 -falign-loops=1,\
 		-malign-functions=0 -malign-jumps=0 -malign-loops=0)
+#endif # gcc-4.0 and older
+
+# gcc-4.1 and beyond seem to benefit from these
+ifeq ($(strip $(shell [ $(CC_MAJOR) -ge 4 -a $(CC_MINOR) -ge 1 ] ; echo $$?)),0)
+	# turn off flags which hurt -Os
+	OPTIMIZATION+=$(call check_gcc,-fno-tree-loop-optimize,)
+	OPTIMIZATION+=$(call check_gcc,-fno-tree-dominator-opts,)
+	OPTIMIZATION+=$(call check_gcc,-fno-strength-reduce,)
+
+	OPTIMIZATION+=$(call check_gcc,-fno-branch-count-reg,)
+endif # gcc-4.1 and beyond
 endif
-OPTIMIZATIONS:=$(OPTIMIZATION) -fomit-frame-pointer
+OPTIMIZATIONS:=$(OPTIMIZATION) $(call check_gcc,-fomit-frame-pointer,)
 
 #
 #--------------------------------------------------------
@@ -173,16 +190,24 @@ else
 endif
 ifeq ($(strip $(CONFIG_DEBUG)),y)
     CFLAGS  +=$(WARNINGS) -g -D_GNU_SOURCE
-    LDFLAGS +=-Wl,-warn-common
-    STRIPCMD:=/bin/true -Not_stripping_since_we_are_debugging
+    LDFLAGS += $(call check_ld,--warn-common,)
 else
     CFLAGS+=$(WARNINGS) $(OPTIMIZATIONS) -D_GNU_SOURCE -DNDEBUG
-    LDFLAGS += -Wl,-warn-common
-    STRIPCMD:=$(STRIP) -s --remove-section=.note --remove-section=.comment
+    LDFLAGS += $(call check_ld,--warn-common,)
+    LDFLAGS += $(call check_ld,--sort-common,)
 endif
+STRIPCMD:=$(STRIP) -s --remove-section=.note --remove-section=.comment
 ifeq ($(strip $(CONFIG_STATIC)),y)
-    LDFLAGS += --static
+    PROG_CFLAGS += $(call check_gcc,-static,)
 endif
+CFLAGS_SHARED += $(call check_gcc,-shared,)
+LIB_CFLAGS+=$(CFLAGS_SHARED)
+
+ifeq ($(strip $(CONFIG_BUILD_LIBBUSYBOX)),y)
+    CFLAGS_PIC:= $(call check_gcc,-fPIC,)
+    LIB_CFLAGS+=$(CFLAGS_PIC)
+endif
+
 
 ifeq ($(strip $(CONFIG_SELINUX)),y)
     LIBRARIES += -lselinux
@@ -208,5 +233,72 @@ endif
 # Put user-supplied flags at the end, where they
 # have a chance of winning.
 CFLAGS += $(CFLAGS_EXTRA)
+
+#------------------------------------------------------------
+# Installation options
+ifeq ($(strip $(CONFIG_INSTALL_APPLET_HARDLINKS)),y)
+INSTALL_OPTS=--hardlinks
+endif
+ifeq ($(strip $(CONFIG_INSTALL_APPLET_SYMLINKS)),y)
+INSTALL_OPTS=--symlinks
+endif
+ifeq ($(strip $(CONFIG_INSTALL_APPLET_DONT)),y)
+INSTALL_OPTS=
+endif
+
+#------------------------------------------------------------
+# Make the output nice and tight
+MAKEFLAGS += --no-print-directory
+export MAKE_IS_SILENT=n
+ifneq ($(findstring s,$(MAKEFLAGS)),)
+export MAKE_IS_SILENT=y
+SECHO := @-false
+DISP  := sil
+Q     := @
+else
+ifneq ($(V)$(VERBOSE),)
+SECHO := @-false
+DISP  := ver
+Q     := 
+else
+SECHO := @echo
+DISP  := pur
+Q     := @
+endif
+endif
+
+show_objs = $(subst $(top_builddir)/,,$(subst ../,,$@))
+pur_disp_compile.c = echo "  "CC $(show_objs)
+pur_disp_compile.h = echo "  "HOSTCC $(show_objs)
+pur_disp_strip     = echo "  "STRIP $(show_objs)
+pur_disp_link      = echo "  "LINK $(show_objs)
+pur_disp_ar        = echo "  "AR $(ARFLAGS) $(show_objs)
+sil_disp_compile.c = true
+sil_disp_compile.h = true
+sil_disp_strip     = true
+sil_disp_link      = true
+sil_disp_ar        = true
+ver_disp_compile.c = echo $(cmd_compile.c)
+ver_disp_compile.h = echo $(cmd_compile.h)
+ver_disp_strip     = echo $(cmd_strip)
+ver_disp_link      = echo $(cmd_link)
+ver_disp_ar        = echo $(cmd_ar)
+disp_compile.c     = $($(DISP)_disp_compile.c)
+disp_compile.h     = $($(DISP)_disp_compile.h)
+disp_strip         = $($(DISP)_disp_strip)
+disp_link          = $($(DISP)_disp_link)
+disp_ar            = $($(DISP)_disp_ar)
+disp_gen           = $(SECHO) "  "GEN $@ ; true
+disp_doc           = $(SECHO) "  "DOC $(subst docs/,,$@) ; true
+cmd_compile.c      = $(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
+cmd_compile.h      = $(HOSTCC) $(HOSTCFLAGS) -c -o $@ $<
+cmd_strip          = $(STRIPCMD) $@
+cmd_link           = $(CC) $(CFLAGS) $(EXTRA_CFLAGS) $(LDFLAGS)
+cmd_ar             = $(AR) $(ARFLAGS) $@ $^
+compile.c          = @$(disp_compile.c) ; $(cmd_compile.c)
+compile.h          = @$(disp_compile.h) ; $(cmd_compile.h)
+do_strip           = @$(disp_strip)     ; $(cmd_strip)
+do_link            = @$(disp_link)      ; $(cmd_link)
+do_ar              = @$(disp_ar)        ; $(cmd_ar)
 
 .PHONY: dummy

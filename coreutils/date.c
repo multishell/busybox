@@ -6,20 +6,7 @@
  *
  * iso-format handling added by Robert Griebl <griebl@gmx.de>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
 */
 
 #include <stdlib.h>
@@ -30,7 +17,6 @@
 #include <stdio.h>
 #include <string.h>
 #include "busybox.h"
-
 
 /* This 'date' command supports only 2 time setting formats,
    all the GNU strftime stuff (its in libc, lets use it),
@@ -91,23 +77,23 @@ static struct tm *date_conv_ftime(struct tm *tm_time, const char *t_string)
 								&t.tm_min) == 2) {
 		/* no adjustments needed */
 	} else if (t = *tm_time, sscanf(t_string, "%d.%d-%d:%d:%d", &t.tm_mon,
-						&t.tm_mday, &t.tm_hour, 
+						&t.tm_mday, &t.tm_hour,
 						&t.tm_min, &t.tm_sec) == 5) {
 		/* Adjust dates from 1-12 to 0-11 */
 		t.tm_mon -= 1;
 	} else if (t = *tm_time, sscanf(t_string, "%d.%d-%d:%d", &t.tm_mon,
-						&t.tm_mday, 
+						&t.tm_mday,
 						&t.tm_hour, &t.tm_min) == 4) {
 		/* Adjust dates from 1-12 to 0-11 */
 		t.tm_mon -= 1;
 	} else if (t = *tm_time, sscanf(t_string, "%d.%d.%d-%d:%d:%d", &t.tm_year,
-						&t.tm_mon, &t.tm_mday, 
+						&t.tm_mon, &t.tm_mday,
 						&t.tm_hour, &t.tm_min,
 							&t.tm_sec) == 6) {
 		t.tm_year -= 1900;	/* Adjust years */
 		t.tm_mon -= 1;	/* Adjust dates from 1-12 to 0-11 */
 	} else if (t = *tm_time, sscanf(t_string, "%d.%d.%d-%d:%d", &t.tm_year,
-						&t.tm_mon, &t.tm_mday, 
+						&t.tm_mon, &t.tm_mday,
 						&t.tm_hour, &t.tm_min) == 5) {
 		t.tm_year -= 1900;	/* Adjust years */
 		t.tm_mon -= 1;	/* Adjust dates from 1-12 to 0-11 */
@@ -119,13 +105,12 @@ static struct tm *date_conv_ftime(struct tm *tm_time, const char *t_string)
 }
 
 #define DATE_OPT_RFC2822	0x01
-#define DATE_OPT_SET    	0x02
-#define DATE_OPT_UTC    	0x04
-#define DATE_OPT_DATE   	0x08
+#define DATE_OPT_SET		0x02
+#define DATE_OPT_UTC		0x04
+#define DATE_OPT_DATE		0x08
 #define DATE_OPT_REFERENCE	0x10
-#ifdef CONFIG_FEATURE_DATE_ISOFMT
-# define DATE_OPT_TIMESPEC	0x20
-#endif
+#define DATE_OPT_TIMESPEC	0x20
+#define DATE_OPT_HINT		0x40
 
 int date_main(int argc, char **argv)
 {
@@ -133,63 +118,39 @@ int date_main(int argc, char **argv)
 	char *date_fmt = NULL;
 	int set_time;
 	int utc;
-#if 0
-	int use_arg = 0;
-#endif
 	time_t tm;
 	unsigned long opt;
 	struct tm tm_time;
 	char *filename = NULL;
 
-#ifdef CONFIG_FEATURE_DATE_ISOFMT
 	int ifmt = 0;
 	char *isofmt_arg;
+	char *hintfmt_arg;
 
-# define GETOPT_ISOFMT  "I::"
-#else
-# define GETOPT_ISOFMT
-#endif
 	bb_opt_complementally = "?:d--s:s--d";
-	opt = bb_getopt_ulflags(argc, argv, "Rs:ud:r:" GETOPT_ISOFMT,
+	opt = bb_getopt_ulflags(argc, argv, "Rs:ud:r:"
+		  		 	USE_FEATURE_DATE_ISOFMT("I::D:"),
 					&date_str, &date_str, &filename
-#ifdef CONFIG_FEATURE_DATE_ISOFMT
-					, &isofmt_arg
-#endif
-					);
+					USE_FEATURE_DATE_ISOFMT(, &isofmt_arg, &hintfmt_arg));
 	set_time = opt & DATE_OPT_SET;
 	utc = opt & DATE_OPT_UTC;
 	if (utc && putenv("TZ=UTC0") != 0) {
 		bb_error_msg_and_die(bb_msg_memory_exhausted);
 	}
-#if 0
-	use_arg = opt & DATE_OPT_DATE;
-#endif
-#ifdef CONFIG_FEATURE_DATE_ISOFMT
-	if(opt & DATE_OPT_TIMESPEC) {
+
+	if(ENABLE_FEATURE_DATE_ISOFMT && (opt & DATE_OPT_TIMESPEC)) {
 		if (!isofmt_arg) {
 			ifmt = 1;
 		} else {
-			int ifmt_len = bb_strlen(isofmt_arg);
-
-			if (ifmt_len <= 4
-				&& strncmp(isofmt_arg, "date", ifmt_len) == 0) {
-				ifmt = 1;
-			} else if (ifmt_len <= 5
-				   && strncmp(isofmt_arg, "hours", ifmt_len) == 0) {
-				ifmt = 2;
-			} else if (ifmt_len <= 7
-				   && strncmp(isofmt_arg, "minutes", ifmt_len) == 0) {
-				ifmt = 3;
-			} else if (ifmt_len <= 7
-				   && strncmp(isofmt_arg, "seconds", ifmt_len) == 0) {
-				ifmt = 4;
-			}
+			char *isoformats[]={"date","hours","minutes","seconds"};
+			for(ifmt = 4; ifmt;)
+				if(!strcmp(isofmt_arg,isoformats[--ifmt]))
+					break;
 		}
 		if (!ifmt) {
 			bb_show_usage();
 		}
 	}
-#endif
 
 	/* XXX, date_fmt == NULL from this always */
 	if ((date_fmt == NULL) && (optind < argc) && (argv[optind][0] == '+')) {
@@ -204,8 +165,7 @@ int date_main(int argc, char **argv)
 
 	if(filename) {
 		struct stat statbuf;
-		if(stat(filename,&statbuf))
-			bb_perror_msg_and_die("File '%s' not found.", filename);
+		xstat(filename,&statbuf);
 		tm=statbuf.st_mtime;
 	} else time(&tm);
 	memcpy(&tm_time, localtime(&tm), sizeof(tm_time));
@@ -216,7 +176,9 @@ int date_main(int argc, char **argv)
 		tm_time.tm_hour = 0;
 
 		/* Process any date input to UNIX time since 1 Jan 1970 */
-		if (strchr(date_str, ':') != NULL) {
+		if (ENABLE_FEATURE_DATE_ISOFMT && (opt & DATE_OPT_HINT)) {
+			strptime(date_str, hintfmt_arg, &tm_time);
+		} else if (strchr(date_str, ':') != NULL) {
 			date_conv_ftime(&tm_time, date_str);
 		} else {
 			date_conv_time(&tm_time, date_str);
@@ -242,49 +204,42 @@ int date_main(int argc, char **argv)
 
 	/* Deal with format string */
 	if (date_fmt == NULL) {
-#ifdef CONFIG_FEATURE_DATE_ISOFMT
-		switch (ifmt) {
-		case 4:
-			date_fmt = utc ? "%Y-%m-%dT%H:%M:%SZ" : "%Y-%m-%dT%H:%M:%S%z";
-			break;
-		case 3:
-			date_fmt = utc ? "%Y-%m-%dT%H:%MZ" : "%Y-%m-%dT%H:%M%z";
-			break;
-		case 2:
-			date_fmt = utc ? "%Y-%m-%dT%HZ" : "%Y-%m-%dT%H%z";
-			break;
-		case 1:
-			date_fmt = "%Y-%m-%d";
-			break;
-		case 0:
-		default:
-#endif
-			date_fmt = (opt & DATE_OPT_RFC2822 ?
+		/* Start with the default case */
+		
+		date_fmt = (opt & DATE_OPT_RFC2822 ?
 					(utc ? "%a, %d %b %Y %H:%M:%S GMT" :
 					"%a, %d %b %Y %H:%M:%S %z") :
 					"%a %b %e %H:%M:%S %Z %Y");
 
-#ifdef CONFIG_FEATURE_DATE_ISOFMT
-			break;
+		if (ENABLE_FEATURE_DATE_ISOFMT) {
+			if (ifmt == 4)
+				date_fmt = utc ? "%Y-%m-%dT%H:%M:%SZ" : "%Y-%m-%dT%H:%M:%S%z";
+			else if (ifmt == 3)
+				date_fmt = utc ? "%Y-%m-%dT%H:%MZ" : "%Y-%m-%dT%H:%M%z";
+			else if (ifmt == 2) 
+				date_fmt = utc ? "%Y-%m-%dT%HZ" : "%Y-%m-%dT%H%z";
+			else if (ifmt == 1)
+				date_fmt = "%Y-%m-%d";
 		}
-#endif
-	} else if (*date_fmt == '\0') {
-		/* Imitate what GNU 'date' does with NO format string! */
-		printf("\n");
-		return EXIT_SUCCESS;
 	}
+	
+	if (*date_fmt == '\0') {
 
-	/* Handle special conversions */
+		/* With no format string, just print a blank line */
+		
+		*bb_common_bufsiz1=0;
+	} else {
 
-	if (strncmp(date_fmt, "%f", 2) == 0) {
-		date_fmt = "%Y.%m.%d-%H:%M:%S";
-	}
+		/* Handle special conversions */
 
-	{
-		/* Print OUTPUT (after ALL that!) */
+		if (strncmp(date_fmt, "%f", 2) == 0) {
+			date_fmt = "%Y.%m.%d-%H:%M:%S";
+		}
+
+		/* Generate output string */
 		strftime(bb_common_bufsiz1, 200, date_fmt, &tm_time);
-		puts(bb_common_bufsiz1);
 	}
+	puts(bb_common_bufsiz1);
 
 	return EXIT_SUCCESS;
 }

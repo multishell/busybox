@@ -10,6 +10,7 @@ have additions to this FAQ document, we would love to add them,
 <ol>
 <li><a href="#getting_started">How can I get started using BusyBox?</a>
 <li><a href="#build_system">How do I build a BusyBox-based system?</a>
+<li><a href="#init">Busybox init isn't working!</a>
 <li><a href="#kernel">Which Linux kernel versions are supported?</a>
 <li><a href="#arch">Which architectures does BusyBox run on?</a>
 <li><a href="#libc">Which C libraries are supported?</a>
@@ -49,11 +50,10 @@ have additions to this FAQ document, we would love to add them,
     BusyBox uses the name it was invoked under to determine which applet is
     being invoked.  (Try "mv busybox ls" and then "./ls -l".)  Installing
     busybox consists of creating symlinks (or hardlinks) to the busybox
-    binary for each applet in busybox, and making sure these symlinks are in
-    the shell's command $PATH.  ("make install" creates these symlinks, and
-    "make install-hardlinks" creates hardlinks instead.)  The special applet
-    name "busybox" (or with any optional suffix, such as "busybox-static")
-    uses the first argument to determine which applet to run, as shown above.
+    binary for each applet in busybox, and making sure these links are in
+    the shell's command $PATH.  The special applet name "busybox" (or with
+    any optional suffix, such as "busybox-static") uses the first argument
+    to determine which applet to run, as shown above.
 </p>
 <p>
     BusyBox also has a feature called the "standalone shell", where the busybox
@@ -109,11 +109,38 @@ have additions to this FAQ document, we would love to add them,
     If you want an automated yet customizable system builder which produces
     a BusyBox and uClibc based system, try
     <a href="http://buildroot.uclibc.org">buildroot</a>, which is
-    another project by the maintainer of the uClibc and BusyBox projects
-    (Erik Andersen).  Download the tarball, extract it, unset CC, make.
+    another project by the maintainer of the uClibc (Erik Andersen).
+    Download the tarball, extract it, unset CC, make.
     For more instructions, see the website.
 </p>
 
+<hr />
+<p>
+<h2><a name="init">Busybox init isn't working!</a></h2>
+<p>
+    Build a statically linked version of the following "hello world" program
+    with your cross compiler toolchain.
+</p>
+<pre>
+#include &lt;stdio.h&gt;
+
+int main(int argc, char *argv)
+{
+  printf("Hello world!\n");
+  sleep(999999999);
+}
+</pre>
+
+<p>
+    Now try to boot your device with an "init=" argument pointing to your
+    hello world program.  Did you see the hello world message?  Until you
+    do, don't bother messing with busybox init.
+</p>
+
+<p>
+    Once you've got it working statically linked, try getting it to work
+    dynamically linked.  Then read the FAQ entry before this one.
+</p>
 
 <hr />
 <p>
@@ -181,7 +208,7 @@ have additions to this FAQ document, we would love to add them,
     If you simply need help with using or configuring BusyBox, please submit a
     detailed description of your problem to the BusyBox mailing list at <a
     href="mailto:busybox@mail.busybox.net"> busybox@mail.busybox.net</a>.
-    Please do not send private email to Erik (the maintainer of BusyBox) asking
+    Please do not send email to individual developers asking
     for private help unless you are planning on paying for consulting services.
     When we answer questions on the BusyBox mailing list, it helps everyone,
     while private answers help only you...
@@ -240,16 +267,16 @@ have additions to this FAQ document, we would love to add them,
 
     If you find that you need help with BusyBox, you can ask for help on the
     BusyBox mailing list at busybox@mail.busybox.net.  In addition to the BusyBox
-    mailing list, Erik (andersee), Manuel (mjn3) and others are known to hang out
-    on the uClibc IRC channel: #uclibc on irc.freenode.net.  (Daily logs of
-    that IRC channel, going back to 2002, are available
+    mailing list, Erik (andersee), Manuel (mjn3), Rob (landley) and others are
+    known to hang out on the uClibc IRC channel: #uclibc on irc.freenode.net.
+    (Daily logs of that IRC channel, going back to 2002, are available
     <a href="http://ibot.Rikers.org/%23uclibc/">here</a>.)
 
     <p>
 
-    <b>Please do not send private email to Erik, Manuel, or the other BusyBox
-    contributors asking for private help unless you are planning on paying for
-    consulting services.</b>
+    <b>Please do not send private email to Rob, Erik, Manuel, or the other
+    BusyBox contributors asking for private help unless you are planning on
+    paying for consulting services.</b>
 
     <p>
 
@@ -312,8 +339,8 @@ have additions to this FAQ document, we would love to add them,
     If you prefer to contact Erik directly to make a donation, donate hardware,
     request support, etc, you can contact
     <a href="http://codepoet-consulting.com/">CodePoet Consulting</a> here.
-    CodePoet Consulting can accept both Visa and MasterCard for those that do not
-    trust PayPal...
+    CodePoet Consulting can accept both Visa and MasterCard for those that do
+    not trust PayPal...
 
 <hr />
 <p>

@@ -44,9 +44,9 @@ static long flags;
 
 static char const *file_type(struct stat const *st)
 {
-	/* See POSIX 1003.1-2001 XCU Table 4-8 lines 17093-17107 
+	/* See POSIX 1003.1-2001 XCU Table 4-8 lines 17093-17107
 	 * for some of these formats.
-	 * To keep diagnostics grammatical in English, the 
+	 * To keep diagnostics grammatical in English, the
 	 * returned string must start with a consonant.
 	 */
 	if (S_ISREG(st->st_mode))  return st->st_size == 0 ? "regular empty file" : "regular file";
@@ -120,19 +120,18 @@ static char const *human_fstype(long f_type)
 		{ 0x858458f6, "romfs" },
 		{ 0x73717368, "squashfs" },
 		{ 0x62656572, "sysfs" },
-		{ 0, "UNKNOWN" },
-		{ 0, NULL }
+		{ 0, "UNKNOWN" }
 	};
 	for (i=0; humantypes[i].type; ++i)
 		if (humantypes[i].type == f_type)
-			return humantypes[i].fs;
+			break;
 	return humantypes[i].fs;
 }
 
 #ifdef CONFIG_FEATURE_STAT_FORMAT
 /* print statfs info */
-static void print_statfs(char *pformat, size_t buf_len, char m, 
-                         char const *filename, void const *data)
+static void print_statfs(char *pformat, size_t buf_len, char m,
+			 char const *filename, void const *data)
 {
 	struct statfs const *statfsbuf = data;
 
@@ -190,8 +189,8 @@ static void print_statfs(char *pformat, size_t buf_len, char m,
 }
 
 /* print stat info */
-static void print_stat(char *pformat, size_t buf_len, char m, 
-                       char const *filename, void const *data)
+static void print_stat(char *pformat, size_t buf_len, char m,
+		       char const *filename, void const *data)
 {
 #define TYPE_SIGNED(t) (! ((t) 0 < (t) -1))
 	struct stat *statbuf = (struct stat *) data;
@@ -326,9 +325,9 @@ static void print_stat(char *pformat, size_t buf_len, char m,
 	}
 }
 
-static void print_it(char const *masterformat, char const *filename, 
-                     void (*print_func) (char *, size_t, char, char const *, void const *), 
-                     void const *data)
+static void print_it(char const *masterformat, char const *filename,
+		     void (*print_func) (char *, size_t, char, char const *, void const *),
+		     void const *data)
 {
 	char *b;
 

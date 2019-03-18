@@ -8,20 +8,7 @@
  * under the following liberal license: "We have placed this source code in the
  * public domain. Use it in any project, free or commercial."
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
 /* This shell's parsing engine is officially at a dead-end.  Future
@@ -70,11 +57,13 @@ enum redir_type { REDIRECT_INPUT, REDIRECT_OVERWRITE,
 };
 #endif
 
-static const unsigned int DEFAULT_CONTEXT=0x1;
-static const unsigned int IF_TRUE_CONTEXT=0x2;
-static const unsigned int IF_FALSE_CONTEXT=0x4;
-static const unsigned int THEN_EXP_CONTEXT=0x8;
-static const unsigned int ELSE_EXP_CONTEXT=0x10;
+enum {
+	DEFAULT_CONTEXT = 0x1,
+	IF_TRUE_CONTEXT = 0x2,
+	IF_FALSE_CONTEXT = 0x4,
+	THEN_EXP_CONTEXT = 0x8,
+	ELSE_EXP_CONTEXT = 0x10
+};
 
 #ifdef CONFIG_LASH_PIPE_N_REDIRECTS
 struct redir_struct {
@@ -148,7 +137,7 @@ static void remove_job(struct jobset *j_list, struct job *job);
 static int get_command(FILE * source, char *command);
 static int parse_command(char **command_ptr, struct job *job, int *inbg);
 static int run_command(struct job *newjob, int inbg, int outpipe[2]);
-static int pseudo_exec(struct child_prog *cmd) __attribute__ ((noreturn));
+static int pseudo_exec(struct child_prog *cmd) ATTRIBUTE_NORETURN;
 static int busy_loop(FILE * input);
 
 
@@ -1280,7 +1269,7 @@ static int pseudo_exec(struct child_prog *child)
 		char** argv_l=child->argv;
 		int argc_l;
 #ifdef _NEWLIB_VERSION
-		/* newlib uses __getopt_initialized for getopt() in 
+		/* newlib uses __getopt_initialized for getopt() in
 		 * addition to optind, see newlib/libc/sys/linux/getopt.c
 		 */
 		extern int __getopt_initialized = 0;
@@ -1453,7 +1442,7 @@ static int busy_loop(FILE * input)
 	char *next_command = NULL;
 	struct job newjob;
 	int i;
-	int inbg;
+	int inbg = 0;
 	int status;
 #ifdef CONFIG_LASH_JOB_CONTROL
 	pid_t  parent_pgrp;
@@ -1674,7 +1663,7 @@ int lash_main(int argc_l, char **argv_l)
 		//printf( "optind=%d  argv[optind]='%s'\n", optind, argv[optind]);
 		/* Looks like they want an interactive shell */
 #ifndef CONFIG_FEATURE_SH_EXTRA_QUIET
-		printf( "\n\n" BB_BANNER " Built-in shell (lash)\n");
+		printf( "\n\n%s Built-in shell (lash)\n", BB_BANNER);
 		printf( "Enter 'help' for a list of built-in commands.\n\n");
 #endif
 	} else if (local_pending_command==NULL) {

@@ -107,9 +107,9 @@ static const struct mke2fs_defaults settings[] = {
 	{ default_str,	 3, 1024, 8192 },
 	{ "journal",	 0, 4096, 8192 },
 	{ "news",	 0, 4096, 4096 },
-	{ "largefile", 	 0, 4096, 1024 * 1024 },
+	{ "largefile",	 0, 4096, 1024 * 1024 },
 	{ "largefile4",  0, 4096, 4096 * 1024 },
-	{ 0, 		 0,    0, 0},
+	{ 0,		 0,    0, 0},
 };
 
 static void set_fs_defaults(const char *fs_type,
@@ -448,7 +448,7 @@ static void write_inode_tables(ext2_filsys fs)
 		num = fs->inode_blocks_per_group;
 
 		retval = zero_blocks(fs, blk, num, 0, &blk, &num);
-		mke2fs_error_msg_and_die(retval, 
+		mke2fs_error_msg_and_die(retval,
 			"write %d blocks in inode table starting at %d.",
 			num, blk);
 		if (sync_kludge) {
@@ -572,7 +572,7 @@ static void zap_sector(ext2_filsys fs, int sect, int nsect)
 
 static void create_journal_dev(ext2_filsys fs)
 {
-	struct progress_struct 	progress;
+	struct progress_struct	progress;
 	errcode_t		retval;
 	char			*buf;
 	char			*fmt = "%s journal superblock";
@@ -624,7 +624,7 @@ static void show_stats(ext2_filsys fs)
 			os,
 			fs->blocksize, s->s_log_block_size,
 			fs->fragsize, s->s_log_frag_size,
-			s->s_inodes_count, s->s_blocks_count, 
+			s->s_inodes_count, s->s_blocks_count,
 			s->s_r_blocks_count, 100.0 * s->s_r_blocks_count / s->s_blocks_count,
 			s->s_first_data_block);
 	free(os);
@@ -679,7 +679,7 @@ static int set_os(struct ext2_super_block *sb, char *os)
 	if((sb->s_creator_os = e2p_string2os(os)) >= 0) {
 		return 1;
 	} else if (!strcasecmp("GNU", os)) {
- 		sb->s_creator_os = EXT2_OS_HURD;
+		sb->s_creator_os = EXT2_OS_HURD;
 		return 1;
 	}
 	return 0;
@@ -711,7 +711,7 @@ static void parse_extended_opts(struct ext2_super_block *sb_param,
 			}
 			fs_stride = strtoul(arg, &p, 0);
 			if (*p || (fs_stride == 0)) {
-				bb_error_msg("Invalid stride parameter");
+				bb_error_msg("Invalid stride parameter: %s", arg);
 				r_usage++;
 				continue;
 			}
@@ -735,7 +735,8 @@ static void parse_extended_opts(struct ext2_super_block *sb_param,
 				continue;
 			}
 			if (resize <= sb_param->s_blocks_count) {
-				bb_error_msg("The resize maximum must be greater than the filesystem size");
+				bb_error_msg("The resize maximum must be greater "
+				             "than the filesystem size");
 				r_usage++;
 				continue;
 			}
@@ -767,10 +768,10 @@ static void parse_extended_opts(struct ext2_super_block *sb_param,
 	if (r_usage) {
 		bb_error_msg_and_die(
 			"\nBad options specified.\n\n"
-			"Options are separated by commas, "
+			"Extended options are separated by commas, "
 			"and may take an argument which\n"
 			"\tis set off by an equals ('=') sign.\n\n"
-			"Valid raid options are:\n"
+			"Valid extended options are:\n"
 			"\tstride=<stride length in blocks>\n"
 			"\tresize=<resize maximum size in blocks>\n");
 	}
@@ -842,7 +843,7 @@ static int PRS(int argc, char *argv[])
 #endif
 
 	/* If called as mkfs.ext3, create a journal inode */
-	if (last_char_is(bb_applet_name, '3')) 
+	if (last_char_is(bb_applet_name, '3'))
 		journal_size = -1;
 
 	while ((c = getopt (argc, argv,
@@ -855,7 +856,7 @@ static int PRS(int argc, char *argv[])
 			if (b < EXT2_MIN_BLOCK_SIZE ||
 			    b > EXT2_MAX_BLOCK_SIZE) {
 BLOCKSIZE_ERROR:
-				bb_error_msg_and_die("bad block size - %s", optarg);
+				bb_error_msg_and_die("invalid block size - %s", optarg);
 			}
 			mke2fs_warning_msg((blocksize > 4096),
 				"blocksize %d not usable on most systems",
@@ -871,25 +872,29 @@ BLOCKSIZE_ERROR:
 			break;
 		case 'f':
 			if (safe_strtoi(optarg, &size) || size < EXT2_MIN_BLOCK_SIZE || size > EXT2_MAX_BLOCK_SIZE ){
-				bb_error_msg_and_die("bad fragment size - %s", optarg);
+				bb_error_msg_and_die("invalid fragment size - %s", optarg);
 			}
 			param.s_log_frag_size =
 				int_log2(size >> EXT2_MIN_BLOCK_LOG_SIZE);
 			mke2fs_warning_msg(1, "fragments not supported. Ignoring -f option");
 			break;
 		case 'g':
-			if (safe_strtoi(optarg, &param.s_blocks_per_group)) {
+			{
+			    int foo;
+			    if (safe_strtoi(optarg, &foo)) {
 				bb_error_msg_and_die("Illegal number for blocks per group");
+			    }
+			    param.s_blocks_per_group = foo;
 			}
 			if ((param.s_blocks_per_group % 8) != 0) {
 				bb_error_msg_and_die("blocks per group must be multiple of 8");
 			}
 			break;
 		case 'i':
-			if (safe_strtoi(optarg, &inode_ratio) 
-				|| inode_ratio < EXT2_MIN_BLOCK_SIZE 
+			if (safe_strtoi(optarg, &inode_ratio)
+				|| inode_ratio < EXT2_MIN_BLOCK_SIZE
 				|| inode_ratio > EXT2_MAX_BLOCK_SIZE * 1024) {
-				bb_error_msg_and_die("bad inode ratio %s (min %d/max %d)",
+				bb_error_msg_and_die("invalid inode ratio %s (min %d/max %d)",
 					optarg, EXT2_MIN_BLOCK_SIZE,
 					EXT2_MAX_BLOCK_SIZE);
 				}
@@ -908,7 +913,7 @@ BLOCKSIZE_ERROR:
 			break;
 		case 'm':
 			if (safe_strtoi(optarg, &reserved_ratio) || reserved_ratio > 50 ) {
-				bb_error_msg_and_die("bad reserved blocks percent - %s", optarg);
+				bb_error_msg_and_die("invalid reserved blocks percent - %s", optarg);
 			}
 			break;
 		case 'n':
@@ -936,7 +941,7 @@ BLOCKSIZE_ERROR:
 #ifdef EXT2_DYNAMIC_REV
 		case 'I':
 			if (safe_strtoi(optarg, &inode_size)) {
-				bb_error_msg_and_die("bad inode size - %s", optarg);
+				bb_error_msg_and_die("invalid inode size - %s", optarg);
 			}
 			break;
 #endif
@@ -1047,7 +1052,7 @@ BLOCKSIZE_ERROR:
 	if (optind < argc) {
 		param.s_blocks_count = parse_num_blocks(argv[optind++],
 				param.s_log_block_size);
-		mke2fs_error_msg_and_die(!param.s_blocks_count, "bad blocks count - %s", argv[optind - 1]);
+		mke2fs_error_msg_and_die(!param.s_blocks_count, "invalid blocks count - %s", argv[optind - 1]);
 	}
 	if (optind < argc)
 		bb_show_usage();
@@ -1161,11 +1166,16 @@ BLOCKSIZE_ERROR:
 		}
 	}
 
+	if (!force && param.s_blocks_count >= (1 << 31)) {
+		bb_error_msg_and_die("Filesystem too large.  No more than 2**31-1 blocks\n"
+			"\t (8TB using a blocksize of 4k) are currently supported.");
+	}
+
 	if (inode_size) {
 		if (inode_size < EXT2_GOOD_OLD_INODE_SIZE ||
 		    inode_size > EXT2_BLOCK_SIZE(&param) ||
 		    inode_size & (inode_size - 1)) {
-			bb_error_msg_and_die("bad inode size %d (min %d/max %d)",
+			bb_error_msg_and_die("invalid inode size %d (min %d/max %d)",
 				inode_size, EXT2_GOOD_OLD_INODE_SIZE,
 				blocksize);
 		}

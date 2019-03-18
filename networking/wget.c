@@ -24,9 +24,6 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
 #include <getopt.h>
 
 #include "busybox.h"
@@ -121,22 +118,22 @@ static char *safe_fgets(char *s, int size, FILE *stream)
  */
 static char *base64enc(unsigned char *p, char *buf, int len) {
 
-        char al[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-                    "0123456789+/";
+	char al[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+		    "0123456789+/";
 		char *s = buf;
 
-        while(*p) {
+	while(*p) {
 				if (s >= buf+len-4)
 					bb_error_msg_and_die("buffer overflow");
-                *(s++) = al[(*p >> 2) & 0x3F];
-                *(s++) = al[((*p << 4) & 0x30) | ((*(p+1) >> 4) & 0x0F)];
-                *s = *(s+1) = '=';
-                *(s+2) = 0;
-                if (! *(++p)) break;
-                *(s++) = al[((*p << 2) & 0x3C) | ((*(p+1) >> 6) & 0x03)];
-                if (! *(++p)) break;
-                *(s++) = al[*(p++) & 0x3F];
-        }
+		*(s++) = al[(*p >> 2) & 0x3F];
+		*(s++) = al[((*p << 4) & 0x30) | ((*(p+1) >> 4) & 0x0F)];
+		*s = *(s+1) = '=';
+		*(s+2) = 0;
+		if (! *(++p)) break;
+		*(s++) = al[((*p << 2) & 0x3C) | ((*(p+1) >> 6) & 0x03)];
+		if (! *(++p)) break;
+		*(s++) = al[*(p++) & 0x3F];
+	}
 
 		return buf;
 }
@@ -193,8 +190,8 @@ int wget_main(int argc, char **argv)
 	 */
 	bb_opt_complementally = "-1:\203::";
 	bb_applet_long_options = wget_long_options;
-	opt = bb_getopt_ulflags(argc, argv, "cq\213O:\203:P:Y:", 
-					&fname_out, &headers_llist, 
+	opt = bb_getopt_ulflags(argc, argv, "cq\213O:\203:P:Y:",
+					&fname_out, &headers_llist,
 					&dir_prefix, &proxy_flag);
 	if (opt & WGET_OPT_CONTINUE) {
 		++do_continue;
@@ -220,7 +217,7 @@ int wget_main(int argc, char **argv)
 			headers_llist = headers_llist->link;
 		}
 	}
-	
+
 	parse_url(argv[optind], &target);
 	server.host = target.host;
 	server.port = target.port;
@@ -241,7 +238,7 @@ int wget_main(int argc, char **argv)
 	if (!fname_out) {
 		// Dirty hack. Needed because bb_get_last_path_component
 		// will destroy trailing / by storing '\0' in last byte!
-		if(target.path[strlen(target.path)-1]!='/') {
+		if(*target.path && target.path[strlen(target.path)-1]!='/') {
 			fname_out =
 #ifdef CONFIG_FEATURE_WGET_STATUSBAR
 				curfile =
@@ -335,11 +332,11 @@ int wget_main(int argc, char **argv)
 #ifdef CONFIG_FEATURE_WGET_AUTHENTICATION
 			if (target.user) {
 				fprintf(sfp, "Authorization: Basic %s\r\n",
-					base64enc(target.user, buf, sizeof(buf)));
+					base64enc((unsigned char*)target.user, buf, sizeof(buf)));
 			}
 			if (use_proxy && server.user) {
 				fprintf(sfp, "Proxy-Authorization: Basic %s\r\n",
-					base64enc(server.user, buf, sizeof(buf)));
+					base64enc((unsigned char*)server.user, buf, sizeof(buf)));
 			}
 #endif
 
@@ -350,8 +347,8 @@ int wget_main(int argc, char **argv)
 			fprintf(sfp,"Connection: close\r\n\r\n");
 
 			/*
-		 	* Retrieve HTTP response line and check for "200" status code.
-		 	*/
+			* Retrieve HTTP response line and check for "200" status code.
+			*/
 read_response:
 			if (fgets(buf, sizeof(buf), sfp) == NULL)
 				close_delete_and_die("no response from server");

@@ -52,14 +52,14 @@ static int login_prompt ( char *buf_name );
 static void motd ( void );
 
 
-static void alarm_handler ( int sig )
+static void alarm_handler ( int sig ATTRIBUTE_UNUSED)
 {
 	fprintf (stderr, "\nLogin timed out after %d seconds.\n", TIMEOUT );
 	exit ( EXIT_SUCCESS );
 }
 
 
-extern int login_main(int argc, char **argv)
+int login_main(int argc, char **argv)
 {
 	char tty[BUFSIZ];
 	char full_tty[200];
@@ -101,7 +101,7 @@ extern int login_main(int argc, char **argv)
 			if ( optarg != argv[optind-1] )
 				bb_show_usage( );
 
-			if ( !amroot ) 		/* Auth bypass only if real UID is zero */
+			if ( !amroot )		/* Auth bypass only if real UID is zero */
 				bb_error_msg_and_die ( "-f permission denied" );
 
 			safe_strncpy(username, optarg, USERNAME_SIZE);
@@ -198,17 +198,7 @@ auth_ok:
 		if ( !failed)
 			break;
 
-		{ // delay next try
-			time_t start, now;
-
-			time ( &start );
-			now = start;
-			while ( difftime ( now, start ) < FAIL_DELAY) {
-				sleep ( FAIL_DELAY );
-				time ( &now );
-			}
-		}
-
+		bb_do_delay(FAIL_DELAY);
 		puts("Login incorrect");
 		username[0] = 0;
 		if ( ++count == 3 ) {
@@ -442,6 +432,8 @@ static void checkutmp(int picky)
 	if (ut) {
 		utent = *ut;
 	} else {
+		time_t t_tmp;
+		
 		if (picky) {
 			puts(NO_UTENT);
 			exit(1);
@@ -460,7 +452,8 @@ static void checkutmp(int picky)
 		/* XXX - assumes /dev/tty?? */
 		strncpy(utent.ut_id, utent.ut_line + 3, sizeof utent.ut_id);
 		strncpy(utent.ut_user, "LOGIN", sizeof utent.ut_user);
-		time(&utent.ut_time);
+		t_tmp = (time_t)utent.ut_time;
+		time(&t_tmp);
 	}
 }
 
@@ -471,11 +464,13 @@ static void checkutmp(int picky)
  *	USER_PROCESS.  the wtmp file will be updated as well.
  */
 
-static void setutmp(const char *name, const char *line)
+static void setutmp(const char *name, const char *line ATTRIBUTE_UNUSED)
 {
+	time_t t_tmp = (time_t)utent.ut_time;
+	
 	utent.ut_type = USER_PROCESS;
 	strncpy(utent.ut_user, name, sizeof utent.ut_user);
-	time(&utent.ut_time);
+	time(&t_tmp);
 	/* other fields already filled in by checkutmp above */
 	setutent();
 	pututline(&utent);

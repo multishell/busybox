@@ -69,6 +69,13 @@ bb_getopt_ulflags (int argc, char **argv, const char *applet_opts, ...)
 	by the "::" special separator that is set in the external string
 	bb_opt_complementally (see below for more info).
 
+ "+"    If the first character in the applet_opts string is a plus,
+	then option processing will stop as soon as a non-option is
+	encountered in the argv array.  Useful for applets like env
+	which should not process arguments to subprograms:
+	env -i ls -d /
+	Here we want env to process just the '-i', not the '-d'.
+
 static const struct option bb_default_long_options[]
 
 	This struct allows you to define long options.  The syntax for
@@ -92,6 +99,8 @@ static const struct option bb_default_long_options[]
 	is to name the config option CONFIG_FEATURE_<applet>_LONG_OPTIONS.
 
 const char *bb_opt_complementally
+	this should be bb_opt_complementary, but we'll just keep it as
+	bb_opt_complementally due to the Russian origins
 
  ":"    The colon (":") is used to separate groups of two or more chars
 	and/or groups of chars and special characters (stating some
@@ -170,7 +179,7 @@ Special characters:
 		printf("Detected odd -x usaging\n");
 
  "-"    A dash as the first char in a bb_opt_complementally group means to
-	convert the arguments as option. Next char for this case can`t set
+	convert the arguments as option. Next char for this case can't set
 	[0-9], recomended use ':' or end of line. For example:
 
 	bb_opt_complementally = "-:w-x:x-w";
@@ -181,6 +190,10 @@ Special characters:
 
  "-N"   A dash as the first char in a bb_opt_complementally group with
 	number 0-9 as one char is means check minimal arguments required.
+
+ "V-"   A option with dash before colon or end line indicate: call
+	bb_show_usage if this option give, for example verbose
+	usage option.
 
  "--"   A double dash between two options, or between an option and a group
 	of options, means that they are mutually exclusive.  Unlike
@@ -200,8 +213,8 @@ Special characters:
 		bb_show_usage();
 
  "?"    A "ask" as the first char in a bb_opt_complementally group give:
-	if previous point set BB_GETOPT_ERROR, don`t return and
-	call previous example internally. Next char for this case can`t
+	if previous point set BB_GETOPT_ERROR, don't return and
+	call previous example internally. Next char for this case can't
 	set to [0-9], recomended use ':' or end of line.
 
  "?N"   A "ask" as the first char in a bb_opt_complementally group with
@@ -226,11 +239,13 @@ Special characters:
 	root:x:0:0:root:/root:/bin/bash
 	user:x:500:500::/home/user:/bin/bash
 
- "--"   A double dash as the first char in a bb_opt_complementally group
-	means make first argv[1] as option always as may be added -, special
-	for "ar" and "tar" applets.
+ "--"   A double dash at the beginning of bb_opt_complementally means the
+	argv[1] string should always be treated as options, even if it isn't
+	prefixed with a "-".  This is to support the special syntax in applets
+	such as "ar" and "tar":
+	tar xvf foo.tar
 
- "?"    A "ask" between main and group options causes the second of the two
+ "?"    An "ask" between main and group options causes the second of the two
 	to be depending required as or if first is given on the command line.
 	For example from "id" applet:
 
@@ -253,13 +268,15 @@ Special characters:
 
  "x--x" give error if double or more used -x option
 
- Don`t forget ':' store. For example "?322-22-23X-x-a" interpretet as
+ Don't forget ':' store. For example "?322-22-23X-x-a" interpretet as
  "?3:22:-2:2-2:2-3Xa:2--x": max args is 3, count -2 usaged, min args is 2,
  -2 option triggered, unset -3 and -X and -a if -2 any usaged, give error if
  after -2 the -x option usaged.
 
 */
 
+/* this should be bb_opt_complementary, but we'll just keep it as
+   bb_opt_complementally due to the Russian origins */
 const char *bb_opt_complementally;
 
 typedef struct {
@@ -294,7 +311,9 @@ bb_getopt_ulflags (int argc, char **argv, const char *applet_opts, ...)
 	va_list p;
 	const struct option *l_o;
 	unsigned long trigger;
+#ifdef CONFIG_PS
 	char **pargv = NULL;
+#endif
 	int min_arg = 0;
 	int max_arg = -1;
 
@@ -311,7 +330,7 @@ bb_getopt_ulflags (int argc, char **argv, const char *applet_opts, ...)
 	memset(on_off, 0, sizeof(complementally));
 
 	/* skip GNU extension */
-	s = applet_opts;
+	s = (const unsigned char *)applet_opts;
 	if(*s == '+' || *s == '-')
 		s++;
 	for (; *s; s++) {
@@ -345,7 +364,7 @@ bb_getopt_ulflags (int argc, char **argv, const char *applet_opts, ...)
 			c++;
 		}
 	}
-	for (s = bb_opt_complementally; s && *s; s++) {
+	for (s = (const unsigned char *)bb_opt_complementally; s && *s; s++) {
 		t_complementally *pair;
 		unsigned long *pair_switch;
 
@@ -383,6 +402,12 @@ bb_getopt_ulflags (int argc, char **argv, const char *applet_opts, ...)
 		}
 		if(c == ':' || c == '\0') {
 			requires |= on_off->switch_on;
+			continue;
+		}
+		if(c == '-' && (s[2] == ':' || s[2] == '\0')) {
+			flags |= on_off->switch_on;
+			on_off->incongruously |= on_off->switch_on;
+			s++;
 			continue;
 		}
 		if(c == *s) {

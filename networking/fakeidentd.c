@@ -51,11 +51,11 @@
 #define MAXIDLETIME 45
 
 static const char ident_substr[] = " : USERID : UNIX : ";
-static const int ident_substr_len = sizeof(ident_substr) - 1;
+enum { ident_substr_len = sizeof(ident_substr) - 1 };
 #define PIDFILE "/var/run/identd.pid"
 
 /*
- * We have to track the 'first connection socket' so that we 
+ * We have to track the 'first connection socket' so that we
  * don't go around closing file descriptors for non-clients.
  *
  * descriptor setup normally
@@ -184,9 +184,7 @@ static int godaemon(void)
 		close(0);
 		inetbind();
 		if (setgid(nogrp))   bb_error_msg_and_die("Could not setgid()");
-		if (setegid(nogrp))  bb_error_msg_and_die("Could not setegid()");
 		if (setuid(nobody))  bb_error_msg_and_die("Could not setuid()");
-		if (seteuid(nobody)) bb_error_msg_and_die("Could not seteuid()");
 		close(1);
 		close(2);
 

@@ -6,20 +6,7 @@
  * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
  * Adjusted by so many folks, it's impossible to keep track.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
 /* Turn this on to disable all the dangerous
@@ -60,7 +47,7 @@ struct vt_stat {
 	unsigned short v_signal;	/* signal to send */
 	unsigned short v_state;	/* vt bitmask */
 };
-static const int VT_GETSTATE = 0x5603;	/* get global vt state info */
+enum { VT_GETSTATE = 0x5603 };	/* get global vt state info */
 
 /* From <linux/serial.h> */
 struct serial_struct {
@@ -158,22 +145,25 @@ static char console[CONSOLE_BUFF_SIZE] = _PATH_CONSOLE;
 static char *log_console = VC_5;
 #endif
 static sig_atomic_t got_cont = 0;
-static const int LOG = 0x1;
-static const int CONSOLE = 0x2;
+
+enum {
+	LOG = 0x1,
+	CONSOLE = 0x2,
 
 #if defined CONFIG_FEATURE_EXTRA_QUIET
-static const int MAYBE_CONSOLE = 0x0;
+	MAYBE_CONSOLE = 0x0,
 #else
-#define MAYBE_CONSOLE	CONSOLE
+	MAYBE_CONSOLE = CONSOLE,
 #endif
-#ifndef RB_HALT_SYSTEM
-static const int RB_HALT_SYSTEM = 0xcdef0123;
-static const int RB_ENABLE_CAD = 0x89abcdef;
-static const int RB_DISABLE_CAD = 0;
 
-#define RB_POWER_OFF    0x4321fedc
-static const int RB_AUTOBOOT = 0x01234567;
+#ifndef RB_HALT_SYSTEM
+	RB_HALT_SYSTEM = 0xcdef0123,
+	RB_ENABLE_CAD = 0x89abcdef,
+	RB_DISABLE_CAD = 0,
+	RB_POWER_OFF = 0x4321fedc,
+	RB_AUTOBOOT = 0x01234567,
 #endif
+};
 
 static const char * const environment[] = {
 	"HOME=/",
@@ -198,7 +188,8 @@ static void loop_forever(void)
 /* Print a message to the specified device.
  * Device may be bitwise-or'd from LOG | CONSOLE */
 #ifndef DEBUG_INIT
-static inline void messageD(int device, const char *fmt, ...)
+static inline void messageD(int ATTRIBUTE_UNUSED device, 
+				const char ATTRIBUTE_UNUSED *fmt, ...)
 {
 }
 #else
@@ -475,7 +466,7 @@ static pid_t run(const struct init_action *a)
 						break;
 					}
 					/* FIXME handle other errors */
-                }
+		}
 
 				/* See if stealing the controlling tty back is necessary */
 				pgrp = tcgetpgrp(0);
@@ -629,7 +620,9 @@ static void run_actions(int action)
 	for (a = init_action_list; a; a = tmp) {
 		tmp = a->next;
 		if (a->action == action) {
-			if (a->action & (SYSINIT | WAIT | CTRLALTDEL | SHUTDOWN | RESTART)) {
+			if (access(a->terminal, R_OK | W_OK)) {
+				delete_init_action(a);
+			} else if (a->action & (SYSINIT | WAIT | CTRLALTDEL | SHUTDOWN | RESTART)) {
 				waitfor(a);
 				delete_init_action(a);
 			} else if (a->action & ONCE) {
@@ -702,7 +695,7 @@ static void shutdown_system(void)
 	sync();
 }
 
-static void exec_signal(int sig)
+static void exec_signal(int sig ATTRIBUTE_UNUSED)
 {
 	struct init_action *a, *tmp;
 	sigset_t unblock_signals;
@@ -761,17 +754,10 @@ static void exec_signal(int sig)
 	}
 }
 
-static void halt_signal(int sig)
+static void halt_signal(int sig ATTRIBUTE_UNUSED)
 {
 	shutdown_system();
-	message(CONSOLE | LOG,
-#if #cpu(s390)
-			/* Seems the s390 console is Wierd(tm). */
-			"The system is halted. You may reboot now."
-#else
-			"The system is halted. Press Reset or turn off power"
-#endif
-		);
+	message(CONSOLE | LOG, "The system is halted.");
 	sync();
 
 	/* allow time for last message to reach serial console */
@@ -785,7 +771,7 @@ static void halt_signal(int sig)
 	loop_forever();
 }
 
-static void reboot_signal(int sig)
+static void reboot_signal(int sig ATTRIBUTE_UNUSED)
 {
 	shutdown_system();
 	message(CONSOLE | LOG, "Please stand by while rebooting the system.");
@@ -799,13 +785,13 @@ static void reboot_signal(int sig)
 	loop_forever();
 }
 
-static void ctrlaltdel_signal(int sig)
+static void ctrlaltdel_signal(int sig ATTRIBUTE_UNUSED)
 {
 	run_actions(CTRLALTDEL);
 }
 
 /* The SIGSTOP & SIGTSTP handler */
-static void stop_handler(int sig)
+static void stop_handler(int sig ATTRIBUTE_UNUSED)
 {
 	int saved_errno = errno;
 
@@ -817,7 +803,7 @@ static void stop_handler(int sig)
 }
 
 /* The SIGCONT handler */
-static void cont_handler(int sig)
+static void cont_handler(int sig ATTRIBUTE_UNUSED)
 {
 	got_cont = 1;
 }
@@ -831,9 +817,6 @@ static void new_init_action(int action, const char *command, const char *cons)
 	if (*cons == '\0')
 		cons = console;
 
-	/* do not run entries if console device is not available */
-	if (access(cons, R_OK | W_OK))
-		return;
 	if (strcmp(cons, bb_dev_null) == 0 && (action & ASKFIRST))
 		return;
 
@@ -1000,7 +983,7 @@ static void parse_inittab(void)
 }
 
 #ifdef CONFIG_FEATURE_USE_INITTAB
-static void reload_signal(int sig)
+static void reload_signal(int sig ATTRIBUTE_UNUSED)
 {
 	struct init_action *a, *tmp;
 
@@ -1026,22 +1009,20 @@ static void reload_signal(int sig)
 }
 #endif							/* CONFIG_FEATURE_USE_INITTAB */
 
-extern int init_main(int argc, char **argv)
+int init_main(int argc, char **argv)
 {
 	struct init_action *a;
 	pid_t wpid;
 	int status;
 
 	if (argc > 1 && !strcmp(argv[1], "-q")) {
-		return kill_init(SIGHUP);
+		return kill(1,SIGHUP);
 	}
 #ifndef DEBUG_INIT
 	/* Expect to be invoked as init with PID=1 or be invoked as linuxrc */
-	if (getpid() != 1
-#ifdef CONFIG_FEATURE_INITRD
-		&& strstr(bb_applet_name, "linuxrc") == NULL
-#endif
-		) {
+	if (getpid() != 1 &&
+		(!ENABLE_FEATURE_INITRD || !strstr(bb_applet_name, "linuxrc")))
+	{
 		bb_show_usage();
 	}
 	/* Set up sig handlers  -- be sure to

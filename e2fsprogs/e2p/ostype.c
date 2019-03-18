@@ -9,12 +9,13 @@
 
 #include "e2p.h"
 #include <string.h>
+#include <stdlib.h>
 
 static const char * const os_tab[] =
-	{ "Linux", 
-	  "Hurd", 
-	  "Masix", 
-	  "FreeBSD", 
+	{ "Linux",
+	  "Hurd",
+	  "Masix",
+	  "FreeBSD",
 	  "Lites",
 	  0 };
 
@@ -53,7 +54,7 @@ int e2p_string2os(char *str)
 #ifdef TEST_PROGRAM
 int main(int argc, char **argv)
 {
-	char 	*s;
+	char	*s;
 	int	i, os;
 
 	for (i=0; i <= EXT2_OS_LITES; i++) {

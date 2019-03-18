@@ -18,6 +18,12 @@ config CONFIG_ARPING
 	help
 	  Ping hosts by ARP packets
 
+config CONFIG_DNSD
+	bool "dnsd"
+	default n
+	help
+	  Small and static DNS server deamon. 
+
 config CONFIG_ETHER_WAKE
 	bool "ether-wake"
 	default n
@@ -79,7 +85,6 @@ config CONFIG_FEATURE_HTTPD_AUTH_MD5
 	  Enables basic per url authentication from /etc/httpd.conf
 	  using md5 passwords.
 
-
 if !CONFIG_FEATURE_HTTPD_USAGE_FROM_INETD_ONLY
 config CONFIG_FEATURE_HTTPD_RELOAD_CONFIG_SIGHUP
 	bool "  Support reloading the global config file using hup signal"
@@ -115,6 +120,17 @@ config CONFIG_FEATURE_HTTPD_CGI
 	help
 	  This option allows scripts and executables to be invoked
 	  when specific urls are requested.
+
+config CONFIG_FEATURE_HTTPD_CONFIG_WITH_SCRIPT_INTERPR
+	bool "  Enable support for running scripts through an interpreter"
+	default n
+	depends on CONFIG_FEATURE_HTTPD_CGI
+	help
+	  This option enables support for running scripts through an 
+	  interpreter. Turn this on, if you want PHP scripts to work 
+	  properly. You need to supply an addition line in your httpd 
+	  config file:
+	  *.php:/path/to/your/php
 
 config CONFIG_FEATURE_HTTPD_SET_REMOTE_PORT_TO_ENV
 	bool "  Support the REMOTE_PORT environment variable for CGI"
@@ -627,7 +643,7 @@ config CONFIG_FEATURE_TRACEROUTE_SOURCE_ROUTE
 	default n
 	depends on CONFIG_TRACEROUTE
 	help
-	  Add feature for can specify a loose source route gateway
+	  Add option to specify a loose source route gateway
 	  (8 maximum).
 
 config CONFIG_FEATURE_TRACEROUTE_USE_ICMP
@@ -635,7 +651,7 @@ config CONFIG_FEATURE_TRACEROUTE_USE_ICMP
 	default n
 	depends on CONFIG_TRACEROUTE
 	help
-	  Add feature for can use ICMP ECHO instead of UDP datagrams.
+	  Add feature to allow for ICMP ECHO instead of UDP datagrams.
 
 
 config CONFIG_VCONFIG

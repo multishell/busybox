@@ -35,7 +35,7 @@
 #define KILL 0
 #define KILLALL 1
 
-extern int kill_main(int argc, char **argv)
+int kill_main(int argc, char **argv)
 {
 	int whichApp, signo = SIGTERM;
 	const char *name;
@@ -87,9 +87,9 @@ extern int kill_main(int argc, char **argv)
 		return EXIT_SUCCESS;
 	}
 
-#ifdef CONFIG_KILLALL	
+#ifdef CONFIG_KILLALL
 	/* The -q quiet option */
-	if(argv[1][1]=='q' && argv[1][2]=='\0'){
+	if(whichApp != KILL && argv[1][1]=='q' && argv[1][2]=='\0'){
 		quiet++;
 		argv++;
 		argc--;
@@ -106,12 +106,16 @@ extern int kill_main(int argc, char **argv)
 
 do_it_now:
 
+	/* Pid or name required */
+	if (argc <= 0)
+		bb_show_usage();
+
 	if (whichApp == KILL) {
 		/* Looks like they want to do a kill. Do that */
 		while (--argc >= 0) {
 			int pid;
 
-			if (!isdigit(**argv))
+			if (!isdigit(**argv) && **argv != '-')
 				bb_error_msg_and_die( "Bad PID '%s'", *argv);
 			pid = strtol(*argv, NULL, 0);
 			if (kill(pid, signo) != 0) {

@@ -11,8 +11,8 @@
 #include "libbb.h"
 
 /* version we've last synced against */
-#define E2FSPROGS_VERSION "1.37"
-#define E2FSPROGS_DATE "21-Mar-2005"
+#define E2FSPROGS_VERSION "1.38"
+#define E2FSPROGS_DATE "30-Jun-2005"
 
 /* make sure com_err.h isnt included before us */
 #ifdef __COM_ERR_H__
@@ -25,10 +25,6 @@
 typedef long errcode_t;
 #define ERRCODE_RANGE 8
 #define error_message(code) strerror((int) (code & ((1<<ERRCODE_RANGE)-1)))
-
-/* NLS crap */
-#define _(x) x
-#define N_(x) x
 
 /* misc crap */
 #define fatal_error(err, msg) bb_error_msg_and_die(msg)
@@ -53,5 +49,11 @@ typedef long errcode_t;
 #define HAVE_SYS_TIME_H 1
 #define HAVE_SYS_TYPES_H 1
 #define HAVE_UNISTD_H 1
+
+/* Endianness */
+#if __BYTE_ORDER == __BIG_ENDIAN
+#define ENABLE_SWAPFS 1
+#define WORDS_BIGENDIAN 1
+#endif
 
 #endif /* __E2FSBB_H__ */

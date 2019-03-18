@@ -4,20 +4,7 @@
  *
  * Copyright (C) 2002 by Dmitry Zakharov <dmit@crp.bank.gov.ua>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
 #include <stdio.h>
@@ -405,7 +392,7 @@ static char * vValues =
 /* hash size may grow to these values */
 #define FIRST_PRIME 61;
 static const unsigned int PRIMES[] = { 251, 1021, 4093, 16381, 65521 };
-static const unsigned int NPRIMES = sizeof(PRIMES) / sizeof(unsigned int);
+enum { NPRIMES = sizeof(PRIMES) / sizeof(unsigned int) };
 
 /* globals */
 
@@ -445,7 +432,7 @@ static void chain_group(void);
 static var *evaluate(node *, var *);
 static rstream *next_input_file(void);
 static int fmt_num(char *, int, const char *, double, int);
-static int awk_exit(int) attribute_noreturn;
+static int awk_exit(int) ATTRIBUTE_NORETURN;
 
 /* ---- error handling ---- */
 
@@ -462,7 +449,7 @@ static const char EMSG_UNDEF_FUNC[] = "Call to undefined function";
 static const char EMSG_NO_MATH[] = "Math support is not compiled in";
 #endif
 
-static void syntax_error(const char * const message) attribute_noreturn;
+static void syntax_error(const char * const message) ATTRIBUTE_NORETURN;
 static void syntax_error(const char * const message)
 {
 	bb_error_msg_and_die("%s:%i: %s", programname, lineno, message);
@@ -961,7 +948,7 @@ static uint32_t next_token(uint32_t expected)
 				*(p-1) = '\0';
 				tc = TC_VARIABLE;
 				/* also consume whitespace between functionname and bracket */
-				skip_spaces(&p);
+				if (! (expected & TC_VARIABLE)) skip_spaces(&p);
 				if (*p == '(') {
 					tc = TC_FUNCTION;
 				} else {
@@ -1669,6 +1656,7 @@ static int awk_getline(rstream *rsm, var *v)
 				}
 			} else if (c != '\0') {
 				s = strchr(b+pp, c);
+				if (! s) s = memchr(b+pp, '\0', p - pp);
 				if (s) {
 					so = eo = s-b;
 					eo++;
@@ -2370,7 +2358,7 @@ re_cont:
 
 			  case F_sy:
 				fflush(NULL);
-				R.d = (L.s && *L.s) ? system(L.s) : 0;
+				R.d = (L.s && *L.s) ? (system(L.s) >> 8) : 0;
 				break;
 
 			  case F_ff:
@@ -2624,10 +2612,10 @@ static rstream *next_input_file(void)
 	return &rsm;
 }
 
-extern int awk_main(int argc, char **argv)
+int awk_main(int argc, char **argv)
 {
 	char *s, *s1;
-	int i, j, c;
+	int i, j, c, flen;
 	var *v;
 	static var tv;
 	char **envp;
@@ -2695,9 +2683,16 @@ keep_going:
 				F = afopen(programname = optarg, "r");
 				s = NULL;
 				/* one byte is reserved for some trick in next_token */
-				for (i=j=1; j>0; i+=j) {
-					s = (char *)xrealloc(s, i+4096);
-					j = fread(s+i, 1, 4094, F);
+				if (fseek(F, 0, SEEK_END) == 0) {
+					flen = ftell(F);
+					s = (char *)xmalloc(flen+4);
+					fseek(F, 0, SEEK_SET);
+					i = 1 + fread(s+1, 1, flen, F);
+				} else {
+					for (i=j=1; j>0; i+=j) {
+						s = (char *)xrealloc(s, i+4096);
+						j = fread(s+i, 1, 4094, F);
+					}
 				}
 				s[i] = '\0';
 				fclose(F);

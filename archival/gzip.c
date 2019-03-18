@@ -13,20 +13,7 @@
  * files as well as stdin/stdout, and to generally behave itself wrt
  * command line handling.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
 /* These defines are very important for BusyBox.  Without these,
@@ -322,7 +309,7 @@ static void put_short(ush w)
 /* ========================================================================
  * Signal and error handler.
  */
-static void abort_gzip(int ignored)
+static void abort_gzip(int ATTRIBUTE_UNUSED ignored)
 {
 	exit(ERROR);
 }
@@ -745,25 +732,26 @@ static unsigned match_start;	/* start of matching string */
 static int eofile;		/* flag set at end of input file */
 static unsigned lookahead;	/* number of valid bytes ahead in window */
 
-static const unsigned max_chain_length = 4096;
+enum {
+	max_chain_length = 4096,
 
 /* To speed up deflation, hash chains are never searched beyond this length.
  * A higher limit improves compression ratio but degrades the speed.
  */
 
-static const unsigned int max_lazy_match = 258;
+	max_lazy_match = 258,
 
 /* Attempt to find a better match only when the current match is strictly
  * smaller than this value. This mechanism is used only for compression
  * levels >= 4.
  */
-#define max_insert_length  max_lazy_match
+	max_insert_length = max_lazy_match,
 /* Insert new strings in the hash table only if the match length
  * is not greater than this length. This saves time but degrades compression.
  * max_insert_length is used only for compression levels <= 3.
  */
 
-static const unsigned good_match = 32;
+	good_match = 32,
 
 /* Use a faster search when the previous match is longer than this */
 
@@ -774,12 +762,13 @@ static const unsigned good_match = 32;
  * found for specific files.
  */
 
-static const int nice_match = 258;	/* Stop searching when current match exceeds this */
+	nice_match = 258	/* Stop searching when current match exceeds this */
 
 /* Note: the deflate() code requires max_lazy >= MIN_MATCH and max_chain >= 4
  * For deflate_fast() (levels <= 3) good is ignored and lazy has a different
  * meaning.
  */
+};
 
 #define EQUAL 0
 /* result of memcmp for equal strings */
@@ -1031,7 +1020,7 @@ static void fill_window(void)
  */
 #define FLUSH_BLOCK(eof) \
    flush_block(block_start >= 0L ? (char*)&window[(unsigned)block_start] : \
-                (char*)NULL, (long)strstart - block_start, (eof))
+		(char*)NULL, (long)strstart - block_start, (eof))
 
 /* ===========================================================================
  * Same as above, but achieves better compression. We use a lazy

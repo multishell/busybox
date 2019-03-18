@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * iproute.c		"ip route".
  *
@@ -62,7 +63,8 @@ static int flush_update(void)
 	return 0;
 }
 
-static int print_route(struct sockaddr_nl *who, struct nlmsghdr *n, void *arg)
+static int print_route(struct sockaddr_nl *who ATTRIBUTE_UNUSED,
+		struct nlmsghdr *n, void *arg)
 {
 	FILE *fp = (FILE*)arg;
 	struct rtmsg *r = NLMSG_DATA(n);
@@ -284,9 +286,9 @@ static int iproute_modify(int cmd, unsigned flags, int argc, char **argv)
 {
 	struct rtnl_handle rth;
 	struct {
-		struct nlmsghdr 	n;
-		struct rtmsg 		r;
-		char   			buf[1024];
+		struct nlmsghdr		n;
+		struct rtmsg		r;
+		char			buf[1024];
 	} req;
 	char  mxbuf[256];
 	struct rtattr * mxrta = (void*)mxbuf;
@@ -345,7 +347,7 @@ static int iproute_modify(int cmd, unsigned flags, int argc, char **argv)
 			}
 			rta_addattr32(mxrta, sizeof(mxbuf), RTAX_MTU, mtu);
 		} else if (matches(*argv, "protocol") == 0) {
-			int prot;
+			uint32_t prot;
 			NEXT_ARG();
 			if (rtnl_rtprot_a2n(&prot, *argv))
 				invarg("\"protocol\" value is invalid\n", *argv);
@@ -491,7 +493,7 @@ static int iproute_list_or_flush(int argc, char **argv, int flush)
 
 	while (argc > 0) {
 		if (matches(*argv, "protocol") == 0) {
-			int prot = 0;
+			uint32_t prot = 0;
 			NEXT_ARG();
 			filter.protocolmask = -1;
 			if (rtnl_rtprot_a2n(&prot, *argv)) {
@@ -646,15 +648,16 @@ static int iproute_get(int argc, char **argv)
 {
 	struct rtnl_handle rth;
 	struct {
-		struct nlmsghdr 	n;
-		struct rtmsg 		r;
-		char   			buf[1024];
+		struct nlmsghdr		n;
+		struct rtmsg		r;
+		char			buf[1024];
 	} req;
 	char  *idev = NULL;
 	char  *odev = NULL;
 	int connected = 0;
 	int from_ok = 0;
-	const char *options[] = { "from", "iif", "oif", "dev", "notify", "connected", "to", 0 };
+	static const char * const options[] =
+		{ "from", "iif", "oif", "dev", "notify", "connected", "to", 0 };
 
 	memset(&req, 0, sizeof(req));
 
@@ -813,9 +816,10 @@ static int iproute_get(int argc, char **argv)
 
 int do_iproute(int argc, char **argv)
 {
-	const char *ip_route_commands[] = { "add", "append", "change", "chg",
-		"delete", "del", "get", "list", "show", "prepend", "replace", "test", "flush", 0 };
-	unsigned short command_num = 7;
+	static const char * const ip_route_commands[] =
+		{ "add", "append", "change", "chg", "delete", "del", "get",
+		"list", "show", "prepend", "replace", "test", "flush", 0 };
+	int command_num = 7;
 	unsigned int flags = 0;
 	int cmd = RTM_NEWROUTE;
 

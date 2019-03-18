@@ -75,7 +75,7 @@ static inline void sem_down(int semid)
 		error_exit("semop[SMrdn]");
 }
 
-extern int logread_main(int argc, char **argv)
+int logread_main(int argc, char **argv)
 {
 	int i;
 	int follow=0;
@@ -102,7 +102,7 @@ extern int logread_main(int argc, char **argv)
 		error_exit("Can't get access to circular buffer from syslogd");
 
 	if ( (log_semid = semget(KEY_ID, 0, 0)) == -1)
-	    	error_exit("Can't get access to semaphone(s) for circular buffer from syslogd");
+		error_exit("Can't get access to semaphone(s) for circular buffer from syslogd");
 
 	// Suppose atomic memory move
 	i = follow ? buf->tail : buf->head;
@@ -162,6 +162,7 @@ extern int logread_main(int argc, char **argv)
 		}
 		free(buf_data);
 #endif
+		fflush(stdout);
 	} while (follow);
 
 output_end:

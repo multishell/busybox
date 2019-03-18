@@ -30,7 +30,7 @@ EXT2FS_SRC  := gen_bitmap.c bitops.c ismounted.c mkjournal.c unix_io.c \
 	       bb_inode.c newdir.c alloc_sb.c lookup.c dirblock.c expanddir.c \
 	       dir_iterate.c link.c res_gdt.c icount.c get_pathname.c dblist.c \
 	       dirhash.c version.c flushb.c unlink.c check_desc.c valid_blk.c \
-	       ext_attr.c bmap.c dblist_dir.c ext2fs_inline.c
+	       ext_attr.c bmap.c dblist_dir.c ext2fs_inline.c swapfs.c
 EXT2FS_SRCS := $(patsubst %,ext2fs/%, $(EXT2FS_SRC))
 EXT2FS_OBJS := $(patsubst %.c,%.o, $(EXT2FS_SRCS))
 
@@ -57,17 +57,30 @@ $(patsubst %,$(E2FSPROGS_DIR)/%, $(UUID_OBJS)):|$(E2FSPROGS_DIR)/uuid
 E2FSPROGS-y:=
 E2FSPROGS-$(CONFIG_CHATTR)     += chattr.o $(E2P_OBJS)
 E2FSPROGS-$(CONFIG_E2FSCK)     += e2fsck.o util.o $(BLKID_OBJS) $(EXT2FS_OBJS) $(UUID_OBJS)
-E2FSPROGS-$(CONFIG_FSCK)       += fsck.o util.o $(BLKID_OBJS) $(UUID_OBJS)
+E2FSPROGS-$(CONFIG_FSCK)       += fsck.o util.o $(BLKID_OBJS) $(EXT2FS_OBJS) $(UUID_OBJS)
 E2FSPROGS-$(CONFIG_LSATTR)     += lsattr.o $(E2P_OBJS)
 E2FSPROGS-$(CONFIG_MKE2FS)     += mke2fs.o util.o $(E2P_OBJS) $(BLKID_OBJS) $(EXT2FS_OBJS) $(UUID_OBJS)
 E2FSPROGS-$(CONFIG_TUNE2FS)    += tune2fs.o util.o $(E2P_OBJS) $(BLKID_OBJS) $(EXT2FS_OBJS) $(UUID_OBJS)
 
-libraries-y+=$(E2FSPROGS_DIR)/$(E2FSPROGS_AR)
+E2FSPROGS-y:=$(sort $(E2FSPROGS-y))
 
+ifneq ($(strip $(E2FSPROGS-y)),)
+libraries-y+=$(E2FSPROGS_DIR)/$(E2FSPROGS_AR)
+endif
+
+E2FSPROGS_SRC-y:=$(patsubst %.o,$(E2FSPROGS_SRC)/%.c,$(E2FSPROGS-y))
+E2FSPROGS_SRC-a:=$(wildcard $(E2FSPROGS_SRC)/*.c) $(patsubst %,$(E2FSPROGS_SRC)/%,$(BLKID_SRCS) $(E2P_SRCS) $(EXT2FS_SRCS) $(UUID_SRCS))
+APPLET_SRC-y+=$(E2FSPROGS_CFLAGS) $(E2FSPROGS_SRC-y)
+APPLET_SRC-a+=$(E2FSPROGS_CFLAGS) $(E2FSPROGS_SRC-a)
+
+# XXX: FIXME: change .c to include their stuff relative to $(E2FSPROGS_SRC)
+E2FSPROGS_TMP_KLUDGE:=$(patsubst %,-I$(E2FSPROGS_SRC)/%,blkid e2fsck e2p ext2fs uuid)
+
+APPLETS_DEFINE-y+=$(E2FSPROGS_CFLAGS) -I$(E2FSPROGS_SRC) $(E2FSPROGS_TMP_KLUDGE)
+APPLETS_DEFINE-a+=$(E2FSPROGS_CFLAGS) -I$(E2FSPROGS_SRC) $(E2FSPROGS_TMP_KLUDGE)
 
 $(E2FSPROGS_DIR)/$(E2FSPROGS_AR): $(patsubst %,$(E2FSPROGS_DIR)/%, $(E2FSPROGS-y))
-	$(AR) $(ARFLAGS) $@ $(patsubst %,$(E2FSPROGS_DIR)/%, $(E2FSPROGS-y))
+	$(do_ar)
 
 $(E2FSPROGS_DIR)/%.o: $(subst $(top_builddir),$(top_srcdir),$(E2FSPROGS_DIR)/%.c)
-	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) $(E2FSPROGS_CFLAGS) -c -o $@ $<
-
+	$(compile.c) $(E2FSPROGS_CFLAGS)

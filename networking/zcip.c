@@ -5,20 +5,7 @@
  * Copyright (C) 2003 by Arthur van Hoff (avh@strangeberry.com)
  * Copyright (C) 2004 by David Brownell
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
- * 02111-1307 USA
+ * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
 /*
@@ -73,22 +60,24 @@ struct arp_packet {
 	struct in_addr source_ip;
 	struct ether_addr target_addr;
 	struct in_addr target_ip;
-} __attribute__ ((__packed__));
+} ATTRIBUTE_PACKED;
 
+enum {
 /* 169.254.0.0 */
-static const uint32_t LINKLOCAL_ADDR = 0xa9fe0000;
+	LINKLOCAL_ADDR = 0xa9fe0000,
 
 /* protocol timeout parameters, specified in seconds */
-static const unsigned PROBE_WAIT = 1;
-static const unsigned PROBE_MIN = 1;
-static const unsigned PROBE_MAX = 2;
-static const unsigned PROBE_NUM = 3;
-static const unsigned MAX_CONFLICTS = 10;
-static const unsigned RATE_LIMIT_INTERVAL = 60;
-static const unsigned ANNOUNCE_WAIT = 2;
-static const unsigned ANNOUNCE_NUM = 2;
-static const unsigned ANNOUNCE_INTERVAL = 2;
-static const time_t DEFEND_INTERVAL = 10;
+	PROBE_WAIT = 1,
+	PROBE_MIN = 1,
+	PROBE_MAX = 2,
+	PROBE_NUM = 3,
+	MAX_CONFLICTS = 10,
+	RATE_LIMIT_INTERVAL = 60,
+	ANNOUNCE_WAIT = 2,
+	ANNOUNCE_NUM = 2,
+	ANNOUNCE_INTERVAL = 2,
+	DEFEND_INTERVAL = 10
+};
 
 static const unsigned char ZCIP_VERSION[] = "0.75 (18 April 2005)";
 static char *prog;
@@ -187,7 +176,7 @@ run(char *script, char *arg, char *intf, struct in_addr *ip)
 			execl(script, script, arg, NULL);
 			perror("execl");
 			_exit(EXIT_FAILURE);
-		} 
+		}
 
 		if (waitpid(pid, &status, 0) <= 0) {
 			why = "waitpid";
@@ -214,8 +203,8 @@ bad:
 /**
  * Print usage information.
  */
-static void __attribute__ ((noreturn))
-usage(const char *msg)
+static void ATTRIBUTE_NORETURN
+zcip_usage(const char *msg)
 {
 	fprintf(stderr, "%s: %s\n", prog, msg);
 #ifdef	NO_BUSYBOX
@@ -284,7 +273,7 @@ int zcip_main(int argc, char *argv[])
 			if (inet_aton(optarg, &ip) == 0
 					|| (ntohl(ip.s_addr) & IN_CLASSB_NET)
 						!= LINKLOCAL_ADDR) {
-				usage("invalid link address");
+				zcip_usage("invalid link address");
 			}
 			continue;
 		case 'v':
@@ -294,7 +283,7 @@ int zcip_main(int argc, char *argv[])
 			foreground = 1;
 			continue;
 		default:
-			usage("bad option");
+			zcip_usage("bad option");
 		}
 	}
 	if (optind < argc - 1) {
@@ -303,7 +292,7 @@ int zcip_main(int argc, char *argv[])
 		script = argv[optind++];
 	}
 	if (optind != argc || !intf)
-		usage("wrong number of arguments");
+		zcip_usage("wrong number of arguments");
 	openlog(prog, 0, LOG_DAEMON);
 
 	// initialize the interface (modprobe, ifup, etc)
@@ -327,7 +316,7 @@ fail:
 		goto fail;
 	} else {
 		struct ifreq ifr;
-		short seed[3];
+		unsigned short seed[3];
 
 		// get the interface's ethernet address
 		memset(&ifr, 0, sizeof (ifr));
@@ -378,7 +367,7 @@ fail:
 		fds[0].events = POLLIN;
 		fds[0].revents = 0;
 
-		// poll, being ready to adjust current timeout 
+		// poll, being ready to adjust current timeout
 		if (timeout > 0) {
 			gettimeofday(&tv1, NULL);
 			tv1.tv_usec += (timeout % 1000) * 1000;
@@ -490,7 +479,7 @@ fail:
 					&& p.arp.ar_op != htons(ARPOP_REPLY))
 				continue;
 
-			// some cases are always conflicts 
+			// some cases are always conflicts
 			if ((p.source_ip.s_addr == ip.s_addr)
 					&& (memcmp(&addr, &p.source_addr,
 							ETH_ALEN) != 0)) {
@@ -546,7 +535,7 @@ collision:
 bad:
 	if (foreground)
 		perror(why);
-	else 
+	else
 		syslog(LOG_ERR, "%s %s, %s error: %s",
 			prog, intf, why, strerror(errno));
 	return EXIT_FAILURE;

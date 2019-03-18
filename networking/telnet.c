@@ -35,7 +35,7 @@
 #include "busybox.h"
 
 #if 0
-static const int DOTRACE = 1;
+enum { DOTRACE = 1 };
 #endif
 
 #ifdef DOTRACE
@@ -55,14 +55,14 @@ static const int DOTRACE = 1;
 #define DATABUFSIZE  128
 #define IACBUFSIZE   128
 
-static const int CHM_TRY = 0;
-static const int CHM_ON = 1;
-static const int CHM_OFF = 2;
-
-static const int UF_ECHO = 0x01;
-static const int UF_SGA = 0x02;
-
 enum {
+	CHM_TRY = 0,
+	CHM_ON = 1,
+	CHM_OFF = 2,
+
+	UF_ECHO = 0x01,
+	UF_SGA = 0x02,
+
 	TS_0 = 1,
 	TS_IAC = 2,
 	TS_OPT = 3,
@@ -204,7 +204,7 @@ static void handlenetoutput(int len)
 	 */
 
 	int i, j;
-	byte * p = G.buf;
+	byte * p = (byte*)G.buf;
 	byte outbuf[4*DATABUFSIZE];
 
 	for (i = len, j = 0; i > 0; i--, p++)
@@ -613,7 +613,7 @@ static void cookmode(void)
 	if (G.do_termios) tcsetattr(0, TCSADRAIN, &G.termios_def);
 }
 
-extern int telnet_main(int argc, char** argv)
+int telnet_main(int argc, char** argv)
 {
 	int len;
 	struct sockaddr_in s_in;
@@ -645,10 +645,9 @@ extern int telnet_main(int argc, char** argv)
 		bb_show_usage();
 
 #ifdef CONFIG_FEATURE_TELNET_AUTOLOGIN
-	unsigned long flags = bb_getopt_ulflags(argc, argv, "al:", &autologin);
-	if (flags & 1)
+	if (1 & bb_getopt_ulflags(argc, argv, "al:", &autologin))
 		autologin = getenv("USER");
-	
+
 	if (optind < argc) {
 		bb_lookup_host(&s_in, argv[optind++]);
 		s_in.sin_port = bb_lookup_port((optind < argc) ? argv[optind++] :

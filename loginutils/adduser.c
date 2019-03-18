@@ -5,20 +5,7 @@
  * Copyright (C) 1999 by Lineo, inc. and John Beppu
  * Copyright (C) 1999,2000,2001 by John Beppu <beppu@codepoet.org>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
 #ifndef _GNU_SOURCE
@@ -117,12 +104,12 @@ static void addgroup_wrapper(const char *login, gid_t gid)
 {
 	char *cmd;
 
-	cmd = bb_xasprintf("addgroup -g %d %s", gid, login);
+	cmd = bb_xasprintf("addgroup -g %d \"%s\"", gid, login);
 	system(cmd);
 	free(cmd);
 }
 
-static void passwd_wrapper(const char *login) __attribute__ ((noreturn));
+static void passwd_wrapper(const char *login) ATTRIBUTE_NORETURN;
 
 static void passwd_wrapper(const char *login)
 {
@@ -257,7 +244,7 @@ int adduser_main(int argc, char **argv)
 	const char *gecos = default_gecos;
 	const char *home = NULL;
 	const char *shell = DEFAULT_SHELL;
- 	const char *usegroup = NULL;
+	const char *usegroup = NULL;
 	int flags;
 	int setpass = 1;
 	int makehome = 1;
@@ -306,7 +293,7 @@ int adduser_main(int argc, char **argv)
 	if (usegroup) {
 		/* Add user to a group that already exists */
 		pw.pw_gid = bb_xgetgrnam(usegroup);
-		/* exits on error */	
+		/* exits on error */
 	}
 
 	/* grand finale */

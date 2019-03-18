@@ -52,27 +52,27 @@ static int read_stduu(FILE *src_stream, FILE *dst_stream)
 
 		line_ptr++;
 		/* Tolerate an overly long line to acomadate a possible exta '`' */
-		if (strlen(line_ptr) < length) {
+		if (strlen(line_ptr) < (size_t)length) {
 			bb_error_msg_and_die("Short file");
 		}
 
- 		while (length > 0) {
+		while (length > 0) {
 			/* Merge four 6 bit chars to three 8 bit chars */
-		    fputc(((line_ptr[0] - 0x20) & 077) << 2 | ((line_ptr[1] - 0x20) & 077) >> 4, dst_stream);
+			fputc(((line_ptr[0] - 0x20) & 077) << 2 | ((line_ptr[1] - 0x20) & 077) >> 4, dst_stream);
 			line_ptr++;
 			length--;
 			if (length == 0) {
 				break;
 			}
 
-   			fputc(((line_ptr[0] - 0x20) & 077) << 4 | ((line_ptr[1] - 0x20) & 077) >> 2, dst_stream);
+			fputc(((line_ptr[0] - 0x20) & 077) << 4 | ((line_ptr[1] - 0x20) & 077) >> 2, dst_stream);
 			line_ptr++;
 			length--;
 			if (length == 0) {
 				break;
 			}
 
-  			fputc(((line_ptr[0] - 0x20) & 077) << 6 | ((line_ptr[1] - 0x20) & 077), dst_stream);
+			fputc(((line_ptr[0] - 0x20) & 077) << 6 | ((line_ptr[1] - 0x20) & 077), dst_stream);
 			line_ptr += 2;
 			length -= 2;
 		}
@@ -83,7 +83,7 @@ static int read_stduu(FILE *src_stream, FILE *dst_stream)
 
 static int read_base64(FILE *src_stream, FILE *dst_stream)
 {
-	const char *base64_table =
+	static const char base64_table[] =
 		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n";
 	char term_count = 0;
 
@@ -93,7 +93,7 @@ static int read_base64(FILE *src_stream, FILE *dst_stream)
 
 		while (count < 4) {
 			char *table_ptr;
-			char ch;
+			int ch;
 
 			/* Get next _valid_ character */
 			do {
@@ -130,15 +130,15 @@ static int read_base64(FILE *src_stream, FILE *dst_stream)
 		/* Merge 6 bit chars to 8 bit */
 	    fputc(translated[0] << 2 | translated[1] >> 4, dst_stream);
 		if (count > 2) {
-	   		fputc(translated[1] << 4 | translated[2] >> 2, dst_stream);
+			fputc(translated[1] << 4 | translated[2] >> 2, dst_stream);
 		}
 		if (count > 3) {
-	  		fputc(translated[2] << 6 | translated[3], dst_stream);
+			fputc(translated[2] << 6 | translated[3], dst_stream);
 		}
 	}
 }
 
-extern int uudecode_main(int argc, char **argv)
+int uudecode_main(int argc, char **argv)
 {
 	int (*decode_fn_ptr) (FILE * src, FILE * dst);
 	FILE *src_stream;

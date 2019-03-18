@@ -10,7 +10,7 @@
 #--------------------------------------------------------------
 noconfig_targets := menuconfig config oldconfig randconfig \
 	defconfig allyesconfig allnoconfig allbareconfig \
-	clean distclean \
+	clean distclean help \
 	release tags
 
 # the toplevel sourcedir
@@ -36,8 +36,7 @@ SRC_DIRS:=$(patsubst %,$(top_srcdir)/%,$(DIRS))
 .PHONY: _all
 _all:
 
-CONFIG_CONFIG_IN = $(top_srcdir)/sysdeps/$(TARGET_OS)/Config.in
-CONFIG_DEFCONFIG = $(top_srcdir)/sysdeps/$(TARGET_OS)/defconfig
+CONFIG_CONFIG_IN = $(top_srcdir)/Config.in
 
 ifeq ($(KBUILD_SRC),)
 
@@ -76,7 +75,7 @@ $(if $(wildcard $(KBUILD_OUTPUT)),, \
 .PHONY: $(MAKECMDGOALS)
 
 $(filter-out _all,$(MAKECMDGOALS)) _all: $(KBUILD_OUTPUT)/Rules.mak $(KBUILD_OUTPUT)/Makefile all_tree
-	$(MAKE) -C $(KBUILD_OUTPUT) \
+	$(Q)$(MAKE) -C $(KBUILD_OUTPUT) \
 	top_srcdir=$(top_srcdir) \
 	top_builddir=$(top_builddir) \
 	KBUILD_SRC=$(top_srcdir) \
@@ -121,16 +120,15 @@ help:
 	@echo
 	@echo 'Configuration:'
 	@echo '  allnoconfig		- disable all symbols in .config'
-	@echo '  allyesconfig		- enable (almost) all symbols in .config'
-	@echo '  allbareconfig		- enable all basics without any features'
+	@echo '  allyesconfig		- enable all symbols in .config (see defconfig)'
+	@echo '  allbareconfig		- enable all applets without any sub-features'
 	@echo '  config		- text based configurator (of last resort)'
-	@echo '  defconfig		- set .config to defaults'
+	@echo '  defconfig		- set .config to largest generic configuration'
 	@echo '  menuconfig		- interactive curses-based configurator'
 	@echo '  oldconfig		- resolve any unresolved symbols in .config'
 	@echo
 	@echo 'Installation:'
-	@echo '  install		- install busybox and symlinks into $prefix'
-	@echo '  install-hardlinks	- install busybox and hardlinks into $prefix'
+	@echo '  install		- install busybox into $(PREFIX)'
 	@echo '  uninstall'
 	@echo
 	@echo 'Development:'
@@ -160,18 +158,19 @@ all: menuconfig
 # ---------------------------------------------------------------------------
 
 scripts/config/conf: scripts/config/Makefile
-	$(MAKE) -C scripts/config conf
+	$(Q)$(MAKE) -C scripts/config conf
 	-@if [ ! -f .config ] ; then \
-		cp $(CONFIG_DEFCONFIG) .config; \
+		touch .config; \
 	fi
 
 scripts/config/mconf: scripts/config/Makefile
-	$(MAKE) -C scripts/config ncurses conf mconf
+	$(Q)$(MAKE) -C scripts/config ncurses conf mconf
 	-@if [ ! -f .config ] ; then \
-		cp $(CONFIG_DEFCONFIG) .config; \
+		touch .config; \
 	fi
 
 menuconfig: scripts/config/mconf
+	@[ -f .config ] || make $(MAKEFLAGS) defconfig
 	@./scripts/config/mconf $(CONFIG_CONFIG_IN)
 
 config: scripts/config/conf
@@ -185,21 +184,28 @@ randconfig: scripts/config/conf
 
 allyesconfig: scripts/config/conf
 	@./scripts/config/conf -y $(CONFIG_CONFIG_IN)
-	sed -i -r -e "s/^(CONFIG_DEBUG|USING_CROSS_COMPILER|CONFIG_STATIC|CONFIG_SELINUX|CONFIG_FEATURE_DEVFS).*/# \1 is not set/" .config
+	@$(SED) -i -r -e "s/^(USING_CROSS_COMPILER)=.*/# \1 is not set/" .config
 	@./scripts/config/conf -o $(CONFIG_CONFIG_IN)
 
 allnoconfig: scripts/config/conf
 	@./scripts/config/conf -n $(CONFIG_CONFIG_IN)
 
+# defconfig is allyesconfig minus any features that are specialized enough
+# or cause enough behavior change that the user really should switch them on
+# manually if that's what they want.  Sort of "maximum sane config".
+
 defconfig: scripts/config/conf
-	@./scripts/config/conf -d $(CONFIG_CONFIG_IN)
+	@./scripts/config/conf -y $(CONFIG_CONFIG_IN)
+	@$(SED) -i -r -e "s/^(USING_CROSS_COMPILER|CONFIG_(DEBUG.*|STATIC|SELINUX|BUILD_(AT_ONCE|LIBBUSYBOX)|FEATURE_(DEVFS|FULL_LIBBUSYBOX|SHARED_BUSYBOX|MTAB_SUPPORT|CLEAN_UP|UDHCP_DEBUG)|INSTALL_NO_USR))=.*/# \1 is not set/" .config
+	@./scripts/config/conf -o $(CONFIG_CONFIG_IN)
+
 
 allbareconfig: scripts/config/conf
 	@./scripts/config/conf -y $(CONFIG_CONFIG_IN)
-	sed -i -r -e "s/^(CONFIG_DEBUG|USING_CROSS_COMPILER|CONFIG_STATIC|CONFIG_SELINUX).*/# \1 is not set/" .config
-	sed -i -e "/FEATURE/s/=.*//;/^[^#]/s/.*FEATURE.*/# \0 is not set/;" .config
+	@$(SED) -i -r -e "s/^(USING_CROSS_COMPILER|CONFIG_(DEBUG|STATIC|SELINUX|DEVFSD|NC_GAPING_SECURITY_HOLE|BUILD_AT_ONCE)).*/# \1 is not set/" .config
+	@$(SED) -i -e "/FEATURE/s/=.*//;/^[^#]/s/.*FEATURE.*/# \0 is not set/;" .config
 	@echo "CONFIG_FEATURE_BUFFERS_GO_ON_STACK=y" >> .config
-	@./scripts/config/conf -o $(CONFIG_CONFIG_IN)
+	@yes n | ./scripts/config/conf -o $(CONFIG_CONFIG_IN)
 
 else # ifneq ($(strip $(HAVE_DOT_CONFIG)),y)
 
@@ -208,19 +214,103 @@ all: busybox busybox.links doc
 # In this section, we need .config
 -include $(top_builddir)/.config.cmd
 include $(patsubst %,%/Makefile.in, $(SRC_DIRS))
--include $(top_builddir)/.depend
 
 endif # ifneq ($(strip $(HAVE_DOT_CONFIG)),y)
 
-busybox: .depend $(libraries-y)
-	$(CC) $(EXTRA_CFLAGS) $(LDFLAGS) -o $@ -Wl,--start-group $(libraries-y) $(LIBRARIES) -Wl,--end-group
-	$(STRIPCMD) $@
+-include $(top_builddir)/.config
+-include $(top_builddir)/.depend
 
-busybox.links: $(top_srcdir)/applets/busybox.mkll include/config.h $(top_srcdir)/include/applets.h
-	- $(SHELL) $^ >$@
+
+ifeq ($(strip $(CONFIG_BUILD_AT_ONCE)),y)
+libraries-y:=
+# Which parts of the internal libs are requested?
+# Per default we only want what was actually selected.
+# -a denotes all while -y denotes the selected ones.
+ifeq ($(strip $(CONFIG_FEATURE_FULL_LIBBUSYBOX)),y)
+LIBRARY_DEFINE:=$(LIBRARY_DEFINE-a)
+LIBRARY_SRC   :=$(LIBRARY_SRC-a)
+else # CONFIG_FEATURE_FULL_LIBBUSYBOX
+LIBRARY_DEFINE:=$(LIBRARY_DEFINE-y)
+LIBRARY_SRC   :=$(LIBRARY_SRC-y)
+endif # CONFIG_FEATURE_FULL_LIBBUSYBOX
+APPLET_SRC:=$(APPLET_SRC-y)
+APPLETS_DEFINE:=$(APPLETS_DEFINE-y)
+else  # CONFIG_BUILD_AT_ONCE
+# no --combine, build archives out of the individual .o
+# This was the old way the binary was built.
+libbusybox-obj:=archival/libunarchive/libunarchive.a \
+	networking/libiproute/libiproute.a \
+	libpwdgrp/libpwdgrp.a \
+	coreutils/libcoreutils/libcoreutils.a \
+	libbb/libbb.a
+libbusybox-obj:=$(patsubst %,$(top_builddir)/%,$(libbusybox-obj))
+
+ifeq ($(strip $(CONFIG_FEATURE_SHARED_BUSYBOX)),y)
+# linking against libbusybox, so don't build the .a already contained in the .so
+libraries-y:=$(filter-out $(libbusybox-obj),$(libraries-y))
+endif # CONFIG_FEATURE_SHARED_BUSYBOX
+endif # CONFIG_BUILD_AT_ONCE
+
+
+ifeq ($(strip $(CONFIG_BUILD_LIBBUSYBOX)),y)
+LD_LIBBUSYBOX:=libbusybox.so
+LIBBUSYBOX_SONAME:=$(LD_LIBBUSYBOX).$(MAJOR_VERSION).$(MINOR_VERSION).$(SUBLEVEL_VERSION)
+DO_INSTALL_LIBS:=$(LD_LIBBUSYBOX) \
+	$(LD_LIBBUSYBOX).$(MAJOR_VERSION) \
+	$(LD_LIBBUSYBOX).$(MAJOR_VERSION).$(MINOR_VERSION)
+
+ifeq ($(strip $(CONFIG_BUILD_AT_ONCE)),y)
+ifneq ($(strip $(CONFIG_FEATURE_SHARED_BUSYBOX)),y)
+# --combine but not linking against libbusybox, so compile all
+BUSYBOX_SRC   := $(LIBRARY_SRC)
+BUSYBOX_DEFINE:= $(LIBRARY_DEFINE)
+endif # !CONFIG_FEATURE_SHARED_BUSYBOX
+$(LIBBUSYBOX_SONAME): $(LIBRARY_SRC)
+else # CONFIG_BUILD_AT_ONCE
+$(LIBBUSYBOX_SONAME): $(libbusybox-obj)
+endif # CONFIG_BUILD_AT_ONCE
+endif # CONFIG_BUILD_LIBBUSYBOX
+
+ifeq ($(strip $(CONFIG_FEATURE_SHARED_BUSYBOX)),y)
+LDBUSYBOX:=-L$(top_builddir) -lbusybox
+endif
+
+ifeq ($(strip $(CONFIG_BUILD_LIBBUSYBOX)),y)
+$(LIBBUSYBOX_SONAME):
+ifndef MAJOR_VERSION
+	$(error MAJOR_VERSION needed for $@ is not defined)
+endif
+	$(do_link) $(LIB_CFLAGS) $(CFLAGS_COMBINE) \
+	-Wl,-soname=$(LD_LIBBUSYBOX).$(MAJOR_VERSION) \
+	-Wl,-z,combreloc $(LIB_LDFLAGS) \
+	-o $(@) \
+	-Wl,--start-group -Wl,--whole-archive \
+	$(LIBRARY_DEFINE) $(^) \
+	-Wl,--no-whole-archive -Wl,--end-group
+	@rm -f $(DO_INSTALL_LIBS)
+	@for i in $(DO_INSTALL_LIBS); do ln -s $(@) $$i ; done
+	$(do_strip)
+
+endif # ifeq ($(strip $(CONFIG_BUILD_LIBBUSYBOX)),y)
+
+busybox_unstripped: .depend $(LIBBUSYBOX_SONAME) $(BUSYBOX_SRC) $(libraries-y)
+	$(do_link) $(PROG_CFLAGS) $(PROG_LDFLAGS) $(CFLAGS_COMBINE) \
+	-o $@ -Wl,--start-group  \
+	$(APPLETS_DEFINE) $(APPLET_SRC) \
+	$(BUSYBOX_DEFINE) $(BUSYBOX_SRC) $(libraries-y) \
+	$(LDBUSYBOX) $(LIBRARIES) \
+	-Wl,--end-group
+
+busybox: busybox_unstripped
+	$(Q)cp busybox_unstripped busybox
+	$(do_strip)
+
+busybox.links: $(top_srcdir)/applets/busybox.mkll include/bb_config.h $(top_srcdir)/include/applets.h
+	$(Q)-$(SHELL) $^ >$@
 
 install: $(top_srcdir)/applets/install.sh busybox busybox.links
-	$(SHELL) $< $(PREFIX)
+	$(Q)DO_INSTALL_LIBS="$(strip $(LIBBUSYBOX_SONAME) $(DO_INSTALL_LIBS))" \
+		$(SHELL) $< $(PREFIX) $(INSTALL_OPTS)
 ifeq ($(strip $(CONFIG_FEATURE_SUID)),y)
 	@echo
 	@echo
@@ -235,9 +325,11 @@ endif
 uninstall: busybox.links
 	rm -f $(PREFIX)/bin/busybox
 	for i in `cat busybox.links` ; do rm -f $(PREFIX)$$i; done
-
-install-hardlinks: $(top_srcdir)/applets/install.sh busybox busybox.links
-	$(SHELL) $< $(PREFIX) --hardlinks
+ifneq ($(strip $(DO_INSTALL_LIBS)),n)
+	for i in $(LIBBUSYBOX_SONAME) $(DO_INSTALL_LIBS); do \
+		rm -f $(PREFIX)$$i; \
+	done
+endif
 
 # see if we are in verbose mode
 KBUILD_VERBOSE :=
@@ -248,82 +340,75 @@ ifdef V
 endif
 ifneq ($(strip $(KBUILD_VERBOSE)),)
   CHECK_VERBOSE := -v
+# ARFLAGS+=v
 endif
 check test: busybox
 	bindir=$(top_builddir) srcdir=$(top_srcdir)/testsuite \
 	$(top_srcdir)/testsuite/runtest $(CHECK_VERBOSE)
 
-sizes:
-	-rm -f busybox
-	$(MAKE) top_srcdir=$(top_srcdir) top_builddir=$(top_builddir) \
-		-f $(top_srcdir)/Makefile STRIPCMD=/bin/true
-	$(NM) --size-sort busybox
+sizes: busybox_unstripped
+	$(NM) --size-sort $(<)
 
 # Documentation Targets
 doc: docs/busybox.pod docs/BusyBox.txt docs/BusyBox.1 docs/BusyBox.html
 
-docs/busybox.pod : $(top_srcdir)/docs/busybox_header.pod $(top_srcdir)/include/usage.h $(top_srcdir)/docs/busybox_footer.pod
-	-mkdir -p docs
-	- ( cat $(top_srcdir)/docs/busybox_header.pod; \
-	    $(top_srcdir)/docs/autodocifier.pl $(top_srcdir)/include/usage.h; \
-	    cat $(top_srcdir)/docs/busybox_footer.pod ) > docs/busybox.pod
+docs/busybox.pod : $(top_srcdir)/docs/busybox_header.pod $(top_srcdir)/include/usage.h $(top_srcdir)/docs/busybox_footer.pod $(top_srcdir)/docs/autodocifier.pl
+	$(disp_doc)
+	$(Q)-mkdir -p docs
+	$(Q)-( cat $(top_srcdir)/docs/busybox_header.pod ; \
+	    $(top_srcdir)/docs/autodocifier.pl $(top_srcdir)/include/usage.h ; \
+	    cat $(top_srcdir)/docs/busybox_footer.pod ; ) > docs/busybox.pod
 
 docs/BusyBox.txt: docs/busybox.pod
-	$(SECHO)
-	$(SECHO) BusyBox Documentation
-	$(SECHO)
-	-mkdir -p docs
-	-pod2text $< > $@
+	$(disp_doc)
+	$(Q)-mkdir -p docs
+	$(Q)-pod2text $< > $@
 
 docs/BusyBox.1: docs/busybox.pod
-	- mkdir -p docs
-	- pod2man --center=BusyBox --release="version $(VERSION)" \
+	$(disp_doc)
+	$(Q)-mkdir -p docs
+	$(Q)-pod2man --center=BusyBox --release="version $(VERSION)" \
 		$< > $@
 
 docs/BusyBox.html: docs/busybox.net/BusyBox.html
-	- mkdir -p docs
-	-@ rm -f docs/BusyBox.html
-	-@ cp docs/busybox.net/BusyBox.html docs/BusyBox.html
+	$(disp_doc)
+	$(Q)-mkdir -p docs
+	$(Q)-rm -f docs/BusyBox.html
+	$(Q)-cp docs/busybox.net/BusyBox.html docs/BusyBox.html
 
 docs/busybox.net/BusyBox.html: docs/busybox.pod
-	-@ mkdir -p docs/busybox.net
-	-  pod2html --noindex $< > \
+	$(Q)-mkdir -p docs/busybox.net
+	$(Q)-pod2html --noindex $< > \
 	    docs/busybox.net/BusyBox.html
-	-@ rm -f pod2htm*
+	$(Q)-rm -f pod2htm*
 
-# The nifty new buildsystem stuff
+# The nifty new dependency stuff
 scripts/bb_mkdep: $(top_srcdir)/scripts/bb_mkdep.c
-	$(HOSTCC) $(HOSTCFLAGS) -o $@ $<
+	$(Q)$(HOSTCC) $(HOSTCFLAGS) -o $@ $<
 
-DEP_INCLUDES := include/config.h include/bb_config.h
+DEP_INCLUDES := include/bb_config.h
 
 ifeq ($(strip $(CONFIG_BBCONFIG)),y)
 DEP_INCLUDES += include/bbconfigopts.h
 
 include/bbconfigopts.h: .config
-	$(top_srcdir)/scripts/config/mkconfigs > $@
+	$(disp_gen)
+	$(Q)$(top_srcdir)/scripts/config/mkconfigs > $@
 endif
 
 depend dep: .depend
 .depend: scripts/bb_mkdep $(DEP_INCLUDES)
-	@rm -f .depend
-	@mkdir -p include/config
-	scripts/bb_mkdep -c include/config.h -c include/bb_config.h \
-			-I $(top_srcdir)/include $(top_srcdir) > $@.tmp
-	mv $@.tmp $@
+	$(disp_gen)
+	$(Q)rm -f .depend
+	$(Q)mkdir -p include/config
+	$(Q)scripts/bb_mkdep -I $(top_srcdir)/include $(top_srcdir) > $@.tmp
+	$(Q)mv $@.tmp $@
 
-include/config.h: .config
+include/bb_config.h: .config
 	@if [ ! -x $(top_builddir)/scripts/config/conf ] ; then \
 	    $(MAKE) -C scripts/config conf; \
 	fi;
 	@$(top_builddir)/scripts/config/conf -o $(CONFIG_CONFIG_IN)
-
-include/bb_config.h: include/config.h
-	@echo -e "#ifndef BB_CONFIG_H\n#define BB_CONFIG_H" > $@
-	@sed -e 's/#undef CONFIG_\(.*\)/#define ENABLE_\1 0/' \
-	    -e 's/#define CONFIG_\(.*\)/#define CONFIG_\1\n#define ENABLE_\1/' \
-		< $< >> $@
-	@echo "#endif" >> $@
 
 clean:
 	- $(MAKE) -C scripts/config $@
@@ -331,28 +416,28 @@ clean:
 	    docs/busybox.pod docs/busybox.net/busybox.html \
 	    docs/busybox pod2htm* *.gdb *.elf *~ core .*config.log \
 	    docs/BusyBox.txt docs/BusyBox.1 docs/BusyBox.html \
-	    docs/busybox.net/BusyBox.html busybox.links libbb/loop.h \
-	    .config.old busybox
-	- rm -rf _install testsuite/links
-	- find . -name .\*.flags -exec rm -f {} \;
-	- find . -name \*.o -exec rm -f {} \;
-	- find . -name \*.a -exec rm -f {} \;
+	    docs/busybox.net/BusyBox.html busybox.links \
+	    libbusybox.so* \
+	    .config.old busybox busybox_unstripped
+	- rm -r -f _install testsuite/links
+	- find . -name .\*.flags -o -name \*.o  -o -name \*.om \
+	    -o -name \*.os -o -name \*.osm -o -name \*.a | xargs rm -f
 
 distclean: clean
 	- rm -f scripts/bb_mkdep
-	- rm -rf include/config include/config.h include/bb_config.h include/bbconfigopts.h
-	- find . -name .depend -exec rm -f {} \;
+	- rm -r -f include/config $(DEP_INCLUDES)
+	- find . -name .depend'*' | xargs rm -f
 	rm -f .config .config.old .config.cmd
 
 release: distclean #doc
 	cd ..; \
-	rm -rf $(PROG)-$(VERSION); \
+	rm -r -f $(PROG)-$(VERSION); \
 	cp -a busybox $(PROG)-$(VERSION); \
 	\
 	find $(PROG)-$(VERSION)/ -type d \
 		-name .svn \
 		-print \
-		-exec rm -rf {} \; ; \
+		-exec rm -r -f {} \; ; \
 	\
 	find $(PROG)-$(VERSION)/ -type f \
 		-name .\#* \

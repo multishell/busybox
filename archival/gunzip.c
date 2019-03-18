@@ -75,7 +75,7 @@ static char *license_msg[] = {
 #define GUNZIP_OPT_TEST		4
 #define GUNZIP_OPT_DECOMPRESS	8
 
-extern int gunzip_main(int argc, char **argv)
+int gunzip_main(int argc, char **argv)
 {
 	char status = EXIT_SUCCESS;
 	unsigned long opt;
@@ -103,9 +103,7 @@ extern int gunzip_main(int argc, char **argv)
 			src_fd = bb_xopen(old_path, O_RDONLY);
 
 			/* Get the time stamp on the input file. */
-			if (stat(old_path, &stat_buf) < 0) {
-				bb_error_msg_and_die("Couldn't stat file %s", old_path);
-			}
+			xstat(old_path, &stat_buf);
 		}
 
 		/* Check that the input is sane.  */

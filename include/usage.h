@@ -72,9 +72,9 @@
 	"[OPTION]... [program-text] [FILE ...]"
 #define awk_full_usage \
 	"Options:\n" \
-	"\t-v var=val\t\tassign value 'val' to variable 'var'\n" \
+	"\t-v var=val\tassign value 'val' to variable 'var'\n" \
 	"\t-F sep\t\tuse 'sep' as field separator\n" \
-	"\t-f progname\t\tread program source from file 'progname'"
+	"\t-f progname\tread program source from file 'progname'"
 
 #define basename_trivial_usage \
 	"FILE [SUFFIX]"
@@ -97,9 +97,25 @@
 	"\t-c\tWrite output to standard output\n" \
 	"\t-f\tForce"
 
+#define busybox_notes_usage \
+	"Hello world!\n"
+
 #define bzcat_trivial_usage \
 	"FILE"
 #define bzcat_full_usage \
+	"Uncompress to stdout."
+
+#define unlzma_trivial_usage \
+	"[OPTION]... [FILE]"
+#define unlzma_full_usage \
+	"Uncompress FILE (or standard input if FILE is '-' or omitted).\n\n" \
+	"Options:\n" \
+	"\t-c\tWrite output to standard output\n" \
+	"\t-f\tForce"
+
+#define lzmacat_trivial_usage \
+	"FILE"
+#define lzmacat_full_usage \
 	"Uncompress to stdout."
 
 #define cal_trivial_usage \
@@ -234,7 +250,7 @@
 #define bbconfig_trivial_usage \
 	""
 #define bbconfig_full_usage \
-	"Print the config file which built busybox\n"
+	"Print the config file which built busybox"
 
 #define cp_trivial_usage \
 	"[OPTION]... SOURCE DEST"
@@ -316,10 +332,13 @@
 	"\nOptions:\n" \
 	"\t-R\t\tOutputs RFC-822 compliant date string\n" \
 	"\t-d STRING\tDisplays time described by STRING, not `now'\n" \
-	USAGE_DATE_ISOFMT("\t-I[TIMESPEC]\tOutputs an ISO-8601 compliant date/time string\n" \
-	"\t\t\tTIMESPEC=`date' (or missing) for date only,\n" \
-	"\t\t\t`hours', `minutes', or `seconds' for date and,\n" \
-	"\t\t\ttime to the indicated precision\n") \
+	USAGE_DATE_ISOFMT( \
+		"\t-I[TIMESPEC]\tOutputs an ISO-8601 compliant date/time string\n" \
+		"\t\t\tTIMESPEC=`date' (or missing) for date only,\n" \
+		"\t\t\t`hours', `minutes', or `seconds' for date and,\n" \
+		"\t\t\ttime to the indicated precision\n" \
+		"\t-D hint\t\tUse 'hint' as date format, via strptime()\n" \
+	) \
 	"\t-s\t\tSets time described by STRING\n" \
 	"\t-r FILE\t\tDisplays the last modification time of FILE\n" \
 	"\t-u\t\tPrints or sets Coordinated Universal Time"
@@ -453,6 +472,17 @@
 	"\t-n LEVEL\tSets console logging level\n" \
 	"\t-s SIZE\t\tUse a buffer of size SIZE"
 
+#define dnsd_trivial_usage \
+        "[-c config] [-t seconds] [-p port] [-i iface-ip] [-d]"
+#define dnsd_full_usage \
+        "Small and static DNS server daemon\n\n" \
+	"Options:\n" \
+	"\t-c\t\tconfig filename\n" \
+	"\t-t\t\tTTL in seconds\n" \
+	"\t-p\t\tlistening port\n" \
+	"\t-i\t\tlistening iface ip (default all)\n" \
+	"\t-d\t\tdaemonize"
+
 #define dos2unix_trivial_usage \
 	"[option] [FILE]"
 #define dos2unix_full_usage \
@@ -549,7 +579,7 @@
 #define e2fsck_trivial_usage \
 	"[-panyrcdfvstDFSV] [-b superblock] [-B blocksize] " \
 	"[-I inode_buffer_blocks] [-P process_inode_size] " \
-	"[-l|-L bad_blocks_file] [-C fd] [-j ext-journal] " \
+	"[-l|-L bad_blocks_file] [-C fd] [-j external_journal] " \
 	"[-E extended-options] device"
 #define e2fsck_full_usage \
 	"Check a Linux ext2/ext3 file system.\n\n" \
@@ -615,7 +645,7 @@
 	"Options:\n" \
 	"\t-b\t\tSend wake-up packet to the broadcast address\n" \
 	"\t-i iface\tUse interface ifname instead of the default \"eth0\"\n" \
-	"\t-p pass\tAppend the four or six byte password PW to the packet\n"
+	"\t-p pass\tAppend the four or six byte password PW to the packet"
 
 #define expr_trivial_usage \
 	"EXPRESSION"
@@ -722,6 +752,11 @@
 #else
 #  define USAGE_FIND_MTIME(a)
 #endif
+#ifdef CONFIG_FEATURE_FIND_MMIN
+  #define USAGE_FIND_MMIN(a) a
+#else
+  #define USAGE_FIND_MMIN(a)
+#endif
 #ifdef CONFIG_FEATURE_FIND_NEWER
 #  define USAGE_FIND_NEWER(a) a
 #else
@@ -752,7 +787,9 @@
 ) USAGE_FIND_PERM( \
 	"\n\t-perm PERMS\tPermissions match any of (+NNN); all of (-NNN);\n\t\t\tor exactly (NNN)" \
 ) USAGE_FIND_MTIME( \
-	"\n\t-mtime TIME\tModified time is greater than (+N); less than (-N);\n\t\t\tor exactly (N) days" \
+	"\n\t-mtime DAYS\tModified time is greater than (+N); less than (-N);\n\t\t\tor exactly (N) days" \
+) USAGE_FIND_MMIN( \
+	"\n\t-mmin MINS\tModified time is greater than (+N); less than (-N);\n\t\t\tor exactly (N) minutes" \
 ) USAGE_FIND_NEWER( \
 	"\n\t-newer FILE\tModified time is more recent than FILE's" \
 ) USAGE_FIND_INUM( \
@@ -766,7 +803,7 @@
 	"/etc/passwd\n"
 
 #define fold_trivial_usage \
-	"[-bsw] [FILE]"
+	"[-bs] [-w WIDTH] [FILE]"
 #define fold_full_usage \
 	"Wrap input lines in each FILE (standard input by default), writing to\n" \
 	"standard output.\n\n" \
@@ -850,7 +887,8 @@
 	"\t-s         Don't print or kill anything.\n" \
 	"\t-4         When using port/proto only search IPv4 space\n" \
 	"\t-6         When using port/proto only search IPv6 space\n" \
-	"\t-SIGNAL    When used with -k, this signal will be used to kill\n" 
+	"\t-SIGNAL    When used with -k, this signal will be used to kill"
+
 #define getopt_trivial_usage \
 	"[OPTIONS]..."
 #define getopt_full_usage \
@@ -976,11 +1014,13 @@
 	"-rw-rw-r--    1 andersen andersen   554058 Apr 14 17:49 /tmp/busybox.tar.gz\n"
 
 #define halt_trivial_usage \
-	"[-d<delay>]"
+	"[-d<delay>] [-n<nosync>] [-f<force>]"
 #define halt_full_usage \
 	"Halt the system.\n" \
 	"Options:\n" \
-	"\t-d\t\tdelay interval for halting"
+	"\t-d\t\tdelay interval for halting\n" \
+	"\t-n\t\tno call to sync()\n" \
+	"\t-f\t\tforce halt (don't go through init)"
 
 #ifdef CONFIG_FEATURE_HDPARM_GET_IDENTITY
 #define USAGE_HDPARM_IDENT(a) a
@@ -1087,13 +1127,14 @@
 	"daemon:x:1:1:daemon:/usr/sbin:/bin/sh\n"
 
 #define hexdump_trivial_usage \
-	"[-[bcdefnosvx]] [OPTION] FILE"
+	"[-[bcCdefnosvx]] [OPTION] FILE"
 #define hexdump_full_usage \
 	"The hexdump utility is a filter which displays the specified files,\n" \
 	"or the standard input, if no files are specified, in a user specified\n" \
 	"format\n" \
 	"\t-b\t\tOne-byte octal display\n" \
 	"\t-c\t\tOne-byte character display\n" \
+	"\t-C\t\tCanonical hex+ASCII, 16 bytes per line\n" \
 	"\t-d\t\tTwo-byte decimal display\n" \
 	"\t-e FORMAT STRING\n" \
 	"\t-f FORMAT FILE\n" \
@@ -1484,7 +1525,7 @@
 	"to remove a segment by shmid value.\n" \
 	"\t-m | -M\tRemove the memory segment after the last detatch\n" \
 	"\t-q | -Q\tRemove the message queue\n" \
-	"\t-s | -S\tRemove the semaphore\n"
+	"\t-s | -S\tRemove the semaphore"
 
 #define ipcs_trivial_usage \
 	"[[-smq] -i shmid] | [[-asmq] [-tclup]]"
@@ -1500,7 +1541,7 @@
 	"\t-p\tpid\n" \
 	"\t-s\tcreator\n" \
 	"\t-a\tlimits\n" \
-	"\t-i\tsummary\n"
+	"\t-i\tsummary"
 
 #define iplink_trivial_usage \
 	"{ set DEVICE { up | down | arp { on | off } | show [ DEVICE ] }"
@@ -1587,7 +1628,14 @@
 	"\t\tfile\n" \
 	"\t-~\tSuppress ~s displayed when input past the end of the file is\n" \
 	"\t\treached.\n" \
-	"\t-h, -?\tDisplay this help message\n"
+	"\t-h, -?\tDisplay this help message"
+
+#define setarch_trivial_usage \
+	"<personality> <program> [args ...]"
+#define setarch_full_usage \
+	"Personality may be:\n" \
+	"\tlinux32\tSet 32bit uname emulation\n" \
+	"\tlinux64\tSet 64bit uname emulation"
 
 #define ln_trivial_usage \
 	"[OPTION] TARGET... LINK_NAME|DIRECTORY"
@@ -1656,13 +1704,18 @@
 	"\t-f\t\toutput data as the log grows"
 
 #define losetup_trivial_usage \
-	"[OPTION]... LOOPDEVICE FILE\n" \
-	"or: losetup [OPTION]... -d LOOPDEVICE"
+	"[-od] LOOPDEVICE [FILE]"
 #define losetup_full_usage \
-	"Associate LOOPDEVICE with FILE.\n\n" \
+	"Associate LOOPDEVICE with FILE, or display current association.\n\n" \
 	"Options:\n" \
 	"\t-d\t\tDisassociate LOOPDEVICE\n" \
 	"\t-o OFFSET\tStart OFFSET bytes into FILE"
+#define losetup_notes_usage \
+	"One argument (losetup /dev/loop1) will display the current association\n" \
+	"(if any), or disassociate it (with -d).  The display shows the offset\n" \
+	"and filename of the file the loop device is currently bound to.\n\n" \
+	"Two arguments (losetup /dev/loop1 file.img) create a new association,\n" \
+	"with an optional offset (-o 12345).  Encryption is not yet supported.\n\n"
 
 #ifdef CONFIG_FEATURE_LS_TIMESTAMPS
 #  define USAGE_LS_TIMESTAMPS(a) a
@@ -1835,6 +1888,26 @@
 	"busybox: OK\n" \
 	"^D\n"
 
+#define mdev_trivial_usage \
+	"[-s]"
+#define mdev_full_usage \
+	"\t-s\tScan /sys and populate /dev during system boot\n\n" \
+	"Called with no options (via hotplug) it uses environment variables\n" \
+	"to determine which device to add/remove."
+#ifdef CONFIG_FEATURE_MDEV_CONFIG
+#define mdev_notes_usage \
+	"The mdev config file contains lines that look like:\n" \
+	"  hd[a-z][0-9]* 0:3 660\n\n" \
+	"That's device name (with regex match), uid:gid, and permissions.\n\n" \
+	"Optionally, that can be followed (on the same line) by an asterisk\n" \
+	"and a command line to run after creating the corresponding device(s),\n"\
+	"ala:\n\n" \
+	"  hdc root:cdrom 660  *ln -s hdc cdrom\n\n" \
+	"Config file parsing stops on the first matching line.  If no config\n"\
+	"entry is matched, devices are created with default 0:0 660.  (Make\n"\
+	"the last line match .* to override this.)\n\n"
+#endif
+
 #define mesg_trivial_usage \
 	"[y|n]"
 #define mesg_full_usage \
@@ -1945,9 +2018,8 @@
 	"-rw-------    1 andersen andersen        0 Apr 25 17:10 /tmp/temp.mWiLjM\n"
 
 #define modprobe_trivial_usage \
-	"[-knqrsv] [MODULE ...]"
+	"[-knqrsv] MODULE [symbol=value ...]"
 #define modprobe_full_usage \
-	"Used for high level module loading and unloading.\n\n" \
 	"Options:\n" \
 	"\t-k\tMake module autoclean-able\n" \
 	"\t-n\tJust show what would be done\n" \
@@ -1955,8 +2027,65 @@
 	"\t-r\tRemove module (stacks) or do autoclean\n" \
 	"\t-s\tReport via syslog instead of stderr\n" \
 	"\t-v\tVerbose output"
+#define modprobe_notes_usage \
+"modprobe can (un)load a stack of modules, passing each module options (when\n" \
+"loading). modprobe uses a configuration file to determine what option(s) to\n" \
+"pass each module it loads.\n" \
+"\n" \
+"The configuration file is searched (in order) amongst:\n" \
+"\n" \
+"    /etc/modprobe.conf (2.6 only)\n" \
+"    /etc/modules.conf\n" \
+"    /etc/conf.modules (deprecated)\n" \
+"\n" \
+"They all have the same syntax (see below). If none is present, it is\n" \
+"_not_ an error; each loaded module is then expected to load without\n" \
+"options. Once a file is found, the others are tested for.\n" \
+"\n" \
+"/etc/modules.conf entry format:\n" \
+"\n" \
+"  alias <alias_name> <mod_name>\n" \
+"    Makes it possible to modprobe alias_name, when there is no such module.\n" \
+"    It makes sense if your mod_name is long, or you want a more reprenstative\n" \
+"    name for that module (eg. 'scsi' in place of 'aha7xxx').\n" \
+"    This makes it also possible to use a different set of options (below) for\n" \
+"    the module and the alias.\n" \
+"    A module can be aliased more than once.\n" \
+"\n" \
+"  options <mod_name|alias_name> <symbol=value ...>\n" \
+"    When loading module mod_name (or the module aliased by alias_name), pass\n" \
+"    the \"symbol=value\" pairs as option to that module.\n" \
+"\n" \
+"Sample /etc/modules.conf file:\n" \
+"\n" \
+"  options tulip irq=3\n" \
+"  alias tulip tulip2\n" \
+"  options tulip2 irq=4 io=0x308\n" \
+"\n" \
+"Other functionality offered by 'classic' modprobe is not available in\n" \
+"this implementation.\n" \
+"\n" \
+"If module options are present both in the config file, and on the command line,\n" \
+"then the options from the command line will be passed to the module _after_\n" \
+"the options from the config file. That way, you can have defaults in the config\n" \
+"file, and override them for a specific usage from the command line.\n"
 #define modprobe_example_usage \
-	"$ modprobe cdrom\n"
+	"(with the above /etc/modules.conf):\n\n" \
+	"$ modprobe tulip\n" \
+	"   will load the module 'tulip' with default option 'irq=3'\n\n" \
+	"$ modprobe tulip irq=5\n" \
+	"   will load the module 'tulip' with option 'irq=5', thus overriding the default\n\n" \
+	"$ modprobe tulip2\n" \
+	"   will load the module 'tulip' with default options 'irq=4 io=0x308',\n" \
+	"   which are the default for alias 'tulip2'\n\n" \
+	"$ modprobe tulip2 irq=8\n" \
+	"   will load the module 'tulip' with default options 'irq=4 io=0x308 irq=8',\n" \
+	"   which are the default for alias 'tulip2' overriden by the option 'irq=8'\n\n" \
+	"   from the command line\n\n" \
+	"$ modprobe tulip2 irq=2 io=0x210\n" \
+	"   will load the module 'tulip' with default options 'irq=4 io=0x308 irq=4 io=0x210',\n" \
+	"   which are the default for alias 'tulip2' overriden by the options 'irq=2 io=0x210'\n\n" \
+	"   from the command line\n"
 
 #define more_trivial_usage \
 	"[FILE ...]"
@@ -1978,8 +2107,7 @@
 #define mount_trivial_usage \
 	"[flags] DEVICE NODE [-o options,more-options]"
 #define mount_full_usage \
-	"Mount a filesystem.  Autodetection of filesystem type requires the\n" \
-	"/proc filesystem be already mounted.\n\n" \
+	"Mount a filesystem.  Filesystem autodetection requires /proc be mounted.\n\n" \
 	"Flags:\n"  \
 	"\t-a:\t\tMount all filesystems in fstab\n" \
 	USAGE_MTAB( \
@@ -1997,12 +2125,13 @@
 	"\tdev/nodev:\tAllow use of special device files / disallow them\n" \
 	"\texec/noexec:\tAllow use of executable files / disallow them\n" \
 	USAGE_MOUNT_LOOP( \
-	"\tloop:\t\tMounts a file via loop device\n" \
+	"\tloop:\t\t Ignored (loop devices are autodetected)\n" \
 	) \
 	"\tsuid/nosuid:\tAllow set-user-id-root programs / disallow them\n" \
 	"\tremount:\tRe-mount a mounted filesystem, changing its flags\n" \
 	"\tro/rw:\t\tMount for read-only / read-write\n" \
-	"\tbind:\t\tUse the linux 2.4.x \"bind\" feature\n" \
+	"\tbind:\t\tBind a directory to an additional location\n" \
+	"\tmove:\t\tRelocate an existing mount point.\n" \
 	"\nThere are EVEN MORE flags that are specific to each filesystem\n" \
 	"You'll have to see the written documentation for those filesystems"
 #define mount_example_usage \
@@ -2011,7 +2140,8 @@
 	"proc on /proc type proc (rw)\n" \
 	"devpts on /dev/pts type devpts (rw)\n" \
 	"$ mount /dev/fd0 /mnt -t msdos -o ro\n" \
-	"$ mount /tmp/diskimage /opt -t ext2 -o loop\n"
+	"$ mount /tmp/diskimage /opt -t ext2 -o loop\n" \
+	"$ mount cd_image.iso mydir\n"
 
 #define mountpoint_trivial_usage \
 	"[-q] <[-d] DIR | -x DEVICE>"
@@ -2255,11 +2385,13 @@
 	"the new root file system."
 
 #define poweroff_trivial_usage \
-	"[-d<delay>]"
+	"[-d<delay>] [-n<nosync>] [-f<force>]"
 #define poweroff_full_usage \
-	"Halt the system and request that the kernel shut off the power.\n" \
+	"Halt and shut off power.\n" \
 	"Options:\n" \
-	"\t-d\t\tdelay interval for shutting off"
+	"\t-d\t\tdelay interval for halting\n" \
+	"\t-n\t\tno call to sync()\n" \
+	"\t-f\t\tforce power off (don't go through init)"
 
 #define printenv_trivial_usage \
 	"[VARIABLES...]"
@@ -2358,11 +2490,13 @@
 	"Returns the absolute pathnames of given argument."
 
 #define reboot_trivial_usage \
-	"[-d<delay>]"
+	"[-d<delay>] [-n<nosync>] [-f<force>]"
 #define reboot_full_usage \
 	"Reboot the system.\n" \
 	"Options:\n" \
-	"\t-d\t\tdelay interval for rebooting"
+	"\t-d\t\tdelay interval for rebooting\n" \
+	"\t-n\t\tno call to sync()\n" \
+	"\t-f\t\tforce reboot (don't go through init)"
 
 #define renice_trivial_usage \
 	"{{-n INCREMENT} | PRIORITY} [[ -p | -g | -u ] ID ...]"
@@ -2450,7 +2584,6 @@
 	"\t-a ARG\tPass ARG as an argument for every program invoked\n" \
 	"\t-u MASK\tSet the umask to MASK before executing every program"
 
-#if BB_APPLET_RUNLEVEL
 #define runlevel_trivial_usage \
 	"[utmp]"
 #define runlevel_full_usage \
@@ -2460,7 +2593,6 @@
 #define runlevel_example_usage \
 	"$ runlevel /var/run/utmp\n" \
 	"N 2"
-#endif
 
 #define rx_trivial_usage \
 	"FILE"
@@ -2575,7 +2707,7 @@
 	USAGE_FANCY_SLEEP("$ sleep 1d 3h 22m 8s\n" \
 	"[98528 second delay results]\n")
 
-#ifdef CONFIG_SORT_BIG
+#if ENABLE_FEATURE_SORT_BIG
 #  define USAGE_SORT_BIG(a) a
 #else
 #  define USAGE_SORT_BIG(a)
@@ -2724,7 +2856,9 @@
 #define su_full_usage \
 	"Change user id or become root.\n" \
 	"Options:\n" \
-	"\t-p\tPreserve environment"
+	"\t-p, -m\tPreserve environment" \
+	"\n\t-c\tCommand to pass to 'sh -c'" \
+	"\n\t-s\tShell to use instead of default shell"
 
 #define sulogin_trivial_usage \
 	"[OPTION]... [tty-device]"
@@ -2758,10 +2892,12 @@
 	"\t-a\tStart swapping on all swap devices"
 
 #define switch_root_trivial_usage \
-	"NEW_ROOT NEW_INIT [ARGUMENTS_TO_INIT]"
+	"[-c /dev/console] NEW_ROOT NEW_INIT [ARGUMENTS_TO_INIT]"
 #define switch_root_full_usage \
 	"Use from PID 1 under initramfs to free initramfs, chroot to NEW_ROOT,\n" \
-	"and exec NEW_INIT.\n"
+	"and exec NEW_INIT.\n\n" \
+	"Options:\n" \
+	"\t-c\tRedirect console to device on new root"
 
 #define sync_trivial_usage \
 	""
@@ -2870,6 +3006,11 @@
 #else
 #  define USAGE_TAR_BZIP2(a)
 #endif
+#ifdef CONFIG_FEATURE_TAR_LZMA
+#  define USAGE_TAR_LZMA(a) a
+#else
+#  define USAGE_TAR_LZMA(a)
+#endif
 #ifdef CONFIG_FEATURE_TAR_COMPRESS
 #  define USAGE_TAR_COMPRESS(a) a
 #else
@@ -2877,7 +3018,7 @@
 #endif
 
 #define tar_trivial_usage \
-	"-[" USAGE_TAR_CREATE("c") USAGE_TAR_GZIP("z") USAGE_TAR_BZIP2("j") USAGE_TAR_COMPRESS("Z") "xtvO] " \
+	"-[" USAGE_TAR_CREATE("c") USAGE_TAR_GZIP("z") USAGE_TAR_BZIP2("j") USAGE_TAR_LZMA("a") USAGE_TAR_COMPRESS("Z") "xtvO] " \
 	USAGE_TAR_EXCLUDE("[-X FILE]") \
 	"[-f TARFILE] [-C DIR] [FILE(s)] ..."
 #define tar_full_usage \
@@ -2889,6 +3030,7 @@
 	"\nArchive format selection:\n" \
 	USAGE_TAR_GZIP("\tz\t\tFilter the archive through gzip\n") \
 	USAGE_TAR_BZIP2("\tj\t\tFilter the archive through bzip2\n") \
+	USAGE_TAR_LZMA("\ta\t\tFilter the archive through lzma\n") \
 	USAGE_TAR_COMPRESS("\tZ\t\tFilter the archive through compress\n") \
 	"\nFile selection:\n" \
 	"\tf\t\tname of TARFILE or \"-\" for stdin\n" \
@@ -3103,10 +3245,10 @@
 	"[-L volume-label] [-M last-mounted-dir] [-O [^]feature[,...]] " \
 	"[-T last-check-time] [-U UUID] device"
 #define tune2fs_full_usage \
-	"Adjust filesystem options on ext[23] filesystems.\n\n"
+	"Adjust filesystem options on ext[23] filesystems."
 
 #define udhcpc_trivial_usage \
-	"[-Cfbnqv] [-c CID] [-V VCLS] [-H HOSTNAME] [-i INTERFACE]\n[-p pidfile] [-r IP] [-s script]"
+	"[-Cfbnqtv] [-c CID] [-V VCLS] [-H HOSTNAME] [-i INTERFACE]\n[-p pidfile] [-r IP] [-s script]"
 #define udhcpc_full_usage \
 	"\t-c,\t--clientid=CLIENTID\tSet client identifier\n" \
 	"\t-C,\t--clientid-none\tSuppress default client identifier\n" \
@@ -3121,6 +3263,7 @@
 	"\t-q,\t--quit\tQuit after obtaining lease\n" \
 	"\t-r,\t--request=IP\tIP address to request (default: none)\n" \
 	"\t-s,\t--script=file\tRun file at dhcp events (default: /usr/share/udhcpc/default.script)\n" \
+	"\t-t,\t--retries=NUM\tSend up to NUM request packets\n"\
 	"\t-v,\t--version\tDisplay version"
 
 #define udhcpd_trivial_usage \
@@ -3389,6 +3532,6 @@
 	"\t-f              foreground mode\n" \
 	"\t-q              quit after address (no daemon)\n" \
 	"\t-r 169.254.x.x  request this address first\n" \
-	"\t-v              verbose; show version\n"
+	"\t-v              verbose; show version"
 
 #endif /* __BB_USAGE_H__ */

@@ -82,22 +82,24 @@ struct module_info
 
 int query_module(const char *name, int which, void *buf, size_t bufsize, size_t *ret);
 
+enum {
 /* Values for query_module's which.  */
-static const int QM_MODULES = 1;
-static const int QM_DEPS = 2;
-static const int QM_REFS = 3;
-static const int QM_SYMBOLS = 4;
-static const int QM_INFO = 5;
+	QM_MODULES = 1,
+	QM_DEPS = 2,
+	QM_REFS = 3,
+	QM_SYMBOLS = 4,
+	QM_INFO = 5,
 
 /* Bits of module.flags.  */
-static const int NEW_MOD_RUNNING = 1;
-static const int NEW_MOD_DELETED = 2;
-static const int NEW_MOD_AUTOCLEAN = 4;
-static const int NEW_MOD_VISITED = 8;
-static const int NEW_MOD_USED_ONCE = 16;
-static const int NEW_MOD_INITIALIZING = 64;
+	NEW_MOD_RUNNING = 1,
+	NEW_MOD_DELETED = 2,
+	NEW_MOD_AUTOCLEAN = 4,
+	NEW_MOD_VISITED = 8,
+	NEW_MOD_USED_ONCE = 16,
+	NEW_MOD_INITIALIZING = 64
+};
 
-extern int lsmod_main(int argc, char **argv)
+int lsmod_main(int argc, char **argv)
 {
 	struct module_info info;
 	char *module_names, *mn, *deps, *dn;
@@ -160,7 +162,7 @@ extern int lsmod_main(int argc, char **argv)
 
 #else /* CONFIG_FEATURE_QUERY_MODULE_INTERFACE */
 
-extern int lsmod_main(int argc, char **argv)
+int lsmod_main(int argc, char **argv)
 {
 	printf("Module                  Size  Used by");
 	check_tainted();
@@ -169,14 +171,11 @@ extern int lsmod_main(int argc, char **argv)
 	  FILE *file;
 	  char line[4096];
 
-	  file = fopen("/proc/modules", "r");
-
-	  if (!file) 
-	    bb_error_msg_and_die("Opening /proc/modules");
+	  file = bb_xfopen("/proc/modules", "r");
 
 	  while (fgets(line, sizeof(line), file)) {
 	    char *tok;
-	    
+
 	    tok = strtok(line, " \t");
 	    printf("%-19s", tok);
 	    tok = strtok(NULL, " \t\n");

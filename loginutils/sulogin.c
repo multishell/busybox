@@ -17,7 +17,6 @@
 #include "busybox.h"
 
 
-// sulogin defines
 #define SULOGIN_PROMPT "\nGive root password for system maintenance\n" \
 	"(or type Control-D for normal startup):"
 
@@ -41,28 +40,27 @@ static const char * const forbid[] = {
 
 
 
-static void catchalarm(int junk)
+static void catchalarm(int ATTRIBUTE_UNUSED junk)
 {
 	exit(EXIT_FAILURE);
 }
 
 
-extern int sulogin_main(int argc, char **argv)
+int sulogin_main(int argc, char **argv)
 {
 	char *cp;
 	char *device = (char *) 0;
 	const char *name = "root";
 	int timeout = 0;
-	
+
 #define pass bb_common_bufsiz1
-	
+
 	struct passwd pwent;
 	struct passwd *pwd;
-	time_t start, now;
 	const char * const *p;
-#ifdef CONFIG_FEATURE_SHADOWPASSWDS
+#if ENABLE_FEATURE_SHADOWPASSWDS
 	struct spwd *spwd = NULL;
-#endif							/* CONFIG_FEATURE_SHADOWPASSWDS */
+#endif
 
 	openlog("sulogin", LOG_PID | LOG_CONS | LOG_NOWAIT, LOG_AUTH);
 	if (argc > 1) {
@@ -115,7 +113,7 @@ extern int sulogin_main(int argc, char **argv)
 		bb_error_msg_and_die("No password entry for `root'\n");
 	}
 	pwent = *pwd;
-#ifdef CONFIG_FEATURE_SHADOWPASSWDS
+#if ENABLE_FEATURE_SHADOWPASSWDS
 	spwd = NULL;
 	if (pwd && ((strcmp(pwd->pw_passwd, "x") == 0)
 				|| (strcmp(pwd->pw_passwd, "*") == 0))) {
@@ -125,7 +123,7 @@ extern int sulogin_main(int argc, char **argv)
 			pwent.pw_passwd = spwd->sp_pwdp;
 		}
 	}
-#endif							/* CONFIG_FEATURE_SHADOWPASSWDS */
+#endif
 	while (1) {
 		cp = bb_askpass(timeout, SULOGIN_PROMPT);
 		if (!cp || !*cp) {
@@ -135,28 +133,23 @@ extern int sulogin_main(int argc, char **argv)
 			exit(EXIT_SUCCESS);
 		} else {
 			safe_strncpy(pass, cp, sizeof(pass));
-			bzero(cp, strlen(cp));
+			memset(cp, 0, strlen(cp));
 		}
 		if (strcmp(pw_encrypt(pass, pwent.pw_passwd), pwent.pw_passwd) == 0) {
 			break;
 		}
-		time(&start);
-		now = start;
-		while (difftime(now, start) < FAIL_DELAY) {
-			sleep(FAIL_DELAY);
-			time(&now);
-		}
+		bb_do_delay(FAIL_DELAY);
 		puts("Login incorrect");
 		fflush(stdout);
 		syslog(LOG_WARNING, "Incorrect root password\n");
 	}
-	bzero(pass, strlen(pass));
+	memset(pass, 0, strlen(pass));
 	signal(SIGALRM, SIG_DFL);
 	puts("Entering System Maintenance Mode\n");
 	fflush(stdout);
 	syslog(LOG_INFO, "System Maintenance Mode\n");
 
-#ifdef CONFIG_SELINUX
+#if ENABLE_SELINUX
 	renew_current_security_context();
 #endif
 

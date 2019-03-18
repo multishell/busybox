@@ -47,7 +47,7 @@ static int valid_name(const struct dirent *d)
  * test_mode = 2 means to fail silently on missing directories
  */
 
-extern int run_parts(char **args, const unsigned char test_mode, char **env)
+int run_parts(char **args, const unsigned char test_mode, char **env)
 {
 	struct dirent **namelist = 0;
 	struct stat st;
@@ -76,9 +76,7 @@ extern int run_parts(char **args, const unsigned char test_mode, char **env)
 
 		filename = concat_path_file(arg0, namelist[i]->d_name);
 
-		if (stat(filename, &st) < 0) {
-			bb_perror_msg_and_die("failed to stat component %s", filename);
-		}
+		xstat(filename, &st);
 		if (S_ISREG(st.st_mode) && !access(filename, X_OK)) {
 			if (test_mode) {
 				puts(filename);

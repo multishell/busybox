@@ -35,7 +35,8 @@ endchoice
 
 config CONFIG_ASH
 	bool "ash"
-	default y
+	default n
+	select CONFIG_TEST
 	help
 	  Tha 'ash' shell adds about 60k in the default configuration and is
 	  the most complete and most pedantically correct shell included with
@@ -136,7 +137,7 @@ config CONFIG_ASH_OPTIMIZE_FOR_SIZE
 	default y
 	depends on CONFIG_ASH
 	help
-	  Compile ash for reduced size at price of speed.
+	  Compile ash for reduced size at the price of speed.
 
 config CONFIG_ASH_RANDOM_SUPPORT
 	bool "  Enable pseudorandom generator and variable $RANDOM"
@@ -150,17 +151,20 @@ config CONFIG_ASH_RANDOM_SUPPORT
 	  variable will no longer have special treatment.
 
 config CONFIG_ASH_EXPAND_PRMT
-	bool "  Support expand PS#"
+	bool "  Expand prompt string"
 	default n
 	depends on CONFIG_ASH
 	help
-	  "PS#" may be have commands. It option enable expand string
-	  from prompt before each show.
-
+	  "PS#" may be contain volatile content, such as backquote commands.
+	  This option recreates the prompt string from the environment
+	  variable each time it is displayed.
 
 config CONFIG_HUSH
 	bool "hush"
 	default n
+	select CONFIG_TRUE
+	select CONFIG_FALSE
+	select CONFIG_TEST
 	help
 	  hush is a very small shell (just 18k) and it has fairly complete
 	  Bourne shell grammar.  It even handles all the normal flow control
@@ -175,6 +179,9 @@ config CONFIG_HUSH
 config CONFIG_LASH
 	bool "lash"
 	default n
+	select CONFIG_TRUE
+	select CONFIG_FALSE
+	select CONFIG_TEST
 	help
 	  lash is the very smallest shell (adds just 10k) and it is quite
 	  usable as a command prompt, but it is not suitable for any but the
@@ -187,6 +194,9 @@ config CONFIG_LASH
 config CONFIG_MSH
 	bool "msh"
 	default n
+	select CONFIG_TRUE
+	select CONFIG_FALSE
+	select CONFIG_TEST
 	help
 	  The minix shell (adds just 30k) is quite complete and handles things
 	  like for/do/done, case/esac and all the things you expect a Bourne
@@ -216,7 +226,7 @@ config CONFIG_FEATURE_SH_STANDALONE_SHELL
 	  busybox to use the ifconfig busybox applet.  Specifying the fully
 	  qualified executable name, such as '/sbin/ifconfig' will still
 	  execute the /sbin/ifconfig executable on the filesystem.  This option
-	  is generally used when creating a staticly linked version of busybox
+	  is generally used when creating a statically linked version of busybox
 	  for use as a rescue shell, in the event that you screw up your system.
 
 	  Note that when using this option, the shell will attempt to directly

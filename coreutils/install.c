@@ -44,12 +44,12 @@ static const struct option install_long_options[] = {
 	{ "preserve-timestamps",	0,	NULL,	'p' },
 	{ "strip",	0,	NULL,	's' },
 	{ "group",	0,	NULL,	'g' },
-	{ "mode", 	0,	NULL,	'm' },
+	{ "mode",	0,	NULL,	'm' },
 	{ "owner",	0,	NULL,	'o' },
 	{ 0,	0,	0,	0 }
 };
 
-extern int install_main(int argc, char **argv)
+int install_main(int argc, char **argv)
 {
 	mode_t mode;
 	uid_t uid;
@@ -115,7 +115,7 @@ extern int install_main(int argc, char **argv)
 					? 0 : S_ISDIR(statbuf.st_mode);
 	}
 	for (i = optind; i < argc - 1; i++) {
-		unsigned char *dest;
+		char *dest;
 
 		dest = argv[argc - 1];
 		if (isdir) dest = concat_path_file(argv[argc - 1], basename(argv[i]));

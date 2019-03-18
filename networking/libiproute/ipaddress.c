@@ -1,10 +1,7 @@
 /*
  * ipaddress.c		"ip address".
  *
- *		This program is free software; you can redistribute it and/or
- *		modify it under the terms of the GNU General Public License
- *		as published by the Free Software Foundation; either version
- *		2 of the License, or (at your option) any later version.
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  *
  * Authors:	Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
  *
@@ -54,8 +51,8 @@ static void print_link_flags(FILE *fp, unsigned flags, unsigned mdown)
 	fprintf(fp, "<");
 	flags &= ~IFF_RUNNING;
 #define _PF(f) if (flags&IFF_##f) { \
-                  flags &= ~IFF_##f ; \
-                  fprintf(fp, #f "%s", flags ? "," : ""); }
+		  flags &= ~IFF_##f ; \
+		  fprintf(fp, #f "%s", flags ? "," : ""); }
 	_PF(LOOPBACK);
 	_PF(BROADCAST);
 	_PF(POINTOPOINT);
@@ -74,7 +71,7 @@ static void print_link_flags(FILE *fp, unsigned flags, unsigned mdown)
 #endif
 	_PF(UP);
 #undef _PF
-        if (flags)
+	if (flags)
 		fprintf(fp, "%x", flags);
 	if (mdown)
 		fprintf(fp, ",M-DOWN");
@@ -103,7 +100,8 @@ static void print_queuelen(char *name)
 		printf("qlen %d", ifr.ifr_qlen);
 }
 
-static int print_linkinfo(struct sockaddr_nl *who, struct nlmsghdr *n, void *arg)
+static int print_linkinfo(struct sockaddr_nl ATTRIBUTE_UNUSED *who,
+		struct nlmsghdr *n, void ATTRIBUTE_UNUSED *arg)
 {
 	FILE *fp = (FILE*)arg;
 	struct ifinfomsg *ifi = NLMSG_DATA(n);
@@ -205,7 +203,8 @@ static int flush_update(void)
 	return 0;
 }
 
-static int print_addrinfo(struct sockaddr_nl *who, struct nlmsghdr *n, void *arg)
+static int print_addrinfo(struct sockaddr_nl ATTRIBUTE_UNUSED *who,
+		struct nlmsghdr *n, void ATTRIBUTE_UNUSED *arg)
 {
 	FILE *fp = (FILE*)arg;
 	struct ifaddrmsg *ifa = NLMSG_DATA(n);
@@ -415,9 +414,10 @@ static void ipaddr_reset_filter(int _oneline)
 	filter.oneline = _oneline;
 }
 
-extern int ipaddr_list_or_flush(int argc, char **argv, int flush)
+int ipaddr_list_or_flush(int argc, char **argv, int flush)
 {
-	const char *option[] = { "to", "scope", "up", "label", "dev", 0 };
+	static const char *const option[] = { "to", "scope", "up", "label", "dev", 0 };
+
 	struct nlmsg_list *linfo = NULL;
 	struct nlmsg_list *ainfo = NULL;
 	struct nlmsg_list *l;
@@ -443,7 +443,7 @@ extern int ipaddr_list_or_flush(int argc, char **argv, int flush)
 	}
 
 	while (argc > 0) {
-		const unsigned short option_num = compare_string_array(option, *argv);
+		const int option_num = compare_string_array(option, *argv);
 		switch (option_num) {
 			case 0: /* to */
 				NEXT_ARG();
@@ -454,7 +454,7 @@ extern int ipaddr_list_or_flush(int argc, char **argv, int flush)
 				break;
 			case 1: /* scope */
 			{
-				int scope = 0;
+				uint32_t scope = 0;
 				NEXT_ARG();
 				filter.scopemask = -1;
 				if (rtnl_rtscope_a2n(&scope, *argv)) {
@@ -500,7 +500,7 @@ extern int ipaddr_list_or_flush(int argc, char **argv, int flush)
 	if (filter_dev) {
 		filter.ifindex = ll_name_to_index(filter_dev);
 		if (filter.ifindex <= 0) {
-			bb_error_msg("Device \"%s\" does not exist.", filter_dev);
+			bb_error_msg("Device \"%s\" does not exist", filter_dev);
 			return -1;
 		}
 	}
@@ -632,13 +632,16 @@ static int default_scope(inet_prefix *lcl)
 
 static int ipaddr_modify(int cmd, int argc, char **argv)
 {
-	const char *option[] = { "peer", "remote", "broadcast", "brd",
-		"anycast", "scope", "dev", "label", "local", 0 };
+	static const char *const option[] = {
+		"peer", "remote", "broadcast", "brd",
+		"anycast", "scope", "dev", "label", "local", 0
+	};
+
 	struct rtnl_handle rth;
 	struct {
-		struct nlmsghdr 	n;
-		struct ifaddrmsg 	ifa;
-		char   			buf[256];
+		struct nlmsghdr		n;
+		struct ifaddrmsg	ifa;
+		char			buf[256];
 	} req;
 	char  *d = NULL;
 	char  *l = NULL;
@@ -658,7 +661,7 @@ static int ipaddr_modify(int cmd, int argc, char **argv)
 	req.ifa.ifa_family = preferred_family;
 
 	while (argc > 0) {
-		const unsigned short option_num = compare_string_array(option, *argv);
+		const int option_num = compare_string_array(option, *argv);
 		switch (option_num) {
 			case 0: /* peer */
 			case 1: /* remote */
@@ -714,10 +717,10 @@ static int ipaddr_modify(int cmd, int argc, char **argv)
 			}
 			case 5: /* scope */
 			{
-				int scope = 0;
+				uint32_t scope = 0;
 				NEXT_ARG();
 				if (rtnl_rtscope_a2n(&scope, *argv)) {
-					invarg(*argv, "invalid scope value.");
+					invarg(*argv, "invalid scope value");
 				}
 				req.ifa.ifa_scope = scope;
 				scoped = 1;
@@ -750,11 +753,11 @@ static int ipaddr_modify(int cmd, int argc, char **argv)
 	}
 
 	if (d == NULL) {
-		bb_error_msg("Not enough information: \"dev\" argument is required.");
+		bb_error_msg("Not enough information: \"dev\" argument is required");
 		return -1;
 	}
 	if (l && matches(d, l) != 0) {
-		bb_error_msg_and_die("\"dev\" (%s) must match \"label\" (%s).", d, l);
+		bb_error_msg_and_die("\"dev\" (%s) must match \"label\" (%s)", d, l);
 	}
 
 	if (peer_len == 0 && local_len && cmd != RTM_DELADDR) {
@@ -802,10 +805,13 @@ static int ipaddr_modify(int cmd, int argc, char **argv)
 	exit(0);
 }
 
-extern int do_ipaddr(int argc, char **argv)
+int do_ipaddr(int argc, char **argv)
 {
-	const char *commands[] = { "add", "delete", "list", "show", "lst", "flush", 0 };
-	unsigned short command_num = 2;
+	static const char *const commands[] = {
+		"add", "delete", "list", "show", "lst", "flush", 0
+	};
+
+	int command_num = 2;
 
 	if (*argv) {
 		command_num = compare_string_array(commands, *argv);

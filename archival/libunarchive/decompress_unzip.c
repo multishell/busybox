@@ -92,7 +92,7 @@ static unsigned int gunzip_outbuf_count;	/* bytes in output buffer */
 
 /* gunzip_window size--must be a power of two, and
  *  at least 32K for zip's deflate method */
-static const int gunzip_wsize = 0x8000;
+enum { gunzip_wsize = 0x8000 };
 static unsigned char *gunzip_window;
 
 static unsigned int *gunzip_crc_table;
@@ -234,7 +234,7 @@ static int huft_free(huft_t * t)
  */
 int huft_build(unsigned int *b, const unsigned int n,
 			   const unsigned int s, const unsigned short *d,
-			   const unsigned char *e, huft_t ** t, int *m)
+			   const unsigned char *e, huft_t ** t, unsigned int *m)
 {
 	unsigned a;				/* counter for codes of length k */
 	unsigned c[BMAX + 1];	/* bit length count table */
@@ -271,7 +271,7 @@ int huft_build(unsigned int *b, const unsigned int n,
 	if (c[0] == n) { /* null input--all zero length codes */
 		*t = (huft_t *) NULL;
 		*m = 0;
-		return 0;
+		return 2;
 	}
 
 	/* Find minimum and maximum length, bound *m by those */
@@ -539,7 +539,7 @@ do_copy:		do {
 
 static int inflate_stored(int my_n, int my_b_stored, int my_k_stored, int setup)
 {
-	static int n, b_stored, k_stored, w;
+	static unsigned int n, b_stored, k_stored, w;
 	if (setup) {
 		n = my_n;
 		b_stored = my_b_stored;
@@ -552,7 +552,7 @@ static int inflate_stored(int my_n, int my_b_stored, int my_k_stored, int setup)
 	while (n--) {
 		b_stored = fill_bitbuffer(b_stored, &k_stored, 8);
 		gunzip_window[w++] = (unsigned char) b_stored;
-		if (w == (unsigned int) gunzip_wsize) {
+		if (w == gunzip_wsize) {
 			gunzip_outbuf_count = (w);
 			//flush_gunzip_window();
 			w = 0;
@@ -892,7 +892,7 @@ static int inflate_get_next_window(void)
 }
 
 /* Initialise bytebuffer, be careful not to overfill the buffer */
-extern void inflate_init(unsigned int bufsize)
+void inflate_init(unsigned int bufsize)
 {
 	/* Set the bytebuffer size, default is same as gunzip_wsize */
 	bytebuffer_max = bufsize + 8;
@@ -900,12 +900,12 @@ extern void inflate_init(unsigned int bufsize)
 	bytebuffer_size = 0;
 }
 
-extern void inflate_cleanup(void)
+void inflate_cleanup(void)
 {
 	free(bytebuffer);
 }
 
-extern int inflate_unzip(int in, int out)
+int inflate_unzip(int in, int out)
 {
 	ssize_t nwrote;
 	typedef void (*sig_type) (int);
@@ -952,7 +952,7 @@ extern int inflate_unzip(int in, int out)
 	return 0;
 }
 
-extern int inflate_gunzip(int in, int out)
+int inflate_gunzip(int in, int out)
 {
 	unsigned int stored_crc = 0;
 	unsigned int count;
@@ -973,6 +973,7 @@ extern int inflate_gunzip(int in, int out)
 	/* Validate decompression - crc */
 	if (stored_crc != (gunzip_crc ^ 0xffffffffL)) {
 		bb_error_msg("crc error");
+		return -1;
 	}
 
 	/* Validate decompression - size */
@@ -980,6 +981,7 @@ extern int inflate_gunzip(int in, int out)
 		(bytebuffer[bytebuffer_offset] | (bytebuffer[bytebuffer_offset+1] << 8) |
 		(bytebuffer[bytebuffer_offset+2] << 16) | (bytebuffer[bytebuffer_offset+3] << 24))) {
 		bb_error_msg("Incorrect length");
+		return -1;
 	}
 
 	return 0;

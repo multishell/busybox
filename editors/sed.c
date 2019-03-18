@@ -8,20 +8,9 @@
  * Copyright (C) 2003 by Glenn McGrath <bug1@iinet.net.au>
  * Copyright (C) 2003,2004 by Rob Landley <rob@landley.net>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * MAINTAINER: Rob Landley <rob@landley.net>
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
 /* Code overview.
@@ -35,7 +24,7 @@
   (sed_cmd_head/sed_cmd_tail).
 
   add_input_file() adds a FILE * to the list of input files.  We need to
-  know them all ahead of time to find the last line for the $ match.
+  know all input sources ahead of time to find the last line for the $ match.
 
   process_files() does actual sedding, reading data lines from each input FILE *
   (which could be stdin) and applying the sed command list (sed_cmd_head) to
@@ -63,16 +52,8 @@
 	 default to the whole pattern space if no specific address match was
 	 requested.)
 
-	Unsupported features:
-
-	 - most GNU extensions
-	 - and more.
-
 	Todo:
-
 	 - Create a wrapper around regex to make libc's regex conform with sed
-	 - Fix bugs
-
 
 	Reference http://www.opengroup.org/onlinepubs/007904975/utilities/sed.html
 */
@@ -96,7 +77,7 @@ typedef struct sed_cmd_s {
     int beg_line;		/* 'sed 1p'   0 == apply commands to all lines */
     int end_line;		/* 'sed 1,3p' 0 == one line only. -1 = last line ($) */
 
-    FILE *file;			/* File (sr) command writes to, -1 for none. */
+    FILE *file;			/* File (sw) command writes to, -1 for none. */
     char *string;		/* Data string for (saicytb) commands. */
 
     unsigned short which_match;		/* (s) Which match to replace (0 for all) */
@@ -104,7 +85,7 @@ typedef struct sed_cmd_s {
     /* Bitfields (gcc won't group them if we don't) */
     unsigned int invert:1;			/* the '!' after the address */
     unsigned int in_match:1;		/* Next line also included in match? */
-    unsigned int no_newline:1;		/* Last line written by (sr) had no '\n' */
+    unsigned int no_newline:1;		/* Last line written by (sw) had no '\n' */
     unsigned int sub_p:1;			/* (s) print option */
 
 
@@ -141,8 +122,9 @@ struct append_list {
 };
 static struct append_list *append_head=NULL, *append_tail=NULL;
 
-#ifdef CONFIG_FEATURE_CLEAN_UP
-static void free_and_close_stuff(void)
+void sed_free_and_close_stuff(void);
+#if ENABLE_FEATURE_CLEAN_UP
+void sed_free_and_close_stuff(void)
 {
 	sed_cmd_t *sed_cmd = sed_cmd_head.next;
 
@@ -209,7 +191,7 @@ static void parse_escapes(char *dest, const char *string, int len, char from, ch
 	*dest=0;
 }
 
-static char *copy_parsing_slashn(const char *string, int len)
+static char *copy_parsing_escapes(const char *string, int len)
 {
 	char *dest=xmalloc(len+1);
 
@@ -270,7 +252,7 @@ static int parse_regex_delim(const char *cmdstr, char **match, char **replace)
 	if (idx == -1) {
 		bb_error_msg_and_die(bad_format_in_subst);
 	}
-	*match = copy_parsing_slashn(cmdstr_ptr, idx);
+	*match = copy_parsing_escapes(cmdstr_ptr, idx);
 
 	/* save the replacement string */
 	cmdstr_ptr += idx + 1;
@@ -278,7 +260,7 @@ static int parse_regex_delim(const char *cmdstr, char **match, char **replace)
 	if (idx == -1) {
 		bb_error_msg_and_die(bad_format_in_subst);
 	}
-	*replace = copy_parsing_slashn(cmdstr_ptr, idx);
+	*replace = copy_parsing_escapes(cmdstr_ptr, idx);
 
 	return ((cmdstr_ptr - cmdstr) + idx);
 }
@@ -307,7 +289,7 @@ static int get_address(char *my_str, int *linenum, regex_t ** regex)
 		if (next == -1)
 			bb_error_msg_and_die("unterminated match expression");
 
-		temp=copy_parsing_slashn(pos,next);
+		temp=copy_parsing_escapes(pos,next);
 		*regex = (regex_t *) xmalloc(sizeof(regex_t));
 		xregcomp(*regex, temp, regex_type|REG_NEWLINE);
 		free(temp);
@@ -380,6 +362,7 @@ static int parse_subst_cmd(sed_cmd_t * const sed_cmd, char *substr)
 			case 'p':
 				sed_cmd->sub_p = 1;
 				break;
+			/* Write to file */
 			case 'w':
 			{
 				char *temp;
@@ -391,6 +374,11 @@ static int parse_subst_cmd(sed_cmd_t * const sed_cmd, char *substr)
 			case 'I':
 				cflags |= REG_ICASE;
 				break;
+			/* Comment */
+			case '#':
+				while(substr[++idx]);
+				/* Fall through */
+			/* End of command */
 			case ';':
 			case '}':
 				goto out;
@@ -446,7 +434,7 @@ static char *parse_cmd_args(sed_cmd_t *sed_cmd, char *cmdstr)
 		while(isspace(*cmdstr)) cmdstr++;
 		length = strcspn(cmdstr, semicolon_whitespace);
 		if (length) {
-			sed_cmd->string = strndup(cmdstr, length);
+			sed_cmd->string = bb_xstrndup(cmdstr, length);
 			cmdstr += length;
 		}
 	}
@@ -568,10 +556,8 @@ static void add_cmd(char *cmdstr)
 	}
 
 	/* If we glued multiple lines together, free the memory. */
-	if(add_cmd_line) {
-		free(add_cmd_line);
-		add_cmd_line=NULL;
-	}
+	free(add_cmd_line);
+	add_cmd_line=NULL;
 }
 
 /* Append to a string, reallocating memory as necessary. */
@@ -744,13 +730,13 @@ static char *get_next_line(int *no_newline)
 	int len;
 
 	flush_append();
-	while(current_input_file<input_file_count) {
-		temp=bb_get_line_from_file(input_file_list[current_input_file]);
-		if(temp) {
-			len=strlen(temp);
-			*no_newline=!(len && temp[len-1]=='\n');
-			if(!*no_newline) temp[len-1]=0;
+	while (current_input_file<input_file_count) {
+		temp = bb_get_chunk_from_file(input_file_list[current_input_file],&len);
+		if (temp) {
+			*no_newline = !(len && temp[len-1]=='\n');
+			if (!*no_newline) temp[len-1] = 0;
 			break;
+		// Close this file and advance to next one
 		} else fclose(input_file_list[current_input_file++]);
 	}
 
@@ -777,12 +763,15 @@ static int puts_maybe_newline(char *s, FILE *file, int missing_newline, int no_n
 
 #define sed_puts(s,n) missing_newline=puts_maybe_newline(s,nonstdout,missing_newline,n)
 
+/* Process all the lines in all the files */
+
 static void process_files(void)
 {
 	char *pattern_space, *next_line;
 	int linenum = 0, missing_newline=0;
 	int no_newline,next_no_newline=0;
 
+	/* Prime the pump */
 	next_line = get_next_line(&next_no_newline);
 
 	/* go through every line in each file */
@@ -794,7 +783,8 @@ static void process_files(void)
 		if(!(pattern_space=next_line)) break;
 		no_newline=next_no_newline;
 
-		/* Read one line in advance so we can act on the last line, the '$' address */
+		/* Read one line in advance so we can act on the last line,
+		 * the '$' address */
 		next_line = get_next_line(&next_no_newline);
 		linenum++;
 restart:
@@ -936,16 +926,16 @@ restart:
 					/* Read file, append contents to output */
 					case 'r':
 					{
-						FILE *outfile;
+						FILE *rfile;
 
-						outfile = fopen(sed_cmd->string, "r");
-						if (outfile) {
+						rfile = fopen(sed_cmd->string, "r");
+						if (rfile) {
 							char *line;
 
-							while ((line = bb_get_chomped_line_from_file(outfile))
+							while ((line = bb_get_chomped_line_from_file(rfile))
 									!= NULL)
 								append(line);
-							bb_xprint_and_close_file(outfile);
+							bb_xprint_and_close_file(rfile);
 						}
 
 						break;
@@ -1118,23 +1108,19 @@ static void add_cmd_block(char *cmdstr)
 	free(temp);
 }
 
-extern int sed_main(int argc, char **argv)
+int sed_main(int argc, char **argv)
 {
 	int status = EXIT_SUCCESS, opt, getpat = 1;
 
-#ifdef CONFIG_FEATURE_CLEAN_UP
 	/* destroy command strings on exit */
-	if (atexit(free_and_close_stuff) == -1)
+	if (ENABLE_FEATURE_CLEAN_UP && atexit(sed_free_and_close_stuff) == -1)
 		bb_perror_msg_and_die("atexit");
-#endif
 
-#define LIE_TO_AUTOCONF
-#ifdef LIE_TO_AUTOCONF
+	/* Lie to autoconf when it starts asking stupid questions. */
 	if(argc==2 && !strcmp(argv[1],"--version")) {
 		printf("This is not GNU sed version 4.0\n");
 		exit(0);
 	}
-#endif
 
 	/* do normal option parsing */
 	while ((opt = getopt(argc, argv, "irne:f:")) > 0) {
@@ -1160,8 +1146,7 @@ extern int sed_main(int argc, char **argv)
 
 			cmdfile = bb_xfopen(optarg, "r");
 
-			while ((line = bb_get_chomped_line_from_file(cmdfile))
-				 != NULL) {
+			while ((line = bb_get_chomped_line_from_file(cmdfile)) != NULL) {
 				add_cmd(line);
 				getpat=0;
 				free(line);
@@ -1209,18 +1194,21 @@ extern int sed_main(int argc, char **argv)
 					if(in_place) {
 						struct stat statbuf;
 						int nonstdoutfd;
-						
+
 						outname=bb_xstrndup(argv[i],strlen(argv[i])+6);
 						strcat(outname,"XXXXXX");
 						if(-1==(nonstdoutfd=mkstemp(outname)))
 							bb_error_msg_and_die("no temp file");
 						nonstdout=fdopen(nonstdoutfd,"w");
+
 						/* Set permissions of output file */
+
 						fstat(fileno(file),&statbuf);
 						fchmod(nonstdoutfd,statbuf.st_mode);
 						add_input_file(file);
 						process_files();
 						fclose(nonstdout);
+
 						nonstdout=stdout;
 						unlink(argv[i]);
 						rename(outname,argv[i]);

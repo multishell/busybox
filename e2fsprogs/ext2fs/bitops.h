@@ -1,23 +1,24 @@
 /*
  * bitops.h --- Bitmap frobbing code.  The byte swapping routines are
- * 	also included here.
- * 
+ *	also included here.
+ *
  * Copyright (C) 1993, 1994, 1995, 1996 Theodore Ts'o.
  *
  * %Begin-Header%
  * This file may be redistributed under the terms of the GNU Public
  * License.
  * %End-Header%
- * 
+ *
  * i386 bitops operations taken from <asm/bitops.h>, Copyright 1992,
  * Linus Torvalds.
  */
 
+#include <string.h>
 #include <strings.h>
 
-extern int ext2fs_set_bit(int nr,void * addr);
-extern int ext2fs_clear_bit(int nr, void * addr);
-extern int ext2fs_test_bit(int nr, const void * addr);
+extern int ext2fs_set_bit(unsigned int nr,void * addr);
+extern int ext2fs_clear_bit(unsigned int nr, void * addr);
+extern int ext2fs_test_bit(unsigned int nr, const void * addr);
 extern __u16 ext2fs_swab16(__u16 val);
 extern __u32 ext2fs_swab32(__u32 val);
 

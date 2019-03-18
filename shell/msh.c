@@ -335,9 +335,9 @@ static void sig(int i);			/* default signal handler */
 #define GROWBY	  (256)
 /* #define	SHRINKBY   (64) */
 #undef	SHRINKBY
-#define FREE 	  (32767)
-#define BUSY 	  (0)
-#define	ALIGN 	  (sizeof(int)-1)
+#define FREE	  (32767)
+#define BUSY	  (0)
+#define	ALIGN	  (sizeof(int)-1)
 
 
 struct region {
@@ -819,7 +819,7 @@ static char *current_prompt;
  */
 
 
-extern int msh_main(int argc, char **argv)
+int msh_main(int argc, char **argv)
 {
 	REGISTER int f;
 	REGISTER char *s;
@@ -956,9 +956,9 @@ extern int msh_main(int argc, char **argv)
 			interactive++;
 #ifndef CONFIG_FEATURE_SH_EXTRA_QUIET
 #ifdef MSHDEBUG
-			printf("\n\n" BB_BANNER " Built-in shell (msh with debug)\n");
+			printf("\n\n%s Built-in shell (msh with debug)\n", BB_BANNER);
 #else
-			printf("\n\n" BB_BANNER " Built-in shell (msh)\n");
+			printf("\n\n%s Built-in shell (msh)\n", BB_BANNER);
 #endif
 			printf("Enter 'help' for a list of built-in commands.\n\n");
 #endif
@@ -1622,7 +1622,7 @@ static void initarea()
 	brkaddr = malloc(AREASIZE);
 	brktop = brkaddr + AREASIZE;
 
-	while ((int) sbrk(0) & ALIGN)
+	while ((long) sbrk(0) & ALIGN)
 		sbrk(1);
 	areabot = (struct region *) sbrk(REGSIZE);
 

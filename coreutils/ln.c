@@ -36,7 +36,7 @@
 #define LN_BACKUP           8
 #define LN_SUFFIX           16
 
-extern int ln_main(int argc, char **argv)
+int ln_main(int argc, char **argv)
 {
 	int status = EXIT_SUCCESS;
 	int flag;
@@ -106,7 +106,7 @@ extern int ln_main(int argc, char **argv)
 		}
 
 		if (link_func(*argv, src) != 0) {
-			bb_perror_msg(src);
+			bb_perror_msg("%s", src);
 			status = EXIT_FAILURE;
 		}
 

@@ -126,6 +126,15 @@ between it and the opening control block statement. Examples:
 
 		do {
 
+Exceptions:
+
+ - if you have long logic statements that need to be wrapped, then uncuddling
+   the bracket to improve readability is allowed:
+
+		if (some_really_long_checks && some_other_really_long_checks \
+		    && some_more_really_long_checks)
+		{
+			do_foo_now;
 
 Spacing around Parentheses
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -445,7 +454,7 @@ First, some background to put this discussion in context: Static buffers look
 like this in code:
 
 	/* in a .c file outside any functions */
-	static char *buffer[BUFSIZ]; /* happily used by any function in this file,
+	static char buffer[BUFSIZ]; /* happily used by any function in this file,
 	                                but ick! big! */
 
 The problem with these is that any time any busybox app is run, you pay a

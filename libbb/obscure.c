@@ -1,6 +1,7 @@
 /* vi: set sw=4 ts=4: */
 /*
  * Copyright 1989 - 1994, Julianne Frances Haugh <jockgrrl@austin.rr.com>
+ * Copyright 2006, Bernhard Fischer <busybox@busybox.net>
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -81,23 +82,23 @@ static int similiar(const char *old, const char *newval)
 
 static int simple(const char *newval)
 {
-	int digits = 0;
-	int uppers = 0;
-	int lowers = 0;
-	int others = 0;
-	int c;
+#define digits 1
+#define uppers 2
+#define lowers 4
+#define others 8
+	int c, is_simple = 0;
 	int size;
 	int i;
 
 	for (i = 0; (c = *newval++) != 0; i++) {
 		if (isdigit(c))
-			digits = c;
+			is_simple |= digits;
 		else if (isupper(c))
-			uppers = c;
+			is_simple |= uppers;
 		else if (islower(c))
-			lowers = c;
+			is_simple |= lowers;
 		else
-			others = c;
+			is_simple |= others;
 	}
 
 	/*
@@ -106,19 +107,23 @@ static int simple(const char *newval)
 	 */
 
 	size = 9;
-	if (digits)
+	if (is_simple & digits)
 		size--;
-	if (uppers)
+	if (is_simple & uppers)
 		size--;
-	if (lowers)
+	if (is_simple & lowers)
 		size--;
-	if (others)
+	if (is_simple & others)
 		size--;
 
 	if (size <= i)
 		return 0;
 
 	return 1;
+#undef digits
+#undef uppers
+#undef lowers
+#undef others
 }
 
 static char *str_lower(char *string)
@@ -157,14 +162,17 @@ password_check(const char *old, const char *newval, const struct passwd *pwdp)
 	else if (similiar(wrapped, newmono))
 		msg = "too similiar";
 
+	else if ( strstr(newval, pwdp->pw_name) )
+		msg = "username in password";
+
 	else {
 		safe_strncpy(wrapped + lenwrap, wrapped, lenwrap + 1);
 		if (strstr(wrapped, newmono))
 			msg = "rotated";
 	}
 
-	bzero(newmono, strlen(newmono));
-	bzero(wrapped, lenwrap * 2);
+	memset(newmono, 0, strlen(newmono));
+	memset(wrapped, 0, lenwrap * 2);
 	free(newmono);
 	free(wrapped);
 
@@ -181,7 +189,7 @@ obscure_msg(const char *old, const char *newval, const struct passwd *pwdp)
 	oldlen = strlen(old);
 	newlen = strlen(newval);
 
-#if 0							/* why not check the password when set for the first time?  --marekm */
+#if 0  /* why not check the password when set for the first time?  --marekm */
 	if (old[0] == '\0')
 		/* return (1); */
 		return NULL;
@@ -220,8 +228,8 @@ obscure_msg(const char *old, const char *newval, const struct passwd *pwdp)
 
 	msg = password_check(old1, new1, pwdp);
 
-	bzero(new1, newlen);
-	bzero(old1, oldlen);
+	memset(new1, 0, newlen);
+	memset(old1, 0, oldlen);
 	free(new1);
 	free(old1);
 
@@ -236,7 +244,7 @@ obscure_msg(const char *old, const char *newval, const struct passwd *pwdp)
  *	check passwords.
  */
 
-extern int obscure(const char *old, const char *newval, const struct passwd *pwdp)
+int obscure(const char *old, const char *newval, const struct passwd *pwdp)
 {
 	const char *msg = obscure_msg(old, newval, pwdp);
 

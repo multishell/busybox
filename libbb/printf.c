@@ -65,7 +65,7 @@
 /* Using either the original stdio implementation (from dev86) or
  * my original stdio rewrite.  Macros were:
  * #define ferror(fp)	(((fp)->mode&__MODE_ERR) != 0)
- * #define feof(fp)   	(((fp)->mode&__MODE_EOF) != 0)
+ * #define feof(fp)		(((fp)->mode&__MODE_EOF) != 0)
  * #define clearerr(fp)	((fp)->mode &= ~(__MODE_EOF|__MODE_ERR),0)
  */
 #define SET_FERROR_UNLOCKED(S)    ((S)->mode |= __MODE_ERR)
@@ -145,7 +145,7 @@ extern int bb_vfprintf(FILE * __restrict stream,
 #endif
 
 #ifdef L_bb_vprintf
-extern int bb_vprintf(const char * __restrict format, va_list arg)
+int bb_vprintf(const char * __restrict format, va_list arg)
 {
 	return bb_vfprintf(stdout, format, arg);
 }
@@ -167,7 +167,7 @@ extern int bb_fprintf(FILE * __restrict stream,
 #endif
 
 #ifdef L_bb_printf
-extern int bb_printf(const char * __restrict format, ...)
+int bb_printf(const char * __restrict format, ...)
 {
 	va_list arg;
 	int rv;

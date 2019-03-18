@@ -21,7 +21,7 @@
 #include <sys/ioctl.h>
 #include <errno.h>
 #include <sys/stat.h>
-#include <sys/signal.h>
+#include <signal.h>
 #include <fcntl.h>
 #include <stdarg.h>
 #include <ctype.h>
@@ -225,7 +225,7 @@ static void termio_final(struct options *op, struct termio *tp,
 				struct chardata *cp);
 static int caps_lock(const char *s);
 static int bcode(const char *s);
-static void error(const char *fmt, ...) __attribute__ ((noreturn));
+static void error(const char *fmt, ...) ATTRIBUTE_NORETURN;
 
 #ifdef  SYSV_STYLE
 #ifdef CONFIG_FEATURE_UTMP
@@ -528,12 +528,11 @@ static void open_tty(char *tty, struct termio *tp, int local)
 
 		/* Open the tty as standard input. */
 
+		close(0);
 		debug("open(2)\n");
 		fd = open(tty, O_RDWR | O_NONBLOCK, 0);
-		if (dup2(fd, STDIN_FILENO) == -1)
+		if (fd != 0)
 			error("/dev/%s: cannot open as standard input: %m", tty);
-		close(fd);
-
 	} else {
 
 		/*

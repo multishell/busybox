@@ -14,6 +14,7 @@ ARCHIVAL-y:=
 ARCHIVAL-$(CONFIG_APT_GET)	+=
 ARCHIVAL-$(CONFIG_AR)		+= ar.o
 ARCHIVAL-$(CONFIG_BUNZIP2)	+= bunzip2.o
+ARCHIVAL-$(CONFIG_UNLZMA)	+= unlzma.o
 ARCHIVAL-$(CONFIG_CPIO)		+= cpio.o
 ARCHIVAL-$(CONFIG_DPKG)		+= dpkg.o
 ARCHIVAL-$(CONFIG_DPKG_DEB)	+= dpkg_deb.o
@@ -25,11 +26,17 @@ ARCHIVAL-$(CONFIG_TAR)		+= tar.o
 ARCHIVAL-$(CONFIG_UNCOMPRESS)	+= uncompress.o
 ARCHIVAL-$(CONFIG_UNZIP)	+= unzip.o
 
+ifneq ($(strip $(ARCHIVAL-y)),)
 libraries-y+=$(ARCHIVAL_DIR)$(ARCHIVAL_AR)
+endif
+
+ARCHIVAL_SRC-y:=$(patsubst %.o,$(srcdir)/%.c,$(ARCHIVAL-y))
+ARCHIVAL_SRC-a:=$(wildcard $(srcdir)/*.c)
+APPLET_SRC-y+=$(ARCHIVAL_SRC-y)
+APPLET_SRC-a+=$(ARCHIVAL_SRC-a)
 
 $(ARCHIVAL_DIR)$(ARCHIVAL_AR): $(patsubst %,$(ARCHIVAL_DIR)%, $(ARCHIVAL-y))
-	$(AR) $(ARFLAGS) $@ $(patsubst %,$(ARCHIVAL_DIR)%, $(ARCHIVAL-y))
+	$(do_ar)
 
 $(ARCHIVAL_DIR)%.o: $(srcdir)/%.c
-	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
-
+	$(compile.c)

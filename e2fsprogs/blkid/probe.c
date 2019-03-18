@@ -41,7 +41,7 @@ static int check_mdraid(int fd, unsigned char *ret_uuid)
 	struct mdp_superblock_s *md;
 	blkid_loff_t		offset;
 	char			buf[4096];
-	
+
 	if (fd < 0)
 		return -BLKID_ERR_PARAM;
 
@@ -83,7 +83,7 @@ static void get_ext2_info(blkid_dev dev, unsigned char *buf)
 	struct ext2_super_block *es = (struct ext2_super_block *) buf;
 	const char *label = 0;
 
-	DBG(DEBUG_PROBE, printf("ext2_sb.compat = %08X:%08X:%08X\n", 
+	DBG(DEBUG_PROBE, printf("ext2_sb.compat = %08X:%08X:%08X\n",
 		   blkid_le32(es->s_feature_compat),
 		   blkid_le32(es->s_feature_incompat),
 		   blkid_le32(es->s_feature_ro_compat)));
@@ -95,17 +95,18 @@ static void get_ext2_info(blkid_dev dev, unsigned char *buf)
 	set_uuid(dev, es->s_uuid);
 }
 
-static int probe_ext3(int fd __BLKID_ATTR((unused)), 
-		      blkid_cache cache __BLKID_ATTR((unused)), 
+static int probe_ext3(int fd __BLKID_ATTR((unused)),
+		      blkid_cache cache __BLKID_ATTR((unused)),
 		      blkid_dev dev,
-		      const struct blkid_magic *id, unsigned char *buf)
+		      const struct blkid_magic *id __BLKID_ATTR((unused)), 
+		      unsigned char *buf)
 {
 	struct ext2_super_block *es;
 
 	es = (struct ext2_super_block *)buf;
 
 	/* Distinguish between jbd and ext2/3 fs */
-	if (blkid_le32(es->s_feature_incompat) & 
+	if (blkid_le32(es->s_feature_incompat) &
 	    EXT3_FEATURE_INCOMPAT_JOURNAL_DEV)
 		return -BLKID_ERR_PARAM;
 
@@ -121,18 +122,18 @@ static int probe_ext3(int fd __BLKID_ATTR((unused)),
 	return 0;
 }
 
-static int probe_ext2(int fd __BLKID_ATTR((unused)), 
-		      blkid_cache cache __BLKID_ATTR((unused)), 
+static int probe_ext2(int fd __BLKID_ATTR((unused)),
+		      blkid_cache cache __BLKID_ATTR((unused)),
 		      blkid_dev dev,
-		      const struct blkid_magic *id, unsigned char *buf)
+		      const struct blkid_magic *id __BLKID_ATTR((unused)), 
+		      unsigned char *buf)
 {
 	struct ext2_super_block *es;
-//	const char *sec_type = 0, *label = 0;
 
 	es = (struct ext2_super_block *)buf;
 
 	/* Distinguish between jbd and ext2/3 fs */
-	if (blkid_le32(es->s_feature_incompat) & 
+	if (blkid_le32(es->s_feature_incompat) &
 	    EXT3_FEATURE_INCOMPAT_JOURNAL_DEV)
 		return -BLKID_ERR_PARAM;
 
@@ -141,10 +142,10 @@ static int probe_ext2(int fd __BLKID_ATTR((unused)),
 	return 0;
 }
 
-static int probe_jbd(int fd __BLKID_ATTR((unused)), 
-		     blkid_cache cache __BLKID_ATTR((unused)), 
-		     blkid_dev dev, 
-		     const struct blkid_magic *id __BLKID_ATTR((unused)), 
+static int probe_jbd(int fd __BLKID_ATTR((unused)),
+		     blkid_cache cache __BLKID_ATTR((unused)),
+		     blkid_dev dev,
+		     const struct blkid_magic *id __BLKID_ATTR((unused)),
 		     unsigned char *buf)
 {
 	struct ext2_super_block *es = (struct ext2_super_block *) buf;
@@ -158,10 +159,10 @@ static int probe_jbd(int fd __BLKID_ATTR((unused)),
 	return 0;
 }
 
-static int probe_vfat(int fd __BLKID_ATTR((unused)), 
-		      blkid_cache cache __BLKID_ATTR((unused)), 
+static int probe_vfat(int fd __BLKID_ATTR((unused)),
+		      blkid_cache cache __BLKID_ATTR((unused)),
 		      blkid_dev dev,
-		      const struct blkid_magic *id __BLKID_ATTR((unused)), 
+		      const struct blkid_magic *id __BLKID_ATTR((unused)),
 		      unsigned char *buf)
 {
 	struct vfat_super_block *vs;
@@ -191,10 +192,10 @@ static int probe_vfat(int fd __BLKID_ATTR((unused)),
 	return 0;
 }
 
-static int probe_msdos(int fd __BLKID_ATTR((unused)), 
-		       blkid_cache cache __BLKID_ATTR((unused)), 
+static int probe_msdos(int fd __BLKID_ATTR((unused)),
+		       blkid_cache cache __BLKID_ATTR((unused)),
 		       blkid_dev dev,
-		       const struct blkid_magic *id __BLKID_ATTR((unused)), 
+		       const struct blkid_magic *id __BLKID_ATTR((unused)),
 		       unsigned char *buf)
 {
 	struct msdos_super_block *ms = (struct msdos_super_block *) buf;
@@ -223,10 +224,10 @@ static int probe_msdos(int fd __BLKID_ATTR((unused)),
 	return 0;
 }
 
-static int probe_xfs(int fd __BLKID_ATTR((unused)), 
-		     blkid_cache cache __BLKID_ATTR((unused)), 
+static int probe_xfs(int fd __BLKID_ATTR((unused)),
+		     blkid_cache cache __BLKID_ATTR((unused)),
 		     blkid_dev dev,
-		     const struct blkid_magic *id __BLKID_ATTR((unused)), 
+		     const struct blkid_magic *id __BLKID_ATTR((unused)),
 		     unsigned char *buf)
 {
 	struct xfs_super_block *xs;
@@ -241,8 +242,8 @@ static int probe_xfs(int fd __BLKID_ATTR((unused)),
 	return 0;
 }
 
-static int probe_reiserfs(int fd __BLKID_ATTR((unused)), 
-			  blkid_cache cache __BLKID_ATTR((unused)), 
+static int probe_reiserfs(int fd __BLKID_ATTR((unused)),
+			  blkid_cache cache __BLKID_ATTR((unused)),
 			  blkid_dev dev,
 			  const struct blkid_magic *id, unsigned char *buf)
 {
@@ -268,10 +269,10 @@ static int probe_reiserfs(int fd __BLKID_ATTR((unused)),
 	return 0;
 }
 
-static int probe_jfs(int fd __BLKID_ATTR((unused)), 
-		     blkid_cache cache __BLKID_ATTR((unused)), 
+static int probe_jfs(int fd __BLKID_ATTR((unused)),
+		     blkid_cache cache __BLKID_ATTR((unused)),
 		     blkid_dev dev,
-		     const struct blkid_magic *id __BLKID_ATTR((unused)), 
+		     const struct blkid_magic *id __BLKID_ATTR((unused)),
 		     unsigned char *buf)
 {
 	struct jfs_super_block *js;
@@ -286,10 +287,10 @@ static int probe_jfs(int fd __BLKID_ATTR((unused)),
 	return 0;
 }
 
-static int probe_romfs(int fd __BLKID_ATTR((unused)), 
-		       blkid_cache cache __BLKID_ATTR((unused)), 
+static int probe_romfs(int fd __BLKID_ATTR((unused)),
+		       blkid_cache cache __BLKID_ATTR((unused)),
 		       blkid_dev dev,
-		       const struct blkid_magic *id __BLKID_ATTR((unused)), 
+		       const struct blkid_magic *id __BLKID_ATTR((unused)),
 		       unsigned char *buf)
 {
 	struct romfs_super_block *ros;
@@ -299,6 +300,23 @@ static int probe_romfs(int fd __BLKID_ATTR((unused)),
 
 	if (strlen((char *) ros->ros_volume))
 		label = (char *) ros->ros_volume;
+	blkid_set_tag(dev, "LABEL", label, 0);
+	return 0;
+}
+
+static int probe_cramfs(int fd __BLKID_ATTR((unused)), 
+		       blkid_cache cache __BLKID_ATTR((unused)), 
+		       blkid_dev dev,
+		       const struct blkid_magic *id __BLKID_ATTR((unused)), 
+		       unsigned char *buf)
+{
+	struct cramfs_super_block *csb;
+	const char *label = 0;
+
+	csb = (struct cramfs_super_block *)buf;
+
+	if (strlen((char *) csb->name))
+		label = (char *) csb->name;
 	blkid_set_tag(dev, "LABEL", label, 0);
 	return 0;
 }
@@ -321,7 +339,6 @@ static int probe_swap1(int fd,
 		       unsigned char *buf __BLKID_ATTR((unused)))
 {
 	struct swap_id_block *sws;
-//	const char *label = 0;
 
 	probe_swap0(fd, cache, dev, id, buf);
 	/*
@@ -340,7 +357,7 @@ static int probe_swap1(int fd,
 	/* arbitrary sanity check.. is there any garbage down there? */
 	if (sws->sws_pad[32] == 0 && sws->sws_pad[33] == 0)  {
 		if (sws->sws_volume[0])
-			blkid_set_tag(dev, "LABEL", sws->sws_volume, 
+			blkid_set_tag(dev, "LABEL", (const char*)sws->sws_volume,
 				      sizeof(sws->sws_volume));
 		if (sws->sws_uuid[0])
 			set_uuid(dev, sws->sws_uuid);
@@ -354,9 +371,9 @@ static const char
 * const udf_magic[] = { "BEA01", "BOOT2", "CD001", "CDW02", "NSR02",
 		 "NSR03", "TEA01", 0 };
 
-static int probe_udf(int fd, blkid_cache cache __BLKID_ATTR((unused)), 
+static int probe_udf(int fd, blkid_cache cache __BLKID_ATTR((unused)),
 		     blkid_dev dev __BLKID_ATTR((unused)),
-		     const struct blkid_magic *id __BLKID_ATTR((unused)), 
+		     const struct blkid_magic *id __BLKID_ATTR((unused)),
 		     unsigned char *buf __BLKID_ATTR((unused)))
 {
 	int j, bs;
@@ -396,10 +413,10 @@ static int probe_udf(int fd, blkid_cache cache __BLKID_ATTR((unused)),
 	return 1;
 }
 
-static int probe_ocfs(int fd __BLKID_ATTR((unused)), 
-		      blkid_cache cache __BLKID_ATTR((unused)), 
+static int probe_ocfs(int fd __BLKID_ATTR((unused)),
+		      blkid_cache cache __BLKID_ATTR((unused)),
 		      blkid_dev dev,
-		      const struct blkid_magic *id __BLKID_ATTR((unused)), 
+		      const struct blkid_magic *id __BLKID_ATTR((unused)),
 		      unsigned char *buf)
 {
 	struct ocfs_volume_header ovh;
@@ -414,32 +431,32 @@ static int probe_ocfs(int fd __BLKID_ATTR((unused)),
 		blkid_set_tag(dev,"SEC_TYPE","ocfs1",sizeof("ocfs1"));
 	else if (major >= 9)
 		blkid_set_tag(dev,"SEC_TYPE","ntocfs",sizeof("ntocfs"));
-	
-	blkid_set_tag(dev, "LABEL", ovl.label, ocfslabellen(ovl));
-	blkid_set_tag(dev, "MOUNT", ovh.mount, ocfsmountlen(ovh));
+
+	blkid_set_tag(dev, "LABEL", (const char*)ovl.label, ocfslabellen(ovl));
+	blkid_set_tag(dev, "MOUNT", (const char*)ovh.mount, ocfsmountlen(ovh));
 	set_uuid(dev, ovl.vol_id);
 	return 0;
 }
 
-static int probe_ocfs2(int fd __BLKID_ATTR((unused)), 
-		       blkid_cache cache __BLKID_ATTR((unused)), 
+static int probe_ocfs2(int fd __BLKID_ATTR((unused)),
+		       blkid_cache cache __BLKID_ATTR((unused)),
 		       blkid_dev dev,
-		       const struct blkid_magic *id __BLKID_ATTR((unused)), 
+		       const struct blkid_magic *id __BLKID_ATTR((unused)),
 		       unsigned char *buf)
 {
 	struct ocfs2_super_block *osb;
 
 	osb = (struct ocfs2_super_block *)buf;
 
-	blkid_set_tag(dev, "LABEL", osb->s_label, sizeof(osb->s_label));
+	blkid_set_tag(dev, "LABEL", (const char*)osb->s_label, sizeof(osb->s_label));
 	set_uuid(dev, osb->s_uuid);
 	return 0;
 }
 
-static int probe_oracleasm(int fd __BLKID_ATTR((unused)), 
-			   blkid_cache cache __BLKID_ATTR((unused)), 
+static int probe_oracleasm(int fd __BLKID_ATTR((unused)),
+			   blkid_cache cache __BLKID_ATTR((unused)),
 			   blkid_dev dev,
-			   const struct blkid_magic *id __BLKID_ATTR((unused)), 
+			   const struct blkid_magic *id __BLKID_ATTR((unused)),
 			   unsigned char *buf)
 {
 	struct oracle_asm_disk_label *dl;
@@ -489,7 +506,7 @@ static const struct blkid_magic type_array[] = {
   { "xfs",	 0,	 0,  4, "XFSB",			probe_xfs },
   { "romfs",	 0,	 0,  8, "-rom1fs-",		probe_romfs },
   { "bfs",	 0,	 0,  4, "\316\372\173\033",	0 },
-  { "cramfs",	 0,	 0,  4, "E=\315\034",		0 },
+  { "cramfs",	 0,	 0,  4, "E=\315\050",		probe_cramfs },
   { "qnx4",	 0,	 4,  6, "QNX4FS",		0 },
   { "udf",	32,	 1,  5, "BEA01",		probe_udf },
   { "udf",	32,	 1,  5, "BOOT2",		probe_udf },
@@ -548,13 +565,13 @@ blkid_dev blkid_verify(blkid_cache cache, blkid_dev dev)
 	diff = now - dev->bid_time;
 
 	if ((now < dev->bid_time) ||
-	    (diff < BLKID_PROBE_MIN) || 
+	    (diff < BLKID_PROBE_MIN) ||
 	    (dev->bid_flags & BLKID_BID_FL_VERIFIED &&
 	     diff < BLKID_PROBE_INTERVAL))
 		return dev;
 
 	DBG(DEBUG_PROBE,
-	    printf("need to revalidate %s (time since last check %lu)\n", 
+	    printf("need to revalidate %s (time since last check %lu)\n",
 		   dev->bid_name, diff));
 
 	if (((fd = open(dev->bid_name, O_RDONLY)) < 0) ||
@@ -571,12 +588,12 @@ blkid_dev blkid_verify(blkid_cache cache, blkid_dev dev)
 	}
 
 	memset(bufs, 0, sizeof(bufs));
-	
+
 	/*
 	 * Iterate over the type array.  If we already know the type,
 	 * then try that first.  If it doesn't work, then blow away
 	 * the type information, and try again.
-	 * 
+	 *
 	 */
 try_again:
 	type = 0;
@@ -637,7 +654,7 @@ try_again:
 		blkid_free_dev(dev);
 		return NULL;
 	}
-		
+
 found_type:
 	if (dev && type) {
 		dev->bid_devno = st.st_rdev;
@@ -646,8 +663,8 @@ found_type:
 		cache->bic_flags |= BLKID_BIC_FL_CHANGED;
 
 		blkid_set_tag(dev, "TYPE", type, 0);
-				
-		DBG(DEBUG_PROBE, printf("%s: devno 0x%04Lx, type %s\n",
+
+		DBG(DEBUG_PROBE, printf("%s: devno 0x%04llx, type %s\n",
 			   dev->bid_name, st.st_rdev, type));
 	}
 
@@ -696,7 +713,7 @@ int main(int argc, char **argv)
 		printf("\tlabel is '%s'\n", dev->bid_label);
 	if (dev->bid_uuid)
 		printf("\tuuid is %s\n", dev->bid_uuid);
-	
+
 	blkid_free_dev(dev);
 	return (0);
 }

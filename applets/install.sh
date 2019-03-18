@@ -3,19 +3,36 @@
 export LC_ALL=POSIX
 export LC_CTYPE=POSIX
 
-prefix=$1
-if [ "$prefix" = "" ]; then
-    echo "No installation directory, aborting."
+prefix=${1}
+if [ -z "$prefix" ]; then
+    echo "usage: applets/install.sh DESTINATION [--symlinks/--hardlinks]"
     exit 1;
 fi
-if [ "$2" = "--hardlinks" ]; then
-    linkopts="-f"
-else
-    linkopts="-fs"
-fi
 h=`sort busybox.links | uniq`
+case "$2" in
+    --hardlinks) linkopts="-f";;
+    --symlinks)  linkopts="-fs";;
+    "")          h="";;
+    *)           echo "Unknown install option: $2"; exit 1;;
+esac
 
+if [ "$DO_INSTALL_LIBS" != "n" ]; then
+	# get the target dir for the libs
+	# This is an incomplete/incorrect list for now
+	case $(uname -m) in
+	x86_64|ppc64*|sparc64*|ia64*|hppa*64*|s390x*) libdir=/lib64 ;;
+	*) libdir=/lib ;;
+	esac
 
+	mkdir -p $prefix/$libdir || exit 1
+	for i in $DO_INSTALL_LIBS; do
+		rm -f $prefix/$libdir/$i || exit 1
+		if [ -f $i ]; then
+			cp -a $i $prefix/$libdir/ || exit 1
+			chmod 0644 $prefix/$libdir/$i || exit 1
+		fi
+	done
+fi
 rm -f $prefix/bin/busybox || exit 1
 mkdir -p $prefix/bin || exit 1
 install -m 755 busybox $prefix/bin/busybox || exit 1

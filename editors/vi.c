@@ -138,18 +138,20 @@ static const char CMup[] = "\033[A";
 static const char CMdown[] = "\n";
 
 
-static const int YANKONLY = FALSE;
-static const int YANKDEL = TRUE;
-static const int FORWARD = 1;	// code depends on "1"  for array index
-static const int BACK = -1;	// code depends on "-1" for array index
-static const int LIMITED = 0;	// how much of text[] in char_search
-static const int FULL = 1;	// how much of text[] in char_search
+enum {
+	YANKONLY = FALSE,
+	YANKDEL = TRUE,
+	FORWARD = 1,	// code depends on "1"  for array index
+	BACK = -1,	// code depends on "-1" for array index
+	LIMITED = 0,	// how much of text[] in char_search
+	FULL = 1,	// how much of text[] in char_search
 
-static const int S_BEFORE_WS = 1;	// used in skip_thing() for moving "dot"
-static const int S_TO_WS = 2;		// used in skip_thing() for moving "dot"
-static const int S_OVER_WS = 3;		// used in skip_thing() for moving "dot"
-static const int S_END_PUNCT = 4;	// used in skip_thing() for moving "dot"
-static const int S_END_ALNUM = 5;	// used in skip_thing() for moving "dot"
+	S_BEFORE_WS = 1,	// used in skip_thing() for moving "dot"
+	S_TO_WS = 2,		// used in skip_thing() for moving "dot"
+	S_OVER_WS = 3,		// used in skip_thing() for moving "dot"
+	S_END_PUNCT = 4,	// used in skip_thing() for moving "dot"
+	S_END_ALNUM = 5 	// used in skip_thing() for moving "dot"
+};
 
 typedef unsigned char Byte;
 
@@ -332,7 +334,7 @@ static void write1(const char *out)
 	fputs(out, stdout);
 }
 
-extern int vi_main(int argc, char **argv)
+int vi_main(int argc, char **argv)
 {
 	int c;
 	RESERVE_CONFIG_BUFFER(STATUS_BUFFER, STATUS_BUFFER_LEN);
@@ -347,7 +349,7 @@ extern int vi_main(int argc, char **argv)
 	(void) srand((long) my_pid);
 #endif							/* CONFIG_FEATURE_VI_CRASHME */
 
-	status_buffer = STATUS_BUFFER;
+	status_buffer = (Byte *)STATUS_BUFFER;
 	last_status_cksum = 0;
 
 #ifdef CONFIG_FEATURE_VI_READONLY
@@ -729,7 +731,7 @@ static void colon(Byte * buf)
 	while (isblnk(*buf))
 		buf++;
 	strcpy((char *) args, (char *) buf);
-	buf1 = last_char_is((char *)cmd, '!');
+	buf1 = (Byte*)last_char_is((char *)cmd, '!');
 	if (buf1) {
 		useforce = TRUE;
 		*buf1 = '\0';   // get rid of !
@@ -763,7 +765,7 @@ static void colon(Byte * buf)
 		place_cursor(rows - 1, 0, FALSE);	// go to Status line
 		clear_to_eol();			// clear the line
 		cookmode();
-		system(orig_buf+1);		// run the cmd
+		system((char*)(orig_buf+1));		// run the cmd
 		rawmode();
 		Hit_Return();			// let user see results
 		(void) alarm(3);		// done waiting for input
@@ -787,10 +789,10 @@ static void colon(Byte * buf)
 			psbs("No write since last change (:edit! overrides)");
 			goto vc1;
 		}
-		if (strlen(args) > 0) {
+		if (strlen((char*)args) > 0) {
 			// the user supplied a file name
 			fn= args;
-		} else if (cfn != 0 && strlen(cfn) > 0) {
+		} else if (cfn != 0 && strlen((char*)cfn) > 0) {
 			// no user supplied name- use the current filename
 			fn= cfn;
 			goto vc5;
@@ -1615,16 +1617,6 @@ static Byte *char_insert(Byte * p, Byte c) // insert the char c at 'p'
 		if ((p[-1] != '\n') && (dot>text)) {
 			p--;
 			p = text_hole_delete(p, p);	// shrink buffer 1 char
-#ifdef CONFIG_FEATURE_VI_DOT_CMD
-			// also rmove char from last_modifying_cmd
-			if (last_modifying_cmd != 0 && strlen((char *) last_modifying_cmd) > 0) {
-				Byte *q;
-
-				q = last_modifying_cmd;
-				q[strlen((char *) q) - 1] = '\0';	// erase BS
-				q[strlen((char *) q) - 1] = '\0';	// erase prev char
-			}
-#endif							/* CONFIG_FEATURE_VI_DOT_CMD */
 		}
 	} else {
 		// insert a char into text[]
@@ -1683,13 +1675,13 @@ static Byte find_range(Byte ** start, Byte ** stop, Byte c)
 		q = dot;
 	} else if (strchr("wW", c)) {
 		do_cmd(c);		// execute movement cmd
- 		// if we are at the next word's first char
- 		// step back one char
- 		// but check the possibilities when it is true
+		// if we are at the next word's first char
+		// step back one char
+		// but check the possibilities when it is true
 		if (dot > text && ((isspace(dot[-1]) && !isspace(dot[0]))
- 				|| (ispunct(dot[-1]) && !ispunct(dot[0]))
- 				|| (isalnum(dot[-1]) && !isalnum(dot[0]))))
-  			dot--;		// move back off of next word
+				|| (ispunct(dot[-1]) && !ispunct(dot[0]))
+				|| (isalnum(dot[-1]) && !isalnum(dot[0]))))
+			dot--;		// move back off of next word
 		if (dot > text && *dot == '\n')
 			dot--;		// stay off NL
 		q = dot;
@@ -2009,11 +2001,10 @@ static void start_new_cmd_q(Byte c)
 	memset(last_modifying_cmd, '\0', BUFSIZ);	// clear new cmd queue
 	// if there is a current cmd count put it in the buffer first
 	if (cmdcnt > 0)
-		sprintf((char *) last_modifying_cmd, "%d", cmdcnt);
-	// save char c onto queue
-	last_modifying_cmd[strlen((char *) last_modifying_cmd)] = c;
+		sprintf((char *) last_modifying_cmd, "%d%c", cmdcnt, c);
+	else // just save char c onto queue
+		last_modifying_cmd[0] = c;
 	adding2q = 1;
-	return;
 }
 
 static void end_cmd_q(void)
@@ -2146,7 +2137,7 @@ static void cookmode(void)
 
 //----- Come here when we get a window resize signal ---------
 #ifdef CONFIG_FEATURE_VI_USE_SIGNALS
-static void winch_sig(int sig)
+static void winch_sig(int sig ATTRIBUTE_UNUSED)
 {
 	signal(SIGWINCH, winch_sig);
 #ifdef CONFIG_FEATURE_VI_WIN_RESIZE
@@ -2157,7 +2148,7 @@ static void winch_sig(int sig)
 }
 
 //----- Come here when we get a continue signal -------------------
-static void cont_sig(int sig)
+static void cont_sig(int sig ATTRIBUTE_UNUSED)
 {
 	rawmode();			// terminal to "raw"
 	last_status_cksum = 0;	// force status update
@@ -2169,7 +2160,7 @@ static void cont_sig(int sig)
 }
 
 //----- Come here when we get a Suspend signal -------------------
-static void suspend_sig(int sig)
+static void suspend_sig(int sig ATTRIBUTE_UNUSED)
 {
 	place_cursor(rows - 1, 0, FALSE);	// go to bottom of screen
 	clear_to_eol();		// Erase to end of line
@@ -2188,7 +2179,7 @@ static void catch_sig(int sig)
 	signal(SIGTERM, catch_sig);
 	signal(SIGALRM, catch_sig);
 	if(sig)
-	longjmp(restart, sig);
+		longjmp(restart, sig);
 }
 
 //----- Come here when we get a core dump signal -----------------
@@ -2207,9 +2198,8 @@ static void core_sig(int sig)
 #endif
 
 	if(sig) {       // signaled
-	dot = bound_dot(dot);	// make sure "dot" is valid
-
-	longjmp(restart, sig);
+		dot = bound_dot(dot);	// make sure "dot" is valid
+		longjmp(restart, sig);
 	}
 }
 #endif							/* CONFIG_FEATURE_VI_USE_SIGNALS */
@@ -2409,14 +2399,14 @@ static Byte *get_input_line(Byte * prompt) // get input line- use "status line"
 	last_status_cksum = 0;	// force status update
 	place_cursor(rows - 1, 0, FALSE);	// go to Status line, bottom of screen
 	clear_to_eol();		// clear the line
-	write1(prompt);      // write out the :, /, or ? prompt
+	write1((char *) prompt);      // write out the :, /, or ? prompt
 
 	for (i = strlen((char *) buf); i < BUFSIZ;) {
 		c = get_one_char();	// read user input
 		if (c == '\n' || c == '\r' || c == 27)
 			break;		// is this end of input
 		if (c == erase_char || c == 8 || c == 127) {
-		    	// user wants to erase prev char
+			// user wants to erase prev char
 			i--;		// backup to prev char
 			buf[i] = '\0';	// erase the char
 			buf[i + 1] = '\0';	// null terminate buffer
@@ -2442,7 +2432,7 @@ static int file_size(const Byte * fn) // what is the byte size of "fn"
 	struct stat st_buf;
 	int cnt, sr;
 
-	if (fn == 0 || strlen(fn) <= 0)
+	if (fn == 0 || strlen((char *)fn) <= 0)
 		return (-1);
 	cnt = -1;
 	sr = stat((char *) fn, &st_buf);	// see if file exists
@@ -2598,7 +2588,7 @@ static void place_cursor(int row, int col, int opti)
 	strcat(cm2, "\r");			// start at col 0
 	// just send out orignal source char to get to correct place
 	screenp = &screen[row * columns];	// start of screen line
-	strncat(cm2, screenp, col);
+	strncat(cm2, (char* )screenp, col);
 
 	//----- 3.  Try some other way of moving cursor
 	//---------------------------------------------
@@ -2669,10 +2659,10 @@ static void screen_erase(void)
 	memset(screen, ' ', screensize);	// clear new screen
 }
 
-static int bufsum(char *buf, int count)
+static int bufsum(unsigned char *buf, int count)
 {
 	int sum = 0;
-	char *e = buf + count;
+	unsigned char *e = buf + count;
 	while (buf < e)
 		sum += *buf++;
 	return sum;
@@ -2692,10 +2682,10 @@ static void show_status_line(void)
 	if (have_status_msg || ((cnt > 0 && last_status_cksum != cksum))) {
 		last_status_cksum= cksum;		// remember if we have seen this line
 		place_cursor(rows - 1, 0, FALSE);	// put cursor on status line
-		write1(status_buffer);
+		write1((char*)status_buffer);
 		clear_to_eol();
 		if (have_status_msg) {
-			if ((strlen(status_buffer) - (have_status_msg - 1)) >
+			if (((int)strlen((char*)status_buffer) - (have_status_msg - 1)) >
 					(columns - 1) ) {
 				have_status_msg = 0;
 				Hit_Return();
@@ -2949,7 +2939,7 @@ static void refresh(int full_screen)
 			// write line out to terminal
 			{
 				int nic = ce-cs+1;
-				char *out = sp+cs;
+				char *out = (char*)sp+cs;
 
 				while(nic-- > 0) {
 					putchar(*out);
@@ -3765,11 +3755,11 @@ key_cmd_mode:
 		end_cmd_q();	// stop adding to q
 		break;
 	case 't':			// t- move to char prior to next x
-                last_forward_char = get_one_char();
-                do_cmd(';');
-                if (*dot == last_forward_char)
-                        dot_left();
-                last_forward_char= 0;
+		last_forward_char = get_one_char();
+		do_cmd(';');
+		if (*dot == last_forward_char)
+			dot_left();
+		last_forward_char= 0;
 		break;
 	case 'w':			// w- forward a word
 		if (cmdcnt-- > 1) {
@@ -4058,4 +4048,4 @@ static void crash_test()
 	}
 	return;
 }
-#endif                                                  /* CONFIG_FEATURE_VI_CRASHME */
+#endif					          /* CONFIG_FEATURE_VI_CRASHME */

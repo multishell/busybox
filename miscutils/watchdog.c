@@ -20,7 +20,7 @@ static unsigned int timer_duration = 30;
 /* Watchdog file descriptor */
 static int fd;
 
-static void watchdog_shutdown(int unused)
+static void watchdog_shutdown(int ATTRIBUTE_UNUSED unused)
 {
 	write(fd, "V", 1);	/* Magic */
 	close(fd);
@@ -29,7 +29,7 @@ static void watchdog_shutdown(int unused)
 
 int watchdog_main(int argc, char **argv)
 {
-	
+
 	char *t_arg;
 	unsigned long flags;
 	flags = bb_getopt_ulflags(argc, argv, "t:", &t_arg);

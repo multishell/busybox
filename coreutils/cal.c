@@ -31,7 +31,6 @@
 
 #include <sys/types.h>
 #include <ctype.h>
-#include <err.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,10 +44,10 @@
 #endif
 
 #define	THURSDAY		4		/* for reformation */
-#define	SATURDAY 		6		/* 1 Jan 1 was a Saturday */
+#define	SATURDAY		6		/* 1 Jan 1 was a Saturday */
 
-#define	FIRST_MISSING_DAY 	639787		/* 3 Sep 1752 */
-#define	NUMBER_MISSING_DAYS 	11		/* 11 day correction */
+#define	FIRST_MISSING_DAY	639787		/* 3 Sep 1752 */
+#define	NUMBER_MISSING_DAYS	11		/* 11 day correction */
 
 #define	MAXDAYS			42		/* max slots in a month array */
 #define	SPACE			-1		/* used in day array */
@@ -89,9 +88,9 @@ static int is_leap_year(int year)
 #define	leap_years_since_year_1(yr) \
 	((yr) / 4 - centuries_since_1700(yr) + quad_centuries_since_1700(yr))
 
-static void center __P((char *, int, int));
-static void day_array __P((int, int, int *));
-static void trim_trailing_spaces_and_print __P((char *));
+static void center (char *, int, int);
+static void day_array (int, int, int *);
+static void trim_trailing_spaces_and_print (char *);
 
 static void blank_string(char *buf, size_t buflen);
 static char *build_row(char *p, int *dp);
@@ -231,11 +230,12 @@ static void day_array(int month, int year, int *days)
 	memset(days, SPACE, MAXDAYS * sizeof(int));
 
 	if ((month == 9) && (year == 1752)) {
+		size_t oday = 0;
+		
 		j_offset = julian * 244;
-		i = 0;
 		do {
-			days[i+2] = sep1752[i] + j_offset;
-		} while (++i < sizeof(sep1752));
+			days[oday+2] = sep1752[oday] + j_offset;
+		} while (++oday < sizeof(sep1752));
 
 		return;
 	}

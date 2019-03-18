@@ -91,7 +91,7 @@ struct HardLinkInfo {
 struct TarBallInfo {
 	char *fileName;			/* File name of the tarball */
 	int tarFd;				/* Open-for-write file descriptor
-						   	   for the tarball */
+							   for the tarball */
 	struct stat statBuf;	/* Stat info for the tarball, letting
 							   us know the inode and device that the
 							   tarball lives, so we can avoid trying
@@ -322,6 +322,8 @@ static inline int exclude_file(const llist_t *excluded_files, const char *file)
 
 	return 0;
 }
+# else
+#define exclude_file(excluded_files, file) 0
 # endif
 
 static int writeFileToTarball(const char *fileName, struct stat *statbuf,
@@ -329,6 +331,7 @@ static int writeFileToTarball(const char *fileName, struct stat *statbuf,
 {
 	struct TarBallInfo *tbInfo = (struct TarBallInfo *) userData;
 	const char *header_name;
+	int inputFileFd = -1;
 
 	/*
 	   ** Check to see if we are dealing with a hard link.
@@ -383,30 +386,32 @@ static int writeFileToTarball(const char *fileName, struct stat *statbuf,
 		return SKIP;
 	}
 
-	if (writeTarHeader(tbInfo, header_name, fileName, statbuf) == FALSE) {
-		return (FALSE);
-	}
-
-	/* Now, if the file is a regular file, copy it out to the tarball */
-	if ((tbInfo->hlInfo == NULL)
-		&& (S_ISREG(statbuf->st_mode))) {
-		int inputFileFd;
-		ssize_t readSize = 0;
+	/* Is this a regular file? */
+	if ((tbInfo->hlInfo == NULL) && (S_ISREG(statbuf->st_mode))) {
 
 		/* open the file we want to archive, and make sure all is well */
 		if ((inputFileFd = open(fileName, O_RDONLY)) < 0) {
 			bb_perror_msg("%s: Cannot open", fileName);
 			return (FALSE);
 		}
+	}
+
+	/* Add an entry to the tarball */
+	if (writeTarHeader(tbInfo, header_name, fileName, statbuf) == FALSE) {
+		return (FALSE);
+	}
+
+	/* If it was a regular file, write out the body */
+	if (inputFileFd >= 0 ) {
+		ssize_t readSize = 0;
 
 		/* write the file to the archive */
 		readSize = bb_copyfd_eof(inputFileFd, tbInfo->tarFd);
+		close(inputFileFd);
 
 		/* Pad the file up to the tar block size */
 		for (; (readSize % TAR_BLOCK_SIZE) != 0; readSize++)
 			write(tbInfo->tarFd, "\0", 1);
-
-		close(inputFileFd);
 	}
 
 	return (TRUE);
@@ -449,6 +454,7 @@ static inline int writeTarFile(const int tar_fd, const int verboseFlag,
 			/* Avoid vfork clobbering */
 			(void) &include;
 			(void) &errorFlag;
+			(void) &zip_exec;
 # endif
 
 		gzipPid = vfork();
@@ -461,9 +467,9 @@ static inline int writeTarFile(const int tar_fd, const int verboseFlag,
 				dup2(tbInfo.tarFd, 1);
 
 			close(gzipStatusPipe[0]);
-			fcntl(gzipStatusPipe[1], F_SETFD, FD_CLOEXEC);	/* close on exec shows sucess */
+			fcntl(gzipStatusPipe[1], F_SETFD, FD_CLOEXEC);	/* close on exec shows success */
 
-			execlp(zip_exec, zip_exec, "-f", 0);
+			execlp(zip_exec, zip_exec, "-f", NULL);
 			vfork_exec_errno = errno;
 
 			close(gzipStatusPipe[1]);
@@ -479,7 +485,7 @@ static inline int writeTarFile(const int tar_fd, const int verboseFlag,
 
 				if (n == 0 && vfork_exec_errno != 0) {
 					errno = vfork_exec_errno;
-					bb_perror_msg_and_die("Could not exec %s",zip_exec);
+					bb_perror_msg_and_die("Could not exec %s", zip_exec);
 				} else if ((n < 0) && (errno == EAGAIN || errno == EINTR))
 					continue;	/* try it again */
 				break;
@@ -510,11 +516,12 @@ static inline int writeTarFile(const int tar_fd, const int verboseFlag,
 	 * but that isn't necessary for GNU tar interoperability, and
 	 * so is considered a waste of space */
 
+	/* Close so the child process (if any) will exit */
+	close(tbInfo.tarFd);
+
 	/* Hang up the tools, close up shop, head home */
-	if (ENABLE_FEATURE_CLEAN_UP) {
-		close(tbInfo.tarFd);
+	if (ENABLE_FEATURE_CLEAN_UP)
 		freeHardLinkInfo(&tbInfo.hlInfoHead);
-	}
 
 	if (errorFlag)
 		bb_error_msg("Error exit delayed from previous errors");
@@ -562,7 +569,7 @@ static char get_header_tar_Z(archive_handle_t *archive_handle)
 
 	/* do the decompression, and cleanup */
 	if (bb_xread_char(archive_handle->src_fd) != 0x1f ||
-	   	bb_xread_char(archive_handle->src_fd) != 0x9d)
+		bb_xread_char(archive_handle->src_fd) != 0x9d)
 	{
 		bb_error_msg_and_die("Invalid magic");
 	}
@@ -608,14 +615,23 @@ static char get_header_tar_Z(archive_handle_t *archive_handle)
 # define TAR_OPT_AFTER_BZIP2              TAR_OPT_AFTER_CREATE
 #endif
 
-#define TAR_OPT_INCLUDE_FROM              (1 << (TAR_OPT_AFTER_BZIP2))
-#define TAR_OPT_EXCLUDE_FROM              (1 << (TAR_OPT_AFTER_BZIP2 + 1))
+#define TAR_OPT_LZMA                      (1 << (TAR_OPT_AFTER_BZIP2))
+#ifdef CONFIG_FEATURE_TAR_LZMA
+# define TAR_OPT_STR_LZMA                 "a"
+# define TAR_OPT_AFTER_LZMA               TAR_OPT_AFTER_BZIP2 + 1
+#else
+# define TAR_OPT_STR_LZMA                 ""
+# define TAR_OPT_AFTER_LZMA               TAR_OPT_AFTER_BZIP2
+#endif
+
+#define TAR_OPT_INCLUDE_FROM              (1 << (TAR_OPT_AFTER_LZMA))
+#define TAR_OPT_EXCLUDE_FROM              (1 << (TAR_OPT_AFTER_LZMA + 1))
 #ifdef CONFIG_FEATURE_TAR_FROM
 # define TAR_OPT_STR_FROM                 "T:X:"
-# define TAR_OPT_AFTER_FROM               TAR_OPT_AFTER_BZIP2 + 2
+# define TAR_OPT_AFTER_FROM               TAR_OPT_AFTER_LZMA + 2
 #else
 # define TAR_OPT_STR_FROM                 ""
-# define TAR_OPT_AFTER_FROM               TAR_OPT_AFTER_BZIP2
+# define TAR_OPT_AFTER_FROM               TAR_OPT_AFTER_LZMA
 #endif
 
 #define TAR_OPT_GZIP                      (1 << (TAR_OPT_AFTER_FROM))
@@ -644,6 +660,7 @@ static char get_header_tar_Z(archive_handle_t *archive_handle)
 static const char tar_options[]="txC:f:Opvk" \
 	TAR_OPT_STR_CREATE \
 	TAR_OPT_STR_BZIP2 \
+	TAR_OPT_STR_LZMA \
 	TAR_OPT_STR_FROM \
 	TAR_OPT_STR_GZIP \
 	TAR_OPT_STR_COMPRESS \
@@ -668,6 +685,9 @@ static const struct option tar_long_options[] = {
 # ifdef CONFIG_FEATURE_TAR_BZIP2
 	{ "bzip2",				0,	NULL,	'j' },
 # endif
+# ifdef CONFIG_FEATURE_TAR_LZMA
+	{ "lzma",				0,	NULL,	'a' },
+# endif
 # ifdef CONFIG_FEATURE_TAR_FROM
 	{ "files-from",			1,	NULL,	'T' },
 	{ "exclude-from",		1,	NULL,	'X' },
@@ -679,7 +699,7 @@ static const struct option tar_long_options[] = {
 # ifdef CONFIG_FEATURE_TAR_COMPRESS
 	{ "compress",			0,	NULL,	'Z' },
 # endif
-	{ 0,                 	0, 0, 0 }
+	{ 0,					0, 0, 0 }
 };
 #else
 #define tar_long_options	0
@@ -693,7 +713,7 @@ int tar_main(int argc, char **argv)
 	const char *tar_filename = "-";
 	unsigned long opt;
 	llist_t *excludes = NULL;
-	
+
 	/* Initialise default values */
 	tar_handle = init_handle();
 	tar_handle->flags = ARCHIVE_CREATE_LEADING_DIRS | ARCHIVE_PRESERVE_DATE | ARCHIVE_EXTRACT_UNCONDITIONAL;
@@ -723,7 +743,7 @@ int tar_main(int argc, char **argv)
 	}
 	if((opt & CTX_EXTRACT) && tar_handle->action_data != data_extract_to_stdout)
 		tar_handle->action_data = data_extract_all;
-		
+
 	if (opt & TAR_OPT_2STDOUT)
 		tar_handle->action_data = data_extract_to_stdout;
 
@@ -749,6 +769,9 @@ int tar_main(int argc, char **argv)
 
 	if (ENABLE_FEATURE_TAR_BZIP2 && (opt & TAR_OPT_BZIP2))
 		get_header_ptr = get_header_tar_bz2;
+
+	if (ENABLE_FEATURE_TAR_LZMA && (opt & TAR_OPT_LZMA))
+		get_header_ptr = get_header_tar_lzma;
 
 	if (ENABLE_FEATURE_TAR_COMPRESS && (opt & TAR_OPT_UNCOMPRESS))
 		get_header_ptr = get_header_tar_Z;
@@ -820,9 +843,9 @@ int tar_main(int argc, char **argv)
 		int zipMode = 0;
 
 		if (ENABLE_FEATURE_TAR_GZIP && get_header_ptr == get_header_tar_gz)
-		   	zipMode = 1;
+			zipMode = 1;
 		if (ENABLE_FEATURE_TAR_BZIP2 && get_header_ptr == get_header_tar_bz2)
-		   	zipMode = 2;
+			zipMode = 2;
 
 		if ((tar_handle->action_header == header_list) ||
 				(tar_handle->action_header == header_verbose_list))

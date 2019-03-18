@@ -62,7 +62,7 @@ static int read_str(const char *line, void *arg)
 {
 	char **dest = arg;
 
-	if (*dest) free(*dest);
+	free(*dest);
 	*dest = strdup(line);
 
 	return 1;
@@ -271,7 +271,7 @@ static const struct config_keyword keywords[] = {
 	{"boot_file",	read_str, &(server_config.boot_file),	""},
 	{"static_lease",read_staticlease, &(server_config.static_leases),	""},
 	/*ADDME: static lease */
-	{"",		NULL, 	  NULL,				""}
+	{"",		NULL,	  NULL,				""}
 };
 
 

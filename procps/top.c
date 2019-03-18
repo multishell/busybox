@@ -53,13 +53,13 @@ static int ntop;
 #ifdef CONFIG_FEATURE_USE_TERMIOS
 static int pid_sort (procps_status_t *P, procps_status_t *Q)
 {
-    return (Q->pid - P->pid);
+	return (Q->pid - P->pid);
 }
 #endif
 
 static int mem_sort (procps_status_t *P, procps_status_t *Q)
 {
-    return (int)(Q->rss - P->rss);
+	return (int)(Q->rss - P->rss);
 }
 
 #ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
@@ -69,32 +69,32 @@ static cmp_t sort_function[sort_depth];
 
 static int pcpu_sort (procps_status_t *P, procps_status_t *Q)
 {
-    return (Q->pcpu - P->pcpu);
+	return (Q->pcpu - P->pcpu);
 }
 
 static int time_sort (procps_status_t *P, procps_status_t *Q)
 {
-    return (int)((Q->stime + Q->utime) - (P->stime + P->utime));
+	return (int)((Q->stime + Q->utime) - (P->stime + P->utime));
 }
 
 static int mult_lvl_cmp(void* a, void* b) {
-    int i, cmp_val;
+	int i, cmp_val;
 
-    for(i = 0; i < sort_depth; i++) {
-	cmp_val = (*sort_function[i])(a, b);
-	if (cmp_val != 0)
-	    return cmp_val;
-    }
-    return 0;
+	for(i = 0; i < sort_depth; i++) {
+		cmp_val = (*sort_function[i])(a, b);
+		if (cmp_val != 0)
+			return cmp_val;
+	}
+	return 0;
 }
 
 /* This structure stores some critical information from one frame to
    the next. mostly used for sorting. Added cumulative and resident fields. */
 struct save_hist {
-    int ticks;
-    int pid;
-    int utime;
-    int stime;
+	int ticks;
+	int pid;
+	int utime;
+	int stime;
 };
 
 /*
@@ -130,152 +130,151 @@ static unsigned long Hertz;
  *
  */
 
-#define FILE_TO_BUF(filename, fd) do{                           \
-    if (fd == -1 && (fd = open(filename, O_RDONLY)) == -1) {    \
-	bb_perror_msg_and_die("/proc not be mounted?");            \
-    }                                                           \
-    lseek(fd, 0L, SEEK_SET);                                    \
-    if ((local_n = read(fd, buf, sizeof buf - 1)) < 0) {        \
-	bb_perror_msg_and_die("%s", filename);                     \
-    }                                                           \
-    buf[local_n] = '\0';                                        \
-}while(0)
+#define file_to_buf_bufsize 80
+static inline int file_to_buf(char *buf, const char *filename, int fd)
+{
+	int sz;
 
-#define FILE_TO_BUF2(filename, fd) do{                          \
-    lseek(fd, 0L, SEEK_SET);                                    \
-    if ((local_n = read(fd, buf, sizeof buf - 1)) < 0) {        \
-	bb_perror_msg_and_die("%s", filename);                     \
-    }                                                           \
-    buf[local_n] = '\0';                                        \
-}while(0)
+	if (fd == -1) {
+		fd = open(filename, O_RDONLY);
+		if(fd == -1)
+			bb_perror_msg_and_die("is /proc mounted?");
+	} else {
+		lseek(fd, 0L, SEEK_SET);
+	}
+	sz = read(fd, buf, file_to_buf_bufsize - 1);
+	if (sz < 0) {
+		bb_perror_msg_and_die("%s", filename);
+	}
+	buf[sz] = '\0';
+	return fd;
+}
 
-static void init_Hertz_value(void) {
-  unsigned long user_j, nice_j, sys_j, other_j;  /* jiffies (clock ticks) */
-  double up_1, up_2, seconds;
-  unsigned long jiffies, h;
-  char buf[80];
-  int uptime_fd = -1;
-  int stat_fd = -1;
+static void init_Hertz_value(void)
+{
+	unsigned long user_j, nice_j, sys_j, other_j;  /* jiffies (clock ticks) */
+	double up_1, up_2, seconds;
+	unsigned long jiffies, h;
+	char buf[80];
+	int uptime_fd = -1;
+	int stat_fd = -1;
 
-  long smp_num_cpus = sysconf(_SC_NPROCESSORS_CONF);
+	long smp_num_cpus = sysconf(_SC_NPROCESSORS_CONF);
 
-  if(smp_num_cpus<1) smp_num_cpus=1;
-  do {
-    int local_n;
+	if(smp_num_cpus<1) smp_num_cpus=1;
 
-    FILE_TO_BUF("uptime", uptime_fd);
-    up_1 = strtod(buf, 0);
-    FILE_TO_BUF("stat", stat_fd);
-    sscanf(buf, "cpu %lu %lu %lu %lu", &user_j, &nice_j, &sys_j, &other_j);
-    FILE_TO_BUF2("uptime", uptime_fd);
-    up_2 = strtod(buf, 0);
-  } while((long)( (up_2-up_1)*1000.0/up_1 )); /* want under 0.1% error */
+	do {
+		uptime_fd = file_to_buf(buf, "uptime", uptime_fd);
+		up_1 = strtod(buf, 0);
+		stat_fd = file_to_buf(buf, "stat", stat_fd);
+		sscanf(buf, "cpu %lu %lu %lu %lu", &user_j, &nice_j, &sys_j, &other_j);
+		uptime_fd = file_to_buf(buf, "uptime", uptime_fd);
+		up_2 = strtod(buf, 0);
+	} while((long)( (up_2-up_1)*1000.0/up_1 )); /* want under 0.1% error */
+	close(uptime_fd);
+	close(stat_fd);
 
-  close(uptime_fd);
-  close(stat_fd);
-
-  jiffies = user_j + nice_j + sys_j + other_j;
-  seconds = (up_1 + up_2) / 2;
-  h = (unsigned long)( (double)jiffies/seconds/smp_num_cpus );
-  /* actual values used by 2.4 kernels: 32 64 100 128 1000 1024 1200 */
-  switch(h){
-  case   30 ...   34 :  Hertz =   32; break; /* ia64 emulator */
-  case   48 ...   52 :  Hertz =   50; break;
-  case   58 ...   62 :  Hertz =   60; break;
-  case   63 ...   65 :  Hertz =   64; break; /* StrongARM /Shark */
-  case   95 ...  105 :  Hertz =  100; break; /* normal Linux */
-  case  124 ...  132 :  Hertz =  128; break; /* MIPS, ARM */
-  case  195 ...  204 :  Hertz =  200; break; /* normal << 1 */
-  case  253 ...  260 :  Hertz =  256; break;
-  case  295 ...  304 :  Hertz =  300; break; /* 3 cpus */
-  case  393 ...  408 :  Hertz =  400; break; /* normal << 2 */
-  case  495 ...  504 :  Hertz =  500; break; /* 5 cpus */
-  case  595 ...  604 :  Hertz =  600; break; /* 6 cpus */
-  case  695 ...  704 :  Hertz =  700; break; /* 7 cpus */
-  case  790 ...  808 :  Hertz =  800; break; /* normal << 3 */
-  case  895 ...  904 :  Hertz =  900; break; /* 9 cpus */
-  case  990 ... 1010 :  Hertz = 1000; break; /* ARM */
-  case 1015 ... 1035 :  Hertz = 1024; break; /* Alpha, ia64 */
-  case 1095 ... 1104 :  Hertz = 1100; break; /* 11 cpus */
-  case 1180 ... 1220 :  Hertz = 1200; break; /* Alpha */
-  default:
-    /* If 32-bit or big-endian (not Alpha or ia64), assume HZ is 100. */
-    Hertz = (sizeof(long)==sizeof(int) || htons(999)==999) ? 100UL : 1024UL;
-  }
+	jiffies = user_j + nice_j + sys_j + other_j;
+	seconds = (up_1 + up_2) / 2;
+	h = (unsigned long)( (double)jiffies/seconds/smp_num_cpus );
+	/* actual values used by 2.4 kernels: 32 64 100 128 1000 1024 1200 */
+	switch(h) {
+	case   30 ...   34 :  Hertz =   32; break; /* ia64 emulator */
+	case   48 ...   52 :  Hertz =   50; break;
+	case   58 ...   62 :  Hertz =   60; break;
+	case   63 ...   65 :  Hertz =   64; break; /* StrongARM /Shark */
+	case   95 ...  105 :  Hertz =  100; break; /* normal Linux */
+	case  124 ...  132 :  Hertz =  128; break; /* MIPS, ARM */
+	case  195 ...  204 :  Hertz =  200; break; /* normal << 1 */
+	case  253 ...  260 :  Hertz =  256; break;
+	case  295 ...  304 :  Hertz =  300; break; /* 3 cpus */
+	case  393 ...  408 :  Hertz =  400; break; /* normal << 2 */
+	case  495 ...  504 :  Hertz =  500; break; /* 5 cpus */
+	case  595 ...  604 :  Hertz =  600; break; /* 6 cpus */
+	case  695 ...  704 :  Hertz =  700; break; /* 7 cpus */
+	case  790 ...  808 :  Hertz =  800; break; /* normal << 3 */
+	case  895 ...  904 :  Hertz =  900; break; /* 9 cpus */
+	case  990 ... 1010 :  Hertz = 1000; break; /* ARM */
+	case 1015 ... 1035 :  Hertz = 1024; break; /* Alpha, ia64 */
+	case 1095 ... 1104 :  Hertz = 1100; break; /* 11 cpus */
+	case 1180 ... 1220 :  Hertz = 1200; break; /* Alpha */
+	default:
+		/* If 32-bit or big-endian (not Alpha or ia64), assume HZ is 100. */
+		Hertz = (sizeof(long)==sizeof(int) || htons(999)==999) ? 100UL : 1024UL;
+	}
 }
 
 static void do_stats(void)
 {
-    struct timeval t;
-    static struct timeval oldtime;
-    struct timezone timez;
-    float elapsed_time;
+	struct timeval t;
+	static struct timeval oldtime;
+	struct timezone timez;
+	float elapsed_time;
 
-    procps_status_t *cur;
-    int total_time, i, n;
-    static int prev_count;
-    int systime, usrtime, pid;
+	procps_status_t *cur;
+	int total_time, i, n;
+	static int prev_count;
+	int systime, usrtime, pid;
 
-    struct save_hist *New_save_hist;
-
-    /*
-     * Finds the current time (in microseconds) and calculates the time
-     * elapsed since the last update.
-     */
-    gettimeofday(&t, &timez);
-    elapsed_time = (t.tv_sec - oldtime.tv_sec)
-	+ (float) (t.tv_usec - oldtime.tv_usec) / 1000000.0;
-    oldtime.tv_sec  = t.tv_sec;
-    oldtime.tv_usec = t.tv_usec;
-
-    New_save_hist  = alloca(sizeof(struct save_hist)*ntop);
-    /*
-     * Make a pass through the data to get stats.
-     */
-    for(n = 0; n < ntop; n++) {
-	cur = top + n;
+	struct save_hist *New_save_hist;
 
 	/*
-	 * Calculate time in cur process.  Time is sum of user time
-	 * (usrtime) plus system time (systime).
+	 * Finds the current time (in microseconds) and calculates the time
+	 * elapsed since the last update.
 	 */
-	systime = cur->stime;
-	usrtime = cur->utime;
-	pid = cur->pid;
-	total_time = systime + usrtime;
-	New_save_hist[n].ticks = total_time;
-	New_save_hist[n].pid = pid;
-	New_save_hist[n].stime = systime;
-	New_save_hist[n].utime = usrtime;
+	gettimeofday(&t, &timez);
+	elapsed_time = (t.tv_sec - oldtime.tv_sec)
+		+ (float) (t.tv_usec - oldtime.tv_usec) / 1000000.0;
+	oldtime.tv_sec  = t.tv_sec;
+	oldtime.tv_usec = t.tv_usec;
 
-	/* find matching entry from previous pass */
-	for (i = 0; i < prev_count; i++) {
-	    if (save_history[i].pid == pid) {
-		total_time -= save_history[i].ticks;
-		systime -= save_history[i].stime;
-		usrtime -= save_history[i].utime;
-		break;
-	    }
+	New_save_hist = alloca(sizeof(struct save_hist)*ntop);
+	/*
+	 * Make a pass through the data to get stats.
+	 */
+	for(n = 0; n < ntop; n++) {
+		cur = top + n;
+
+		/*
+		 * Calculate time in cur process.  Time is sum of user time
+		 * (usrtime) plus system time (systime).
+		 */
+		systime = cur->stime;
+		usrtime = cur->utime;
+		pid = cur->pid;
+		total_time = systime + usrtime;
+		New_save_hist[n].ticks = total_time;
+		New_save_hist[n].pid = pid;
+		New_save_hist[n].stime = systime;
+		New_save_hist[n].utime = usrtime;
+
+		/* find matching entry from previous pass */
+		for (i = 0; i < prev_count; i++) {
+			if (save_history[i].pid == pid) {
+				total_time -= save_history[i].ticks;
+				systime -= save_history[i].stime;
+				usrtime -= save_history[i].utime;
+				break;
+			}
+		}
+
+		/*
+		 * Calculate percent cpu time for cur task.
+		 */
+		i = (total_time * 10 * 100/Hertz) / elapsed_time;
+		if (i > 999)
+			i = 999;
+		cur->pcpu = i;
 	}
 
 	/*
-	 * Calculate percent cpu time for cur task.
+	 * Save cur frame's information.
 	 */
-	i = (total_time * 10 * 100/Hertz) / elapsed_time;
-	if (i > 999)
-	    i = 999;
-	cur->pcpu = i;
-
-    }
-
-    /*
-     * Save cur frame's information.
-     */
-    free(save_history);
-    save_history = memcpy(xmalloc(sizeof(struct save_hist)*n), New_save_hist,
+	free(save_history);
+	save_history = memcpy(xmalloc(sizeof(struct save_hist)*n), New_save_hist,
 						sizeof(struct save_hist)*n);
-    prev_count = n;
-    qsort(top, n, sizeof(procps_status_t), (void*)mult_lvl_cmp);
+	prev_count = n;
+	qsort(top, n, sizeof(procps_status_t), (void*)mult_lvl_cmp);
 }
 #else
 static cmp_t sort_function;
@@ -301,10 +300,10 @@ static unsigned long display_generic(void)
 	 * First, we read in the first line. Old kernels will have bogus
 	 * strings we don't care about, whereas new kernels will start right
 	 * out with MemTotal:
-	 * 				-- PFM.
+	 *                              -- PFM.
 	 */
 	if (fscanf(fp, "MemTotal: %lu %s\n", &total, buf) != 2) {
-		fgets(buf, sizeof(buf), fp);	/* skip first line */
+		fgets(buf, sizeof(buf), fp);    /* skip first line */
 
 		fscanf(fp, "Mem: %lu %lu %lu %lu %lu %lu",
 		   &total, &used, &mfree, &shared, &buffers, &cached);
@@ -335,7 +334,7 @@ static unsigned long display_generic(void)
 	/* read load average */
 	fp = bb_xfopen("loadavg", "r");
 	if (fscanf(fp, "%f %f %f", &avg1, &avg2, &avg3) != 3) {
-		bb_error_msg_and_die("failed to read '%s'", "loadavg");
+		bb_error_msg_and_die("failed to read 'loadavg'");
 	}
 	fclose(fp);
 
@@ -352,11 +351,11 @@ static unsigned long display_generic(void)
 	/* output memory info and load average */
 	/* clear screen & go to top */
 	printf("\e[H\e[J" "Mem: "
-	       "%ldK used, %ldK free, %ldK shrd, %ldK buff, %ldK cached\n",
-	       used, mfree, shared, buffers, cached);
+		"%ldK used, %ldK free, %ldK shrd, %ldK buff, %ldK cached\n",
+		used, mfree, shared, buffers, cached);
 	printf("Load average: %.2f, %.2f, %.2f    "
-			"(State: S=sleeping R=running, W=waiting)\n",
-	       avg1, avg2, avg3);
+		"(State: S=sleeping R=running, W=waiting)\n",
+		avg1, avg2, avg3);
 	return total;
 }
 
@@ -395,9 +394,13 @@ static void display_status(int count, int col)
 			s->pid, s->user, s->state, rss_str_buf, s->ppid,
 			pmem/10, pmem%10);
 #endif
-			if(strlen(namecmd) > col)
-				namecmd[col] = 0;
-			printf("%s\n", namecmd);
+		if((int)strlen(namecmd) > col)
+			namecmd[col] = 0;
+		printf("%s", namecmd);
+		if(count)
+			putchar('\n');
+		else
+			fflush(stdout);
 		s++;
 	}
 }
@@ -428,7 +431,7 @@ static void reset_term(void)
 #endif /* CONFIG_FEATURE_CLEAN_UP */
 }
 
-static void sig_catcher (int sig)
+static void sig_catcher(int sig ATTRIBUTE_UNUSED)
 {
 	reset_term();
 }
@@ -438,6 +441,7 @@ static void sig_catcher (int sig)
 int top_main(int argc, char **argv)
 {
 	int opt, interval, lines, col;
+	char *sinterval;
 #ifdef CONFIG_FEATURE_USE_TERMIOS
 	struct termios new_settings;
 	struct timeval tv;
@@ -446,18 +450,13 @@ int top_main(int argc, char **argv)
 	struct sigaction sa;
 #endif /* CONFIG_FEATURE_USE_TERMIOS */
 
-	/* Default update rate is 5 seconds */
-	interval = 5;
-
 	/* do normal option parsing */
-	while ((opt = getopt(argc, argv, "d:")) > 0) {
-	    switch (opt) {
-		case 'd':
-		    interval = atoi(optarg);
-		    break;
-		default:
-		    bb_show_usage();
-	    }
+	opt = bb_getopt_ulflags(argc, argv, "d:", &sinterval);
+	if((opt & 1)) {
+		interval = atoi(sinterval);
+	} else {
+		/* Default update rate is 5 seconds */
+		interval = 5;
 	}
 
 	/* Default to 25 lines - 5 lines for status */
@@ -490,11 +489,11 @@ int top_main(int argc, char **argv)
 
 	get_terminal_width_height(0, &col, &lines);
 	if (lines > 4) {
-	    lines -= 5;
+		lines -= 4;
 #ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
-	    col = col - 80 + 35 - 6;
+		col = col - 80 + 35 - 6;
 #else
-	    col = col - 80 + 35;
+		col = col - 80 + 35;
 #endif
 	}
 #endif /* CONFIG_FEATURE_USE_TERMIOS */
@@ -518,8 +517,8 @@ int top_main(int argc, char **argv)
 			memcpy(top + n, p, sizeof(procps_status_t));
 		}
 		if (ntop == 0) {
-		bb_perror_msg_and_die("scandir('/proc')");
-	}
+			bb_error_msg_and_die("Can't find process info in /proc");
+		}
 #ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
 		if(!Hertz) {
 			init_Hertz_value();
@@ -527,7 +526,7 @@ int top_main(int argc, char **argv)
 			sleep(1);
 			clearmems();
 			continue;
-	}
+		}
 		do_stats();
 #else
 		qsort(top, ntop, sizeof(procps_status_t), (void*)sort_function);
@@ -549,7 +548,7 @@ int top_main(int argc, char **argv)
 				return EXIT_FAILURE;
 			}
 			if(c == 'q' || c == initial_settings.c_cc[VINTR])
-				return EXIT_SUCCESS;
+				break;
 			if(c == 'M') {
 #ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
 				sort_function[0] = mem_sort;
@@ -584,6 +583,8 @@ int top_main(int argc, char **argv)
 #endif /* CONFIG_FEATURE_USE_TERMIOS */
 		clearmems();
 	}
-
+	if(ENABLE_FEATURE_CLEAN_UP)
+		clearmems();
+	putchar('\n');
 	return EXIT_SUCCESS;
 }

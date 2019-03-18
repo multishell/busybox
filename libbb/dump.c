@@ -5,19 +5,7 @@
  * Copyright (c) 1989
  *	The Regents of the University of California.  All rights reserved.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  *
  * Original copyright notice is retained at the end of this file.
  */
@@ -364,18 +352,18 @@ static int next(char **argv)
 	/* NOTREACHED */
 }
 
-static u_char *get(void)
+static unsigned char *get(void)
 {
 	static int ateof = 1;
-	static u_char *curp=NULL, *savp; /*DBU:[dave@cray.com]initialize curp */
+	static unsigned char *curp=NULL, *savp; /*DBU:[dave@cray.com]initialize curp */
 	register int n;
 	int need, nread;
-	u_char *tmpp;
+	unsigned char *tmpp;
 
 	if (!curp) {
 		address = (off_t)0; /*DBU:[dave@cray.com] initialize,initialize..*/
-		curp = (u_char *) xmalloc(bb_dump_blocksize);
-		savp = (u_char *) xmalloc(bb_dump_blocksize);
+		curp = (unsigned char *) xmalloc(bb_dump_blocksize);
+		savp = (unsigned char *) xmalloc(bb_dump_blocksize);
 	} else {
 		tmpp = curp;
 		curp = savp;
@@ -390,19 +378,19 @@ static u_char *get(void)
 		 */
 		if (!bb_dump_length || (ateof && !next((char **) NULL))) {
 			if (need == bb_dump_blocksize) {
-				return ((u_char *) NULL);
+				return ((unsigned char *) NULL);
 			}
 			if (bb_dump_vflag != ALL && !bcmp(curp, savp, nread)) {
 				if (bb_dump_vflag != DUP) {
 					printf("*\n");
 				}
-				return ((u_char *) NULL);
+				return ((unsigned char *) NULL);
 			}
-			bzero((char *) curp + nread, need);
+			memset((char *) curp + nread, 0, need);
 			eaddress = address + nread;
 			return (curp);
 		}
-		n = fread((char *) curp + nread, sizeof(u_char),
+		n = fread((char *) curp + nread, sizeof(unsigned char),
 				  bb_dump_length == -1 ? need : MIN(bb_dump_length, need), stdin);
 		if (!n) {
 			if (ferror(stdin)) {
@@ -463,7 +451,7 @@ static const char conv_str[] =
 	"\0";
 
 
-static void conv_c(PR * pr, u_char * p)
+static void conv_c(PR * pr, unsigned char * p)
 {
 	const char *str = conv_str;
 	char buf[10];
@@ -488,7 +476,7 @@ static void conv_c(PR * pr, u_char * p)
 	}
 }
 
-static void conv_u(PR * pr, u_char * p)
+static void conv_u(PR * pr, unsigned char * p)
 {
 	static const char list[] =
 		"nul\0soh\0stx\0etx\0eot\0enq\0ack\0bel\0"
@@ -519,10 +507,10 @@ static void display(void)
 	register FU *fu;
 	register PR *pr;
 	register int cnt;
-	register u_char *bp;
+	register unsigned char *bp;
 
 	off_t saveaddress;
-	u_char savech = 0, *savebp;
+	unsigned char savech = 0, *savebp;
 
 	while ((bp = get()) != NULL) {
 		for (fs = bb_dump_fshead, savebp = bp, saveaddress = address; fs;
@@ -695,7 +683,7 @@ void bb_dump_add(const char *fmt)
 
 	/* start new linked list of format units */
 	/* NOSTRICT */
- 	tfs = (FS *) xcalloc(1,sizeof(FS)); /*DBU:[dave@cray.com] start out NULL */
+	tfs = (FS *) xcalloc(1,sizeof(FS)); /*DBU:[dave@cray.com] start out NULL */
 	if (!bb_dump_fshead) {
 		bb_dump_fshead = tfs;
 	} else {

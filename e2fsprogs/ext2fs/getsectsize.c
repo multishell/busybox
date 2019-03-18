@@ -1,6 +1,6 @@
 /*
  * getsectsize.c --- get the sector size of a device.
- * 
+ *
  * Copyright (C) 1995, 1995 Theodore Ts'o.
  * Copyright (C) 2003 VMware, Inc.
  *
@@ -23,7 +23,7 @@
 #include <linux/fd.h>
 #endif
 
-#if defined(__linux__) && defined(_IO) && !defined(BLKGETSIZE)
+#if defined(__linux__) && defined(_IO) && !defined(BLKSSZGET)
 #define BLKSSZGET  _IO(0x12,104)/* get block device sector size */
 #endif
 

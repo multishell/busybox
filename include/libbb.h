@@ -2,27 +2,14 @@
 /*
  * Busybox main internal header file
  *
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  *
  * Based in part on code from sash, Copyright (c) 1999 by David I. Bell
  * Permission has been granted to redistribute this code under the GPL.
  *
  */
-#ifndef	__LIBCONFIG_H__
-#define	__LIBCONFIG_H__    1
+#ifndef	__LIBBUSYBOX_H__
+#define	__LIBBUSYBOX_H__    1
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -36,6 +23,7 @@
 
 #include <features.h>
 
+#include "platform.h"
 #include "bb_config.h"
 #ifdef CONFIG_SELINUX
 #include <selinux/selinux.h>
@@ -49,21 +37,6 @@
 #ifdef CONFIG_FEATURE_SHA1_PASSWORDS
 # include "sha1.h"
 #endif
-
-/* Convenience macros to test the version of gcc. */
-#if defined __GNUC__ && defined __GNUC_MINOR__
-# define __GNUC_PREREQ(maj, min) \
-        ((__GNUC__ << 16) + __GNUC_MINOR__ >= ((maj) << 16) + (min))
-#else
-# define __GNUC_PREREQ(maj, min) 0
-#endif
-
-/* __restrict is known in EGCS 1.2 and above. */
-#if !__GNUC_PREREQ (2,92)
-# define __restrict     /* Ignore */
-#endif
-
-#define attribute_noreturn __attribute__ ((__noreturn__))
 
 /* Some useful definitions */
 #define FALSE   ((int) 0)
@@ -86,7 +59,7 @@
 #define	MAX(a,b) (((a)>(b))?(a):(b))
 #endif
 
-extern void bb_show_usage(void) __attribute__ ((noreturn));
+extern void bb_show_usage(void) ATTRIBUTE_NORETURN ATTRIBUTE_EXTERNALLY_VISIBLE;
 extern void bb_error_msg(const char *s, ...) __attribute__ ((format (printf, 1, 2)));
 extern void bb_error_msg_and_die(const char *s, ...) __attribute__ ((noreturn, format (printf, 1, 2)));
 extern void bb_perror_msg(const char *s, ...) __attribute__ ((format (printf, 1, 2)));
@@ -95,7 +68,7 @@ extern void bb_vherror_msg(const char *s, va_list p);
 extern void bb_herror_msg(const char *s, ...) __attribute__ ((format (printf, 1, 2)));
 extern void bb_herror_msg_and_die(const char *s, ...) __attribute__ ((noreturn, format (printf, 1, 2)));
 
-extern void bb_perror_nomsg_and_die(void) __attribute__ ((noreturn));
+extern void bb_perror_nomsg_and_die(void) ATTRIBUTE_NORETURN;
 extern void bb_perror_nomsg(void);
 
 /* These two are used internally -- you shouldn't need to use them */
@@ -135,7 +108,7 @@ extern long *pidlist_reverse(long *pidList);
 extern char *find_block_device(char *path);
 extern char *bb_get_line_from_file(FILE *file);
 extern char *bb_get_chomped_line_from_file(FILE *file);
-extern char *bb_get_chunk_from_file(FILE *file);
+extern char *bb_get_chunk_from_file(FILE *file, int *end);
 extern int bb_copyfd_size(int fd1, int fd2, const off_t size);
 extern int bb_copyfd_eof(int fd1, int fd2);
 extern void  bb_xprint_and_close_file(FILE *file);
@@ -147,7 +120,9 @@ extern FILE *bb_wfopen_input(const char *filename);
 extern FILE *bb_xfopen(const char *path, const char *mode);
 
 extern int   bb_fclose_nonstdin(FILE *f);
-extern void  bb_fflush_stdout_and_exit(int retval) __attribute__ ((noreturn));
+extern void  bb_fflush_stdout_and_exit(int retval) ATTRIBUTE_NORETURN;
+
+extern void xstat(const char *filename, struct stat *buf);
 
 #define BB_GETOPT_ERROR 0x80000000UL
 extern const char *bb_opt_complementally;
@@ -232,6 +207,7 @@ extern char *bb_askpass(int timeout, const char * prompt);
 
 extern int device_open(const char *device, int mode);
 
+extern char *query_loop(const char *device);
 extern int del_loop(const char *device);
 extern int set_loop(char **device, const char *file, int offset);
 
@@ -413,11 +389,14 @@ void reset_ino_dev_hashtable(void);
 
 /* Stupid gcc always includes its own builtin strlen()... */
 extern size_t bb_strlen(const char *string);
+#ifndef BB_STRLEN_IMPLEMENTATION
 #define strlen(x)   bb_strlen(x)
+#endif
 
 char *bb_xasprintf(const char *format, ...) __attribute__ ((format (printf, 1, 2)));
 
 #define FAIL_DELAY    3
+extern void bb_do_delay(int seconds);
 extern void change_identity ( const struct passwd *pw );
 extern const char *change_identity_e2str ( const struct passwd *pw );
 extern void run_shell ( const char *shell, int loginshell, const char *command, const char **additional_args);
@@ -466,7 +445,7 @@ typedef struct {
 } procps_status_t;
 
 extern procps_status_t * procps_scan(int save_user_arg0);
-extern unsigned short compare_string_array(const char *string_array[], const char *key);
+extern int compare_string_array(const char * const string_array[], const char *key);
 
 extern int my_query_module(const char *name, int which, void **buf, size_t *bufsize, size_t *ret);
 
@@ -487,13 +466,33 @@ extern void vfork_daemon_rexec(int nochdir, int noclose,
 extern int get_terminal_width_height(int fd, int *width, int *height);
 extern unsigned long get_ug_id(const char *s, long (*__bb_getxxnam)(const char *));
 
-#define HASH_SHA1	1
-#define HASH_MD5	2
-extern int hash_fd(int fd, const size_t size, const uint8_t hash_algo, uint8_t *hashval);
+typedef struct _sha1_ctx_t_ {
+	uint32_t count[2];
+	uint32_t hash[5];
+	uint32_t wbuf[16];
+} sha1_ctx_t;
+
+void sha1_begin(sha1_ctx_t *ctx);
+void sha1_hash(const void *data, size_t length, sha1_ctx_t *ctx);
+void *sha1_end(void *resbuf, sha1_ctx_t *ctx);
+
+typedef struct _md5_ctx_t_ {
+	uint32_t A;
+	uint32_t B;
+	uint32_t C;
+	uint32_t D;
+	uint32_t total[2];
+	uint32_t buflen;
+	char buffer[128];
+} md5_ctx_t;
+
+void md5_begin(md5_ctx_t *ctx);
+void md5_hash(const void *data, size_t length, md5_ctx_t *ctx);
+void *md5_end(void *resbuf, md5_ctx_t *ctx);
 
 /* busybox.h will include dmalloc later for us, else include it here.  */
 #if !defined _BB_INTERNAL_H_ && defined DMALLOC
 #include <dmalloc.h>
 #endif
 
-#endif /* __LIBCONFIG_H__ */
+#endif /* __LIBBUSYBOX_H__ */

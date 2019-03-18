@@ -1,6 +1,6 @@
 /*
  * ext2fs.h --- ext2fs
- * 
+ *
  * Copyright (C) 1993, 1994, 1995, 1996 Theodore Ts'o.
  *
  * %Begin-Header%
@@ -36,7 +36,7 @@ errcode_t ext2fs_free_mem(void *ptr)
 	*pp = 0;
 	return 0;
 }
-	
+
 /*
  *  Resize memory
  */
@@ -44,12 +44,14 @@ errcode_t ext2fs_resize_mem(unsigned long EXT2FS_ATTR((unused)) old_size,
 				     unsigned long size, void *ptr)
 {
 	void *p;
-	void **pp = (void **)ptr;
 
-	p = realloc(*pp, size);
+	/* Use "memcpy" for pointer assignments here to avoid problems
+	 * with C99 strict type aliasing rules. */
+	memcpy(&p, ptr, sizeof (p));
+	p = realloc(p, size);
 	if (!p)
 		return EXT2_ET_NO_MEMORY;
-	*pp = p;
+	memcpy(ptr, &p, sizeof (p));
 	return 0;
 }
 
@@ -154,7 +156,7 @@ blk_t ext2fs_inode_data_blocks(ext2_filsys fs,
 					struct ext2_inode *inode)
 {
        return inode->i_blocks -
-              (inode->i_file_acl ? fs->blocksize >> 9 : 0);
+	      (inode->i_file_acl ? fs->blocksize >> 9 : 0);
 }
 
 
@@ -178,8 +180,8 @@ __u32 ext2fs_swab32(__u32 val)
 
 int ext2fs_find_first_bit_set(void * addr, unsigned size)
 {
-	char	*cp = (unsigned char *) addr;
-	int 	res = 0, d0;
+	unsigned char	*cp = (unsigned char *) addr;
+	int	res = 0, d0;
 
 	if (!size)
 		return 0;
@@ -191,7 +193,7 @@ int ext2fs_find_first_bit_set(void * addr, unsigned size)
 	d0 = ffs(*cp);
 	if (d0 == 0)
 		return size;
-	
+
 	return res + d0 - 1;
 }
 
@@ -199,10 +201,10 @@ int ext2fs_find_next_bit_set (void * addr, int size, int offset)
 {
 	unsigned char * p;
 	int set = 0, bit = offset & 7, res = 0, d0;
-	
+
 	res = offset >> 3;
 	p = ((unsigned char *) addr) + res;
-	
+
 	if (bit) {
 		set = ffs(*p & ~((1 << bit) - 1));
 		if (set)
@@ -245,35 +247,35 @@ int ext2fs_mark_block_bitmap(ext2fs_block_bitmap bitmap,
 int ext2fs_unmark_block_bitmap(ext2fs_block_bitmap bitmap,
 					 blk_t block)
 {
-	return ext2fs_unmark_generic_bitmap((ext2fs_generic_bitmap) bitmap, 
+	return ext2fs_unmark_generic_bitmap((ext2fs_generic_bitmap) bitmap,
 					    block);
 }
 
 int ext2fs_test_block_bitmap(ext2fs_block_bitmap bitmap,
 				       blk_t block)
 {
-	return ext2fs_test_generic_bitmap((ext2fs_generic_bitmap) bitmap, 
+	return ext2fs_test_generic_bitmap((ext2fs_generic_bitmap) bitmap,
 					  block);
 }
 
 int ext2fs_mark_inode_bitmap(ext2fs_inode_bitmap bitmap,
 				       ext2_ino_t inode)
 {
-	return ext2fs_mark_generic_bitmap((ext2fs_generic_bitmap) bitmap, 
+	return ext2fs_mark_generic_bitmap((ext2fs_generic_bitmap) bitmap,
 					  inode);
 }
 
 int ext2fs_unmark_inode_bitmap(ext2fs_inode_bitmap bitmap,
 					 ext2_ino_t inode)
 {
-	return ext2fs_unmark_generic_bitmap((ext2fs_generic_bitmap) bitmap, 
+	return ext2fs_unmark_generic_bitmap((ext2fs_generic_bitmap) bitmap,
 				     inode);
 }
 
 int ext2fs_test_inode_bitmap(ext2fs_inode_bitmap bitmap,
 				       ext2_ino_t inode)
 {
-	return ext2fs_test_generic_bitmap((ext2fs_generic_bitmap) bitmap, 
+	return ext2fs_test_generic_bitmap((ext2fs_generic_bitmap) bitmap,
 					  inode);
 }
 
@@ -286,7 +288,7 @@ void ext2fs_fast_mark_block_bitmap(ext2fs_block_bitmap bitmap,
 				   bitmap->description);
 		return;
 	}
-#endif	
+#endif
 	ext2fs_set_bit(block - bitmap->start, bitmap->bitmap);
 }
 
@@ -415,7 +417,7 @@ void ext2fs_mark_block_bitmap_range(ext2fs_block_bitmap bitmap,
 					     blk_t block, int num)
 {
 	int	i;
-	
+
 	if ((block < bitmap->start) || (block+num-1 > bitmap->end)) {
 		ext2fs_warn_bitmap(EXT2_ET_BAD_BLOCK_MARK, block,
 				   bitmap->description);
@@ -429,14 +431,14 @@ void ext2fs_fast_mark_block_bitmap_range(ext2fs_block_bitmap bitmap,
 						  blk_t block, int num)
 {
 	int	i;
-	
+
 #ifdef EXT2FS_DEBUG_FAST_OPS
 	if ((block < bitmap->start) || (block+num-1 > bitmap->end)) {
 		ext2fs_warn_bitmap(EXT2_ET_BAD_BLOCK_MARK, block,
 				   bitmap->description);
 		return;
 	}
-#endif	
+#endif
 	for (i=0; i < num; i++)
 		ext2fs_set_bit(block + i - bitmap->start, bitmap->bitmap);
 }
@@ -445,7 +447,7 @@ void ext2fs_unmark_block_bitmap_range(ext2fs_block_bitmap bitmap,
 					       blk_t block, int num)
 {
 	int	i;
-	
+
 	if ((block < bitmap->start) || (block+num-1 > bitmap->end)) {
 		ext2fs_warn_bitmap(EXT2_ET_BAD_BLOCK_UNMARK, block,
 				   bitmap->description);
@@ -459,14 +461,14 @@ void ext2fs_fast_unmark_block_bitmap_range(ext2fs_block_bitmap bitmap,
 						    blk_t block, int num)
 {
 	int	i;
-	
+
 #ifdef EXT2FS_DEBUG_FAST_OPS
 	if ((block < bitmap->start) || (block+num-1 > bitmap->end)) {
 		ext2fs_warn_bitmap(EXT2_ET_BAD_BLOCK_UNMARK, block,
 				   bitmap->description);
 		return;
 	}
-#endif	
+#endif
 	for (i=0; i < num; i++)
 		ext2fs_clear_bit(block + i - bitmap->start, bitmap->bitmap);
 }

@@ -39,7 +39,7 @@
 #include <sys/file.h>
 #include <sys/time.h>
 #include <sys/times.h>
-#include <sys/signal.h>
+#include <signal.h>
 
 #include <netinet/in.h>
 #include <netinet/ip6.h>
@@ -56,13 +56,15 @@
 #include <stddef.h>				/* offsetof */
 #include "busybox.h"
 
-static const int DEFDATALEN = 56;
-static const int MAXIPLEN = 60;
-static const int MAXICMPLEN = 76;
-static const int MAXPACKET = 65468;
-#define	MAX_DUP_CHK	(8 * 128)
-static const int MAXWAIT = 10;
-static const int PINGINTERVAL = 1;		/* second */
+enum {
+	DEFDATALEN = 56,
+	MAXIPLEN = 60,
+	MAXICMPLEN = 76,
+	MAXPACKET = 65468,
+	MAX_DUP_CHK = (8 * 128),
+	MAXWAIT = 10,
+	PINGINTERVAL = 1		/* second */
+};
 
 #define O_QUIET         (1 << 0)
 #define O_VERBOSE       (1 << 1)
@@ -139,7 +141,7 @@ static void ping(const char *host)
 	return;
 }
 
-extern int ping6_main(int argc, char **argv)
+int ping6_main(int argc, char **argv)
 {
 	argc--;
 	argv++;
@@ -234,6 +236,17 @@ static void sendping(int junk)
 	}
 }
 
+/* RFC3542 changed some definitions from RFC2292 for no good reason, whee !
+ * the newer 3542 uses a MLD_ prefix where as 2292 uses ICMP6_ prefix */
+#ifndef MLD_LISTENER_QUERY
+# define MLD_LISTENER_QUERY ICMP6_MEMBERSHIP_QUERY
+#endif
+#ifndef MLD_LISTENER_REPORT
+# define MLD_LISTENER_REPORT ICMP6_MEMBERSHIP_REPORT
+#endif
+#ifndef MLD_LISTENER_REDUCTION
+# define MLD_LISTENER_REDUCTION ICMP6_MEMBERSHIP_REDUCTION
+#endif
 static char *icmp6_type_name (int id)
 {
 	switch (id) {
@@ -243,10 +256,10 @@ static char *icmp6_type_name (int id)
 	case ICMP6_PARAM_PROB:				return "Parameter Problem";
 	case ICMP6_ECHO_REPLY:				return "Echo Reply";
 	case ICMP6_ECHO_REQUEST:			return "Echo Request";
-	case ICMP6_MEMBERSHIP_QUERY:		return "Membership Query";
-	case ICMP6_MEMBERSHIP_REPORT:		return "Membership Report";
-	case ICMP6_MEMBERSHIP_REDUCTION:	return "Membership Reduction";
-	default: 							return "unknown ICMP type";
+	case MLD_LISTENER_QUERY:			return "Listener Query";
+	case MLD_LISTENER_REPORT:			return "Listener Report";
+	case MLD_LISTENER_REDUCTION:		return "Listener Reduction";
+	default:							return "unknown ICMP type";
 	}
 }
 
@@ -423,7 +436,7 @@ static void ping(const char *host)
 	pingstats(0);
 }
 
-extern int ping6_main(int argc, char **argv)
+int ping6_main(int argc, char **argv)
 {
 	char *thisarg;
 

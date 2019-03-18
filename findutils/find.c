@@ -53,6 +53,11 @@ static char mtime_char;
 static int mtime_days;
 #endif
 
+#ifdef CONFIG_FEATURE_FIND_MMIN
+static char mmin_char;
+static int mmin_mins;
+#endif
+
 #ifdef CONFIG_FEATURE_FIND_XDEV
 static dev_t *xdev_dev;
 static int xdev_count = 0;
@@ -109,6 +114,17 @@ static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
 			goto no_match;
 	}
 #endif
+#ifdef CONFIG_FEATURE_FIND_MMIN
+	if (mmin_char != 0) {
+		time_t file_age = time(NULL) - statbuf->st_mtime;
+		time_t mmin_secs = mmin_mins * 60;
+		if (!((isdigit(mmin_char) && file_age >= mmin_secs &&
+						file_age < mmin_secs + 60) ||
+				(mmin_char == '+' && file_age >= mmin_secs + 60) ||
+				(mmin_char == '-' && file_age < mmin_secs)))
+			goto no_match;
+	}
+#endif
 #ifdef CONFIG_FEATURE_FIND_XDEV
 	if (xdev_count) {
 		int i;
@@ -148,7 +164,7 @@ static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
 		goto no_match;
 	}
 #endif
-	
+
 	puts(fileName);
 no_match:
 	return (TRUE);
@@ -239,6 +255,17 @@ int find_main(int argc, char **argv)
 			if ((mtime_char = argv[i][0]) == '-')
 				mtime_days = -mtime_days;
 #endif
+#ifdef CONFIG_FEATURE_FIND_MMIN
+		} else if (strcmp(argv[i], "-mmin") == 0) {
+			char *end;
+			if (++i == argc)
+				bb_error_msg_and_die(msg_req_arg, "-mmin");
+			mmin_mins = strtol(argv[i], &end, 10);
+			if (end[0] != '\0')
+				bb_error_msg_and_die(msg_invalid_arg, argv[i], "-mmin");
+			if ((mmin_char = argv[i][0]) == '-')
+				mmin_mins = -mmin_mins;
+#endif
 #ifdef CONFIG_FEATURE_FIND_XDEV
 		} else if (strcmp(argv[i], "-xdev") == 0) {
 			struct stat stbuf;
@@ -247,15 +274,13 @@ int find_main(int argc, char **argv)
 			xdev_dev = xmalloc ( xdev_count * sizeof( dev_t ));
 
 			if ( firstopt == 1 ) {
-				if ( stat ( ".", &stbuf ) < 0 )
-					bb_error_msg_and_die("could not stat '.'" );
+				xstat ( ".", &stbuf );
 				xdev_dev [0] = stbuf. st_dev;
 			}
 			else {
 
 				for (i = 1; i < firstopt; i++) {
-					if ( stat ( argv [i], &stbuf ) < 0 )
-						bb_error_msg_and_die("could not stat '%s'", argv [i] );
+					xstat ( argv [i], &stbuf );
 					xdev_dev [i-1] = stbuf. st_dev;
 				}
 			}
@@ -265,8 +290,7 @@ int find_main(int argc, char **argv)
 			struct stat stat_newer;
 			if (++i == argc)
 				bb_error_msg_and_die(msg_req_arg, "-newer");
-		    if (stat (argv[i], &stat_newer) != 0)
-				bb_error_msg_and_die("file %s not found", argv[i]);
+			xstat (argv[i], &stat_newer);
 			newer_mtime = stat_newer.st_mtime;
 #endif
 #ifdef CONFIG_FEATURE_FIND_INUM
@@ -290,7 +314,7 @@ int find_main(int argc, char **argv)
 					break;
 				cmd_string = bb_xasprintf("%s %s", cmd_string, argv[i]);
 			}
-			
+
 			if (*cmd_string == 0)
 				bb_error_msg_and_die(msg_req_arg, "-exec");
 			cmd_string++;
