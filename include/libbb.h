@@ -52,11 +52,6 @@
 # include "sha1.h"
 #endif
 
-/* Compatability with ANSI C */
-#ifndef inline
-# define inline
-#endif
-
 /* Convenience macros to test the version of gcc. */
 #if defined __GNUC__ && defined __GNUC_MINOR__
 # define __GNUC_PREREQ(maj, min) \
@@ -272,7 +267,8 @@ enum {
 	MEGABYTE = (KILOBYTE*1024),
 	GIGABYTE = (MEGABYTE*1024)
 };
-const char *make_human_readable_str(unsigned long size, unsigned long block_size, unsigned long display_unit);
+const char *make_human_readable_str(unsigned long long size, 
+		unsigned long block_size, unsigned long display_unit);
 
 int bb_ask_confirmation(void);
 int klogctl(int type, char * b, int len);
@@ -335,6 +331,21 @@ extern const char * const bb_path_gshadow_file;
 extern const char * const bb_path_group_file;
 extern const char * const bb_path_securetty_file;
 extern const char * const bb_path_motd_file;
+
+/*
+ * You can change LIBBB_DEFAULT_LOGIN_SHELL, but don`t use,
+ * use bb_default_login_shell and next defines,
+ * if you LIBBB_DEFAULT_LOGIN_SHELL change,
+ * don`t lose change increment constant!
+ */
+#define LIBBB_DEFAULT_LOGIN_SHELL      "-/bin/sh"
+
+extern const char * const bb_default_login_shell;
+/* "/bin/sh" */
+#define DEFAULT_SHELL     (bb_default_login_shell+1)
+/* "sh" */
+#define DEFAULT_SHELL_SHORT_NAME     (bb_default_login_shell+6)
+
 
 extern const char bb_path_mtab_file[];
 
@@ -400,6 +411,7 @@ void bb_xasprintf(char **string_ptr, const char *format, ...) __attribute__ ((fo
 
 #define FAIL_DELAY    3
 extern void change_identity ( const struct passwd *pw );
+extern const char *change_identity_e2str ( const struct passwd *pw );
 extern void run_shell ( const char *shell, int loginshell, const char *command, const char **additional_args
 #ifdef CONFIG_SELINUX
 	, security_id_t sid

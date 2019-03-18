@@ -2,7 +2,7 @@
 /*
  * Mini insmod implementation for busybox
  *
- * This version of insmod supports x86, ARM, SH3/4, powerpc, m68k, 
+ * This version of insmod supports x86, ARM, SH3/4/5, powerpc, m68k, 
  * MIPS, and v850e.
  *
  * Copyright (C) 1999,2000 by Lineo, inc. and Erik Andersen
@@ -18,6 +18,11 @@
  * Nicolas Ferre <nicolas.ferre@alcove.fr> to support ARM7TDMI.  Only
  * very minor changes required to also work with StrongArm and presumably
  * all ARM based systems.
+ *
+ * Paul Mundt <lethal@linux-sh.org> 08-Aug-2003.
+ *   Integrated support for sh64 (SH-5), from preliminary modutils
+ *   patches from Benedict Gaster <benedict.gaster@superh.com>.
+ *   Currently limited to support for 32bit ABI.
  *
  * Magnus Damm <damm@opensource.se> 22-May-2002.
  *   The plt and got code are now using the same structs.
@@ -182,17 +187,18 @@
 #define Elf32_RelM	Elf32_Rela
 #define ELFCLASSM	ELFCLASS32
 
-/* the SH changes have only been tested on the SH4 in =little endian= mode */
+/* the SH changes have only been tested in =little endian= mode */
 /* I'm not sure about big endian, so let's warn: */
 
-#if (defined(__SH4__) || defined(__SH3__)) && defined(__BIG_ENDIAN__)
-#error insmod.c may require changes for use on big endian SH4/SH3
+#if defined(__sh__) && defined(__BIG_ENDIAN__)
+#error insmod.c may require changes for use on big endian SH
 #endif
 
 /* it may or may not work on the SH1/SH2... So let's error on those
    also */
-#if (defined(__sh__) && (!(defined(__SH3__) || defined(__SH4__))))
-#error insmod.c may require changes for non-SH3/SH4 use
+#if ((!(defined(__SH3__) || defined(__SH4__) || defined(__SH5__)))) && \
+	(defined(__sh__))
+#error insmod.c may require changes for SH1 or SH2 use
 #endif
 #endif
 
@@ -247,7 +253,7 @@
 #ifndef MODUTILS_MODULE_H
 static const int MODUTILS_MODULE_H = 1;
 
-#ident "$Id: insmod.c,v 1.99 2003/07/22 08:56:50 andersen Exp $"
+#ident "$Id: insmod.c,v 1.103 2003/09/03 00:42:58 bug1 Exp $"
 
 /* This file contains the structures used by the 2.0 and 2.1 kernels.
    We do not use the kernel headers directly because we do not wish
@@ -468,7 +474,7 @@ int delete_module(const char *);
 #ifndef MODUTILS_OBJ_H
 static const int MODUTILS_OBJ_H = 1;
 
-#ident "$Id: insmod.c,v 1.99 2003/07/22 08:56:50 andersen Exp $"
+#ident "$Id: insmod.c,v 1.103 2003/09/03 00:42:58 bug1 Exp $"
 
 /* The relocatable object is manipulated using elfin types.  */
 
@@ -644,6 +650,8 @@ static enum obj_reloc arch_apply_relocation (struct obj_file *f,
 
 static void arch_create_got (struct obj_file *f);
 
+static int obj_gpl_license(struct obj_file *f, const char **license);
+	
 #ifdef CONFIG_FEATURE_NEW_MODULE_INTERFACE
 static int arch_init_module (struct obj_file *f, struct new_module *);
 #endif
@@ -652,7 +660,6 @@ static int arch_init_module (struct obj_file *f, struct new_module *);
 //----------------------------------------------------------------------------
 //--------end of modutils obj.h
 //----------------------------------------------------------------------------
-
 
 
 /* SPFX is always a string, so it can be concatenated to string constants.  */
@@ -1201,7 +1208,51 @@ arch_apply_relocation(struct obj_file *f,
 		*loc = v - got;
 		break;
 
-#endif
+#if defined(__SH5__)
+	case R_SH_IMM_MEDLOW16:
+	case R_SH_IMM_LOW16:
+		{
+			Elf32_Addr word;
+
+			if (ELF32_R_TYPE(rel->r_info) == R_SH_IMM_MEDLOW16)
+				v >>= 16;
+
+			/*
+			 *  movi and shori have the format:
+			 *
+			 *  |  op  | imm  | reg | reserved |
+			 *   31..26 25..10 9.. 4 3   ..   0
+			 *
+			 * so we simply mask and or in imm.
+			 */
+			word = *loc & ~0x3fffc00;
+			word |= (v & 0xffff) << 10;
+
+			*loc = word;
+
+			break;
+		}
+
+	case R_SH_IMM_MEDLOW16_PCREL:
+	case R_SH_IMM_LOW16_PCREL:
+		{
+			Elf32_Addr word;
+
+			word = *loc & ~0x3fffc00;
+
+			v -= dot;
+
+			if (ELF32_R_TYPE(rel->r_info) == R_SH_IMM_MEDLOW16_PCREL)
+				v >>= 16;
+
+			word |= (v & 0xffff) << 10;
+
+			*loc = word;
+
+			break;
+		}
+#endif /* __SH5__ */
+#endif /* __sh__ */
 
 	default:
         printf("Warning: unhandled reloc %d\n",(int)ELF32_R_TYPE(rel->r_info));
@@ -1881,14 +1932,34 @@ add_symbols_from(
 	char *name_buf = 0;
 	size_t name_alloced_size = 0;
 #endif
+#ifdef CONFIG_FEATURE_CHECK_TAINTED_MODULE
+	int gpl;
 
+	gpl = obj_gpl_license(f, NULL) == 0;
+#endif
 	for (i = 0, s = syms; i < nsyms; ++i, ++s) {
 		/* Only add symbols that are already marked external.
 		   If we override locals we may cause problems for
 		   argument initialization.  We will also create a false
 		   dependency on the module.  */
 		struct obj_symbol *sym;
-		char *name = (char *)s->name;
+		char *name;
+
+		/* GPL licensed modules can use symbols exported with
+		 * EXPORT_SYMBOL_GPL, so ignore any GPLONLY_ prefix on the
+		 * exported names.  Non-GPL modules never see any GPLONLY_
+		 * symbols so they cannot fudge it by adding the prefix on
+		 * their references.
+		 */
+		if (strncmp((char *)s->name, "GPLONLY_", 8) == 0) {
+#ifdef CONFIG_FEATURE_CHECK_TAINTED_MODULE
+			if (gpl)
+				((char *)s->name) += 8;
+			else
+#endif
+				continue;
+		}
+		name = (char *)s->name;
 
 #ifdef SYMBOL_PREFIX
 		/* Prepend SYMBOL_PREFIX to the symbol's name (the
@@ -3470,14 +3541,26 @@ static struct obj_file *obj_load(FILE * fp, int loadprogbits)
 
 				/* Insert all symbols into the hash table.  */
 				for (j = 1, ++sym; j < nsym; ++j, ++sym) {
+					ElfW(Addr) val = sym->st_value;
 					const char *name;
 					if (sym->st_name)
 						name = strtab + sym->st_name;
 					else
 						name = f->sections[sym->st_shndx]->name;
 
+#if defined(__SH5__)
+					/*
+					 * For sh64 it is possible that the target of a branch
+					 * requires a mode switch (32 to 16 and back again).
+					 *
+					 * This is implied by the lsb being set in the target
+					 * address for SHmedia mode and clear for SHcompact.
+					 */
+					val |= sym->st_other & 4;
+#endif
+
 					obj_add_symbol(f, name, j, sym->st_info, sym->st_shndx,
-								   sym->st_value, sym->st_size);
+								   val, sym->st_size);
 				}
 			}
 			break;
@@ -3549,6 +3632,7 @@ static void hide_special_symbols(struct obj_file *f)
 			sym->info =
 				ELFW(ST_INFO) (STB_LOCAL, ELFW(ST_TYPE) (sym->info));
 }
+
 
 #ifdef CONFIG_FEATURE_CHECK_TAINTED_MODULE
 static int obj_gpl_license(struct obj_file *f, const char **license)
@@ -4048,6 +4132,14 @@ extern int insmod_main( int argc, char **argv)
 		m_filename = bb_xstrdup(argv[optind]);
 
 	printf("Using %s\n", m_filename);
+
+#ifdef CONFIG_FEATURE_REALLY_NEW_MODULE_INTERFACE
+    if (create_module(NULL, 0) < 0 && errno == ENOSYS) {
+		optind--;
+		argv[optind] = m_filename;
+		return insmod_ng_main(argc - optind, argv + optind);
+    }
+#endif
 
 	if ((f = obj_load(fp, LOADBITS)) == NULL)
 		bb_perror_msg_and_die("Could not load the module");

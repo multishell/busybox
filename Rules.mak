@@ -19,7 +19,7 @@
 
 #--------------------------------------------------------
 PROG      := busybox
-VERSION   := 1.00-pre2
+VERSION   := 1.00-pre3
 BUILDTIME := $(shell TZ=UTC date -u "+%Y.%m.%d-%H:%M%z")
 
 
@@ -101,7 +101,7 @@ TARGET_ARCH=$(shell $(CC) -dumpmachine | sed -e s'/-.*//' \
 		)
 endif
 
-# Pull in the user's uClibc configuration
+# Pull in the user's busybox configuration
 ifeq ($(filter $(noconfig_targets),$(MAKECMDGOALS)),)
 -include $(TOPDIR).config
 endif

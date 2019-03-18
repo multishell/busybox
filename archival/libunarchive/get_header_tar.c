@@ -29,6 +29,7 @@ extern char get_header_tar(archive_handle_t *archive_handle)
 {
 	file_header_t *file_header = archive_handle->file_header;
 	union {
+		/* ustar header, Posix 1003.1 */
 		unsigned char raw[512];
 		struct {
 			char name[100];	/*   0-99 */
@@ -52,7 +53,6 @@ extern char get_header_tar(archive_handle_t *archive_handle)
 	} tar;
 	long sum = 0;
 	long i;
-	char *tmp;
 
 	/* Align header */
 	data_align(archive_handle, 512);
@@ -105,10 +105,6 @@ extern char get_header_tar(archive_handle_t *archive_handle)
 	} else {
 		file_header->name = concat_path_file(tar.formated.prefix, tar.formated.name);
 	}
-	tmp = last_char_is(archive_handle->file_header->name, '/');
-	if (tmp) {
-		*tmp = '\0';
-	}
 
 	file_header->mode = strtol(tar.formated.mode, NULL, 8);
 	file_header->uid = strtol(tar.formated.uid, NULL, 8);
@@ -120,16 +116,17 @@ extern char get_header_tar(archive_handle_t *archive_handle)
 	file_header->device = (dev_t) ((strtol(tar.formated.devmajor, NULL, 8) << 8) +
 				 strtol(tar.formated.devminor, NULL, 8));
 
-#if defined CONFIG_FEATURE_TAR_OLDGNU_COMPATABILITY || defined CONFIG_FEATURE_TAR_GNU_EXTENSIONS
 	/* Fix mode, used by the old format */
 	switch (tar.formated.typeflag) {
 # ifdef CONFIG_FEATURE_TAR_OLDGNU_COMPATABILITY
 	case 0:
 	case '0':
-		file_header->mode |= S_IFREG;
+		if (last_char_is(file_header->name, '/')) {
+			file_header->mode |= S_IFDIR;
+		} else {
+			file_header->mode |= S_IFREG;
+		}
 		break;
-	case '1':
-		bb_error_msg("WARNING: Converting hard link to symlink");
 	case '2':
 		file_header->mode |= S_IFLNK;
 		break;
@@ -146,6 +143,11 @@ extern char get_header_tar(archive_handle_t *archive_handle)
 		file_header->mode |= S_IFIFO;
 		break;
 # endif
+	/* hard links are detected as entries with 0 size, a link name, 
+	 * and not being a symlink, hence we have nothing to do here */
+	case '1':
+		file_header->mode |= ~S_IFLNK;
+		break;
 # ifdef CONFIG_FEATURE_TAR_GNU_EXTENSIONS
 	case 'L': {
 			longname = xmalloc(file_header->size + 1);
@@ -172,7 +174,7 @@ extern char get_header_tar(archive_handle_t *archive_handle)
 		bb_error_msg("Ignoring GNU extension type %c", tar.formated.typeflag);
 # endif
 	}
-#endif
+
 	if (archive_handle->filter(archive_handle) == EXIT_SUCCESS) {
 		archive_handle->action_header(archive_handle->file_header);
 		archive_handle->flags |= ARCHIVE_EXTRACT_QUIET;
@@ -185,4 +187,3 @@ extern char get_header_tar(archive_handle_t *archive_handle)
 
 	return(EXIT_SUCCESS);
 }
-

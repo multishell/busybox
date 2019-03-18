@@ -54,8 +54,9 @@ busybox.links: applets/busybox.mkll include/config.h
 install: applets/install.sh busybox busybox.links
 	$(SHELL) $< $(PREFIX)
 
-uninstall: busybox busybox.links
-	for i in `cat busybox.links` ; do rm -f $$PREFIX$$i; done
+uninstall: busybox.links
+	rm -f $(PREFIX)/bin/busybox
+	for i in `cat busybox.links` ; do rm -f $(PREFIX)$$i; done
 
 install-hardlinks: applets/install.sh busybox busybox.links
 	$(SHELL) $< $(PREFIX) --hardlinks
@@ -147,7 +148,7 @@ include/config/MARKER: depend scripts/split-include
 
 include/config.h: .config
 	@if [ ! -x ./scripts/config/conf ] ; then \
-	    make -C scripts/config conf; \
+	    $(MAKE) -C scripts/config conf; \
 	fi;
 	@./scripts/config/conf -o sysdeps/$(TARGET_OS)/Config.in
 
@@ -167,12 +168,12 @@ all: menuconfig
 # ---------------------------------------------------------------------------
 
 scripts/config/conf:
-	make -C scripts/config conf
+	$(MAKE) -C scripts/config conf
 	-@if [ ! -f .config ] ; then \
 		cp sysdeps/$(TARGET_OS)/defconfig .config; \
 	fi
 scripts/config/mconf:
-	make -C scripts/config ncurses conf mconf
+	$(MAKE) -C scripts/config ncurses conf mconf
 	-@if [ ! -f .config ] ; then \
 		cp sysdeps/$(TARGET_OS)/defconfig .config; \
 	fi
@@ -208,13 +209,13 @@ check: busybox
 
 clean:
 	- $(MAKE) -C tests clean
-	- rm -f docs/BusyBox.txt docs/BusyBox.1 docs/BusyBox.html \
-	    docs/busybox.net/BusyBox.html
 	- rm -f docs/busybox.txt docs/busybox.dvi docs/busybox.ps \
 	    docs/busybox.pdf docs/busybox.pod docs/busybox.net/busybox.html \
-	    docs/busybox _install pod2htm* *.gdb *.elf *~ core
-	- rm -f busybox busybox.links libbb/loop.h .config.old .hdepend
-	- rm -f .*config.log
+	    docs/busybox pod2htm* *.gdb *.elf *~ core .*config.log \
+	    docs/BusyBox.txt docs/BusyBox.1 docs/BusyBox.html \
+	    docs/busybox.net/BusyBox.html busybox.links libbb/loop.h \
+	    .config.old .hdepend busybox
+	- rm -rf _install
 	- find . -name .\*.flags -exec rm -f {} \;   
 	- find . -name \*.o -exec rm -f {} \;
 	- find . -name \*.a -exec rm -f {} \;

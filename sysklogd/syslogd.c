@@ -56,7 +56,7 @@
 /* Path to the unix socket */
 static char lfile[MAXPATHLEN];
 
-static char *logFilePath = __LOG_FILE;
+static const char *logFilePath = __LOG_FILE;
 
 /* interval between marks in seconds */
 static int MarkInterval = 20 * 60;
@@ -574,9 +574,7 @@ extern int syslogd_main(int argc, char **argv)
 {
 	int opt;
 
-#if ! defined(__uClinux__)
 	int doFork = TRUE;
-#endif
 
 	char *p;
 
@@ -586,13 +584,11 @@ extern int syslogd_main(int argc, char **argv)
 		case 'm':
 			MarkInterval = atoi(optarg) * 60;
 			break;
-#if ! defined(__uClinux__)
 		case 'n':
 			doFork = FALSE;
 			break;
-#endif
 		case 'O':
-			logFilePath = bb_xstrdup(optarg);
+			logFilePath = optarg;
 			break;
 #ifdef CONFIG_FEATURE_REMOTE_LOG
 		case 'R':
@@ -627,14 +623,15 @@ extern int syslogd_main(int argc, char **argv)
 	/* Store away localhost's name before the fork */
 	gethostname(LocalHostName, sizeof(LocalHostName));
 	if ((p = strchr(LocalHostName, '.'))) {
-		*p++ = '\0';
+		*p = '\0';
 	}
 
 	umask(0);
 
-	if ((doFork == TRUE) && (daemon(0, 1) < 0)) {
+	if (doFork == TRUE) {
+		if(daemon(0, 1) < 0)
 		bb_perror_msg_and_die("daemon");
-#if ! defined(__uClinux__)
+#if defined(__uClinux__)
 		vfork_daemon_rexec(argc, argv, "-n");
 #endif
 	}

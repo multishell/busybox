@@ -253,13 +253,23 @@
 	"$ echo "Hello world" | cut -f 2 -d ' '\n" \
 	"world\n"
 
+#ifdef CONFIG_FEATURE_DATE_ISOFMT
+#define USAGE_DATE_ISOFMT(a) a
+#else
+#define USAGE_DATE_ISOFMT(a)
+#endif
+
 #define date_trivial_usage \
 	"[OPTION]... [+FORMAT]"
 #define date_full_usage \
 	"Displays the current time in the given FORMAT, or sets the system date.\n" \
 	"\nOptions:\n" \
 	"\t-R\t\tOutputs RFC-822 compliant date string\n" \
-	"\t-d STRING\tdisplay time described by STRING, not `now'\n" \
+	"\t-d STRING\tDisplays time described by STRING, not `now'\n" \
+	USAGE_DATE_ISOFMT("\t-I[TIMESPEC]\tOutputs an ISO-8601 compliant date/time string.\n" \
+	"\t\t\tTIMESPEC=`date' (or missing) for date only,\n" \
+	"\t\t\t`hours', `minutes', or `seconds' for date and,\n" \
+	"\t\t\ttime to the indicated precision.\n") \
 	"\t-s\t\tSets time described by STRING\n" \
 	"\t-u\t\tPrints or sets Coordinated Universal Time"
 #define date_example_usage \
@@ -460,21 +470,6 @@
 	"\t-f,\t--file=FILENAME\tLeases file to load\n" \
 	"\t-r,\t--remaining\tInterepret lease times as time remaing\n" \
 	"\t-a,\t--absolute\tInterepret lease times as expire time\n"
-
-#define dutmp_trivial_usage \
-	"[FILE]"
-#define dutmp_full_usage \
-	"Dump utmp file format (pipe delimited) from FILE\n" \
-	"or stdin to stdout.  (i.e., 'dutmp /var/run/utmp')"
-#define dutmp_example_usage \
-	"$ dutmp /var/run/utmp\n" \
-	"8|7||si|||0|0|0|955637625|760097|0\n" \
-	"2|0|~|~~|reboot||0|0|0|955637625|782235|0\n" \
-	"1|20020|~|~~|runlevel||0|0|0|955637625|800089|0\n" \
-	"8|125||l4|||0|0|0|955637629|998367|0\n" \
-	"6|245|tty1|1|LOGIN||0|0|0|955637630|998974|0\n" \
-	"6|246|tty2|2|LOGIN||0|0|0|955637630|999498|0\n" \
-	"7|336|pts/0|vt00|andersen|:0.0|0|0|0|955637763|0|0\n"
 
 #ifdef CONFIG_FEATURE_FANCY_ECHO
   #define USAGE_FANCY_ECHO(a) a
@@ -835,6 +830,12 @@
 #define USAGE_TRISTATE_HWIF(a)
 #endif
 
+#ifdef CONFIG_FEATURE_HDPARM_HDIO_GETSET_DMA
+#define USAGE_GETSET_DMA(a) a
+#else
+#define USAGE_GETSET_DMA(a)
+#endif
+
 #define hdparm_trivial_usage \
 	"[options] [device] .."
 #define hdparm_full_usage \
@@ -845,7 +846,7 @@
 	" -B   set Advanced Power Management setting (1-255)\n" \
 	" -c   get/set IDE 32-bit IO setting\n" \
 	" -C   check IDE power mode status\n" \
-	" -d   get/set using_dma flag\n" \
+	USAGE_GETSET_DMA(" -d   get/set using_dma flag\n") \
 	" -D   enable/disable drive defect-mgmt\n" \
 	" -f   flush buffer cache for device on exit\n" \
 	" -g   display drive geometry\n" \
@@ -1312,6 +1313,11 @@
 	"          [ [i|o]seq ] [ [i|o]key KEY ] [ [i|o]csum ]\n" \
 	"          [ ttl TTL ] [ tos TOS ] [ [no]pmtudisc ] [ dev PHYS_DEV ]\n"
 
+#define insmod_ng_trivial_usage \
+	"MODULE [symbol=value]..."
+#define insmod_ng_full_usage \
+	"Loads the specified kernel modules into the kernel."
+
 #define kill_trivial_usage \
 	"[-signal] process-id [process-id ...]"
 #define kill_full_usage \
@@ -1711,7 +1717,7 @@
 	"\nAvailable Opcodes:\n\n" \
 	"bsf bsfm bsr bss datacompression drvbuffer eof eom erase\n" \
 	"fsf fsfm fsr fss load lock mkpart nop offline ras1 ras2\n" \
-	"ras3 reset retension rew rewoffline seek setblk setdensity\n" \
+	"ras3 reset retension rewind rewoffline seek setblk setdensity\n" \
 	"setpart tell unload unlock weof wset"
 
 #define mv_trivial_usage \
@@ -1924,6 +1930,12 @@
 	"$ pwd\n" \
 	"/root\n"
 
+#define raid_start_trivial_usage \
+	"MD_DEVICE DISK_DEVICE"
+#define raid_start_full_usage \
+	"Start MD_DEVICE, taking superblock from DISK_DEVICE.\n" \
+	"Example: raid_start /dev/md0 /dev/sdb"
+	
 #define rdate_trivial_usage \
 	"[-sp] HOST"
 #define rdate_full_usage \
@@ -2051,7 +2063,7 @@
 	"[FILE]...\n" \
 	"or: sh -c command [args]..."
 #define lash_full_usage \
-	"lash: The BusyBox LAme SHell (command interpreter)"
+	"The BusyBox LAme SHell (command interpreter)"
 #define lash_notes_usage \
 "This command does not yet have proper documentation.\n" \
 "\n" \
@@ -2061,6 +2073,11 @@
 "Bourne Shell syntax.  If you need things like "if-then-else", "while", and such\n" \
 "use ash or bash.  If you just need a very simple and extremely small shell,\n" \
 "this will do the job."
+
+#define last_trivial_usage \
+	""
+#define last_full_usage \
+	"Shows listing of the last users that logged into the system"
 
 #define sha1sum_trivial_usage \
 	"[OPTION] [FILE]"

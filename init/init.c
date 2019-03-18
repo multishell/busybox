@@ -69,20 +69,25 @@ static const int VT_GETSTATE = 0x5603;	/* get global vt state info */
 
 /* From <linux/serial.h> */
 struct serial_struct {
-	int type;
-	int line;
-	int port;
-	int irq;
-	int flags;
-	int xmit_fifo_size;
-	int custom_divisor;
-	int baud_base;
-	unsigned short close_delay;
-	char reserved_char[2];
-	int hub6;
-	unsigned short closing_wait;	/* time to wait before closing */
-	unsigned short closing_wait2;	/* no longer used... */
-	int reserved[4];
+	int	type;
+	int	line;
+	unsigned int	port;
+	int	irq;
+	int	flags;
+	int	xmit_fifo_size;
+	int	custom_divisor;
+	int	baud_base;
+	unsigned short	close_delay;
+	char	io_type;
+	char	reserved_char[1];
+	int	hub6;
+	unsigned short	closing_wait; /* time to wait before closing */
+	unsigned short	closing_wait2; /* no longer used... */
+	unsigned char	*iomem_base;
+	unsigned short	iomem_reg_shift;
+	unsigned int	port_high;
+	unsigned long	iomap_base;	/* cookie passed into ioremap */
+	int	reserved[1];
 };
 
 
@@ -104,8 +109,6 @@ struct serial_struct {
 
 #define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))
 
-#define SHELL        "/bin/sh"	/* Default shell */
-#define LOGIN_SHELL  "-" SHELL	/* Default login shell */
 #define INITTAB      "/etc/inittab"	/* inittab file location */
 #ifndef INIT_SCRIPT
 #define INIT_SCRIPT  "/etc/init.d/rcS"	/* Default sysinit script. */
@@ -180,7 +183,7 @@ static const int RB_AUTOBOOT = 0x01234567;
 static const char * const environment[] = {
 	"HOME=/",
 	"PATH=" _PATH_STDPATH,
-	"SHELL=" SHELL,
+	"SHELL=/bin/sh",
 	"USER=root",
 	NULL
 };
@@ -310,7 +313,7 @@ static void set_term(int fd)
 
 /* How much memory does this machine have?
    Units are kBytes to avoid overflow on 4GB machines */
-static int check_free_memory(void)
+static unsigned int check_free_memory(void)
 {
 	struct sysinfo info;
 	unsigned int result, u, s = 10;
@@ -330,10 +333,11 @@ static int check_free_memory(void)
 		s--;
 	}
 	result = (info.totalram >> s) + (info.totalswap >> s);
-	result = result * u;
-	if (result < 0)
-		result = INT_MAX;
-	return result;
+	if ((unsigned long long) (result * u) > UINT_MAX) {
+		return(UINT_MAX);
+	} else {
+		return(result * u);
+	}
 }
 
 static void console_init(void)
@@ -525,7 +529,7 @@ static pid_t run(const struct init_action *a)
 
 		/* See if any special /bin/sh requiring characters are present */
 		if (strpbrk(a->command, "~`!$^&*()=|\\{}[];\"'<>?") != NULL) {
-			cmd[0] = SHELL;
+			cmd[0] = (char *)DEFAULT_SHELL;
 			cmd[1] = "-c";
 			cmd[2] = strcat(strcpy(buf, "exec "), a->command);
 			cmd[3] = NULL;
@@ -830,16 +834,9 @@ static void cont_handler(int sig)
 	got_cont = 1;
 }
 
-/* Reap any zombie processes that are reparented to init */
-static void child_handler(int sig)
-{
-	int status;
-	while ( wait3(&status, WNOHANG, NULL) > 0 );
-}
-
 #endif							/* ! DEBUG_INIT */
 
-static void new_init_action(int action, char *command, const char *cons)
+static void new_init_action(int action, const char *command, const char *cons)
 {
 	struct init_action *new_action, *a;
 
@@ -959,10 +956,10 @@ static void parse_inittab(void)
 		/* Prepare to restart init when a HUP is received */
 		new_init_action(RESTART, "/sbin/init", "");
 		/* Askfirst shell on tty1-4 */
-		new_init_action(ASKFIRST, LOGIN_SHELL, "");
-		new_init_action(ASKFIRST, LOGIN_SHELL, VC_2);
-		new_init_action(ASKFIRST, LOGIN_SHELL, VC_3);
-		new_init_action(ASKFIRST, LOGIN_SHELL, VC_4);
+		new_init_action(ASKFIRST, bb_default_login_shell, "");
+		new_init_action(ASKFIRST, bb_default_login_shell, VC_2);
+		new_init_action(ASKFIRST, bb_default_login_shell, VC_3);
+		new_init_action(ASKFIRST, bb_default_login_shell, VC_4);
 		/* sysinit */
 		new_init_action(SYSINIT, INIT_SCRIPT, "");
 
@@ -1077,7 +1074,6 @@ extern int init_main(int argc, char **argv)
 	signal(SIGCONT, cont_handler);
 	signal(SIGSTOP, stop_handler);
 	signal(SIGTSTP, stop_handler);
-	signal(SIGCHLD, child_handler);
 
 	/* Turn off rebooting via CTL-ALT-DEL -- we get a 
 	 * SIGINT on CAD so we can shut things down gracefully... */
@@ -1115,7 +1111,7 @@ extern int init_main(int argc, char **argv)
 	if (argc > 1 && (!strcmp(argv[1], "single") ||
 					 !strcmp(argv[1], "-s") || !strcmp(argv[1], "1"))) {
 		/* Start a shell on console */
-		new_init_action(RESPAWN, LOGIN_SHELL, "");
+		new_init_action(RESPAWN, bb_default_login_shell, "");
 	} else {
 		/* Not in single user mode -- see what inittab says */
 

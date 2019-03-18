@@ -295,6 +295,8 @@ int wget_main(int argc, char **argv)
 		 *  HTTP session
 		 */
 		do {
+			got_clen = chunked = 0;
+
 			if (! --try)
 				close_delete_and_die("too many redirections");
 
@@ -308,7 +310,12 @@ int wget_main(int argc, char **argv)
 			 * Send HTTP request.
 			 */
 			if (proxy) {
-				fprintf(sfp, "GET %stp://%s:%d/%s HTTP/1.1\r\n",
+				const char *format = "GET %stp://%s:%d/%s HTTP/1.1\r\n";
+#ifdef CONFIG_FEATURE_WGET_IP6_LITERAL
+				if (strchr (target.host, ':'))
+					format = "GET %stp://[%s]:%d/%s HTTP/1.1\r\n";
+#endif
+				fprintf(sfp, format,
 					target.is_ftp ? "f" : "ht", target.host,
 					target.port, target.path);
 			} else {
@@ -337,7 +344,8 @@ int wget_main(int argc, char **argv)
 			/*
 		 	* Retrieve HTTP response line and check for "200" status code.
 		 	*/
-read_response:		if (fgets(buf, sizeof(buf), sfp) == NULL)
+read_response:
+			if (fgets(buf, sizeof(buf), sfp) == NULL)
 				close_delete_and_die("no response from server");
 				
 			for (s = buf ; *s != '\0' && !isspace(*s) ; ++s)
@@ -481,25 +489,30 @@ read_response:		if (fgets(buf, sizeof(buf), sfp) == NULL)
 		progressmeter(-1);
 #endif
 	do {
-		while ((filesize > 0 || !got_clen) && (n = safe_fread(buf, 1, chunked ? (filesize > sizeof(buf) ? sizeof(buf) : filesize) : sizeof(buf), dfp)) > 0) {
-			if (safe_fwrite(buf, 1, n, output) != n)
+		while ((filesize > 0 || !got_clen) && (n = safe_fread(buf, 1, ((chunked || got_clen) && (filesize < sizeof(buf)) ? filesize : sizeof(buf)), dfp)) > 0) {
+			if (safe_fwrite(buf, 1, n, output) != n) {
 				bb_perror_msg_and_die("write error");
+			}
 #ifdef CONFIG_FEATURE_WGET_STATUSBAR
-		statbytes+=n;
+			statbytes+=n;
 #endif
-		if (got_clen)
-			filesize -= n;
-	}
+			if (got_clen) {
+				filesize -= n;
+			}
+		}
 
 		if (chunked) {
 			safe_fgets(buf, sizeof(buf), dfp); /* This is a newline */
 			safe_fgets(buf, sizeof(buf), dfp);
 			filesize = strtol(buf, (char **) NULL, 16);
-			if (filesize==0) chunked = 0; /* all done! */
+			if (filesize==0) {
+				chunked = 0; /* all done! */
+			}
 		}
 
-	if (n == 0 && ferror(dfp))
-		bb_perror_msg_and_die("network read error");
+		if (n == 0 && ferror(dfp)) {
+			bb_perror_msg_and_die("network read error");
+		}
 	} while (chunked);
 #ifdef CONFIG_FEATURE_WGET_STATUSBAR
 	if (quiet_flag==FALSE)
@@ -517,7 +530,7 @@ read_response:		if (fgets(buf, sizeof(buf), sfp) == NULL)
 
 void parse_url(char *url, struct host_info *h)
 {
-	char *cp, *sp, *up;
+	char *cp, *sp, *up, *pp;
 
 	if (strncmp(url, "http://", 7) == 0) {
 		h->port = 80;
@@ -545,7 +558,24 @@ void parse_url(char *url, struct host_info *h)
 	} else
 		h->user = NULL;
 
-	cp = strchr(h->host, ':');
+	pp = h->host;
+
+#ifdef CONFIG_FEATURE_WGET_IP6_LITERAL
+	if (h->host[0] == '[') {
+		char *ep;
+
+		ep = h->host + 1;
+		while (*ep == ':' || isxdigit (*ep))
+			ep++;
+		if (*ep == ']') {
+			h->host++;
+			*ep = '\0';
+			pp = ep + 1;
+		}
+	}
+#endif
+
+	cp = strchr(pp, ':');
 	if (cp != NULL) {
 		*cp++ = '\0';
 		h->port = atoi(cp);
@@ -811,7 +841,7 @@ progressmeter(int flag)
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	$Id: wget.c,v 1.54 2003/07/22 08:56:51 andersen Exp $
+ *	$Id: wget.c,v 1.59 2003/09/11 08:25:11 andersen Exp $
  */
 
 
@@ -823,6 +853,3 @@ c-basic-offset: 4
 tab-width: 4
 End:
 */
-
-
-

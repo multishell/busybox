@@ -169,9 +169,6 @@
 #ifdef CONFIG_DUMPLEASES
         APPLET(dumpleases, dumpleases_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
-#ifdef CONFIG_DUTMP
-	APPLET(dutmp, dutmp_main, _BB_DIR_USR_SBIN, _BB_SUID_NEVER)
-#endif
 #ifdef CONFIG_ECHO
 	APPLET(echo, echo_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
@@ -316,6 +313,9 @@
 #ifdef CONFIG_LASH
 	APPLET(lash, lash_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_LAST
+	APPLET(last, last_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
+#endif
 #ifdef CONFIG_LENGTH
 	APPLET(length, length_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
@@ -392,7 +392,7 @@
 	APPLET(more, more_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_MOUNT
-	APPLET(mount, mount_main, _BB_DIR_BIN, _BB_SUID_MAYBE)
+	APPLET(mount, mount_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_MSH
 	APPLET_NOUSAGE("msh", msh_main, _BB_DIR_BIN, _BB_SUID_NEVER)

@@ -54,9 +54,6 @@
 #define MAXLINES        256             /* max lines in non-root crontabs */
 #endif
 
-static const char def_sh[] = "/bin/sh";
-
-
 typedef struct CronFile {
     struct CronFile *cf_Next;
     struct CronLine *cf_LineBase;
@@ -302,6 +299,7 @@ static int
 ChangeUser(const char *user)
 {
     struct passwd *pas;
+    const char *err_msg;
 
     /*
      * Obtain password entry and change privilages
@@ -313,23 +311,14 @@ ChangeUser(const char *user)
     }
     setenv("USER", pas->pw_name, 1);
     setenv("HOME", pas->pw_dir, 1);
-    setenv("SHELL", def_sh, 1);
+    setenv("SHELL", DEFAULT_SHELL, 1);
 
     /*
      * Change running state to the user in question
      */
-
-    if (initgroups(user, pas->pw_gid) < 0) {
-	crondlog("\011initgroups failed: %s %m", user);
-	return(-1);
-    }
-    /* drop all priviledges */
-    if (setgid(pas->pw_gid) < 0) {
-	crondlog("\011setgid failed: %s %d", user, pas->pw_gid);
-	return(-1);
-    }
-    if (setuid(pas->pw_uid) < 0) {
-	crondlog("\011setuid failed: %s %d", user, pas->pw_uid);
+    err_msg = change_identity_e2str(pas);
+    if (err_msg) {
+	crondlog("\011%s for user %s", err_msg, user);
 	return(-1);
     }
 	if (chdir(pas->pw_dir) < 0) {
@@ -997,7 +986,7 @@ RunJob(const char *user, CronLine *line)
 			user, mailFile);
     }
 
-    ForkJob(user, line, mailFd, def_sh, "-c", line->cl_Shell, mailFile);
+    ForkJob(user, line, mailFd, DEFAULT_SHELL, "-c", line->cl_Shell, mailFile);
 }
 
 /*
@@ -1081,12 +1070,12 @@ RunJob(const char *user, CronLine *line)
 
 #ifdef FEATURE_DEBUG_OPT
 	if (DebugOpt)
-	    crondlog("\005Child Running %s\n", def_sh);
+	    crondlog("\005Child Running %s\n", DEFAULT_SHELL);
 #endif
 
-	execl(def_sh, def_sh, "-c", line->cl_Shell, NULL);
+	execl(DEFAULT_SHELL, DEFAULT_SHELL, "-c", line->cl_Shell, NULL);
 	crondlog("\024unable to exec, user %s cmd %s -c %s\n", user,
-	    def_sh, line->cl_Shell);
+	    DEFAULT_SHELL, line->cl_Shell);
 	exit(0);
     } else if (pid < 0) {
 	/*

@@ -388,7 +388,7 @@ static int loopback_up6(struct interface_defn_t *ifd, execfn *exec)
 {
 #ifdef CONFIG_FEATURE_IFUPDOWN_IP
 	int result;
-	result =execute("ip addr add ::1 dev %iface% label %label%", ifd, exec);
+	result =execute("ip addr add ::1 dev %iface%", ifd, exec);
 	result += execute("ip link set %iface% up", ifd, exec);
 	return( result);
 #else
@@ -409,8 +409,8 @@ static int static_up6(struct interface_defn_t *ifd, execfn *exec)
 {
 	int result;
 #ifdef CONFIG_FEATURE_IFUPDOWN_IP
-	result = execute("ip addr add %address%/%netmask% dev %iface% label %label%", ifd, exec);
-	result += execute("ip link set %iface% up", ifd, exec);
+	result = execute("ip addr add %address%/%netmask% dev %iface% [[label %label%]]", ifd, exec);
+	result += execute("ip link set [[mtu %mtu%]] [[address %hwaddress%]] %iface% up", ifd, exec);
 	result += execute("[[ ip route add ::/0 via %gateway% ]]", ifd, exec);
 #else
 	result = execute("ifconfig %iface% [[media %media%]] [[hw %hwaddress%]] [[mtu %mtu%]] up", ifd, exec);
@@ -436,7 +436,7 @@ static int v4tunnel_up(struct interface_defn_t *ifd, execfn *exec)
 	result = execute("ip tunnel add %iface% mode sit remote "
 				"%endpoint% [[local %local%]] [[ttl %ttl%]]", ifd, exec);
 	result += execute("ip link set %iface% up", ifd, exec);
-	result += execute("ip addr add %address%/%netmask% dev %iface% label %label%", ifd, exec);
+	result += execute("ip addr add %address%/%netmask% dev %iface%", ifd, exec);
 	result += execute("[[ ip route add ::/0 via %gateway% ]]", ifd, exec);
 	return( result);
 }
@@ -467,7 +467,7 @@ static int loopback_up(struct interface_defn_t *ifd, execfn *exec)
 {
 #ifdef CONFIG_FEATURE_IFUPDOWN_IP
 	int result;
-	result = execute("ip addr add 127.0.0.1/8 dev %iface% label %label%", ifd, exec);
+	result = execute("ip addr add 127.0.0.1/8 dev %iface%", ifd, exec);
 	result += execute("ip link set %iface% up", ifd, exec);
 	return(result);
 #else
@@ -492,8 +492,8 @@ static int static_up(struct interface_defn_t *ifd, execfn *exec)
 	int result;
 #ifdef CONFIG_FEATURE_IFUPDOWN_IP
 	result = execute("ip addr add %address%/%bnmask% [[broadcast %broadcast%]] "
-			"dev %iface% label %label%", ifd, exec);
-	result += execute("ip link set %iface% up", ifd, exec);
+			"dev %iface% [[peer %pointopoint%]] [[label %label%]]", ifd, exec);
+	result += execute("ip link set [[mtu %mtu%]] [[address %hwaddress%]] %iface% up", ifd, exec);
 	result += execute("[[ ip route add default via %gateway% dev %iface% ]]", ifd, exec);
 #else
 	result = execute("ifconfig %iface% %address% netmask %netmask% "
@@ -569,7 +569,11 @@ static int bootp_up(struct interface_defn_t *ifd, execfn *exec)
 
 static int bootp_down(struct interface_defn_t *ifd, execfn *exec)
 {
-	return( execute("ifconfig down %iface%", ifd, exec));
+#ifdef CONFIG_FEATURE_IFUPDOWN_IP
+	return(execute("ip link set %iface% down", ifd, exec));
+#else
+	return(execute("ifconfig %iface% down", ifd, exec));
+#endif
 }
 
 static int ppp_up(struct interface_defn_t *ifd, execfn *exec)
@@ -1005,7 +1009,7 @@ static int doit(char *str)
 			case -1:		/* failure */
 				return 0;
 			case 0:		/* child */
-				execle("/bin/sh", "/bin/sh", "-c", str, NULL, environ);
+				execle(DEFAULT_SHELL, DEFAULT_SHELL, "-c", str, NULL, environ);
 				exit(127);
 		}
 		waitpid(child, &status, 0);
@@ -1019,8 +1023,7 @@ static int doit(char *str)
 static int execute_all(struct interface_defn_t *ifd, execfn *exec, const char *opt)
 {
 	int i;
-	char *buf[2];
-
+	char *buf;
 	for (i = 0; i < ifd->n_options; i++) {
 		if (strcmp(ifd->option[i].name, opt) == 0) {
 			if (!(*exec) (ifd->option[i].value)) {
@@ -1028,12 +1031,10 @@ static int execute_all(struct interface_defn_t *ifd, execfn *exec, const char *o
 			}
 		}
 	}
+	
+	bb_xasprintf(&buf, "run-parts /etc/network/if-%s.d", opt);
+	(*exec)(buf);
 
-	bb_xasprintf(&buf[0], "/etc/network/if-%s.d", opt);
-	buf[1] = NULL;
-
-	run_parts(buf, 2, environ);
-	free(buf[0]);
 	return (1);
 }
 

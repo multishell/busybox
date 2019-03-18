@@ -277,7 +277,7 @@ int udhcpc_main(int argc, char *argv[])
 		FD_SET(udhcp_signal_pipe[0], &rfds);
 
 		if (tv.tv_sec > 0) {
-			DEBUG(LOG_INFO, "Waiting on select...\n");
+			DEBUG(LOG_INFO, "Waiting on select...");
 			max_fd = udhcp_signal_pipe[0] > fd ? udhcp_signal_pipe[0] : fd;
 			retval = select(max_fd + 1, &rfds, NULL, NULL, &tv);
 		} else retval = 0; /* If we already timed out, fall through */
@@ -297,6 +297,7 @@ int udhcpc_main(int argc, char *argv[])
 					timeout = now + ((packet_num == 2) ? 4 : 2);
 					packet_num++;
 				} else {
+					run_script(NULL, "leasefail");
 					if (client_config.background_if_no_lease) {
 						LOG(LOG_INFO, "No lease, forking to background.");
 						client_background();

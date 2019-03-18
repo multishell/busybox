@@ -1,18 +1,5 @@
-/* NOTE:
- *
- * Apparently, all "Steven J. Merrifield" did was grab the util-linux cal applet,
- * spend maybe 5 minutes integrating it into busybox, slapped a copyright on it,
- * and submitted it.  I certainly saw no evidence of any attempt at size reduction.
- * Not only do I consider his copyright below meaningless, I also consider his
- * actions shameful.
- *
- * Manuel Novoa III   (mjn3@codepoet.org)
- */
-
 /*
  * Calendar implementation for busybox
- *
- * Copyright (C) 2001 by Steven J. Merrifield <steve@labyrinth.net.au>
  *
  * See original copyright at the end of this file
  *
@@ -337,7 +324,7 @@ static char *build_row(char *p, int *dp)
 	do {
 		if ((day = *dp++) != SPACE) {
 			if (julian) {
-				*++p;
+				++p;
 				if (day >= 100) {
 					*p = '0';
 					p[-1] = (day / 100) + '0';
