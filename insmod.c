@@ -60,9 +60,13 @@
 #include <string.h>
 #include <getopt.h>
 #include <sys/utsname.h>
-#include <sys/syscall.h>
-#include <linux/unistd.h>
 #include "busybox.h"
+
+#ifdef BB_FEATURE_NEW_MODULE_INTERFACE
+# define new_sys_init_module	init_module
+#else
+# define old_sys_init_module	init_module
+#endif
 
 #if defined(__powerpc__)
 #define BB_USE_PLT_ENTRIES
@@ -119,7 +123,7 @@
 #ifndef MODUTILS_MODULE_H
 static const int MODUTILS_MODULE_H = 1;
 
-#ident "$Id: insmod.c,v 1.51 2001/03/12 23:08:34 markw Exp $"
+#ident "$Id: insmod.c,v 1.57 2001/04/05 07:33:10 andersen Exp $"
 
 /* This file contains the structures used by the 2.0 and 2.1 kernels.
    We do not use the kernel headers directly because we do not wish
@@ -325,7 +329,7 @@ int delete_module(const char *);
 #ifndef MODUTILS_OBJ_H
 static const int MODUTILS_OBJ_H = 1;
 
-#ident "$Id: insmod.c,v 1.51 2001/03/12 23:08:34 markw Exp $"
+#ident "$Id: insmod.c,v 1.57 2001/04/05 07:33:10 andersen Exp $"
 
 /* The relocatable object is manipulated using elfin types.  */
 
@@ -372,6 +376,15 @@ static const int MODUTILS_OBJ_H = 1;
 #define ELFDATAM        ELFDATA2MSB
 
 #elif defined(__mips__)
+
+/* Account for ELF spec changes.  */
+#ifndef EM_MIPS_RS3_LE
+#ifdef EM_MIPS_RS4_BE
+#define EM_MIPS_RS3_LE	EM_MIPS_RS4_BE
+#else
+#define EM_MIPS_RS3_LE	10
+#endif
+#endif /* !EM_MIPS_RS3_LE */
 
 #define MATCH_MACHINE(x) (x == EM_MIPS || x == EM_MIPS_RS3_LE)
 #define SHT_RELM	SHT_REL
@@ -665,20 +678,8 @@ int n_ext_modules;
 int n_ext_modules_used;
 
 
-
-/* Some firendly syscalls to cheer everyone's day...  */
-#define __NR_new_sys_init_module  __NR_init_module
-_syscall2(int, new_sys_init_module, const char *, name,
-		  const struct new_module *, info)
-#define __NR_old_sys_init_module  __NR_init_module
-_syscall5(int, old_sys_init_module, const char *, name, char *, code,
-		  unsigned, codesize, struct old_mod_routines *, routines,
-		  struct old_symbol_table *, symtab)
-#ifndef BB_RMMOD
-_syscall1(int, delete_module, const char *, name)
-#else
 extern int delete_module(const char *);
-#endif
+
 
 /* This is kind of troublesome. See, we don't actually support
    the m68k or the arm the same way we support i386 and (now)
@@ -691,31 +692,8 @@ extern int delete_module(const char *);
 
    -- Bryan Rittmeyer <bryan@ixiacom.com>                    */
 
-#ifdef BB_FEATURE_OLD_MODULE_INTERFACE
-_syscall1(int, get_kernel_syms, struct old_kernel_sym *, ks)
-#endif
-
-#if defined(__i386__) || defined(__m68k__) || defined(__arm__) \
- || defined(__powerpc__)
-/* Jump through hoops to fixup error return codes */
-#define __NR__create_module  __NR_create_module
-static inline _syscall2(long, _create_module, const char *, name, size_t,
-						size)
-unsigned long create_module(const char *name, size_t size)
-{
-	long ret = _create_module(name, size);
-
-	if (ret == -1 && errno > 125) {
-		ret = -errno;
-		errno = 0;
-	}
-	return ret;
-}
-#else
-_syscall2(unsigned long, create_module, const char *, name, size_t, size)
-#endif
-static char m_filename[BUFSIZ + 1] = "\0";
-static char m_fullName[BUFSIZ + 1] = "\0";
+static char m_filename[BUFSIZ + 1];
+static char m_fullName[BUFSIZ + 1];
 
 /*======================================================================*/
 
@@ -793,7 +771,9 @@ arch_apply_relocation(struct obj_file *f,
 				      ElfW(RelM) *rel, ElfW(Addr) v)
 {
 	struct arch_file *ifile = (struct arch_file *) f;
+#if !(defined(__mips__))
 	struct arch_symbol *isym = (struct arch_symbol *) sym;
+#endif
 
 	ElfW(Addr) *loc = (ElfW(Addr) *) (targsec->contents + rel->r_offset);
 	ElfW(Addr) dot = targsec->header.sh_addr + rel->r_offset;
@@ -1199,18 +1179,18 @@ int arch_create_got(struct obj_file *f)
 
 #if defined(BB_USE_GOT_ENTRIES)
 	if (got_offset) {
-		struct obj_section* relsec = obj_find_section(f, ".got");
+		struct obj_section* myrelsec = obj_find_section(f, ".got");
 
-		if (relsec) {
-			obj_extend_section(relsec, got_offset);
+		if (myrelsec) {
+			obj_extend_section(myrelsec, got_offset);
 		} else {
-			relsec = obj_create_alloced_section(f, ".got", 
+			myrelsec = obj_create_alloced_section(f, ".got", 
 							    BB_GOT_ENTRY_SIZE,
 							    got_offset);
-			assert(relsec);
+			assert(myrelsec);
 		}
 
-		ifile->got = relsec;
+		ifile->got = myrelsec;
 	}
 #endif
 
@@ -1737,19 +1717,19 @@ old_process_module_arguments(struct obj_file *f, int argc, char **argv)
 			while (*q++ == ',');
 		} else {
 			char *contents = f->sections[sym->secidx]->contents;
-			char *loc = contents + sym->value;
+			char *myloc = contents + sym->value;
 			char *r;			/* To search for commas */
 
 			/* Break the string with comas */
 			while ((r = strchr(q, ',')) != (char *) NULL) {
 				*r++ = '\0';
-				obj_string_patch(f, sym->secidx, loc - contents, q);
-				loc += sizeof(char *);
+				obj_string_patch(f, sym->secidx, myloc - contents, q);
+				myloc += sizeof(char *);
 				q = r;
 			}
 
 			/* last part */
-			obj_string_patch(f, sym->secidx, loc - contents, q);
+			obj_string_patch(f, sym->secidx, myloc - contents, q);
 		}
 
 		argc--, argv++;

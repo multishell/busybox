@@ -33,49 +33,37 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "busybox.h"
-#define BB_DECLARE_EXTERN
-#include "messages.c"
 
 
 static const int RFC_868_BIAS = 2208988800UL;
 
-static int setdate= 0;
-static int printdate= 0;
-
-static time_t askremotedate(char *host)
+static time_t askremotedate(const char *host)
 {
 	struct hostent *h;
-	struct sockaddr_in sin;
+	struct sockaddr_in s_in;
 	struct servent *tserv;
 	unsigned long int nett, localt;
 	int fd;
 
-	if (!(h = gethostbyname(host))) {	/* get the IP addr */
-		perror_msg("%s", host);
-		return(-1);
-	}
-	if ((tserv = getservbyname("time", "tcp")) == NULL) { /* find port # */
-		perror_msg("%s", "time");
-		return(-1);
-	}
-	if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {  /* get net connection */
-		perror_msg("%s", "socket");
-		return(-1);
-	}
+	if (!(h = gethostbyname(host)))         /* get the IP addr */
+		perror_msg_and_die("%s", host);
 
-	memcpy(&sin.sin_addr, h->h_addr, sizeof(sin.sin_addr));
-	sin.sin_port= tserv->s_port;
-	sin.sin_family = AF_INET;
+	if ((tserv = getservbyname("time", "tcp")) == NULL)   /* find port # */
+		perror_msg_and_die("%s", "time");
 
-	if (connect(fd, (struct sockaddr *)&sin, sizeof(sin)) < 0) {	/* connect to time server */
-		perror_msg("%s", host);
-		close(fd);
-		return(-1);
-	}
-	if (read(fd, (void *)&nett, 4) != 4) {	/* read time from server */
-		close(fd);
-		error_msg("%s did not send the complete time", host);
-	}
+	if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)    /* get net connection */
+		perror_msg_and_die("%s", "socket");
+
+	memcpy(&s_in.sin_addr, h->h_addr, sizeof(s_in.sin_addr));
+	s_in.sin_port= tserv->s_port;
+	s_in.sin_family = AF_INET;
+
+	if (connect(fd, (struct sockaddr *)&s_in, sizeof(s_in)) < 0)      /* connect to time server */
+		perror_msg_and_die("%s", host);
+
+	if (read(fd, (void *)&nett, 4) != 4)    /* read time from server */
+		error_msg_and_die("%s did not send the complete time", host);
+
 	close(fd);
 
 	/* convert from network byte order to local byte order.
@@ -91,8 +79,10 @@ static time_t askremotedate(char *host)
 
 int rdate_main(int argc, char **argv)
 {
-	time_t time;
+	time_t remote_time;
 	int opt;
+	int setdate = 0;
+	int printdate= 0;
 
 	/* Interpret command line args */
 	/* do special-case option parsing */
@@ -118,20 +108,18 @@ int rdate_main(int argc, char **argv)
 	/* the default action is to set the date */
 	if (printdate==0 && setdate==0) setdate++;
 
-	if (optind == argc) {
+	if (optind == argc)
 		show_usage();
-	}
 
-	if ((time= askremotedate(argv[optind])) == (time_t)-1) {
-		return EXIT_FAILURE;
-	}
+	remote_time = askremotedate(argv[optind]);
+
 	if (setdate) {
-		if (stime(&time) < 0)
+		if (stime(&remote_time) < 0)
 			perror_msg_and_die("Could not set time of day");
 	}
-	if (printdate) {
-		printf("%s", ctime(&time));
-	}
+
+	if (printdate)
+		printf("%s", ctime(&remote_time));
 
 	return EXIT_SUCCESS;
 }

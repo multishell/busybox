@@ -116,6 +116,28 @@ unix2dos, update, uptime, usleep, uudecode, uuencode, watchdog, wc, wget,
 which, whoami, xargs, yes, zcat, [
 
 <DL>
+<DT><STRONG><A NAME="item_adjtimex">adjtimex</A></STRONG><DD>
+<P>
+adjtimex [<STRONG>-q</STRONG>] [<STRONG>-o</STRONG> offset] [<STRONG>-f</STRONG> frequency] [<STRONG>-p</STRONG> timeconstant] [<STRONG>-t</STRONG> tick]
+
+<P>
+Reads and optionally sets system timebase parameters. See
+<CODE>adjtimex(2).</CODE>
+
+<P>
+Options:
+
+<P>
+<PRE>        -q              quiet mode - do not print
+        -o offset       time offset, microseconds
+        -f frequency    frequency adjust, integer kernel units (65536 is 1ppm)
+                        (positive values make the system clock run fast)
+        -t tick         microseconds per tick, usually 10000
+        -p timeconstant
+</PRE>
+<P>
+-------------------------------
+
 <DT><STRONG><A NAME="item_ar">ar</A></STRONG><DD>
 <P>
 ar -[ovR]{ptx} archive filenames
@@ -234,7 +256,7 @@ Example:
 
 <DT><STRONG><A NAME="item_chown">chown</A></STRONG><DD>
 <P>
-chown [OPTION]... OWNER[&lt;.|:&gt;[GROUP] FILE...
+chown [OPTION]... OWNER[&lt;.|:&gt;[GROUP]] FILE...
 
 <P>
 Change the owner and/or group of each FILE to OWNER and/or GROUP.
@@ -294,7 +316,7 @@ Changes the foreground virtual terminal to /dev/ttyN
 
 <DT><STRONG><A NAME="item_clear">clear</A></STRONG><DD>
 <P>
-clear 
+clear 	
 
 <P>
 Clear screen.
@@ -351,9 +373,9 @@ Options:
 Example:
 
 <P>
-<PRE>        $ echo Hello world | cut -f 1 -d ' '
+<PRE>        $ echo &quot;Hello world&quot; | cut -f 1 -d ' '
         Hello
-        $ echo Hello world | cut -f 2 -d ' '
+        $ echo &quot;Hello world&quot; | cut -f 2 -d ' '
         world
 </PRE>
 <P>
@@ -468,7 +490,7 @@ Options:
 <P>
 <PRE>        -h      print sizes in human readable format (e.g., 1K 243M 2G )
         -m      print sizes in megabytes
-        -k      print sizes in kilobytes(default) 
+        -k      print sizes in kilobytes(default)
 </PRE>
 <P>
 Example:
@@ -598,7 +620,7 @@ Options:
         -s      display only a total for each argument
         -h      print sizes in human readable format (e.g., 1K 243M 2G )
         -m      print sizes in megabytes
-        -k      print sizes in kilobytes(default) 
+        -k      print sizes in kilobytes(default)
 </PRE>
 <P>
 Example:
@@ -678,20 +700,38 @@ Options:
 Example:
 
 <P>
-<PRE>        $ echo Erik is cool
+<PRE>        $ echo &quot;Erik is cool&quot;
         Erik is cool
-        $  echo -e Erik
+        $  echo -e &quot;Erik
         is
-        cool
+        cool&quot;
         Erik
         is
         cool
-        $ echo Erik
+        $ echo &quot;Erik
         is
-        cool
+        cool&quot;
         Erik
         is
         cool
+</PRE>
+<P>
+-------------------------------
+
+<DT><STRONG><A NAME="item_env">env</A></STRONG><DD>
+<P>
+env [-] [<STRONG>-iu</STRONG>] [name=value ...] [command]
+
+<P>
+Prints the current environment or runs a program after setting up the
+specified environment.
+
+<P>
+Options:
+
+<P>
+<PRE>        -, -i   start with an empty environment
+        -u      remove variable from the environment
 </PRE>
 <P>
 -------------------------------
@@ -742,7 +782,7 @@ and \) are not used, they return the number of characters matched or 0.
 
 <DT><STRONG><A NAME="item_false">false</A></STRONG><DD>
 <P>
-false 
+false 	
 
 <P>
 Return an exit code of FALSE (1).
@@ -770,8 +810,9 @@ Example:
 
 <P>
 <PRE>        $ fbset
-        mode 1024x768-76
-                        geometry 1024 768 1024 768 16
+        mode &quot;1024x768-76&quot;
+                # D: 78.653 MHz, H: 59.949 kHz, V: 75.694 Hz
+                geometry 1024 768 1024 768 16
                 timings 12714 128 32 16 4 128 4
                 accel false
                 rgba 5/11,6/5,5/0,0/0
@@ -803,8 +844,10 @@ EXPRESSION may consist of:
 
 <P>
 <PRE>        -follow         Dereference symbolic links.
-        -name PATTERN   File name (leading directories removed) matches PATTERN.
-        -type X         Filetype matches X (where X is one of: f,d,l,b,c,...)
+        -name PATTERN   File name (leading directories removed) matches PATTERN.        -print          Print (default and assumed).
+</PRE>
+<P>
+<PRE>        -type X         Filetype matches X (where X is one of: f,d,l,b,c,...)
         -perm PERMS     Permissions match any of (+NNN); all of (-NNN);
                         or exactly (NNN)
         -mtime TIME     Modified time is greater than (+N); less than (-N);
@@ -822,7 +865,7 @@ Example:
 
 <DT><STRONG><A NAME="item_free">free</A></STRONG><DD>
 <P>
-free 
+free 	
 
 <P>
 Displays the amount of free and used system memory
@@ -836,7 +879,6 @@ Example:
           Mem:       257628       248724         8904        59644        93124
          Swap:       128516         8404       120112
         Total:       386144       257128       129016
-         
 </PRE>
 <P>
 -------------------------------
@@ -873,7 +915,7 @@ Options:
         -a      Perform automatic repairs
         -v      verbose
         -s      Outputs super-block information
-        -m      Activates MINIX-like mode not cleared warnings
+        -m      Activates MINIX-like &quot;mode not cleared&quot; warnings
         -f      Force file system check.
 </PRE>
 <P>
@@ -902,21 +944,22 @@ Example:
 
 <P>
 <PRE>        $ cat getopt.test
+        #!/bin/sh
         GETOPT=`getopt -o ab:c:: --long a-long,b-long:,c-long:: \
-               -n 'example.busybox' -- $@`
+               -n 'example.busybox' -- &quot;$@&quot;`
         if [ $? != 0 ] ; then  exit 1 ; fi
-        eval set -- $GETOPT
+        eval set -- &quot;$GETOPT&quot;
         while true ; do
          case $1 in
-           -a|--a-long) echo Option a ; shift ;;
-           -b|--b-long) echo Option b, argument `$2' ; shift 2 ;;
+           -a|--a-long) echo &quot;Option a&quot; ; shift ;;
+           -b|--b-long) echo &quot;Option b, argument `$2'&quot; ; shift 2 ;;
            -c|--c-long)
-             case $2 in
-               \) echo Option c, no argument; shift 2 ;;
-               *)  echo Option c, argument `$2' ; shift 2 ;;
+             case &quot;$2&quot; in
+               &quot;&quot;) echo &quot;Option c, no argument&quot;; shift 2 ;;
+               *)  echo &quot;Option c, argument `$2'&quot; ; shift 2 ;;
              esac ;;
            --) shift ; break ;;
-           *) echo Internal error! ; exit 1 ;;
+           *) echo &quot;Internal error!&quot; ; exit 1 ;;
          esac
         done
 </PRE>
@@ -937,6 +980,7 @@ Options:
 <PRE>        -H      prefix output lines with filename where match was found
         -h      suppress the prefixing filename on output
         -i      ignore case distinctions
+        -l      list names of files that match
         -n      print line number with output lines
         -q      be quiet. Returns 0 if result was found, 1 otherwise
         -v      select non-matching lines
@@ -1011,7 +1055,7 @@ Example:
 
 <DT><STRONG><A NAME="item_halt">halt</A></STRONG><DD>
 <P>
-halt 
+halt 	
 
 <P>
 Halt the system.
@@ -1047,7 +1091,7 @@ Example:
 
 <DT><STRONG><A NAME="item_hostid">hostid</A></STRONG><DD>
 <P>
-hostid 
+hostid 	
 
 <P>
 Print out a unique 32-bit identifier for the machine.
@@ -1133,7 +1177,7 @@ Options:
 
 <DT><STRONG><A NAME="item_init">init</A></STRONG><DD>
 <P>
-init 
+init 	
 
 <P>
 Init is the parent of all processes.
@@ -1153,6 +1197,9 @@ has the following default behavior:
 <P>
 <PRE>        ::sysinit:/etc/init.d/rcS
         ::askfirst:/bin/sh
+        ::ctrlaltdel:/sbin/reboot
+        ::shutdown:/sbin/swapoff -a
+        ::shutdown:/bin/umount -a -r
 </PRE>
 <P>
 if it detects that /dev/console is _not_ a serial console, it will also
@@ -1160,6 +1207,8 @@ run:
 
 <P>
 <PRE>        tty2::askfirst:/bin/sh
+        tty3::askfirst:/bin/sh
+        tty4::askfirst:/bin/sh
 </PRE>
 <P>
 If you choose to use an /etc/inittab file, the inittab entry format is as
@@ -1175,7 +1224,7 @@ follows:
 <PRE>                WARNING: This field has a non-traditional meaning for BusyBox init!
                 The id field is used by BusyBox init to specify the controlling tty for
                 the specified process to run on.  The contents of this field are
-                appended to /dev/ and used as-is.  There is no need for this field to
+                appended to &quot;/dev/&quot; and used as-is.  There is no need for this field to
                 be unique, although if it isn't you may have strange results.  If this
                 field is left blank, the controlling tty is set to the console.  Also
                 note that if BusyBox detects that a serial console is in use, then only
@@ -1194,7 +1243,7 @@ follows:
 </PRE>
 <P>
 <PRE>                Valid actions include: sysinit, respawn, askfirst, wait, 
-                once, and ctrlaltdel.
+                once, ctrlaltdel, and shutdown.
 </PRE>
 <P>
 <PRE>                The available actions can be classified into two groups: actions
@@ -1211,9 +1260,12 @@ follows:
                         'wait' actions, like  'sysinit' actions, cause init to wait until
                         the specified task completes.  'once' actions are asyncronous,
                         therefore, init does not wait for them to complete.  'ctrlaltdel'
-                        actions are run immediately before init causes the system to reboot
-                        (unmounting filesystems with a 'ctrlaltdel' action is a very good
-                        idea).
+                        actions are run when the system detects that someone on the system
+                       console has pressed the CTRL-ALT-DEL key combination.  Typically one
+                       wants to run 'reboot' at this point to cause the system to reboot.
+                        Finally the 'shutdown' action specifies the actions to taken when
+                       init is told to reboot.  Unmounting filesystems and disabling swap
+                       is a very good here
 </PRE>
 <P>
 <PRE>                Run repeatedly actions:
@@ -1224,7 +1276,7 @@ follows:
                         it.  Unlike sysvinit, BusyBox init does not stop processes from
                         respawning out of control.  The 'askfirst' actions acts just like
                         respawn, except that before running the specified process it
-                        displays the line Please press Enter to activate this console.
+                        displays the line &quot;Please press Enter to activate this console.&quot;
                         and then waits for the user to press enter before starting the
                         specified process.  
 </PRE>
@@ -1243,20 +1295,37 @@ follows:
 Example /etc/inittab file:
 
 <P>
-<PRE>        ::sysinit:/etc/init.d/rcS
+<PRE>        # This is run first except when booting in single-user mode.
+        #
+        ::sysinit:/etc/init.d/rcS
         
+        # /bin/sh invocations on selected ttys
+        #
+        # Start an &quot;askfirst&quot; shell on the console (whatever that may be)
         ::askfirst:-/bin/sh
+        # Start an &quot;askfirst&quot; shell on /dev/tty2-4
         tty2::askfirst:-/bin/sh
         tty3::askfirst:-/bin/sh
         tty4::askfirst:-/bin/sh
         
+        # /sbin/getty invocations for selected ttys
+        #
         tty4::respawn:/sbin/getty 38400 tty5
         tty5::respawn:/sbin/getty 38400 tty6
         
         
+        # Example of how to put a getty on a serial line (for a terminal)
+        #
+        #::respawn:/sbin/getty -L ttyS0 9600 vt100
+        #::respawn:/sbin/getty -L ttyS1 9600 vt100
+        #
+        # Example how to put a getty on a modem line.
+        #::respawn:/sbin/getty 57600 ttyS2
         
-        ::ctrlaltdel:/bin/umount -a -r
-        ::ctrlaltdel:/sbin/swapoff -a
+        # Stuff to do before rebooting
+        ::ctrlaltdel:/sbin/reboot
+        ::shutdown:/bin/umount -a -r
+        ::shutdown:/sbin/swapoff -a
 </PRE>
 <P>
 -------------------------------
@@ -1330,7 +1399,6 @@ Example:
 
 <P>
 <PRE>        $ killall apache
-         
 </PRE>
 <P>
 -------------------------------
@@ -1361,7 +1429,7 @@ Prints out the length of the specified STRING.
 Example:
 
 <P>
-<PRE>        $ length Hello
+<PRE>        $ length &quot;Hello&quot;
         5
 </PRE>
 <P>
@@ -1392,7 +1460,6 @@ Example:
 <PRE>        $ ln -s BusyBox /tmp/ls
         $ ls -l /tmp/ls
         lrwxrwxrwx    1 root     root            7 Apr 12 18:39 ls -&gt; BusyBox*
-         
 </PRE>
 <P>
 -------------------------------
@@ -1409,7 +1476,6 @@ Example:
 
 <P>
 <PRE>        $ loadacm &lt; /etc/i18n/acmname
-         
 </PRE>
 <P>
 -------------------------------
@@ -1426,7 +1492,6 @@ Example:
 
 <P>
 <PRE>        $ loadfont &lt; /etc/i18n/fontname
-         
 </PRE>
 <P>
 -------------------------------
@@ -1443,7 +1508,6 @@ Example:
 
 <P>
 <PRE>        $ loadkmap &lt; /etc/i18n/lang-keymap
-         
 </PRE>
 <P>
 -------------------------------
@@ -1468,15 +1532,14 @@ Options:
 Example:
 
 <P>
-<PRE>        $ logger hello
-         
+<PRE>        $ logger &quot;hello&quot;
 </PRE>
 <P>
 -------------------------------
 
 <DT><STRONG><A NAME="item_logname">logname</A></STRONG><DD>
 <P>
-logname 
+logname 	
 
 <P>
 Print the name of the current user.
@@ -1487,14 +1550,13 @@ Example:
 <P>
 <PRE>        $ logname
         root
-         
 </PRE>
 <P>
 -------------------------------
 
 <DT><STRONG><A NAME="item_logread">logread</A></STRONG><DD>
 <P>
-logread 
+logread         
 
 <P>
 Shows the messages from syslogd (using circular buffer).
@@ -1538,14 +1600,14 @@ Options:
         -x      list entries by lines instead of by columns
         -X      sort the listing by extension
         -h      print sizes in human readable format (e.g., 1K 243M 2G )
-        -k      print sizes in kilobytes(default)  
+        -k      print sizes in kilobytes(default)
 </PRE>
 <P>
 -------------------------------
 
 <DT><STRONG><A NAME="item_lsmod">lsmod</A></STRONG><DD>
 <P>
-lsmod 
+lsmod 	
 
 <P>
 List the currently loaded kernel modules.
@@ -1588,7 +1650,6 @@ Example:
         [creates ttyS2-ttyS63]
         $ makedevs /dev/hda b 3 0 0 8 s
         [creates hda,hda1-hda8]
-         
 </PRE>
 <P>
 -------------------------------
@@ -1656,7 +1717,6 @@ Example:
         $ mkdir /tmp/foo/bar/baz
         /tmp/foo/bar/baz: No such file or directory
         $ mkdir -p /tmp/foo/bar/baz
-         
 </PRE>
 <P>
 -------------------------------
@@ -1724,7 +1784,6 @@ Example:
 <P>
 <PRE>        $ mknod /dev/fd0 b 2 0 
         $ mknod -m 644 /tmp/pipe p
-         
 </PRE>
 <P>
 -------------------------------
@@ -1765,7 +1824,6 @@ Example:
         /tmp/temp.mWiLjM
         $ ls -la /tmp/temp.mWiLjM
         -rw-------    1 andersen andersen        0 Apr 25 17:10 /tmp/temp.mWiLjM
-         
 </PRE>
 <P>
 -------------------------------
@@ -1782,7 +1840,6 @@ Example:
 
 <P>
 <PRE>        $ dmesg | more
-         
 </PRE>
 <P>
 -------------------------------
@@ -1799,7 +1856,7 @@ Flags:
 
 <P>
 <PRE>        -a:             Mount all filesystems in fstab.
-        -f:             Fake Add entry to mount table but don't mount it.
+        -f:             &quot;Fake&quot; Add entry to mount table but don't mount it.
         -n:             Don't write a mount table entry.
         -o option:      One of many filesystem options, listed below.
         -r:             Mount the filesystem read-only.
@@ -1807,7 +1864,7 @@ Flags:
         -w:             Mount for reading and writing (default).
 </PRE>
 <P>
-Options for use with the <STRONG>-o</STRONG> flag:
+Options for use with the ``<STRONG>-o</STRONG>'' flag:
 
 <P>
 <PRE>        async/sync:     Writes are asynchronous / synchronous.
@@ -1833,7 +1890,6 @@ Example:
         devpts on /dev/pts type devpts (rw)
         $ mount /dev/fd0 /mnt -t msdos -o ro
         $ mount /tmp/diskimage /opt -t ext2 -o loop
-         
 </PRE>
 <P>
 -------------------------------
@@ -1868,14 +1924,13 @@ Example:
 
 <P>
 <PRE>        $ mv /tmp/foo /bin/bar
-         
 </PRE>
 <P>
 -------------------------------
 
 <DT><STRONG><A NAME="item_nc">nc</A></STRONG><DD>
 <P>
-nc [IP] [port] 
+nc [IP] [port]
 
 <P>
 Netcat opens a pipe to IP:port
@@ -1885,13 +1940,13 @@ Example:
 
 <P>
 <PRE>        $ nc foobar.somedomain.com 25
-        220 foobar ESMTP Exim 3.12 help
+        220 foobar ESMTP Exim 3.12 #1 Sat, 15 Apr 2000 00:03:02 -0600
+        help
         214-Commands supported:
         214-    HELO EHLO MAIL RCPT DATA AUTH
         214     NOOP QUIT RSET HELP
         quit
         221 foobar closing connection
-         
 </PRE>
 <P>
 -------------------------------
@@ -1913,7 +1968,6 @@ Example:
         
         Name:       debian
         Address:    127.0.0.1
-         
 </PRE>
 <P>
 -------------------------------
@@ -1945,7 +1999,6 @@ Example:
         --- debian ping statistics ---
         1 packets transmitted, 1 packets received, 0% packet loss
         round-trip min/avg/max = 20.1/20.1/20.1 ms
-         
 </PRE>
 <P>
 -------------------------------
@@ -1963,7 +2016,7 @@ file system.
 
 <DT><STRONG><A NAME="item_poweroff">poweroff</A></STRONG><DD>
 <P>
-poweroff 
+poweroff 	
 
 <P>
 Halt the system and request that the kernel shut off the power.
@@ -1983,17 +2036,16 @@ FORMAT controls the output exactly as in C printf.
 Example:
 
 <P>
-<PRE>        $ printf Val=%d
-         5
+<PRE>        $ printf &quot;Val=%d
+        &quot; 5
         Val=5
-         
 </PRE>
 <P>
 -------------------------------
 
 <DT><STRONG><A NAME="item_ps">ps</A></STRONG><DD>
 <P>
-ps 
+ps 	
 
 <P>
 Report process status
@@ -2022,7 +2074,7 @@ Example:
 
 <DT><STRONG><A NAME="item_pwd">pwd</A></STRONG><DD>
 <P>
-pwd 
+pwd 	
 
 <P>
 Print the full filename of the current working directory.
@@ -2056,7 +2108,7 @@ Options:
 
 <DT><STRONG><A NAME="item_readlink">readlink</A></STRONG><DD>
 <P>
-readlink 
+readlink 	
 
 <P>
 Read a symbolic link.
@@ -2066,7 +2118,7 @@ Read a symbolic link.
 
 <DT><STRONG><A NAME="item_reboot">reboot</A></STRONG><DD>
 <P>
-reboot 
+reboot 	
 
 <P>
 Reboot the system.
@@ -2088,7 +2140,7 @@ priority) to <STRONG>-20</STRONG> (almost nothing else ever gets to run).
 
 <DT><STRONG><A NAME="item_reset">reset</A></STRONG><DD>
 <P>
-reset 
+reset 	
 
 <P>
 Resets the screen.
@@ -2131,6 +2183,9 @@ Remove the <CODE>DIRECTORY(ies),</CODE> if they are empty.
 <P>
 Example:
 
+<P>
+<PRE>        # rmdir /tmp/foo
+</PRE>
 <P>
 -------------------------------
 
@@ -2200,7 +2255,7 @@ files are specified, then the standard input is read.
 Example:
 
 <P>
-<PRE>        $ echo foo | sed -e 's/f[a-zA-Z]o/bar/g'
+<PRE>        $ echo &quot;foo&quot; | sed -e 's/f[a-zA-Z]o/bar/g'
         bar
 </PRE>
 <P>
@@ -2241,9 +2296,9 @@ This command does not yet have proper documentation.
 Use lash just as you would use any other shell. It properly handles pipes,
 redirects, job control, can be used as the shell for scripts, and has a
 sufficient set of builtins to do what is needed. It does not (yet) support
-Bourne Shell syntax. If you need things like if-then-else, while, and such
-use ash or bash. If you just need a very simple and extremely small shell,
-this will do the job.
+Bourne Shell syntax. If you need things like ``if-then-else'', ``while'',
+and such use ash or bash. If you just need a very simple and extremely
+small shell, this will do the job.
 
 <P>
 -------------------------------
@@ -2276,12 +2331,12 @@ Sorts lines of text in the specified files
 Example:
 
 <P>
-<PRE>        $ echo -e e
+<PRE>        $ echo -e &quot;e
         f
         b
         d
         c
-        a | sort
+        a&quot; | sort
         a
         b
         c
@@ -2346,7 +2401,7 @@ Options:
 
 <DT><STRONG><A NAME="item_sync">sync</A></STRONG><DD>
 <P>
-sync 
+sync 	
 
 <P>
 Write all buffered filesystem blocks to disk.
@@ -2436,7 +2491,7 @@ Main operation mode:
 File selection:
 
 <P>
-<PRE>        f               name of tarfile or - for stdin
+<PRE>        f               name of tarfile or &quot;-&quot; for stdin
         O               extract to stdout
         exclude         file to exclude
         X               file with names to exclude
@@ -2474,7 +2529,7 @@ Options:
 Example:
 
 <P>
-<PRE>        $ echo Hello | tee /tmp/foo
+<PRE>        $ echo &quot;Hello&quot; | tee /tmp/foo
         $ cat /tmp/foo
         Hello
 </PRE>
@@ -2525,7 +2580,7 @@ Example:
 tftp command SOURCE DEST
 
 <P>
-Transfers a file from/to a tftp server using octet mode.
+Transfers a file from/to a tftp server using ``octet'' mode.
 
 <P>
 Commands:
@@ -2535,7 +2590,7 @@ Commands:
         put     Put local file SOURCE to server DEST.
 </PRE>
 <P>
-When nameing a server, use the syntax server:file.
+When nameing a server, use the syntax ``server:file''.
 
 <P>
 -------------------------------
@@ -2562,7 +2617,6 @@ Example:
         $ touch /tmp/foo
         $ ls -l /tmp/foo
         -rw-rw-r--    1 andersen andersen        0 Apr 15 01:11 /tmp/foo
-         
 </PRE>
 <P>
 -------------------------------
@@ -2587,16 +2641,15 @@ Options:
 Example:
 
 <P>
-<PRE>        $ echo gdkkn vnqkc | tr [a-y] [b-z]
+<PRE>        $ echo &quot;gdkkn vnqkc&quot; | tr [a-y] [b-z]
         hello world
-         
 </PRE>
 <P>
 -------------------------------
 
 <DT><STRONG><A NAME="item_true">true</A></STRONG><DD>
 <P>
-true 
+true 	
 
 <P>
 Return an exit code of TRUE (0).
@@ -2614,7 +2667,7 @@ Example:
 
 <DT><STRONG><A NAME="item_tty">tty</A></STRONG><DD>
 <P>
-tty 
+tty 	
 
 <P>
 Print the file name of the terminal connected to standard input.
@@ -2685,7 +2738,7 @@ Example:
 
 <P>
 <PRE>        $ uname -a
-        Linux debian 2.2.15pre13 
+        Linux debian 2.2.15pre13 #5 Tue Mar 14 16:03:50 MST 2000 i686 unknown
 </PRE>
 <P>
 -------------------------------
@@ -2710,12 +2763,12 @@ Options:
 Example:
 
 <P>
-<PRE>        $ echo -e a
+<PRE>        $ echo -e &quot;a
         a
         b
         c
         c
-        a | sort | uniq
+        a&quot; | sort | uniq
         a
         b
         c
@@ -2753,7 +2806,7 @@ Options:
 
 <DT><STRONG><A NAME="item_uptime">uptime</A></STRONG><DD>
 <P>
-uptime 
+uptime 	
 
 <P>
 Display the time since the last boot.
@@ -2764,14 +2817,13 @@ Example:
 <P>
 <PRE>        $ uptime
           1:55pm  up  2:30, load average: 0.09, 0.04, 0.00
-         
 </PRE>
 <P>
 -------------------------------
 
 <DT><STRONG><A NAME="item_usleep">usleep</A></STRONG><DD>
 <P>
-usleep N 
+usleep N
 
 <P>
 Pause for N microseconds.
@@ -2797,10 +2849,15 @@ Uudecode a file that is uuencoded.
 Options:
 
 <P>
-<PRE>        -o FILE direct output to FILE$ uudecode -o busybox busybox.uu
-$ ls B&lt;-l&gt; busybox
-B&lt;-rwxr&gt;-xr-x   1 ams      ams        245264 Jun  7 21:35 busybox
- 
+<PRE>        -o FILE direct output to FILE
+</PRE>
+<P>
+Example:
+
+<P>
+<PRE>        $ uudecode -o busybox busybox.uu
+        $ ls -l busybox
+        -rwxr-xr-x   1 ams      ams        245264 Jun  7 21:35 busybox
 </PRE>
 <P>
 -------------------------------
@@ -2827,6 +2884,22 @@ Example:
         &lt;encoded file snipped&gt;
         $ uudecode busybox busybox &gt; busybox.uu
         $
+</PRE>
+<P>
+-------------------------------
+
+<DT><STRONG><A NAME="item_vi">vi</A></STRONG><DD>
+<P>
+vi [OPTION] [FILE]...
+
+<P>
+edit FILE.
+
+<P>
+Options:
+
+<P>
+<PRE>        -R      Read-only- do not write to the file.
 </PRE>
 <P>
 -------------------------------
@@ -2864,7 +2937,6 @@ Example:
 <P>
 <PRE>        $ wc /etc/passwd
              31      46    1365 /etc/passwd
-         
 </PRE>
 <P>
 -------------------------------
@@ -2874,13 +2946,14 @@ Example:
 wget [<STRONG>-c</STRONG>] [<STRONG>-O</STRONG> file] url
 
 <P>
-wget retrieves files via HTTP
+wget retrieves files via HTTP or FTP
 
 <P>
 Options:
 
 <P>
 <PRE>        -c      continue retrieval of aborted transfers
+        -q      quiet mode - do not print
         -O      save to filename ('-' for stdout)
 </PRE>
 <P>
@@ -2905,7 +2978,7 @@ Example:
 
 <DT><STRONG><A NAME="item_whoami">whoami</A></STRONG><DD>
 <P>
-whoami 
+whoami 	
 
 <P>
 Prints the user name associated with the current effective user id.
@@ -2926,7 +2999,6 @@ Example:
 <P>
 <PRE>        $ ls | xargs gzip
         $ find . -name '*.c' -print | xargs rm
-         
 </PRE>
 <P>
 -------------------------------
@@ -3094,6 +3166,16 @@ HREF="mailto:bug1@netconnect.com.au">bug1@netconnect.com.au</A>&gt;
 
 <P>
 <PRE>    ar.c
+</PRE>
+<br>
+
+<P>
+Vladimir Oleynik &lt;<A
+HREF="mailto:dzo@simtreas.ru">dzo@simtreas.ru</A>&gt;
+
+<P>
+<PRE>    cmdedit, stty-port, locale, various fixes 
+    and irreconcilable critic of everything not perfect.
 </PRE>
 <br>
 

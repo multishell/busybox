@@ -1,3 +1,16 @@
+#define adjtimex_trivial_usage \
+	"[-q] [-o offset] [-f frequency] [-p timeconstant] [-t tick]"
+#define adjtimex_full_usage \
+	"Reads and optionally sets system timebase parameters.\n" \
+	"See adjtimex(2).\n\n" \
+	"Options:\n" \
+	"\t-q\t\tquiet mode - do not print\n" \
+	"\t-o offset\ttime offset, microseconds\n" \
+	"\t-f frequency\tfrequency adjust, integer kernel units (65536 is 1ppm)\n" \
+	"\t\t\t(positive values make the system clock run fast)\n" \
+	"\t-t tick\t\tmicroseconds per tick, usually 10000\n" \
+	"\t-p timeconstant\n"
+
 #define ar_trivial_usage \
 	"-[ovR]{ptx} archive filenames"
 #define ar_full_usage \
@@ -62,7 +75,7 @@
 	"-r--r--r--    1 root     root            0 Apr 12 18:25 /tmp/foo\n"
 
 #define chown_trivial_usage \
-	"[OPTION]...  OWNER[<.|:>[GROUP] FILE..."
+	"[OPTION]...  OWNER[<.|:>[GROUP]] FILE..."
 #define chown_full_usage \
 	"Change the owner and/or group of each FILE to OWNER and/or GROUP.\n" \
 	"\nOptions:\n" \
@@ -330,6 +343,15 @@
 	"$ echo "Erik\nis\ncool"\n" \
 	"Erik\nis\ncool\n"
 
+#define env_trivial_usage \
+	"[-] [-iu] [name=value ...] [command]"
+#define env_full_usage \
+	"Prints the current environment or runs a program after setting\n" \
+	"up the specified environment.\n\n" \
+	"Options:\n" \
+	"\t-, -i\tstart with an empty environment\n" \
+	"\t-u\tremove variable from the environment\n"
+
 #define expr_trivial_usage \
 	"EXPRESSION"
 #define expr_full_usage \
@@ -416,6 +438,7 @@
 	"\nEXPRESSION may consist of:\n" \
 	"\t-follow\t\tDereference symbolic links.\n" \
 	"\t-name PATTERN\tFile name (leading directories removed) matches PATTERN." \
+	"\t-print\t\tPrint (default and assumed).\n" \
 	USAGE_FIND_TYPE( \
 	"\n\t-type X\t\tFiletype matches X (where X is one of: f,d,l,b,c,...)" \
 ) USAGE_FIND_PERM( \
@@ -499,6 +522,7 @@
 	"\t-H\tprefix output lines with filename where match was found\n" \
 	"\t-h\tsuppress the prefixing filename on output\n" \
 	"\t-i\tignore case distinctions\n" \
+	"\t-l\tlist names of files that match\n" \
 	"\t-n\tprint line number with output lines\n" \
 	"\t-q\tbe quiet. Returns 0 if result was found, 1 otherwise\n" \
 	"\t-v\tselect non-matching lines\n" \
@@ -640,10 +664,15 @@
 "\n" \
 "	::sysinit:/etc/init.d/rcS\n" \
 "	::askfirst:/bin/sh\n" \
+"	::ctrlaltdel:/sbin/reboot\n" \
+"	::shutdown:/sbin/swapoff -a\n" \
+"	::shutdown:/bin/umount -a -r\n" \
 "\n" \
 "if it detects that /dev/console is _not_ a serial console, it will also run:\n" \
 "\n" \
 "	tty2::askfirst:/bin/sh\n" \
+"	tty3::askfirst:/bin/sh\n" \
+"	tty4::askfirst:/bin/sh\n" \
 "\n" \
 "If you choose to use an /etc/inittab file, the inittab entry format is as follows:\n" \
 "\n" \
@@ -669,7 +698,7 @@
 "	<action>: \n" \
 "\n" \
 "		Valid actions include: sysinit, respawn, askfirst, wait, \n" \
-"		once, and ctrlaltdel.\n" \
+"		once, ctrlaltdel, and shutdown.\n" \
 "\n" \
 "		The available actions can be classified into two groups: actions\n" \
 "		that are run only once, and actions that are re-run when the specified\n" \
@@ -683,9 +712,12 @@
 "			'wait' actions, like  'sysinit' actions, cause init to wait until\n" \
 "			the specified task completes.  'once' actions are asyncronous,\n" \
 "			therefore, init does not wait for them to complete.  'ctrlaltdel'\n" \
-"			actions are run immediately before init causes the system to reboot\n" \
-"			(unmounting filesystems with a 'ctrlaltdel' action is a very good\n" \
-"			idea).\n" \
+"			actions are run when the system detects that someone on the system\n" \
+"                       console has pressed the CTRL-ALT-DEL key combination.  Typically one\n" \
+"                       wants to run 'reboot' at this point to cause the system to reboot.\n" \
+"			Finally the 'shutdown' action specifies the actions to taken when\n" \
+"                       init is told to reboot.  Unmounting filesystems and disabling swap\n" \
+"                       is a very good here\n" \
 "\n" \
 "		Run repeatedly actions:\n" \
 "\n" \
@@ -736,8 +768,9 @@
 "	#::respawn:/sbin/getty 57600 ttyS2\n" \
 "	\n" \
 "	# Stuff to do before rebooting\n" \
-"	::ctrlaltdel:/bin/umount -a -r\n" \
-"	::ctrlaltdel:/sbin/swapoff -a\n"
+"	::ctrlaltdel:/sbin/reboot\n" \
+"	::shutdown:/bin/umount -a -r\n" \
+"	::shutdown:/sbin/swapoff -a\n"
 
 #define insmod_trivial_usage \
 	"[OPTION]... MODULE [symbol=value]..."
@@ -1044,7 +1077,7 @@
 #else
   #define USAGE_MOUNT_LOOP(a)
 #endif
-#ifdef BB_MTAB
+#ifdef BB_FEATURE_MTAB_SUPPORT
   #define USAGE_MTAB(a) a
 #else
   #define USAGE_MTAB(a)
@@ -1657,6 +1690,13 @@
 	"$ uudecode busybox busybox > busybox.uu\n" \
 	"$\n"
 
+#define vi_trivial_usage \
+	"[OPTION] [FILE]..."
+#define vi_full_usage \
+	"edit FILE.\n\n" \
+	"Options:\n" \
+	"\t-R\tRead-only- do not write to the file." 
+
 #define watchdog_trivial_usage \
 	"DEV"
 #define watchdog_full_usage \
@@ -1679,9 +1719,10 @@
 #define wget_trivial_usage \
 	"[-c] [-O file] url"
 #define wget_full_usage \
-	"wget retrieves files via HTTP\n\n" \
+	"wget retrieves files via HTTP or FTP\n\n" \
 	"Options:\n" \
 	"\t-c\tcontinue retrieval of aborted transfers\n" \
+	"\t-q\tquiet mode - do not print\n" \
 	"\t-O\tsave to filename ('-' for stdout)"
 
 #define which_trivial_usage \

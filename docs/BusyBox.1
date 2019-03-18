@@ -93,7 +93,7 @@
 .nr % 0
 .rr F
 .\}
-.TH BUSYBOX 1 "version 0.50" "15/Mar/2001" "BusyBox"
+.TH BUSYBOX 1 "version 0.51" "10/Apr/2001" "BusyBox"
 .UC
 .if n .hy 0
 .if n .na
@@ -249,7 +249,24 @@ rm, rmdir, rmmod, route, rpmunpack, sed, setkeycodes, sh, sleep, sort, stty,
 swapoff, swapon, sync, syslogd, tail, tar, tee, telnet, test, tftp, touch, tr,
 true, tty, umount, uname, uniq, unix2dos, update, uptime, usleep, uudecode,
 uuencode, watchdog, wc, wget, which, whoami, xargs, yes, zcat, [
-.Ip "\fIar\fR" 4
+.Ip "\fBadjtimex\fR" 4
+adjtimex [\fB\-q\fR] [\fB\-o\fR offset] [\fB\-f\fR frequency] [\fB\-p\fR timeconstant] [\fB\-t\fR tick]
+.Sp
+Reads and optionally sets system timebase parameters.
+See \fIadjtimex\fR\|(2).
+.Sp
+Options:
+.Sp
+.Vb 6
+\&        -q              quiet mode - do not print
+\&        -o offset       time offset, microseconds
+\&        -f frequency    frequency adjust, integer kernel units (65536 is 1ppm)
+\&                        (positive values make the system clock run fast)
+\&        -t tick         microseconds per tick, usually 10000
+\&        -p timeconstant
+.Ve
+-------------------------------
+.Ip "\fBar\fR" 4
 ar \-[ovR]{ptx} archive filenames
 .Sp
 Extract or list files from an ar archive.
@@ -265,7 +282,7 @@ Options:
 \&        -R              recursive action
 .Ve
 -------------------------------
-.Ip "\fIbasename\fR" 4
+.Ip "\fBbasename\fR" 4
 basename \s-1FILE\s0 [\s-1SUFFIX\s0]
 .Sp
 Strips directory path and suffixes from \s-1FILE\s0.
@@ -282,7 +299,7 @@ Example:
 \&        bar
 .Ve
 -------------------------------
-.Ip "\fIcat\fR" 4
+.Ip "\fBcat\fR" 4
 cat [\s-1FILE\s0]...
 .Sp
 Concatenates \fI\s-1FILE\s0\fR\|(s) and prints them to stdout.
@@ -294,7 +311,7 @@ Example:
 \&        110716.72 17.67
 .Ve
 -------------------------------
-.Ip "\fIchgrp\fR" 4
+.Ip "\fBchgrp\fR" 4
 chgrp [\s-1OPTION\s0]... \s-1GROUP\s0 \s-1FILE\s0...
 .Sp
 Change the group membership of each \s-1FILE\s0 to \s-1GROUP\s0.
@@ -314,7 +331,7 @@ Example:
 \&        -r--r--r--    1 andersen root            0 Apr 12 18:25 /tmp/foo
 .Ve
 -------------------------------
-.Ip "\fIchmod\fR" 4
+.Ip "\fBchmod\fR" 4
 chmod [\fB\-R\fR] \s-1MODE\s0[,\s-1MODE\s0]... \s-1FILE\s0...
 .Sp
 Each \s-1MODE\s0 is one or more of the letters ugoa, one of the
@@ -338,8 +355,8 @@ Example:
 \&        -r--r--r--    1 root     root            0 Apr 12 18:25 /tmp/foo
 .Ve
 -------------------------------
-.Ip "\fIchown\fR" 4
-chown [\s-1OPTION\s0]...  \s-1OWNER\s0[<.|:>[\s-1GROUP\s0] \s-1FILE\s0...
+.Ip "\fBchown\fR" 4
+chown [\s-1OPTION\s0]...  \s-1OWNER\s0[<.|:>[\s-1GROUP\s0]] \s-1FILE\s0...
 .Sp
 Change the owner and/or group of each \s-1FILE\s0 to \s-1OWNER\s0 and/or \s-1GROUP\s0.
 .Sp
@@ -361,7 +378,7 @@ Example:
 \&        -r--r--r--    1 root     root            0 Apr 12 18:25 /tmp/foo
 .Ve
 -------------------------------
-.Ip "\fIchroot\fR" 4
+.Ip "\fBchroot\fR" 4
 chroot \s-1NEWROOT\s0 [\s-1COMMAND\s0...]
 .Sp
 Run \s-1COMMAND\s0 with root directory set to \s-1NEWROOT\s0.
@@ -377,25 +394,25 @@ Example:
 \&        -rwxr-xr-x    1 root     root        40816 Feb  5 07:45 /bin/ls*
 .Ve
 -------------------------------
-.Ip "\fIchvt\fR" 4
+.Ip "\fBchvt\fR" 4
 chvt N
 .Sp
 Changes the foreground virtual terminal to /dev/ttyN
 .Sp
 -------------------------------
-.Ip "\fIclear\fR" 4
-clear 
+.Ip "\fBclear\fR" 4
+clear 	
 .Sp
 Clear screen.
 .Sp
 -------------------------------
-.Ip "\fIcmp\fR" 4
+.Ip "\fBcmp\fR" 4
 cmp \s-1FILE1\s0 [\s-1FILE2\s0]
 .Sp
 Compare files.
 .Sp
 -------------------------------
-.Ip "\fIcp\fR" 4
+.Ip "\fBcp\fR" 4
 cp [\s-1OPTION\s0]... \s-1SOURCE\s0 \s-1DEST\s0
 .Sp
 Copies \s-1SOURCE\s0 to \s-1DEST\s0, or multiple \fI\s-1SOURCE\s0\fR\|(s) to \s-1DIRECTORY\s0.
@@ -408,7 +425,7 @@ Copies \s-1SOURCE\s0 to \s-1DEST\s0, or multiple \fI\s-1SOURCE\s0\fR\|(s) to \s-
 \&        -R      Copies directories recursively
 .Ve
 -------------------------------
-.Ip "\fIcut\fR" 4
+.Ip "\fBcut\fR" 4
 cut [\s-1OPTION\s0]... [\s-1FILE\s0]...
 .Sp
 Prints selected fields from each input \s-1FILE\s0 to standard output.
@@ -426,13 +443,13 @@ Options:
 Example:
 .Sp
 .Vb 4
-\&        $ echo Hello world | cut -f 1 -d ' '
+\&        $ echo "Hello world" | cut -f 1 -d ' '
 \&        Hello
-\&        $ echo Hello world | cut -f 2 -d ' '
+\&        $ echo "Hello world" | cut -f 2 -d ' '
 \&        world
 .Ve
 -------------------------------
-.Ip "\fIdate\fR" 4
+.Ip "\fBdate\fR" 4
 date [\s-1OPTION\s0]... [+\s-1FORMAT\s0]
 .Sp
 Displays the current time in the given \s-1FORMAT\s0, or sets the system date.
@@ -452,7 +469,7 @@ Example:
 \&        Wed Apr 12 18:52:41 MDT 2000
 .Ve
 -------------------------------
-.Ip "\fIdc\fR" 4
+.Ip "\fBdc\fR" 4
 dc expression ...
 .Sp
 This is a Tiny \s-1RPN\s0 calculator that understands the
@@ -474,7 +491,7 @@ Example:
 \&        64
 .Ve
 -------------------------------
-.Ip "\fIdd\fR" 4
+.Ip "\fBdd\fR" 4
 dd [if=\s-1FILE\s0] [of=\s-1FILE\s0] [bs=N] [count=N] [skip=N]
 	  [seek=N] [conv=notrunc|sync]
 .Sp
@@ -501,13 +518,13 @@ Example:
 \&        4+0 records out
 .Ve
 -------------------------------
-.Ip "\fIdeallocvt\fR" 4
+.Ip "\fBdeallocvt\fR" 4
 deallocvt N
 .Sp
 Deallocate unused virtual terminal /dev/ttyN
 .Sp
 -------------------------------
-.Ip "\fIdf\fR" 4
+.Ip "\fBdf\fR" 4
 df [\fB\-hmk\fR] [filesystem ...]
 .Sp
 Print the filesystem space used and space available.
@@ -517,7 +534,7 @@ Options:
 .Vb 3
 \&        -h      print sizes in human readable format (e.g., 1K 243M 2G )
 \&        -m      print sizes in megabytes
-\&        -k      print sizes in kilobytes(default) 
+\&        -k      print sizes in kilobytes(default)
 .Ve
 Example:
 .Sp
@@ -531,7 +548,7 @@ Example:
 \&        /dev/sda3              8690864   8553540    137324  98% /
 .Ve
 -------------------------------
-.Ip "\fIdirname\fR" 4
+.Ip "\fBdirname\fR" 4
 dirname [\s-1FILENAME\s0 ...]
 .Sp
 Strips non-directory suffix from \s-1FILENAME\s0
@@ -545,7 +562,7 @@ Example:
 \&        /tmp
 .Ve
 -------------------------------
-.Ip "\fIdmesg\fR" 4
+.Ip "\fBdmesg\fR" 4
 dmesg [\fB\-c\fR] [\fB\-n\fR \s-1LEVEL\s0] [\fB\-s\fR \s-1SIZE\s0]
 .Sp
 Prints or controls the kernel ring buffer
@@ -558,7 +575,7 @@ Options:
 \&        -s SIZE         Use a buffer of size SIZE
 .Ve
 -------------------------------
-.Ip "\fIdos2unix\fR" 4
+.Ip "\fBdos2unix\fR" 4
 dos2unix [option] [file]
 .Sp
 Converts a text file to/from dos format to unix format.
@@ -576,13 +593,13 @@ Options:
 \&- when no file is given, then stdin is used as input and stdout as output
 .Ve
 -------------------------------
-.Ip "\fIdpkg\fR" 4
+.Ip "\fBdpkg\fR" 4
 dpkg [\fB\-i\fR|\fB\-r\fR|\-\fB\-unpack\fR|\-\fB\-configure\fR] my.deb
 .Sp
 \s-1WORK\s0 \s-1IN\s0 \s-1PROGRESS\s0, only usefull for debian-installer
 .Sp
 -------------------------------
-.Ip "\fIdpkg_deb\fR" 4
+.Ip "\fBdpkg_deb\fR" 4
 dpkg_deb [\fB\-cexX\fR] file directory
 .Sp
 Perform actions on debian packages (.debs)
@@ -602,7 +619,7 @@ Example:
 \&        $ dpkg-deb -X ./busybox_0.48-1_i386.deb /tmp
 .Ve
 -------------------------------
-.Ip "\fIdu\fR" 4
+.Ip "\fBdu\fR" 4
 du [\fB\-lshmk\fR] [\s-1FILE\s0]...
 .Sp
 Summarizes disk space used for each \s-1FILE\s0 and/or directory.
@@ -615,7 +632,7 @@ Options:
 \&        -s      display only a total for each argument
 \&        -h      print sizes in human readable format (e.g., 1K 243M 2G )
 \&        -m      print sizes in megabytes
-\&        -k      print sizes in kilobytes(default) 
+\&        -k      print sizes in kilobytes(default)
 .Ve
 Example:
 .Sp
@@ -633,7 +650,7 @@ Example:
 \&        2417    .
 .Ve
 -------------------------------
-.Ip "\fIdumpkmap\fR" 4
+.Ip "\fBdumpkmap\fR" 4
 dumpkmap > keymap
 .Sp
 Prints out a binary keyboard translation table to standard output.
@@ -644,7 +661,7 @@ Example:
 \&        $ dumpkmap > keymap
 .Ve
 -------------------------------
-.Ip "\fIdutmp\fR" 4
+.Ip "\fBdutmp\fR" 4
 dutmp [\s-1FILE\s0]
 .Sp
 Dump utmp file format (pipe delimited) from \s-1FILE\s0
@@ -663,7 +680,7 @@ Example:
 \&        7|336|pts/0|vt00andersen|andersen|:0.0|0|0|0|955637763|0|0
 .Ve
 -------------------------------
-.Ip "\fIecho\fR" 4
+.Ip "\fBecho\fR" 4
 echo [\fB\-neE\fR] [\s-1ARG\s0 ...]
 .Sp
 Prints the specified ARGs to stdout
@@ -678,23 +695,36 @@ Options:
 Example:
 .Sp
 .Vb 14
-\&        $ echo Erik is cool
+\&        $ echo "Erik is cool"
 \&        Erik is cool
-\&        $  echo -e Erik
+\&        $  echo -e "Erik
 \&        is
-\&        cool
+\&        cool"
 \&        Erik
 \&        is
 \&        cool
-\&        $ echo Erik
+\&        $ echo "Erik
 \&        is
-\&        cool
+\&        cool"
 \&        Erik
 \&        is
 \&        cool
 .Ve
 -------------------------------
-.Ip "\fIexpr\fR" 4
+.Ip "\fBenv\fR" 4
+env [\-] [\fB\-iu\fR] [name=value ...] [command]
+.Sp
+Prints the current environment or runs a program after setting
+up the specified environment.
+.Sp
+Options:
+.Sp
+.Vb 2
+\&        -, -i   start with an empty environment
+\&        -u      remove variable from the environment
+.Ve
+-------------------------------
+.Ip "\fBexpr\fR" 4
 expr \s-1EXPRESSION\s0
 .Sp
 Prints the value of \s-1EXPRESSION\s0 to standard output.
@@ -733,8 +763,8 @@ lexicographical.  Pattern matches return the string matched between
 of characters matched or 0.
 .Sp
 -------------------------------
-.Ip "\fIfalse\fR" 4
-false 
+.Ip "\fBfalse\fR" 4
+false 	
 .Sp
 Return an exit code of \s-1FALSE\s0 (1).
 .Sp
@@ -746,30 +776,31 @@ Example:
 \&        1
 .Ve
 -------------------------------
-.Ip "\fIfbset\fR" 4
+.Ip "\fBfbset\fR" 4
 fbset [options] [mode]
 .Sp
 Show and modify frame buffer settings
 .Sp
 Example:
 .Sp
-.Vb 7
+.Vb 8
 \&        $ fbset
-\&        mode 1024x768-76
-\&                        geometry 1024 768 1024 768 16
+\&        mode "1024x768-76"
+\&                # D: 78.653 MHz, H: 59.949 kHz, V: 75.694 Hz
+\&                geometry 1024 768 1024 768 16
 \&                timings 12714 128 32 16 4 128 4
 \&                accel false
 \&                rgba 5/11,6/5,5/0,0/0
 \&        endmode
 .Ve
 -------------------------------
-.Ip "\fIfdflush\fR" 4
+.Ip "\fBfdflush\fR" 4
 fdflush \s-1DEVICE\s0
 .Sp
 Forces floppy disk drive to detect disk change
 .Sp
 -------------------------------
-.Ip "\fIfind\fR" 4
+.Ip "\fBfind\fR" 4
 find [\s-1PATH\s0...] [\s-1EXPRESSION\s0]
 .Sp
 Search for files in a directory hierarchy.  The default \s-1PATH\s0 is
@@ -777,9 +808,11 @@ the current directory; default \s-1EXPRESSION\s0 is \*(L'\fB\-print\fR\*(R'
 .Sp
 \s-1EXPRESSION\s0 may consist of:
 .Sp
-.Vb 7
+.Vb 2
 \&        -follow         Dereference symbolic links.
-\&        -name PATTERN   File name (leading directories removed) matches PATTERN.
+\&        -name PATTERN   File name (leading directories removed) matches PATTERN.        -print          Print (default and assumed).
+.Ve
+.Vb 5
 \&        -type X         Filetype matches X (where X is one of: f,d,l,b,c,...)
 \&        -perm PERMS     Permissions match any of (+NNN); all of (-NNN);
 \&                        or exactly (NNN)
@@ -793,23 +826,22 @@ Example:
 \&        /etc/passwd
 .Ve
 -------------------------------
-.Ip "\fIfree\fR" 4
-free 
+.Ip "\fBfree\fR" 4
+free 	
 .Sp
 Displays the amount of free and used system memory
 .Sp
 Example:
 .Sp
-.Vb 6
+.Vb 5
 \&        $ free
 \&                      total         used         free       shared      buffers
 \&          Mem:       257628       248724         8904        59644        93124
 \&         Swap:       128516         8404       120112
 \&        Total:       386144       257128       129016
-\&         
 .Ve
 -------------------------------
-.Ip "\fIfreeramdisk\fR" 4
+.Ip "\fBfreeramdisk\fR" 4
 freeramdisk \s-1DEVICE\s0
 .Sp
 Frees all memory used by the specified ramdisk.
@@ -820,7 +852,7 @@ Example:
 \&        $ freeramdisk /dev/ram2
 .Ve
 -------------------------------
-.Ip "\fIfsck_minix\fR" 4
+.Ip "\fBfsck_minix\fR" 4
 fsck_minix [\fB\-larvsmf\fR] /dev/name
 .Sp
 Performs a consistency check for \s-1MINIX\s0 filesystems.
@@ -833,11 +865,11 @@ Options:
 \&        -a      Perform automatic repairs
 \&        -v      verbose
 \&        -s      Outputs super-block information
-\&        -m      Activates MINIX-like mode not cleared warnings
+\&        -m      Activates MINIX-like "mode not cleared" warnings
 \&        -f      Force file system check.
 .Ve
 -------------------------------
-.Ip "\fIgetopt\fR" 4
+.Ip "\fBgetopt\fR" 4
 getopt [\s-1OPTIONS\s0]...
 .Sp
 Parse command options
@@ -855,38 +887,40 @@ Parse command options
 .Ve
 Example:
 .Sp
-.Vb 18
+.Vb 19
 \&        $ cat getopt.test
+\&        #!/bin/sh
 \&        GETOPT=`getopt -o ab:c:: --long a-long,b-long:,c-long:: \e
-\&               -n 'example.busybox' -- $@`
+\&               -n 'example.busybox' -- "$@"`
 \&        if [ $? != 0 ] ; then  exit 1 ; fi
-\&        eval set -- $GETOPT
+\&        eval set -- "$GETOPT"
 \&        while true ; do
 \&         case $1 in
-\&           -a|--a-long) echo Option a ; shift ;;
-\&           -b|--b-long) echo Option b, argument `$2' ; shift 2 ;;
+\&           -a|--a-long) echo "Option a" ; shift ;;
+\&           -b|--b-long) echo "Option b, argument `$2'" ; shift 2 ;;
 \&           -c|--c-long)
-\&             case $2 in
-\&               \e) echo Option c, no argument; shift 2 ;;
-\&               *)  echo Option c, argument `$2' ; shift 2 ;;
+\&             case "$2" in
+\&               "") echo "Option c, no argument"; shift 2 ;;
+\&               *)  echo "Option c, argument `$2'" ; shift 2 ;;
 \&             esac ;;
 \&           --) shift ; break ;;
-\&           *) echo Internal error! ; exit 1 ;;
+\&           *) echo "Internal error!" ; exit 1 ;;
 \&         esac
 \&        done
 .Ve
 -------------------------------
-.Ip "\fIgrep\fR" 4
+.Ip "\fBgrep\fR" 4
 grep [\fB\-ihHnqvs\fR] pattern [files...]
 .Sp
 Search for \s-1PATTERN\s0 in each \s-1FILE\s0 or standard input.
 .Sp
 Options:
 .Sp
-.Vb 7
+.Vb 8
 \&        -H      prefix output lines with filename where match was found
 \&        -h      suppress the prefixing filename on output
 \&        -i      ignore case distinctions
+\&        -l      list names of files that match
 \&        -n      print line number with output lines
 \&        -q      be quiet. Returns 0 if result was found, 1 otherwise
 \&        -v      select non-matching lines
@@ -901,7 +935,7 @@ Example:
 \&        root:x:0:0:root:/root:/bin/bash
 .Ve
 -------------------------------
-.Ip "\fIgunzip\fR" 4
+.Ip "\fBgunzip\fR" 4
 gunzip [\s-1OPTION\s0]... \s-1FILE\s0
 .Sp
 Uncompress \s-1FILE\s0 (or standard input if \s-1FILE\s0 is \*(L'\-').
@@ -922,7 +956,7 @@ Example:
 \&        -rw-rw-r--    1 andersen andersen  1761280 Apr 14 17:47 /tmp/BusyBox-0.43.tar
 .Ve
 -------------------------------
-.Ip "\fIgzip\fR" 4
+.Ip "\fBgzip\fR" 4
 gzip [\s-1OPTION\s0]... \s-1FILE\s0
 .Sp
 Compress \s-1FILE\s0 with maximum compression.
@@ -944,13 +978,13 @@ Example:
 \&        -rw-rw-r--    1 andersen andersen   554058 Apr 14 17:49 /tmp/BusyBox-0.43.tar.gz
 .Ve
 -------------------------------
-.Ip "\fIhalt\fR" 4
-halt 
+.Ip "\fBhalt\fR" 4
+halt 	
 .Sp
 Halt the system.
 .Sp
 -------------------------------
-.Ip "\fIhead\fR" 4
+.Ip "\fBhead\fR" 4
 head [\s-1OPTION\s0] [\s-1FILE\s0]...
 .Sp
 Print first 10 lines of each \s-1FILE\s0 to standard output.
@@ -970,13 +1004,13 @@ Example:
 \&        daemon:x:1:1:daemon:/usr/sbin:/bin/sh
 .Ve
 -------------------------------
-.Ip "\fIhostid\fR" 4
-hostid 
+.Ip "\fBhostid\fR" 4
+hostid 	
 .Sp
 Print out a unique 32-bit identifier for the machine.
 .Sp
 -------------------------------
-.Ip "\fIhostname\fR" 4
+.Ip "\fBhostname\fR" 4
 hostname [\s-1OPTION\s0] {hostname | \fB\-F\fR file}
 .Sp
 Get or set the hostname or \s-1DNS\s0 domain name. If a hostname is given
@@ -997,7 +1031,7 @@ Example:
 \&        slag 
 .Ve
 -------------------------------
-.Ip "\fIid\fR" 4
+.Ip "\fBid\fR" 4
 id [\s-1OPTIONS\s0]... [\s-1USERNAME\s0]
 .Sp
 Print information for \s-1USERNAME\s0 or the current user
@@ -1017,7 +1051,7 @@ Example:
 \&        uid=1000(andersen) gid=1000(andersen)
 .Ve
 -------------------------------
-.Ip "\fIifconfig\fR" 4
+.Ip "\fBifconfig\fR" 4
 ifconfig [\fB\-a\fR] <interface> [<address>]
 .Sp
 configure a network interface
@@ -1035,8 +1069,8 @@ Options:
 \&        [up|down] ...
 .Ve
 -------------------------------
-.Ip "\fIinit\fR" 4
-init 
+.Ip "\fBinit\fR" 4
+init 	
 .Sp
 Init is the parent of all processes.
 .Sp
@@ -1049,14 +1083,19 @@ runlevels, use sysvinit.
 BusyBox init works just fine without an inittab.  If no inittab is found, 
 it has the following default behavior:
 .Sp
-.Vb 2
+.Vb 5
 \&        ::sysinit:/etc/init.d/rcS
 \&        ::askfirst:/bin/sh
+\&        ::ctrlaltdel:/sbin/reboot
+\&        ::shutdown:/sbin/swapoff -a
+\&        ::shutdown:/bin/umount -a -r
 .Ve
 if it detects that /dev/console is _not_ a serial console, it will also run:
 .Sp
-.Vb 1
+.Vb 3
 \&        tty2::askfirst:/bin/sh
+\&        tty3::askfirst:/bin/sh
+\&        tty4::askfirst:/bin/sh
 .Ve
 If you choose to use an /etc/inittab file, the inittab entry format is as follows:
 .Sp
@@ -1070,7 +1109,7 @@ If you choose to use an /etc/inittab file, the inittab entry format is as follow
 \&                WARNING: This field has a non-traditional meaning for BusyBox init!
 \&                The id field is used by BusyBox init to specify the controlling tty for
 \&                the specified process to run on.  The contents of this field are
-\&                appended to /dev/ and used as-is.  There is no need for this field to
+\&                appended to "/dev/" and used as-is.  There is no need for this field to
 \&                be unique, although if it isn't you may have strange results.  If this
 \&                field is left blank, the controlling tty is set to the console.  Also
 \&                note that if BusyBox detects that a serial console is in use, then only
@@ -1089,7 +1128,7 @@ If you choose to use an /etc/inittab file, the inittab entry format is as follow
 .Ve
 .Vb 2
 \&                Valid actions include: sysinit, respawn, askfirst, wait, 
-\&                once, and ctrlaltdel.
+\&                once, ctrlaltdel, and shutdown.
 .Ve
 .Vb 3
 \&                The available actions can be classified into two groups: actions
@@ -1099,16 +1138,19 @@ If you choose to use an /etc/inittab file, the inittab entry format is as follow
 .Vb 1
 \&                Run only-once actions:
 .Ve
-.Vb 9
+.Vb 12
 \&                        'sysinit' is the first item run on boot.  init waits until all
 \&                        sysinit actions are completed before continuing.  Following the
 \&                        completion of all sysinit actions, all 'wait' actions are run.
 \&                        'wait' actions, like  'sysinit' actions, cause init to wait until
 \&                        the specified task completes.  'once' actions are asyncronous,
 \&                        therefore, init does not wait for them to complete.  'ctrlaltdel'
-\&                        actions are run immediately before init causes the system to reboot
-\&                        (unmounting filesystems with a 'ctrlaltdel' action is a very good
-\&                        idea).
+\&                        actions are run when the system detects that someone on the system
+\&                       console has pressed the CTRL-ALT-DEL key combination.  Typically one
+\&                       wants to run 'reboot' at this point to cause the system to reboot.
+\&                        Finally the 'shutdown' action specifies the actions to taken when
+\&                       init is told to reboot.  Unmounting filesystems and disabling swap
+\&                       is a very good here
 .Ve
 .Vb 1
 \&                Run repeatedly actions:
@@ -1119,7 +1161,7 @@ If you choose to use an /etc/inittab file, the inittab entry format is as follow
 \&                        it.  Unlike sysvinit, BusyBox init does not stop processes from
 \&                        respawning out of control.  The 'askfirst' actions acts just like
 \&                        respawn, except that before running the specified process it
-\&                        displays the line Please press Enter to activate this console.
+\&                        displays the line "Please press Enter to activate this console."
 \&                        and then waits for the user to press enter before starting the
 \&                        specified process.  
 .Ve
@@ -1136,24 +1178,41 @@ If you choose to use an /etc/inittab file, the inittab entry format is as follow
 .Ve
 Example /etc/inittab file:
 .Sp
-.Vb 14
+.Vb 31
+\&        # This is run first except when booting in single-user mode.
+\&        #
 \&        ::sysinit:/etc/init.d/rcS
 \&        
+\&        # /bin/sh invocations on selected ttys
+\&        #
+\&        # Start an "askfirst" shell on the console (whatever that may be)
 \&        ::askfirst:-/bin/sh
+\&        # Start an "askfirst" shell on /dev/tty2-4
 \&        tty2::askfirst:-/bin/sh
 \&        tty3::askfirst:-/bin/sh
 \&        tty4::askfirst:-/bin/sh
 \&        
+\&        # /sbin/getty invocations for selected ttys
+\&        #
 \&        tty4::respawn:/sbin/getty 38400 tty5
 \&        tty5::respawn:/sbin/getty 38400 tty6
 \&        
 \&        
+\&        # Example of how to put a getty on a serial line (for a terminal)
+\&        #
+\&        #::respawn:/sbin/getty -L ttyS0 9600 vt100
+\&        #::respawn:/sbin/getty -L ttyS1 9600 vt100
+\&        #
+\&        # Example how to put a getty on a modem line.
+\&        #::respawn:/sbin/getty 57600 ttyS2
 \&        
-\&        ::ctrlaltdel:/bin/umount -a -r
-\&        ::ctrlaltdel:/sbin/swapoff -a
+\&        # Stuff to do before rebooting
+\&        ::ctrlaltdel:/sbin/reboot
+\&        ::shutdown:/bin/umount -a -r
+\&        ::shutdown:/sbin/swapoff -a
 .Ve
 -------------------------------
-.Ip "\fIinsmod\fR" 4
+.Ip "\fBinsmod\fR" 4
 insmod [\s-1OPTION\s0]... \s-1MODULE\s0 [symbol=value]...
 .Sp
 Loads the specified kernel modules into the kernel.
@@ -1168,7 +1227,7 @@ Options:
 \&        -x      do not export externs
 .Ve
 -------------------------------
-.Ip "\fIkill\fR" 4
+.Ip "\fBkill\fR" 4
 kill [\fB\-signal\fR] process-id [process-id ...]
 .Sp
 Send a signal (default is \s-1SIGTERM\s0) to the specified \fIprocess\fR\|(es).
@@ -1191,7 +1250,7 @@ Example:
 \&        $ kill 252
 .Ve
 -------------------------------
-.Ip "\fIkillall\fR" 4
+.Ip "\fBkillall\fR" 4
 killall [\fB\-signal\fR] process-name [process-name ...]
 .Sp
 Send a signal (default is \s-1SIGTERM\s0) to the specified \fIprocess\fR\|(es).
@@ -1203,12 +1262,11 @@ Options:
 .Ve
 Example:
 .Sp
-.Vb 2
+.Vb 1
 \&        $ killall apache
-\&         
 .Ve
 -------------------------------
-.Ip "\fIklogd\fR" 4
+.Ip "\fBklogd\fR" 4
 klogd \fB\-n\fR
 .Sp
 Kernel logger.
@@ -1218,7 +1276,7 @@ Options:
 \&        -n      Run as a foreground process.
 .Ve
 -------------------------------
-.Ip "\fIlength\fR" 4
+.Ip "\fBlength\fR" 4
 length \s-1STRING\s0
 .Sp
 Prints out the length of the specified \s-1STRING\s0.
@@ -1226,11 +1284,11 @@ Prints out the length of the specified \s-1STRING\s0.
 Example:
 .Sp
 .Vb 2
-\&        $ length Hello
+\&        $ length "Hello"
 \&        5
 .Ve
 -------------------------------
-.Ip "\fIln\fR" 4
+.Ip "\fBln\fR" 4
 ln [\s-1OPTION\s0] \s-1TARGET\s0... \s-1LINK_NAME\s0|\s-1DIRECTORY\s0
 .Sp
 Create a link named \s-1LINK_NAME\s0 or \s-1DIRECTORY\s0 to the specified \s-1TARGET\s0
@@ -1246,50 +1304,46 @@ Options:
 .Ve
 Example:
 .Sp
-.Vb 4
+.Vb 3
 \&        $ ln -s BusyBox /tmp/ls
 \&        $ ls -l /tmp/ls
 \&        lrwxrwxrwx    1 root     root            7 Apr 12 18:39 ls -> BusyBox*
-\&         
 .Ve
 -------------------------------
-.Ip "\fIloadacm\fR" 4
+.Ip "\fBloadacm\fR" 4
 loadacm < mapfile
 .Sp
 Loads an acm from standard input.
 .Sp
 Example:
 .Sp
-.Vb 2
+.Vb 1
 \&        $ loadacm < /etc/i18n/acmname
-\&         
 .Ve
 -------------------------------
-.Ip "\fIloadfont\fR" 4
+.Ip "\fBloadfont\fR" 4
 loadfont < font
 .Sp
 Loads a console font from standard input.
 .Sp
 Example:
 .Sp
-.Vb 2
+.Vb 1
 \&        $ loadfont < /etc/i18n/fontname
-\&         
 .Ve
 -------------------------------
-.Ip "\fIloadkmap\fR" 4
+.Ip "\fBloadkmap\fR" 4
 loadkmap < keymap
 .Sp
 Loads a binary keyboard translation table from standard input.
 .Sp
 Example:
 .Sp
-.Vb 2
+.Vb 1
 \&        $ loadkmap < /etc/i18n/lang-keymap
-\&         
 .Ve
 -------------------------------
-.Ip "\fIlogger\fR" 4
+.Ip "\fBlogger\fR" 4
 logger [\s-1OPTION\s0]... [\s-1MESSAGE\s0]
 .Sp
 Write \s-1MESSAGE\s0 to the system log.  If \s-1MESSAGE\s0 is omitted, log stdin.
@@ -1304,31 +1358,29 @@ Options:
 .Ve
 Example:
 .Sp
-.Vb 2
-\&        $ logger hello
-\&         
+.Vb 1
+\&        $ logger "hello"
 .Ve
 -------------------------------
-.Ip "\fIlogname\fR" 4
-logname 
+.Ip "\fBlogname\fR" 4
+logname 	
 .Sp
 Print the name of the current user.
 .Sp
 Example:
 .Sp
-.Vb 3
+.Vb 2
 \&        $ logname
 \&        root
-\&         
 .Ve
 -------------------------------
-.Ip "\fIlogread\fR" 4
-logread 
+.Ip "\fBlogread\fR" 4
+logread         
 .Sp
 Shows the messages from syslogd (using circular buffer).
 .Sp
 -------------------------------
-.Ip "\fIls\fR" 4
+.Ip "\fBls\fR" 4
 ls [\fB\-1AacCdeFilnpLRrSsTtuvwxXhk\fR] [filenames...]
 .Sp
 List directory contents
@@ -1361,16 +1413,16 @@ Options:
 \&        -x      list entries by lines instead of by columns
 \&        -X      sort the listing by extension
 \&        -h      print sizes in human readable format (e.g., 1K 243M 2G )
-\&        -k      print sizes in kilobytes(default)  
+\&        -k      print sizes in kilobytes(default)
 .Ve
 -------------------------------
-.Ip "\fIlsmod\fR" 4
-lsmod 
+.Ip "\fBlsmod\fR" 4
+lsmod 	
 .Sp
 List the currently loaded kernel modules.
 .Sp
 -------------------------------
-.Ip "\fImakedevs\fR" 4
+.Ip "\fBmakedevs\fR" 4
 makedevs \s-1NAME\s0 \s-1TYPE\s0 \s-1MAJOR\s0 \s-1MINOR\s0 \s-1FIRST\s0 \s-1LAST\s0 [s]
 .Sp
 Creates a range of block or character special files
@@ -1394,15 +1446,14 @@ For example:
 .Ve
 Example:
 .Sp
-.Vb 5
+.Vb 4
 \&        $ makedevs /dev/ttyS c 4 66 2 63
 \&        [creates ttyS2-ttyS63]
 \&        $ makedevs /dev/hda b 3 0 0 8 s
 \&        [creates hda,hda1-hda8]
-\&         
 .Ve
 -------------------------------
-.Ip "\fImd5sum\fR" 4
+.Ip "\fBmd5sum\fR" 4
 md5sum [\s-1OPTION\s0] [\s-1FILE\s0]...
 or: md5sum [\s-1OPTION\s0] \fB\-c\fR [\s-1FILE\s0]
 .Sp
@@ -1436,7 +1487,7 @@ Example:
 \&        ^D
 .Ve
 -------------------------------
-.Ip "\fImkdir\fR" 4
+.Ip "\fBmkdir\fR" 4
 mkdir [\s-1OPTION\s0] \s-1DIRECTORY\s0...
 .Sp
 Create the \fI\s-1DIRECTORY\s0\fR\|(ies), if they do not already exist
@@ -1449,17 +1500,16 @@ Options:
 .Ve
 Example:
 .Sp
-.Vb 7
+.Vb 6
 \&        $ mkdir /tmp/foo
 \&        $ mkdir /tmp/foo
 \&        /tmp/foo: File exists
 \&        $ mkdir /tmp/foo/bar/baz
 \&        /tmp/foo/bar/baz: No such file or directory
 \&        $ mkdir -p /tmp/foo/bar/baz
-\&         
 .Ve
 -------------------------------
-.Ip "\fImkfifo\fR" 4
+.Ip "\fBmkfifo\fR" 4
 mkfifo [\s-1OPTIONS\s0] name
 .Sp
 Creates a named pipe (identical to \*(L'mknod name p')
@@ -1470,7 +1520,7 @@ Options:
 \&        -m      create the pipe using the specified mode (default a=rw)
 .Ve
 -------------------------------
-.Ip "\fImkfs_minix\fR" 4
+.Ip "\fBmkfs_minix\fR" 4
 mkfs_minix [\fB\-c\fR | \fB\-l\fR filename] [\fB\-nXX\fR] [\fB\-iXX\fR] /dev/name [blocks]
 .Sp
 Make a \s-1MINIX\s0 filesystem.
@@ -1485,7 +1535,7 @@ Options:
 \&        -v              Make a Minix version 2 filesystem
 .Ve
 -------------------------------
-.Ip "\fImknod\fR" 4
+.Ip "\fBmknod\fR" 4
 mknod [\s-1OPTIONS\s0] \s-1NAME\s0 \s-1TYPE\s0 \s-1MAJOR\s0 \s-1MINOR\s0
 .Sp
 Create a special file (block, character, or pipe).
@@ -1504,13 +1554,12 @@ TYPEs include:
 .Ve
 Example:
 .Sp
-.Vb 3
+.Vb 2
 \&        $ mknod /dev/fd0 b 2 0 
 \&        $ mknod -m 644 /tmp/pipe p
-\&         
 .Ve
 -------------------------------
-.Ip "\fImkswap\fR" 4
+.Ip "\fBmkswap\fR" 4
 mkswap [\fB\-c\fR] [\fB\-v0\fR|\fB\-v1\fR] device [block-count]
 .Sp
 Prepare a disk partition to be used as a swap partition.
@@ -1525,7 +1574,7 @@ Options:
 \&        block-count     Number of block to use (default is entire partition).
 .Ve
 -------------------------------
-.Ip "\fImktemp\fR" 4
+.Ip "\fBmktemp\fR" 4
 mktemp [\fB\-q\fR] \s-1TEMPLATE\s0
 .Sp
 Creates a temporary file with its name based on \s-1TEMPLATE\s0.
@@ -1533,27 +1582,25 @@ Creates a temporary file with its name based on \s-1TEMPLATE\s0.
 .Sp
 Example:
 .Sp
-.Vb 5
+.Vb 4
 \&        $ mktemp /tmp/temp.XXXXXX
 \&        /tmp/temp.mWiLjM
 \&        $ ls -la /tmp/temp.mWiLjM
 \&        -rw-------    1 andersen andersen        0 Apr 25 17:10 /tmp/temp.mWiLjM
-\&         
 .Ve
 -------------------------------
-.Ip "\fImore\fR" 4
+.Ip "\fBmore\fR" 4
 more [\s-1FILE\s0 ...]
 .Sp
 More is a filter for viewing \s-1FILE\s0 one screenful at a time.
 .Sp
 Example:
 .Sp
-.Vb 2
+.Vb 1
 \&        $ dmesg | more
-\&         
 .Ve
 -------------------------------
-.Ip "\fImount\fR" 4
+.Ip "\fBmount\fR" 4
 mount [flags] device directory [\fB\-o\fR options,more-options]
 .Sp
 Mount a filesystem
@@ -1562,14 +1609,14 @@ Flags:
 .Sp
 .Vb 7
 \&        -a:             Mount all filesystems in fstab.
-\&        -f:             Fake Add entry to mount table but don't mount it.
+\&        -f:             "Fake" Add entry to mount table but don't mount it.
 \&        -n:             Don't write a mount table entry.
 \&        -o option:      One of many filesystem options, listed below.
 \&        -r:             Mount the filesystem read-only.
 \&        -t fs-type:     Specify the filesystem type.
 \&        -w:             Mount for reading and writing (default).
 .Ve
-Options for use with the \fB\-o\fR flag:
+Options for use with the \*(L"\fB\-o\fR\*(R" flag:
 .Sp
 .Vb 8
 \&        async/sync:     Writes are asynchronous / synchronous.
@@ -1586,17 +1633,16 @@ You'll have to see the written documentation for those.
 .Sp
 Example:
 .Sp
-.Vb 7
+.Vb 6
 \&        $ mount
 \&        /dev/hda3 on / type minix (rw)
 \&        proc on /proc type proc (rw)
 \&        devpts on /dev/pts type devpts (rw)
 \&        $ mount /dev/fd0 /mnt -t msdos -o ro
 \&        $ mount /tmp/diskimage /opt -t ext2 -o loop
-\&         
 .Ve
 -------------------------------
-.Ip "\fImt\fR" 4
+.Ip "\fBmt\fR" 4
 mt [\fB\-f\fR device] opcode value
 .Sp
 Control magnetic tape drive operation
@@ -1609,7 +1655,7 @@ ras3 reset retension rew rewoffline seek setblk setdensity
 setpart tell unload unlock weof wset
 .Sp
 -------------------------------
-.Ip "\fImv\fR" 4
+.Ip "\fBmv\fR" 4
 mv \s-1SOURCE\s0 \s-1DEST\s0
 or: mv \s-1SOURCE\s0... \s-1DIRECTORY\s0
 .Sp
@@ -1617,13 +1663,12 @@ Rename \s-1SOURCE\s0 to \s-1DEST\s0, or move \fI\s-1SOURCE\s0\fR\|(s) to \s-1DIR
 .Sp
 Example:
 .Sp
-.Vb 2
+.Vb 1
 \&        $ mv /tmp/foo /bin/bar
-\&         
 .Ve
 -------------------------------
-.Ip "\fInc\fR" 4
-nc [\s-1IP\s0] [port] 
+.Ip "\fBnc\fR" 4
+nc [\s-1IP\s0] [port]
 .Sp
 Netcat opens a pipe to \s-1IP:\s0port
 .Sp
@@ -1631,33 +1676,32 @@ Example:
 .Sp
 .Vb 8
 \&        $ nc foobar.somedomain.com 25
-\&        220 foobar ESMTP Exim 3.12 help
+\&        220 foobar ESMTP Exim 3.12 #1 Sat, 15 Apr 2000 00:03:02 -0600
+\&        help
 \&        214-Commands supported:
 \&        214-    HELO EHLO MAIL RCPT DATA AUTH
 \&        214     NOOP QUIT RSET HELP
 \&        quit
 \&        221 foobar closing connection
-\&         
 .Ve
 -------------------------------
-.Ip "\fInslookup\fR" 4
+.Ip "\fBnslookup\fR" 4
 nslookup [\s-1HOST\s0]
 .Sp
 Queries the nameserver for the \s-1IP\s0 address of the given \s-1HOST\s0
 .Sp
 Example:
 .Sp
-.Vb 7
+.Vb 6
 \&        $ nslookup localhost
 \&        Server:     default
 \&        Address:    default
 \&        
 \&        Name:       debian
 \&        Address:    127.0.0.1
-\&         
 .Ve
 -------------------------------
-.Ip "\fIping\fR" 4
+.Ip "\fBping\fR" 4
 ping [\s-1OPTION\s0]... host
 .Sp
 Send \s-1ICMP\s0 \s-1ECHO_REQUEST\s0 packets to network hosts.
@@ -1672,7 +1716,7 @@ Options:
 .Ve
 Example:
 .Sp
-.Vb 8
+.Vb 7
 \&        $ ping localhost
 \&        PING slag (127.0.0.1): 56 data bytes
 \&        64 bytes from 127.0.0.1: icmp_seq=0 ttl=255 time=20.1 ms
@@ -1680,23 +1724,22 @@ Example:
 \&        --- debian ping statistics ---
 \&        1 packets transmitted, 1 packets received, 0% packet loss
 \&        round-trip min/avg/max = 20.1/20.1/20.1 ms
-\&         
 .Ve
 -------------------------------
-.Ip "\fIpivot_root\fR" 4
+.Ip "\fBpivot_root\fR" 4
 pivot_root new_root put_old
 .Sp
 Move the current root file system to put_old and make new_root
 the new root file system.
 .Sp
 -------------------------------
-.Ip "\fIpoweroff\fR" 4
-poweroff 
+.Ip "\fBpoweroff\fR" 4
+poweroff 	
 .Sp
 Halt the system and request that the kernel shut off the power.
 .Sp
 -------------------------------
-.Ip "\fIprintf\fR" 4
+.Ip "\fBprintf\fR" 4
 printf \s-1FORMAT\s0 [\s-1ARGUMENT\s0...]
 .Sp
 Formats and prints \fI\s-1ARGUMENT\s0\fR\|(s) according to \s-1FORMAT\s0,
@@ -1704,15 +1747,14 @@ Where \s-1FORMAT\s0 controls the output exactly as in C printf.
 .Sp
 Example:
 .Sp
-.Vb 4
-\&        $ printf Val=%d
-\&         5
+.Vb 3
+\&        $ printf "Val=%d
+\&        " 5
 \&        Val=5
-\&         
 .Ve
 -------------------------------
-.Ip "\fIps\fR" 4
-ps 
+.Ip "\fBps\fR" 4
+ps 	
 .Sp
 Report process status
 .Sp
@@ -1734,8 +1776,8 @@ Example:
 \&         2990 andersen andersen R ps
 .Ve
 -------------------------------
-.Ip "\fIpwd\fR" 4
-pwd 
+.Ip "\fBpwd\fR" 4
+pwd 	
 .Sp
 Print the full filename of the current working directory.
 .Sp
@@ -1746,7 +1788,7 @@ Example:
 \&        /root
 .Ve
 -------------------------------
-.Ip "\fIrdate\fR" 4
+.Ip "\fBrdate\fR" 4
 rdate [\s-1OPTION\s0] \s-1HOST\s0
 .Sp
 Get and possibly set the system date and time from a remote \s-1HOST\s0.
@@ -1758,19 +1800,19 @@ Options:
 \&        -p      Print the date and time.
 .Ve
 -------------------------------
-.Ip "\fIreadlink\fR" 4
-readlink 
+.Ip "\fBreadlink\fR" 4
+readlink 	
 .Sp
 Read a symbolic link.
 .Sp
 -------------------------------
-.Ip "\fIreboot\fR" 4
-reboot 
+.Ip "\fBreboot\fR" 4
+reboot 	
 .Sp
 Reboot the system.
 .Sp
 -------------------------------
-.Ip "\fIrenice\fR" 4
+.Ip "\fBrenice\fR" 4
 renice priority pid [pid ...]
 .Sp
 Changes priority of running processes. Allowed priorities range
@@ -1778,13 +1820,13 @@ from 20 (the process runs only when nothing else is running) to 0
 (default priority) to \fB\-20\fR (almost nothing else ever gets to run).
 .Sp
 -------------------------------
-.Ip "\fIreset\fR" 4
-reset 
+.Ip "\fBreset\fR" 4
+reset 	
 .Sp
 Resets the screen.
 .Sp
 -------------------------------
-.Ip "\fIrm\fR" 4
+.Ip "\fBrm\fR" 4
 rm [\s-1OPTION\s0]... \s-1FILE\s0...
 .Sp
 Remove (unlink) the \fI\s-1FILE\s0\fR\|(s).  You may use \*(L'--\*(R' to
@@ -1803,15 +1845,18 @@ Example:
 \&        $ rm -rf /tmp/foo
 .Ve
 -------------------------------
-.Ip "\fIrmdir\fR" 4
+.Ip "\fBrmdir\fR" 4
 rmdir [\s-1OPTION\s0]... \s-1DIRECTORY\s0...
 .Sp
 Remove the \fI\s-1DIRECTORY\s0\fR\|(ies), if they are empty.
 .Sp
 Example:
 .Sp
+.Vb 1
+\&        # rmdir /tmp/foo
+.Ve
 -------------------------------
-.Ip "\fIrmmod\fR" 4
+.Ip "\fBrmmod\fR" 4
 rmmod [\s-1OPTION\s0]... [\s-1MODULE\s0]...
 .Sp
 Unloads the specified kernel modules from the kernel.
@@ -1827,19 +1872,19 @@ Example:
 \&        $ rmmod tulip
 .Ve
 -------------------------------
-.Ip "\fIroute\fR" 4
+.Ip "\fBroute\fR" 4
 route [{add|del|flush}]
 .Sp
 Edit the kernel's routing tables
 .Sp
 -------------------------------
-.Ip "\fIrpmunpack\fR" 4
+.Ip "\fBrpmunpack\fR" 4
 rpmunpack < package.rpm | gunzip | cpio \fB\-idmuv\fR
 .Sp
 Extracts an rpm archive.
 .Sp
 -------------------------------
-.Ip "\fIsed\fR" 4
+.Ip "\fBsed\fR" 4
 sed [\fB\-Vhnef\fR] pattern [files...]
 .Sp
 Options:
@@ -1857,11 +1902,11 @@ files; if no input files are specified, then the standard input is read.
 Example:
 .Sp
 .Vb 2
-\&        $ echo foo | sed -e 's/f[a-zA-Z]o/bar/g'
+\&        $ echo "foo" | sed -e 's/f[a-zA-Z]o/bar/g'
 \&        bar
 .Ve
 -------------------------------
-.Ip "\fIsetkeycodes\fR" 4
+.Ip "\fBsetkeycodes\fR" 4
 setkeycodes \s-1SCANCODE\s0 \s-1KEYCODE\s0 ...
 .Sp
 Set entries into the kernel's scancode-to-keycode map,
@@ -1876,7 +1921,7 @@ Example:
 \&        $ setkeycodes e030 127
 .Ve
 -------------------------------
-.Ip "\fIsh\fR" 4
+.Ip "\fBsh\fR" 4
 sh [\s-1FILE\s0]...
 or: sh \fB\-c\fR command [args]...
 .Sp
@@ -1887,12 +1932,12 @@ This command does not yet have proper documentation.
 Use lash just as you would use any other shell.  It properly handles pipes,
 redirects, job control, can be used as the shell for scripts, and has a
 sufficient set of builtins to do what is needed.  It does not (yet) support
-Bourne Shell syntax.  If you need things like if-then-else, while, and such
+Bourne Shell syntax.  If you need things like \*(L"if-then-else\*(R", \*(L"while\*(R", and such
 use ash or bash.  If you just need a very simple and extremely small shell,
 this will do the job.
 .Sp
 -------------------------------
-.Ip "\fIsleep\fR" 4
+.Ip "\fBsleep\fR" 4
 sleep N
 .Sp
 Pause for N seconds.
@@ -1904,7 +1949,7 @@ Example:
 \&        [2 second delay results]
 .Ve
 -------------------------------
-.Ip "\fIsort\fR" 4
+.Ip "\fBsort\fR" 4
 sort [\fB\-n\fR] [\fB\-r\fR] [\s-1FILE\s0]...
 .Sp
 Sorts lines of text in the specified files
@@ -1912,12 +1957,12 @@ Sorts lines of text in the specified files
 Example:
 .Sp
 .Vb 12
-\&        $ echo -e e
+\&        $ echo -e "e
 \&        f
 \&        b
 \&        d
 \&        c
-\&        a | sort
+\&        a" | sort
 \&        a
 \&        b
 \&        c
@@ -1926,7 +1971,7 @@ Example:
 \&        f
 .Ve
 -------------------------------
-.Ip "\fIstty\fR" 4
+.Ip "\fBstty\fR" 4
 stty [\fB\-a\fR|g] [\fB\-F\fR device] [\s-1SETTING\s0]...
 .Sp
 Without arguments, prints baud rate, line discipline,
@@ -1941,7 +1986,7 @@ Options:
 \&        [SETTING]       see documentation
 .Ve
 -------------------------------
-.Ip "\fIswapoff\fR" 4
+.Ip "\fBswapoff\fR" 4
 swapoff [\s-1OPTION\s0] [device]
 .Sp
 Stop swapping virtual memory pages on the given device.
@@ -1952,7 +1997,7 @@ Options:
 \&        -a      Stop swapping on all swap devices
 .Ve
 -------------------------------
-.Ip "\fIswapon\fR" 4
+.Ip "\fBswapon\fR" 4
 swapon [\s-1OPTION\s0] [device]
 .Sp
 Start swapping virtual memory pages on the given device.
@@ -1963,13 +2008,13 @@ Options:
 \&        -a      Start swapping on all swap devices
 .Ve
 -------------------------------
-.Ip "\fIsync\fR" 4
-sync 
+.Ip "\fBsync\fR" 4
+sync 	
 .Sp
 Write all buffered filesystem blocks to disk.
 .Sp
 -------------------------------
-.Ip "\fIsyslogd\fR" 4
+.Ip "\fBsyslogd\fR" 4
 syslogd [\s-1OPTION\s0]...
 .Sp
 Linux system and kernel logging utility.
@@ -1991,7 +2036,7 @@ Example:
 \&        $ syslogd -R 192.168.1.1:601
 .Ve
 -------------------------------
-.Ip "\fItail\fR" 4
+.Ip "\fBtail\fR" 4
 tail [\s-1OPTION\s0]... [\s-1FILE\s0]...
 .Sp
 Print last 10 lines of each \s-1FILE\s0 to standard output.
@@ -2019,7 +2064,7 @@ Example:
 \&        nameserver 10.0.0.1
 .Ve
 -------------------------------
-.Ip "\fItar\fR" 4
+.Ip "\fBtar\fR" 4
 tar \-[cxtvO] [\-\fB\-exclude\fR File] [\fB\-X\fR File][\fB\-f\fR tarFile] [\fI\s-1FILE\s0\fR\|(s)] ...
 .Sp
 Create, extract, or list files from a tar file.
@@ -2034,7 +2079,7 @@ Main operation mode:
 File selection:
 .Sp
 .Vb 4
-\&        f               name of tarfile or - for stdin
+\&        f               name of tarfile or "-" for stdin
 \&        O               extract to stdout
 \&        exclude         file to exclude
 \&        X               file with names to exclude
@@ -2051,7 +2096,7 @@ Example:
 \&        $ tar -cf /tmp/tarball.tar /usr/local
 .Ve
 -------------------------------
-.Ip "\fItee\fR" 4
+.Ip "\fBtee\fR" 4
 tee [\s-1OPTION\s0]... [\s-1FILE\s0]...
 .Sp
 Copy standard input to each \s-1FILE\s0, and also to standard output.
@@ -2064,19 +2109,19 @@ Options:
 Example:
 .Sp
 .Vb 3
-\&        $ echo Hello | tee /tmp/foo
+\&        $ echo "Hello" | tee /tmp/foo
 \&        $ cat /tmp/foo
 \&        Hello
 .Ve
 -------------------------------
-.Ip "\fItelnet\fR" 4
+.Ip "\fBtelnet\fR" 4
 telnet host [port]
 .Sp
 Telnet is used to establish interactive communication with another
 computer over a network using the \s-1TELNET\s0 protocol.
 .Sp
 -------------------------------
-.Ip "\fItest\fR" 4
+.Ip "\fBtest\fR" 4
 test \s-1EXPRESSION\s0
   or   [ \s-1EXPRESSION\s0 ]
 .Sp
@@ -2100,10 +2145,10 @@ Example:
 \&        1
 .Ve
 -------------------------------
-.Ip "\fItftp\fR" 4
+.Ip "\fBtftp\fR" 4
 tftp command \s-1SOURCE\s0 \s-1DEST\s0
 .Sp
-Transfers a file from/to a tftp server using octet mode.
+Transfers a file from/to a tftp server using \*(L"octet\*(R" mode.
 .Sp
 Commands:
 .Sp
@@ -2111,10 +2156,10 @@ Commands:
 \&        get     Get file from server SOURCE and store to local DEST.
 \&        put     Put local file SOURCE to server DEST.
 .Ve
-When nameing a server, use the syntax server:file.
+When nameing a server, use the syntax \*(L"server:file\*(R".
 .Sp
 -------------------------------
-.Ip "\fItouch\fR" 4
+.Ip "\fBtouch\fR" 4
 touch [\fB\-c\fR] file [file ...]
 .Sp
 Update the last-modified date on the given file[s].
@@ -2126,16 +2171,15 @@ Options:
 .Ve
 Example:
 .Sp
-.Vb 6
+.Vb 5
 \&        $ ls -l /tmp/foo
 \&        /bin/ls: /tmp/foo: No such file or directory
 \&        $ touch /tmp/foo
 \&        $ ls -l /tmp/foo
 \&        -rw-rw-r--    1 andersen andersen        0 Apr 15 01:11 /tmp/foo
-\&         
 .Ve
 -------------------------------
-.Ip "\fItr\fR" 4
+.Ip "\fBtr\fR" 4
 tr [\fB\-cds\fR] \s-1STRING1\s0 [\s-1STRING2\s0]
 .Sp
 Translate, squeeze, and/or delete characters from
@@ -2150,14 +2194,13 @@ Options:
 .Ve
 Example:
 .Sp
-.Vb 3
-\&        $ echo gdkkn vnqkc | tr [a-y] [b-z]
+.Vb 2
+\&        $ echo "gdkkn vnqkc" | tr [a-y] [b-z]
 \&        hello world
-\&         
 .Ve
 -------------------------------
-.Ip "\fItrue\fR" 4
-true 
+.Ip "\fBtrue\fR" 4
+true 	
 .Sp
 Return an exit code of \s-1TRUE\s0 (0).
 .Sp
@@ -2169,8 +2212,8 @@ Example:
 \&        0
 .Ve
 -------------------------------
-.Ip "\fItty\fR" 4
-tty 
+.Ip "\fBtty\fR" 4
+tty 	
 .Sp
 Print the file name of the terminal connected to standard input.
 .Sp
@@ -2186,7 +2229,7 @@ Example:
 \&        /dev/tty2
 .Ve
 -------------------------------
-.Ip "\fIumount\fR" 4
+.Ip "\fBumount\fR" 4
 umount [flags] filesystem|directory
 .Sp
 Unmount file systems
@@ -2206,7 +2249,7 @@ Example:
 \&        $ umount /dev/hdc1 
 .Ve
 -------------------------------
-.Ip "\fIuname\fR" 4
+.Ip "\fBuname\fR" 4
 uname [\s-1OPTION\s0]...
 .Sp
 Print certain system information.  With no \s-1OPTION\s0, same as \fB\-s\fR.
@@ -2226,10 +2269,10 @@ Example:
 .Sp
 .Vb 2
 \&        $ uname -a
-\&        Linux debian 2.2.15pre13 
+\&        Linux debian 2.2.15pre13 #5 Tue Mar 14 16:03:50 MST 2000 i686 unknown
 .Ve
 -------------------------------
-.Ip "\fIuniq\fR" 4
+.Ip "\fBuniq\fR" 4
 uniq [\s-1OPTION\s0]... [\s-1INPUT\s0 [\s-1OUTPUT\s0]]
 .Sp
 Discard all but one of successive identical lines from \s-1INPUT\s0
@@ -2245,24 +2288,24 @@ Options:
 Example:
 .Sp
 .Vb 9
-\&        $ echo -e a
+\&        $ echo -e "a
 \&        a
 \&        b
 \&        c
 \&        c
-\&        a | sort | uniq
+\&        a" | sort | uniq
 \&        a
 \&        b
 \&        c
 .Ve
 -------------------------------
-.Ip "\fIunix2dos\fR" 4
+.Ip "\fBunix2dos\fR" 4
 unix2dos [option] [file]
 .Sp
 See \*(L'dos2unix \-\fB\-help\fR\*(R' for help!
 .Sp
 -------------------------------
-.Ip "\fIupdate\fR" 4
+.Ip "\fBupdate\fR" 4
 update [options]
 .Sp
 Periodically flushes filesystem buffers.
@@ -2275,21 +2318,20 @@ Options:
 \&        -f SECS flush some buffers this often (default 5)
 .Ve
 -------------------------------
-.Ip "\fIuptime\fR" 4
-uptime 
+.Ip "\fBuptime\fR" 4
+uptime 	
 .Sp
 Display the time since the last boot.
 .Sp
 Example:
 .Sp
-.Vb 3
+.Vb 2
 \&        $ uptime
 \&          1:55pm  up  2:30, load average: 0.09, 0.04, 0.00
-\&         
 .Ve
 -------------------------------
-.Ip "\fIusleep\fR" 4
-usleep N 
+.Ip "\fBusleep\fR" 4
+usleep N
 .Sp
 Pause for N microseconds.
 .Sp
@@ -2300,21 +2342,25 @@ Example:
 \&        [pauses for 1 second]
 .Ve
 -------------------------------
-.Ip "\fIuudecode\fR" 4
+.Ip "\fBuudecode\fR" 4
 uudecode [\s-1FILE\s0]...
 .Sp
 Uudecode a file that is uuencoded.
 .Sp
 Options:
 .Sp
-.Vb 4
-\&        -o FILE direct output to FILE$ uudecode -o busybox busybox.uu
-\&$ ls B<-l> busybox
-\&B<-rwxr>-xr-x   1 ams      ams        245264 Jun  7 21:35 busybox
-\& 
+.Vb 1
+\&        -o FILE direct output to FILE
+.Ve
+Example:
+.Sp
+.Vb 3
+\&        $ uudecode -o busybox busybox.uu
+\&        $ ls -l busybox
+\&        -rwxr-xr-x   1 ams      ams        245264 Jun  7 21:35 busybox
 .Ve
 -------------------------------
-.Ip "\fIuuencode\fR" 4
+.Ip "\fBuuencode\fR" 4
 uuencode [\s-1OPTION\s0] [\s-1INFILE\s0] \s-1REMOTEFILE\s0
 .Sp
 Uuencode a file.
@@ -2334,13 +2380,24 @@ Example:
 \&        $
 .Ve
 -------------------------------
-.Ip "\fIwatchdog\fR" 4
+.Ip "\fBvi\fR" 4
+vi [\s-1OPTION\s0] [\s-1FILE\s0]...
+.Sp
+edit \s-1FILE\s0.
+.Sp
+Options:
+.Sp
+.Vb 1
+\&        -R      Read-only- do not write to the file.
+.Ve
+-------------------------------
+.Ip "\fBwatchdog\fR" 4
 watchdog \s-1DEV\s0
 .Sp
 Periodically write to watchdog device \s-1DEV\s0
 .Sp
 -------------------------------
-.Ip "\fIwc\fR" 4
+.Ip "\fBwc\fR" 4
 wc [\s-1OPTION\s0]... [\s-1FILE\s0]...
 .Sp
 Print line, word, and byte counts for each \s-1FILE\s0, and a total line if
@@ -2356,25 +2413,25 @@ Options:
 .Ve
 Example:
 .Sp
-.Vb 3
+.Vb 2
 \&        $ wc /etc/passwd
 \&             31      46    1365 /etc/passwd
-\&         
 .Ve
 -------------------------------
-.Ip "\fIwget\fR" 4
+.Ip "\fBwget\fR" 4
 wget [\fB\-c\fR] [\fB\-O\fR file] url
 .Sp
-wget retrieves files via \s-1HTTP\s0
+wget retrieves files via \s-1HTTP\s0 or \s-1FTP\s0
 .Sp
 Options:
 .Sp
-.Vb 2
+.Vb 3
 \&        -c      continue retrieval of aborted transfers
+\&        -q      quiet mode - do not print
 \&        -O      save to filename ('-' for stdout)
 .Ve
 -------------------------------
-.Ip "\fIwhich\fR" 4
+.Ip "\fBwhich\fR" 4
 which [\s-1COMMAND\s0 ...]
 .Sp
 Locates a \s-1COMMAND\s0.
@@ -2386,32 +2443,31 @@ Example:
 \&        /bin/login
 .Ve
 -------------------------------
-.Ip "\fIwhoami\fR" 4
-whoami 
+.Ip "\fBwhoami\fR" 4
+whoami 	
 .Sp
 Prints the user name associated with the current effective user id.
 .Sp
 -------------------------------
-.Ip "\fIxargs\fR" 4
+.Ip "\fBxargs\fR" 4
 xargs [\s-1COMMAND\s0] [\s-1ARGS\s0...]
 .Sp
 Executes \s-1COMMAND\s0 on every item given by standard input.
 .Sp
 Example:
 .Sp
-.Vb 3
+.Vb 2
 \&        $ ls | xargs gzip
 \&        $ find . -name '*.c' -print | xargs rm
-\&         
 .Ve
 -------------------------------
-.Ip "\fIyes\fR" 4
+.Ip "\fByes\fR" 4
 yes [\s-1OPTION\s0]... [\s-1STRING\s0]...
 .Sp
 Repeatedly outputs a line with all specified \fI\s-1STRING\s0\fR\|(s), or \*(L'y\*(R'.
 .Sp
 -------------------------------
-.Ip "\fIzcat\fR" 4
+.Ip "\fBzcat\fR" 4
 zcat \s-1FILE\s0
 .Sp
 Uncompress to stdout.
@@ -2496,6 +2552,12 @@ Glenn McGrath <bug1@netconnect.com.au>
 .Vb 1
 \&    ar.c
 .Ve
+Vladimir Oleynik <dzo@simtreas.ru>
+.PP
+.Vb 2
+\&    cmdedit, stty-port, locale, various fixes 
+\&    and irreconcilable critic of everything not perfect.
+.Ve
 Bruce Perens <bruce@pixar.com>
 .PP
 .Vb 1
@@ -2553,257 +2615,263 @@ Enrique Zanardi <ezanardi@ull.es>
 
 .IX Header "COMMANDS"
 
-.IX Item "\fIar\fR"
+.IX Item "\fBadjtimex\fR"
 
-.IX Item "\fIbasename\fR"
+.IX Item "\fBar\fR"
 
-.IX Item "\fIcat\fR"
+.IX Item "\fBbasename\fR"
 
-.IX Item "\fIchgrp\fR"
+.IX Item "\fBcat\fR"
 
-.IX Item "\fIchmod\fR"
+.IX Item "\fBchgrp\fR"
 
-.IX Item "\fIchown\fR"
+.IX Item "\fBchmod\fR"
 
-.IX Item "\fIchroot\fR"
+.IX Item "\fBchown\fR"
 
-.IX Item "\fIchvt\fR"
+.IX Item "\fBchroot\fR"
 
-.IX Item "\fIclear\fR"
+.IX Item "\fBchvt\fR"
 
-.IX Item "\fIcmp\fR"
+.IX Item "\fBclear\fR"
 
-.IX Item "\fIcp\fR"
+.IX Item "\fBcmp\fR"
 
-.IX Item "\fIcut\fR"
+.IX Item "\fBcp\fR"
 
-.IX Item "\fIdate\fR"
+.IX Item "\fBcut\fR"
 
-.IX Item "\fIdc\fR"
+.IX Item "\fBdate\fR"
 
-.IX Item "\fIdd\fR"
+.IX Item "\fBdc\fR"
 
-.IX Item "\fIdeallocvt\fR"
+.IX Item "\fBdd\fR"
 
-.IX Item "\fIdf\fR"
+.IX Item "\fBdeallocvt\fR"
 
-.IX Item "\fIdirname\fR"
+.IX Item "\fBdf\fR"
 
-.IX Item "\fIdmesg\fR"
+.IX Item "\fBdirname\fR"
 
-.IX Item "\fIdos2unix\fR"
+.IX Item "\fBdmesg\fR"
 
-.IX Item "\fIdpkg\fR"
+.IX Item "\fBdos2unix\fR"
 
-.IX Item "\fIdpkg_deb\fR"
+.IX Item "\fBdpkg\fR"
 
-.IX Item "\fIdu\fR"
+.IX Item "\fBdpkg_deb\fR"
 
-.IX Item "\fIdumpkmap\fR"
+.IX Item "\fBdu\fR"
 
-.IX Item "\fIdutmp\fR"
+.IX Item "\fBdumpkmap\fR"
 
-.IX Item "\fIecho\fR"
+.IX Item "\fBdutmp\fR"
 
-.IX Item "\fIexpr\fR"
+.IX Item "\fBecho\fR"
 
-.IX Item "\fIfalse\fR"
+.IX Item "\fBenv\fR"
 
-.IX Item "\fIfbset\fR"
+.IX Item "\fBexpr\fR"
 
-.IX Item "\fIfdflush\fR"
+.IX Item "\fBfalse\fR"
 
-.IX Item "\fIfind\fR"
+.IX Item "\fBfbset\fR"
 
-.IX Item "\fIfree\fR"
+.IX Item "\fBfdflush\fR"
 
-.IX Item "\fIfreeramdisk\fR"
+.IX Item "\fBfind\fR"
 
-.IX Item "\fIfsck_minix\fR"
+.IX Item "\fBfree\fR"
 
-.IX Item "\fIgetopt\fR"
+.IX Item "\fBfreeramdisk\fR"
 
-.IX Item "\fIgrep\fR"
+.IX Item "\fBfsck_minix\fR"
 
-.IX Item "\fIgunzip\fR"
+.IX Item "\fBgetopt\fR"
 
-.IX Item "\fIgzip\fR"
+.IX Item "\fBgrep\fR"
 
-.IX Item "\fIhalt\fR"
+.IX Item "\fBgunzip\fR"
 
-.IX Item "\fIhead\fR"
+.IX Item "\fBgzip\fR"
 
-.IX Item "\fIhostid\fR"
+.IX Item "\fBhalt\fR"
 
-.IX Item "\fIhostname\fR"
+.IX Item "\fBhead\fR"
 
-.IX Item "\fIid\fR"
+.IX Item "\fBhostid\fR"
 
-.IX Item "\fIifconfig\fR"
+.IX Item "\fBhostname\fR"
 
-.IX Item "\fIinit\fR"
+.IX Item "\fBid\fR"
 
-.IX Item "\fIinsmod\fR"
+.IX Item "\fBifconfig\fR"
 
-.IX Item "\fIkill\fR"
+.IX Item "\fBinit\fR"
 
-.IX Item "\fIkillall\fR"
+.IX Item "\fBinsmod\fR"
 
-.IX Item "\fIklogd\fR"
+.IX Item "\fBkill\fR"
 
-.IX Item "\fIlength\fR"
+.IX Item "\fBkillall\fR"
 
-.IX Item "\fIln\fR"
+.IX Item "\fBklogd\fR"
 
-.IX Item "\fIloadacm\fR"
+.IX Item "\fBlength\fR"
 
-.IX Item "\fIloadfont\fR"
+.IX Item "\fBln\fR"
 
-.IX Item "\fIloadkmap\fR"
+.IX Item "\fBloadacm\fR"
 
-.IX Item "\fIlogger\fR"
+.IX Item "\fBloadfont\fR"
 
-.IX Item "\fIlogname\fR"
+.IX Item "\fBloadkmap\fR"
 
-.IX Item "\fIlogread\fR"
+.IX Item "\fBlogger\fR"
 
-.IX Item "\fIls\fR"
+.IX Item "\fBlogname\fR"
 
-.IX Item "\fIlsmod\fR"
+.IX Item "\fBlogread\fR"
 
-.IX Item "\fImakedevs\fR"
+.IX Item "\fBls\fR"
 
-.IX Item "\fImd5sum\fR"
+.IX Item "\fBlsmod\fR"
 
-.IX Item "\fImkdir\fR"
+.IX Item "\fBmakedevs\fR"
 
-.IX Item "\fImkfifo\fR"
+.IX Item "\fBmd5sum\fR"
 
-.IX Item "\fImkfs_minix\fR"
+.IX Item "\fBmkdir\fR"
 
-.IX Item "\fImknod\fR"
+.IX Item "\fBmkfifo\fR"
 
-.IX Item "\fImkswap\fR"
+.IX Item "\fBmkfs_minix\fR"
 
-.IX Item "\fImktemp\fR"
+.IX Item "\fBmknod\fR"
 
-.IX Item "\fImore\fR"
+.IX Item "\fBmkswap\fR"
 
-.IX Item "\fImount\fR"
+.IX Item "\fBmktemp\fR"
 
-.IX Item "\fImt\fR"
+.IX Item "\fBmore\fR"
 
-.IX Item "\fImv\fR"
+.IX Item "\fBmount\fR"
 
-.IX Item "\fInc\fR"
+.IX Item "\fBmt\fR"
 
-.IX Item "\fInslookup\fR"
+.IX Item "\fBmv\fR"
 
-.IX Item "\fIping\fR"
+.IX Item "\fBnc\fR"
 
-.IX Item "\fIpivot_root\fR"
+.IX Item "\fBnslookup\fR"
 
-.IX Item "\fIpoweroff\fR"
+.IX Item "\fBping\fR"
 
-.IX Item "\fIprintf\fR"
+.IX Item "\fBpivot_root\fR"
 
-.IX Item "\fIps\fR"
+.IX Item "\fBpoweroff\fR"
 
-.IX Item "\fIpwd\fR"
+.IX Item "\fBprintf\fR"
 
-.IX Item "\fIrdate\fR"
+.IX Item "\fBps\fR"
 
-.IX Item "\fIreadlink\fR"
+.IX Item "\fBpwd\fR"
 
-.IX Item "\fIreboot\fR"
+.IX Item "\fBrdate\fR"
 
-.IX Item "\fIrenice\fR"
+.IX Item "\fBreadlink\fR"
 
-.IX Item "\fIreset\fR"
+.IX Item "\fBreboot\fR"
 
-.IX Item "\fIrm\fR"
+.IX Item "\fBrenice\fR"
 
-.IX Item "\fIrmdir\fR"
+.IX Item "\fBreset\fR"
 
-.IX Item "\fIrmmod\fR"
+.IX Item "\fBrm\fR"
 
-.IX Item "\fIroute\fR"
+.IX Item "\fBrmdir\fR"
 
-.IX Item "\fIrpmunpack\fR"
+.IX Item "\fBrmmod\fR"
 
-.IX Item "\fIsed\fR"
+.IX Item "\fBroute\fR"
 
-.IX Item "\fIsetkeycodes\fR"
+.IX Item "\fBrpmunpack\fR"
 
-.IX Item "\fIsh\fR"
+.IX Item "\fBsed\fR"
 
-.IX Item "\fIsleep\fR"
+.IX Item "\fBsetkeycodes\fR"
 
-.IX Item "\fIsort\fR"
+.IX Item "\fBsh\fR"
 
-.IX Item "\fIstty\fR"
+.IX Item "\fBsleep\fR"
 
-.IX Item "\fIswapoff\fR"
+.IX Item "\fBsort\fR"
 
-.IX Item "\fIswapon\fR"
+.IX Item "\fBstty\fR"
 
-.IX Item "\fIsync\fR"
+.IX Item "\fBswapoff\fR"
 
-.IX Item "\fIsyslogd\fR"
+.IX Item "\fBswapon\fR"
 
-.IX Item "\fItail\fR"
+.IX Item "\fBsync\fR"
 
-.IX Item "\fItar\fR"
+.IX Item "\fBsyslogd\fR"
 
-.IX Item "\fItee\fR"
+.IX Item "\fBtail\fR"
 
-.IX Item "\fItelnet\fR"
+.IX Item "\fBtar\fR"
 
-.IX Item "\fItest\fR"
+.IX Item "\fBtee\fR"
 
-.IX Item "\fItftp\fR"
+.IX Item "\fBtelnet\fR"
 
-.IX Item "\fItouch\fR"
+.IX Item "\fBtest\fR"
 
-.IX Item "\fItr\fR"
+.IX Item "\fBtftp\fR"
 
-.IX Item "\fItrue\fR"
+.IX Item "\fBtouch\fR"
 
-.IX Item "\fItty\fR"
+.IX Item "\fBtr\fR"
 
-.IX Item "\fIumount\fR"
+.IX Item "\fBtrue\fR"
 
-.IX Item "\fIuname\fR"
+.IX Item "\fBtty\fR"
 
-.IX Item "\fIuniq\fR"
+.IX Item "\fBumount\fR"
 
-.IX Item "\fIunix2dos\fR"
+.IX Item "\fBuname\fR"
 
-.IX Item "\fIupdate\fR"
+.IX Item "\fBuniq\fR"
 
-.IX Item "\fIuptime\fR"
+.IX Item "\fBunix2dos\fR"
 
-.IX Item "\fIusleep\fR"
+.IX Item "\fBupdate\fR"
 
-.IX Item "\fIuudecode\fR"
+.IX Item "\fBuptime\fR"
 
-.IX Item "\fIuuencode\fR"
+.IX Item "\fBusleep\fR"
 
-.IX Item "\fIwatchdog\fR"
+.IX Item "\fBuudecode\fR"
 
-.IX Item "\fIwc\fR"
+.IX Item "\fBuuencode\fR"
 
-.IX Item "\fIwget\fR"
+.IX Item "\fBvi\fR"
 
-.IX Item "\fIwhich\fR"
+.IX Item "\fBwatchdog\fR"
 
-.IX Item "\fIwhoami\fR"
+.IX Item "\fBwc\fR"
 
-.IX Item "\fIxargs\fR"
+.IX Item "\fBwget\fR"
 
-.IX Item "\fIyes\fR"
+.IX Item "\fBwhich\fR"
 
-.IX Item "\fIzcat\fR"
+.IX Item "\fBwhoami\fR"
+
+.IX Item "\fBxargs\fR"
+
+.IX Item "\fByes\fR"
+
+.IX Item "\fBzcat\fR"
 
 .IX Header "LIBC NSS"
 

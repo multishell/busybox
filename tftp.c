@@ -116,7 +116,7 @@ static inline int tftp(int cmd, struct hostent *host,
 	len = sizeof(sa);
 
 	memset(&sa, 0, len);
-	bind(socketfd, &sa, len);
+	bind(socketfd, (struct sockaddr *)&sa, len);
 
 	sa.sin_family = host->h_addrtype;
 	sa.sin_port = htons(port);
@@ -387,12 +387,11 @@ int tftp_main(int argc, char **argv)
 
 		serverfile = cp + 1;
 
-		if ((s = strdup(serverstr))) {
-			s[cp - serverstr] = '\0';
+		s = xstrdup(serverstr);
+		s[cp - serverstr] = '\0';
 
-			if ((host = gethostbyname(s))) {
-				bad = 0;
-			}
+		if ((host = gethostbyname(s))) {
+			bad = 0;
 		}
 
 		free(s);

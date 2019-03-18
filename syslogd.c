@@ -55,7 +55,7 @@
 #define __LOG_FILE "/var/log/messages"
 
 /* Path to the unix socket */
-char lfile[BUFSIZ] = "";
+static char lfile[BUFSIZ] = "";
 
 static char *logFilePath = __LOG_FILE;
 
@@ -119,7 +119,7 @@ static inline void sem_up(int semid)
  */
 static inline void sem_down(int semid)
 {
-	if ( semop(semid, SMwdn, 2) == -1 )
+	if ( semop(semid, SMwdn, 3) == -1 )
 		perror_msg_and_die("semop[SMwdn]");
 }
 
@@ -155,6 +155,8 @@ void ipcsyslog_init(void){
 		    perror_msg_and_die("semget");
 		}else
     			perror_msg_and_die("semget");
+	    } else {
+		    sem_up(s_semid);
 	    }
 	}else{
 		printf("Buffer already allocated just grab the semaphore?");
@@ -390,18 +392,20 @@ static void domark(int sig)
 static const int BUFSIZE = 1023;
 static int serveConnection (int conn)
 {
-	RESERVE_BB_BUFFER(buf, BUFSIZE + 1);
+	RESERVE_BB_BUFFER(tmpbuf, BUFSIZE + 1);
 	int    n_read;
 
-	while ((n_read = read (conn, buf, BUFSIZE )) > 0) {
+	n_read = read (conn, tmpbuf, BUFSIZE );
+
+	if (n_read > 0) {
 
 		int           pri = (LOG_USER | LOG_NOTICE);
 		char          line[ BUFSIZE + 1 ];
 		unsigned char c;
 
-		char *p = buf, *q = line;
+		char *p = tmpbuf, *q = line;
 
-		buf[ n_read - 1 ] = '\0';
+		tmpbuf[ n_read - 1 ] = '\0';
 
 		while (p && (c = *p) && q < &line[ sizeof (line) - 1 ]) {
 			if (c == '<') {
@@ -427,7 +431,7 @@ static int serveConnection (int conn)
 		/* Now log it */
 		logMessage (pri, line);
 	}
-	return (0);
+	return n_read;
 }
 
 
@@ -439,7 +443,7 @@ static void init_RemoteLog (void){
   int len = sizeof(remoteaddr);
 
   bzero(&remoteaddr, len);
-  
+
   remotefd = socket(AF_INET, SOCK_DGRAM, 0);
 
   if (remotefd < 0) {
@@ -477,8 +481,6 @@ static void doSyslogd (void)
 	int sock_fd;
 	fd_set fds;
 
-	RESERVE_BB_BUFFER(lfile, BUFSIZ);
-
 	/* Set up signal handlers. */
 	signal (SIGINT,  quit_signal);
 	signal (SIGTERM, quit_signal);
@@ -513,6 +515,12 @@ static void doSyslogd (void)
 
 	FD_ZERO (&fds);
 	FD_SET (sock_fd, &fds);
+
+#ifdef BB_FEATURE_IPC_SYSLOG
+	if (circular_logging == TRUE ){
+	   ipcsyslog_init();
+	}
+#endif
 
         #ifdef BB_FEATURE_REMOTE_LOG
         if (doRemoteLog == TRUE){
@@ -550,29 +558,21 @@ static void doSyslogd (void)
 
 					FD_SET(conn, &fds);
 					//printf("conn: %i, set_size: %i\n",conn,FD_SETSIZE);
-			  	} else {		
+			  	} else {
 					//printf("Serving connection: %i\n",fd);
-					serveConnection (fd);
-					close (fd);
-					FD_CLR(fd, &fds);
+					  if ( serveConnection(fd) <= 0 ) {
+					    close (fd);
+					    FD_CLR(fd, &fds);
+            }
 				} /* fd == sock_fd */
 			}/* FD_ISSET() */
 		}/* for */
 	} /* for main loop */
 }
 
-static void daemon_init (char **argv, char *dz, void fn (void))
-{
-	setsid();
-	chdir ("/");
-	strncpy(argv[0], dz, strlen(argv[0]));
-	fn();
-	exit(0);
-}
-
 extern int syslogd_main(int argc, char **argv)
 {
-	int opt, pid;
+	int opt;
 	int doFork = TRUE;
 
 	char *p;
@@ -595,7 +595,7 @@ extern int syslogd_main(int argc, char **argv)
 				if ( (p = strchr(RemoteHost, ':'))){
 					RemotePort = atoi(p+1);
 					*p = '\0';
-				}          
+				}
 				doRemoteLog = TRUE;
 				break;
 			case 'L':
@@ -627,22 +627,11 @@ extern int syslogd_main(int argc, char **argv)
 
 	umask(0);
 
-#ifdef BB_FEATURE_IPC_SYSLOG
-	if (circular_logging == TRUE ){
- 	   ipcsyslog_init();
-	}
-#endif
-
 	if (doFork == TRUE) {
-		pid = fork();
-		if (pid < 0)
-			exit(pid);
-		else if (pid == 0) {
-			daemon_init (argv, "syslogd", doSyslogd);
-		}
-	} else {
-		doSyslogd();
+		if (daemon(0, 1) < 0)
+			perror_msg_and_die("daemon");
 	}
+	doSyslogd();
 
 	return EXIT_SUCCESS;
 }

@@ -58,7 +58,8 @@
 
 #ifdef BB_FEATURE_TAR_GZIP
 extern int unzip(int in, int out);
-extern int gunzip_init();
+extern int gz_open(FILE *compressed_file, int *pid);
+extern void gz_close(int gunzip_pid);
 #endif
 
 /* Tar file constants  */
@@ -148,43 +149,6 @@ static int writeTarFile(const char* tarName, int verboseFlag, char **argv,
 		char** excludeList);
 #endif
 
-#ifdef BB_FEATURE_TAR_GZIP
-/* Signal handler for when child gzip process dies...  */
-static void child_died()
-{
-	fflush(stdout);
-	fflush(stderr);
-	exit(EXIT_FAILURE);
-}
-
-extern int tar_unzip_init(int tarFd)
-{
-	int child_pid;
-	static int unzip_pipe[2];
-	/* Cope if child dies... Otherwise we block forever in read()... */
-	signal(SIGCHLD, child_died);
-
-	if (pipe(unzip_pipe)!=0)
-		error_msg_and_die("pipe error");
-
-	if ( (child_pid = fork()) == -1)
-		error_msg_and_die("fork failure");
-
-	if (child_pid==0) {
-		/* child process */
-		close(unzip_pipe[0]);
-		gunzip_init();
-		unzip(tarFd, unzip_pipe[1]);
-		exit(EXIT_SUCCESS);
-	}
-	else {
-		/* return fd of uncompressed data to parent process */
-		close(unzip_pipe[1]);
-		return(unzip_pipe[0]);
-	}
-}
-#endif
-
 #if defined BB_FEATURE_TAR_EXCLUDE
 static struct option longopts[] = {
 	{ "exclude", 1, NULL, 'e' },
@@ -203,6 +167,7 @@ extern int tar_main(int argc, char **argv)
 	char file[256];
 #endif
 #if defined BB_FEATURE_TAR_GZIP
+	FILE *comp_file = NULL;
 	int unzipFlag    = FALSE;
 #endif
 	int listFlag     = FALSE;
@@ -212,6 +177,7 @@ extern int tar_main(int argc, char **argv)
 	int tostdoutFlag = FALSE;
 	int status       = FALSE;
 	int opt;
+	pid_t pid;
 
 	if (argc <= 1)
 		show_usage();
@@ -316,11 +282,22 @@ extern int tar_main(int argc, char **argv)
 
 #ifdef BB_FEATURE_TAR_GZIP	
 		/* unzip tarFd in a seperate process */
-		if (unzipFlag == TRUE)
-			tarFd = tar_unzip_init(tarFd);
+		if (unzipFlag == TRUE) {
+			comp_file = fdopen(tarFd, "r");
+			if ((tarFd = gz_open(comp_file, &pid)) == EXIT_FAILURE) {
+				error_msg_and_die("Couldnt unzip file");
+			}
+		}
 #endif			
 		status = readTarFile(tarFd, extractFlag, listFlag, tostdoutFlag,
 					verboseFlag, extractList, excludeList);
+		close(tarFd);
+#ifdef BB_FEATURE_TAR_GZIP	
+		if (unzipFlag == TRUE) {
+			gz_close(pid);
+			fclose(comp_file);
+		}
+#endif			
 	}
 
 	if (status == TRUE)

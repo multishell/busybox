@@ -626,7 +626,7 @@ static int list_single(struct dnode *dn)
 				column += 10;
 				break;
 			case LIST_NLINKS:
-				printf("%4d ", dn->dstat.st_nlink);
+				printf("%4ld ", (long)dn->dstat.st_nlink);
 				column += 10;
 				break;
 			case LIST_ID_NAME:
@@ -648,15 +648,18 @@ static int list_single(struct dnode *dn)
 					printf("%4d, %3d ", (int)MAJOR(dn->dstat.st_rdev), (int)MINOR(dn->dstat.st_rdev));
 				} else {
 #ifdef BB_FEATURE_HUMAN_READABLE
-					fprintf(stdout, "%9s ", make_human_readable_str(dn->dstat.st_size,
-								(ls_disp_hr==TRUE)? 0: 1));
-#else
+					if (ls_disp_hr==TRUE) {
+						fprintf(stdout, "%9s ", make_human_readable_str(
+									dn->dstat.st_size>>10, 0));
+					} else 
+#endif	
+					{
 #if _FILE_OFFSET_BITS == 64
-					printf("%9lld ", dn->dstat.st_size>>1);
+						printf("%9lld ", (long long)dn->dstat.st_size);
 #else
-					printf("%9ld ", dn->dstat.st_size>>1);
+						printf("%9ld ", dn->dstat.st_size);
 #endif
-#endif
+					}
 				}
 				column += 10;
 				break;

@@ -6,16 +6,15 @@
 #include <stdlib.h>
 #include "busybox.h"
 
-#undef APPLET
-#undef APPLET_NOUSAGE
-#undef PROTOTYPES
-#include "applets.h"
-
 #define bb_need_full_version
 #define BB_DECLARE_EXTERN
 #include "messages.c"
 
-static int been_there_done_that = 0;
+#ifdef BB_LOCALE_SUPPORT
+#include <locale.h>
+#endif
+
+int been_there_done_that = 0; /* Also used in applets.c */
 const char *applet_name;
 
 #ifdef BB_FEATURE_INSTALLER
@@ -65,7 +64,7 @@ static void install_links(const char *busybox, int use_symbolic_links)
 {
 	__link_f Link = link;
 
-	char command[256];
+	char *fpc;
 	int i;
 	int rc;
 
@@ -73,13 +72,13 @@ static void install_links(const char *busybox, int use_symbolic_links)
 		Link = symlink;
 
 	for (i = 0; applets[i].name != NULL; i++) {
-		sprintf ( command, "%s/%s", 
-				install_dir[applets[i].location], applets[i].name);
-		rc = Link(busybox, command);
-
-		if (rc) {
-			perror_msg("%s", command);
+		fpc = concat_path_file(
+			install_dir[applets[i].location], applets[i].name);
+		rc = Link(busybox, fpc);
+		if (rc!=0 && errno!=EEXIST) {
+			perror_msg("%s", fpc);
 		}
+		free(fpc);
 	}
 }
 
@@ -98,8 +97,13 @@ int main(int argc, char **argv)
 	/* Add in a special case hack -- whenever **argv == '-'
 	 * (i.e. '-su' or '-sh') always invoke the shell */
 	if (**argv == '-' && *(*argv+1)!= '-') {
-		exit(((*(shell_main)) (argc, argv)));
+		applet_name = "sh";
 	}
+#endif
+
+#ifdef BB_LOCALE_SUPPORT
+	if(getpid()!=1)	/* Do not set locale for `init' */
+		setlocale(LC_ALL, "");
 #endif
 
 	run_applet_by_name(applet_name, argc, argv);

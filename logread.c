@@ -35,9 +35,7 @@
 #include <setjmp.h>
 #include "busybox.h"
 
-/* Stupid libc doesn't have a reliable way for use to know 
- * that libc5 is being used.   Assume this is good enough */ 
-#if ! defined __GLIBC__ && ! defined __UCLIBC__
+#if __GNU_LIBRARY__ < 5
 #error Sorry.  Looks like you are using libc5.  
 #error libc5 shm support isnt good enough.
 #error Please disable BB_FEATURE_IPC_SYSLOG 
@@ -58,8 +56,8 @@ static struct shbuf_ds {
 static struct sembuf SMrup[1] = {{0, -1, IPC_NOWAIT | SEM_UNDO}}; // set SMrup
 static struct sembuf SMrdn[2] = {{1, 0}, {0, +1, SEM_UNDO}}; // set SMrdn
 
-static int	shmid = -1;	// ipc shared memory id
-static int	semid = -1;	// ipc semaphore id
+static int	log_shmid = -1;	// ipc shared memory id
+static int	log_semid = -1;	// ipc semaphore id
 static jmp_buf	jmp_env;
 
 static void error_exit(const char *str);
@@ -97,17 +95,17 @@ extern int logread_main(int argc, char **argv)
 	// attempt to redefine ^C signal
 	signal(SIGINT, interrupted);
 	
-	if ( (shmid = shmget(KEY_ID, 0, 0)) == -1)
+	if ( (log_shmid = shmget(KEY_ID, 0, 0)) == -1)
 		error_exit("Can't find circular buffer");
 	
 	// Attach shared memory to our char*
-	if ( (buf = shmat(shmid, NULL, SHM_RDONLY)) == NULL)
+	if ( (buf = shmat(log_shmid, NULL, SHM_RDONLY)) == NULL)
 		error_exit("Can't get access to circular buffer from syslogd");
 
-	if ( (semid = semget(KEY_ID, 0, 0)) == -1)
+	if ( (log_semid = semget(KEY_ID, 0, 0)) == -1)
 	    	error_exit("Can't get access to semaphone(s) for circular buffer from syslogd");
 
-	sem_down(semid);	
+	sem_down(log_semid);	
 	// Read Memory 
 	i=buf->head;
 
@@ -122,10 +120,10 @@ extern int logread_main(int argc, char **argv)
 		if (i >= buf->size )
 			i=0;
 	}
-	sem_up(semid);
+	sem_up(log_semid);
 
 output_end:
-	if (shmid != -1) 
+	if (log_shmid != -1) 
 		shmdt(buf);
 		
 	return EXIT_SUCCESS;		
@@ -139,7 +137,7 @@ static void interrupted(int sig){
 static void error_exit(const char *str){
 	perror(str);
 	//release all acquired resources
-	if (shmid != -1) 
+	if (log_shmid != -1) 
 		shmdt(buf);
 
 	exit(1);

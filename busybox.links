@@ -15,6 +15,7 @@
 /bin/dmesg
 /usr/bin/du
 /bin/echo
+/usr/bin/env
 /bin/false
 /usr/bin/find
 /usr/bin/free

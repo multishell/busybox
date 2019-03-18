@@ -21,14 +21,14 @@
   #define APPLET_ODDNAME(a,b,c,d) extern int b(int argc, char **argv);
   extern const char usage_messages[];
 #elif defined(MAKE_USAGE)
-  #ifdef BB_FEATURE_TRIVIAL_HELP
-    #define APPLET(a,b,c) a##_trivial_usage "\0"
-    #define APPLET_NOUSAGE(a,b,c) "\0"
-    #define APPLET_ODDNAME(a,b,c,d) d##_trivial_usage "\0"
-  #else
+  #ifdef BB_FEATURE_VERBOSE_USAGE
     #define APPLET(a,b,c) a##_trivial_usage "\n\n" a##_full_usage "\0"
     #define APPLET_NOUSAGE(a,b,c) "\0"
     #define APPLET_ODDNAME(a,b,c,d) d##_trivial_usage "\n\n" d##_full_usage "\0"
+  #else
+    #define APPLET(a,b,c) a##_trivial_usage "\0"
+    #define APPLET_NOUSAGE(a,b,c) "\0"
+    #define APPLET_ODDNAME(a,b,c,d) d##_trivial_usage "\0"
   #endif
 #elif defined(MAKE_LINKS)
 #  define APPLET(a,b,c) LINK c a
@@ -45,6 +45,9 @@
 
 #ifdef BB_TEST
 	APPLET_NOUSAGE("[", test_main, _BB_DIR_USR_BIN)
+#endif
+#ifdef BB_ADJTIMEX
+	APPLET(adjtimex, adjtimex_main, _BB_DIR_SBIN)
 #endif
 #ifdef BB_AR
 	APPLET(ar, ar_main, _BB_DIR_USR_BIN)
@@ -126,7 +129,10 @@
 	APPLET(echo, echo_main, _BB_DIR_BIN)
 #endif
 #if defined(BB_FEATURE_GREP_EGREP_ALIAS) && defined(BB_GREP)
-	APPLET_NOUSAGE("egrep", init_main, _BB_DIR_BIN)
+	APPLET_NOUSAGE("egrep", grep_main, _BB_DIR_BIN)
+#endif
+#ifdef BB_ENV
+	APPLET(env, env_main, _BB_DIR_USR_BIN)
 #endif
 #ifdef BB_EXPR
 	APPLET(expr, expr_main, _BB_DIR_USR_BIN)
@@ -407,6 +413,9 @@
 #ifdef BB_UUENCODE
 	APPLET(uuencode, uuencode_main, _BB_DIR_USR_BIN)
 #endif
+#ifdef BB_VI
+	APPLET(vi, vi_main, _BB_DIR_BIN)
+#endif
 #ifdef BB_WATCHDOG
 	APPLET(watchdog, watchdog_main, _BB_DIR_SBIN)
 #endif
@@ -435,8 +444,5 @@
 #if !defined(PROTOTYPES) && !defined(MAKE_USAGE)
 	{ 0,NULL,0 }
 };
-
-/* The -1 arises because of the {0,NULL,0,-1} entry above. */
-size_t NUM_APPLETS = (sizeof (applets) / sizeof (struct BB_applet) - 1);
 
 #endif

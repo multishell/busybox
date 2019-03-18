@@ -18,7 +18,7 @@
 #
 
 PROG      := busybox
-VERSION   := 0.50
+VERSION   := 0.51
 BUILDTIME := $(shell TZ=UTC date --utc "+%Y.%m.%d-%H:%M%z")
 export VERSION
 
@@ -60,6 +60,10 @@ USE_SYSTEM_PWD_GRP = true
 # Do not enable this for production builds...
 DODMALLOC = false
 
+# Electric-fence is another very useful malloc debugging library.
+# Do not enable this for production builds...
+DOEFENCE  = false
+
 # If you want large file summit support, turn this on.
 # This has no effect if you don't have a kernel with lfs
 # support, and a system with libc-2.1.3 or later.
@@ -84,7 +88,7 @@ STRIPTOOL = $(CROSS)strip
 # To compile vs uClibc, just use the compiler wrapper built by uClibc...
 # This make things very easy?  Everything should compile and work as
 # expected these days...
-#CC = ../uClibc/extra/gcc-uClibc/gcc-uClibc-i386
+#CC = ../uClibc/extra/gcc-uClibc/i386-uclibc-gcc
 
 # To compile vs some other alternative libc, you may need to use/adjust
 # the following lines to meet your needs...
@@ -108,7 +112,9 @@ STRIPTOOL = $(CROSS)strip
 OPTIMIZATION := $(shell if $(CC) -Os -S -o /dev/null -xc /dev/null >/dev/null 2>&1; \
     then echo "-Os"; else echo "-O2" ; fi)
 
-WARNINGS = -Wall
+WARNINGS = -Wall -Wshadow
+
+ARFLAGS = -r
 
 #
 #--------------------------------------------------------
@@ -129,6 +135,12 @@ ifeq ($(strip $(DODMALLOC)),true)
     LIBRARIES = -ldmalloc
     # Force debug=true, since this is useless when not debugging...
     DODEBUG = true
+else
+    ifeq ($(strip $(DOEFENCE)),true)
+	LIBRARIES = -lefence
+	# Force debug=true, since this is useless when not debugging...
+	DODEBUG = true
+    endif
 endif
 ifeq ($(strip $(DODEBUG)),true)
     CFLAGS  += $(WARNINGS) -g -D_GNU_SOURCE
@@ -200,7 +212,7 @@ endif
 # And option 4:
 -include applet_source_list
 
-OBJECTS   = $(APPLET_SOURCES:.c=.o) busybox.o messages.o usage.o utility.o
+OBJECTS   = $(APPLET_SOURCES:.c=.o) busybox.o messages.o usage.o applets.o
 CFLAGS    += $(CROSS_CFLAGS)
 CFLAGS    += -DBB_VER='"$(VERSION)"'
 CFLAGS    += -DBB_BT='"$(BUILDTIME)"'
@@ -220,6 +232,27 @@ ifneq ($(strip $(USE_SYSTEM_PWD_GRP)),true)
 else
     CFLAGS    += -DUSE_SYSTEM_PWD_GRP
 endif
+    
+LIBBB	  = libbb
+LIBBB_LIB = libbb.a
+LIBBB_CSRC= ask_confirmation.c check_wildcard_match.c chomp.c copy_file.c \
+copy_file_chunk.c create_path.c daemon.c device_open.c error_msg.c \
+find_mount_point.c find_pid_by_name.c find_root_device.c full_read.c \
+full_write.c get_console.c get_last_path_component.c get_line_from_file.c \
+human_readable.c inode_hash.c isdirectory.c kernel_version.c loop.c \
+mode_string.c parse_mode.c parse_number.c print_file.c process_escape_sequence.c \
+my_getgrgid.c my_getpwnamegid.c my_getpwuid.c my_getgrnam.c my_getpwnam.c \
+recursive_action.c safe_read.c safe_strncpy.c syscalls.c module_syscalls.c \
+syslog_msg_with_name.c time_string.c trim.c vdprintf.c wfopen.c xfuncs.c \
+xregcomp.c error_msg_and_die.c perror_msg.c perror_msg_and_die.c \
+verror_msg.c vperror_msg.c mtab.c mtab_file.c xgetcwd.c concat_path_file.c
+
+LIBBB_OBJS=$(patsubst %.c,$(LIBBB)/%.o, $(LIBBB_CSRC))
+LIBBB_CFLAGS = -I$(LIBBB)
+ifneq ($(strip $(BB_SRC_DIR)),)
+    LIBBB_CFLAGS += -I$(BB_SRC_DIR)/$(LIBBB)
+endif
+
 
 # Put user-supplied flags at the end, where they
 # have a chance of winning.
@@ -235,7 +268,12 @@ applet_source_list: busybox.sh Config.h
 doc: olddoc
 
 # Old Docs...
-olddoc: docs/BusyBox.txt docs/BusyBox.1 docs/BusyBox.html
+olddoc: docs/busybox.pod docs/BusyBox.txt docs/BusyBox.1 docs/BusyBox.html
+
+docs/busybox.pod : docs/busybox_header.pod usage.h docs/busybox_footer.pod
+	- ( cat docs/busybox_header.pod; \
+	    docs/autodocifier.pl usage.h; \
+	    cat docs/busybox_footer.pod ) > docs/busybox.pod
 
 docs/BusyBox.txt: docs/busybox.pod
 	@echo
@@ -288,8 +326,8 @@ docs/busybox/busyboxdocumentation.html: docs/busybox.sgml
 	(cd docs/busybox.lineo.com; sgmltools -b html ../busybox.sgml)
 
 
-busybox: $(PWD_LIB) $(OBJECTS) 
-	$(CC) $(LDFLAGS) -o $@ $(OBJECTS) $(LIBRARIES) $(PWD_LIB)
+busybox: $(PWD_LIB) $(LIBBB_LIB) $(OBJECTS) 
+	$(CC) $(LDFLAGS) -o $@ $(OBJECTS) $(PWD_LIB) $(LIBBB_LIB) $(LIBRARIES)
 	$(STRIP)
 
 # Without VPATH, rule expands to "/bin/sh busybox.mkll Config.h applets.h"
@@ -307,14 +345,21 @@ $(PWD_OBJS): %.o: %.c Config.h busybox.h applets.h Makefile
 	- mkdir -p $(PWD_GRP)
 	$(CC) $(CFLAGS) $(PWD_CFLAGS) -c $< -o $*.o
 
+$(LIBBB_OBJS): %.o: %.c Config.h busybox.h applets.h Makefile libbb/libbb.h
+	- mkdir -p $(LIBBB)
+	$(CC) $(CFLAGS) $(LIBBB_CFLAGS) -c $< -o $*.o
+
 libpwd.a: $(PWD_OBJS)
+	$(AR) $(ARFLAGS) $@ $^
+
+libbb.a: $(LIBBB_OBJS)
 	$(AR) $(ARFLAGS) $@ $^
 
 usage.o: usage.h
 
-utility.o: loop.h
+libbb/loop.o: libbb/loop.h
 
-loop.h: mk_loop_h.sh
+libbb/loop.h: mk_loop_h.sh
 	@ $(SHELL) $< > $@
 
 test tests:
@@ -330,8 +375,8 @@ clean:
 	- rm -f docs/busybox.txt docs/busybox.dvi docs/busybox.ps \
 	    docs/busybox.pdf docs/busybox.lineo.com/busybox.html
 	- rm -f multibuild.log Config.h.orig
-	- rm -rf docs/busybox _install libpwd.a
-	- rm -f busybox.links loop.h *~ slist.mk core applet_source_list
+	- rm -rf docs/busybox _install libpwd.a libbb.a
+	- rm -f busybox.links libbb/loop.h *~ slist.mk core applet_source_list
 	- find -name \*.o -exec rm -f {} \;
 
 distclean: clean

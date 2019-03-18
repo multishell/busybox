@@ -65,9 +65,13 @@
 #include <unistd.h>
 #include <getopt.h>
 
-#undef BB_FEATURE_SH_WORDEXP
+#ifdef BB_LOCALE_SUPPORT
+#include <locale.h>
+#endif
 
-#if BB_FEATURE_SH_WORDEXP
+//#define BB_FEATURE_SH_WORDEXP
+
+#ifdef BB_FEATURE_SH_WORDEXP
 #include <wordexp.h>
 #define expand_t	wordexp_t
 #undef BB_FEATURE_SH_BACKTICKS
@@ -79,7 +83,6 @@
 #include "cmdedit.h"
 
 
-static const int MAX_LINE = 256;	/* size of input buffer for cwd data */
 static const int MAX_READ = 128;	/* size of input buffer for `read' builtin */
 #define JOB_STATUS_FORMAT "[%d] %-22s %.40s\n"
 
@@ -142,7 +145,6 @@ struct close_me {
 
 /* function prototypes for builtins */
 static int builtin_cd(struct child_prog *cmd);
-static int builtin_env(struct child_prog *dummy);
 static int builtin_exec(struct child_prog *cmd);
 static int builtin_exit(struct child_prog *cmd);
 static int builtin_fg_bg(struct child_prog *cmd);
@@ -202,7 +204,6 @@ static struct built_in_command bltins[] = {
 /* Table of forking built-in functions (things that fork cannot change global
  * variables in the parent process, such as the current working directory) */
 static struct built_in_command bltins_forking[] = {
-	{"env", "Print all environment variables", builtin_env},
 	{"pwd", "Print current directory", builtin_pwd},
 	{"help", "List shell built-in commands", builtin_help},
 	{NULL, NULL, NULL}
@@ -231,7 +232,7 @@ static char syntax_err[]="syntax error near unexpected token";
 #endif
 
 static char *PS1;
-static char *PS2;
+static char *PS2 = "> ";
 
 
 #ifdef DEBUG_SHELL
@@ -255,14 +256,13 @@ static inline void debug_printf(const char *format, ...) { }
 builtin   previous use      notes
 ------ -----------------  ---------
 cd      cmd->progs[0]
-env     0
 exec    cmd->progs[0]  squashed bug: didn't look for applets or forking builtins
 exit    cmd->progs[0]
 fg_bg   cmd->progs[0], job_list->head, job_list->fg
 help    0
 jobs    job_list->head
 pwd     0
-export  cmd->progs[0]  passes cmd, job_list to builtin_env(), which ignores them
+export  cmd->progs[0]
 source  cmd->progs[0]
 unset   cmd->progs[0]
 read    cmd->progs[0]
@@ -296,20 +296,9 @@ static int builtin_cd(struct child_prog *child)
 		printf("cd: %s: %m\n", newdir);
 		return EXIT_FAILURE;
 	}
-	getcwd(cwd, sizeof(char)*MAX_LINE);
+	cwd = xgetcwd(cwd);
 
 	return EXIT_SUCCESS;
-}
-
-/* built-in 'env' handler */
-static int builtin_env(struct child_prog *dummy)
-{
-	char **e;
-
-	for (e = environ; *e; e++) {
-		printf( "%s\n", *e);
-	}
-	return (0);
 }
 
 /* built-in 'exec' handler */
@@ -423,7 +412,6 @@ static int builtin_jobs(struct child_prog *child)
 /* built-in 'pwd' handler */
 static int builtin_pwd(struct child_prog *dummy)
 {
-	getcwd(cwd, MAX_LINE);
 	printf( "%s\n", cwd);
 	return EXIT_SUCCESS;
 }
@@ -435,7 +423,11 @@ static int builtin_export(struct child_prog *child)
 	char *v = child->argv[1];
 
 	if (v == NULL) {
-		return (builtin_env(child));
+		char **e;
+		for (e = environ; *e; e++) {
+			printf( "%s\n", *e);
+		}
+		return 0;
 	}
 	res = putenv(v);
 	if (res)
@@ -443,9 +435,15 @@ static int builtin_export(struct child_prog *child)
 #ifndef BB_FEATURE_SH_SIMPLE_PROMPT
 	if (strncmp(v, "PS1=", 4)==0)
 		PS1 = getenv("PS1");
-	else if (strncmp(v, "PS2=", 4)==0)
-		PS2 = getenv("PS2");
 #endif
+
+#ifdef BB_LOCALE_SUPPORT
+	if(strncmp(v, "LC_ALL=", 7)==0)
+		setlocale(LC_ALL, getenv("LC_ALL"));
+	if(strncmp(v, "LC_CTYPE=", 9)==0)
+		setlocale(LC_CTYPE, getenv("LC_CTYPE"));
+#endif
+
 	return (res);
 }
 
@@ -627,10 +625,7 @@ static int builtin_unset(struct child_prog *child)
  */
 static int run_command_predicate(char *cmd)
 {
-	int n=strlen(cmd);
-	local_pending_command = xmalloc(n+1);
-	strncpy(local_pending_command, cmd, n); 
-	local_pending_command[n]='\0';
+	local_pending_command = xstrdup(cmd);
 	return( busy_loop(NULL));
 }
 #endif
@@ -687,16 +682,16 @@ static void free_job(struct job *cmd)
 	cmd->job_list = keep;
 }
 
-/* remove a job from the job_list */
-static void remove_job(struct jobset *job_list, struct job *job)
+/* remove a job from a jobset */
+static void remove_job(struct jobset *j_list, struct job *job)
 {
 	struct job *prevjob;
 
 	free_job(job);
-	if (job == job_list->head) {
-		job_list->head = job->next;
+	if (job == j_list->head) {
+		j_list->head = job->next;
 	} else {
-		prevjob = job_list->head;
+		prevjob = j_list->head;
 		while (prevjob->next != job)
 			prevjob = prevjob->next;
 		prevjob->next = job->next;
@@ -707,7 +702,7 @@ static void remove_job(struct jobset *job_list, struct job *job)
 
 /* Checks to see if any background processes have exited -- if they 
    have, figure out why and see if a job has completed */
-static void checkjobs(struct jobset *job_list)
+static void checkjobs(struct jobset *j_list)
 {
 	struct job *job;
 	pid_t childpid;
@@ -715,7 +710,7 @@ static void checkjobs(struct jobset *job_list)
 	int prognum = 0;
 
 	while ((childpid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
-		for (job = job_list->head; job; job = job->next) {
+		for (job = j_list->head; job; job = job->next) {
 			prognum = 0;
 			while (prognum < job->num_progs &&
 				   job->progs[prognum].pid != childpid) prognum++;
@@ -734,7 +729,7 @@ static void checkjobs(struct jobset *job_list)
 
 			if (!job->running_progs) {
 				printf(JOB_STATUS_FORMAT, job->jobid, "Done", job->text);
-				remove_job(job_list, job);
+				remove_job(j_list, job);
 			}
 		} else {
 			/* child stopped */
@@ -812,15 +807,10 @@ static inline void cmdedit_set_initial_prompt(void)
 {
 #ifdef BB_FEATURE_SH_SIMPLE_PROMPT
 	PS1 = NULL;
-	PS2 = "> ";
 #else
 	PS1 = getenv("PS1");
-	if(PS1==0) {
+	if(PS1==0)
 		PS1 = "\\w \\$ ";
-	}
-	PS2 = getenv("PS2");
-	if(PS2==0) 
-		PS2 = "> ";
 #endif	
 }
 
@@ -881,9 +871,6 @@ static int get_command(FILE * source, char *command)
 		return 1;
 	}
 
-	/* remove trailing newline */
-	chomp(command);
-
 	return 0;
 }
 
@@ -910,35 +897,35 @@ static char* itoa(register int i)
 #endif	
 
 #if defined BB_FEATURE_SH_ENVIRONMENT && ! defined BB_FEATURE_SH_WORDEXP
-char * strsep_space( char *string, int * index)
+char * strsep_space( char *string, int * ix)
 {
 	char *token, *begin;
 
 	begin = string;
 
 	/* Short circuit the trivial case */
-	if ( !string || ! string[*index])
+	if ( !string || ! string[*ix])
 		return NULL;
 
 	/* Find the end of the token. */
-	while( string && string[*index] && !isspace(string[*index]) ) {
-		(*index)++;
+	while( string && string[*ix] && !isspace(string[*ix]) ) {
+		(*ix)++;
 	}
 
 	/* Find the end of any whitespace trailing behind 
 	 * the token and let that be part of the token */
-	while( string && string[*index] && isspace(string[*index]) ) {
-		(*index)++;
+	while( string && string[*ix] && isspace(string[*ix]) ) {
+		(*ix)++;
 	}
 
-	if (! string && *index==0) {
+	if (! string && *ix==0) {
 		/* Nothing useful was found */
 		return NULL;
 	}
 
-	token = xmalloc(*index+1);
-	token[*index] = '\0';
-	strncpy(token, string,  *index); 
+	token = xmalloc(*ix+1);
+	token[*ix] = '\0';
+	strncpy(token, string,  *ix); 
 
 	return token;
 }
@@ -950,7 +937,7 @@ static int expand_arguments(char *command)
 #ifdef BB_FEATURE_SH_ENVIRONMENT
 	expand_t expand_result;
 	char *src, *dst, *var;
-	int index = 0;
+	int ix = 0;
 	int i=0, length, total_length=0, retval;
 	const char *out_of_space = "out of space during expansion"; 
 #endif
@@ -959,19 +946,19 @@ static int expand_arguments(char *command)
 	chomp(command);
 	
 	/* Fix up escape sequences to be the Real Thing(tm) */
-	while( command && command[index]) {
-		if (command[index] == '\\') {
-			char *tmp = command+index+1;
-			command[index+1] = process_escape_sequence(  &tmp );
-			memmove(command+index, command+index+1, strlen(command+index));
+	while( command && command[ix]) {
+		if (command[ix] == '\\') {
+			const char *tmp = command+ix+1;
+			command[ix] = process_escape_sequence(  &tmp );
+			memmove(command+ix + 1, tmp, strlen(tmp)+1);
 		}
-		index++;
+		ix++;
 	}
 
 #ifdef BB_FEATURE_SH_ENVIRONMENT
 
 
-#if BB_FEATURE_SH_WORDEXP
+#ifdef BB_FEATURE_SH_WORDEXP
 	/* This first part uses wordexp() which is a wonderful C lib 
 	 * function which expands nearly everything.  */ 
 	retval = wordexp (command, &expand_result, WRDE_SHOWERR);
@@ -1028,8 +1015,8 @@ static int expand_arguments(char *command)
 		 * we write stuff into the original (in a minute) */
 		cmd = cmd_copy = strdup(command);
 		*command = '\0';
-		for (index = 0, tmpcmd = cmd; 
-				(tmpcmd = strsep_space(cmd, &index)) != NULL; cmd += index, index=0) {
+		for (ix = 0, tmpcmd = cmd; 
+				(tmpcmd = strsep_space(cmd, &ix)) != NULL; cmd += ix, ix=0) {
 			if (*tmpcmd == '\0')
 				break;
 			retval = glob(tmpcmd, flags, NULL, &expand_result);
@@ -1099,11 +1086,11 @@ static int expand_arguments(char *command)
 			case '0':case '1':case '2':case '3':case '4':
 			case '5':case '6':case '7':case '8':case '9':
 				{
-					int index=*(dst + 1)-48;
-					if (index >= argc) {
+					int ixx=*(dst + 1)-48;
+					if (ixx >= argc) {
 						var='\0';
 					} else {
-						var = argv[index];
+						var = argv[ixx];
 					}
 				}
 				break;
@@ -1116,25 +1103,24 @@ static int expand_arguments(char *command)
 		} else {
 			/* Looks like an environment variable */
 			char delim_hold;
-			int num_skip_chars=1;
+			int num_skip_chars=0;
 			int dstlen = strlen(dst);
 			/* Is this a ${foo} type variable? */
 			if (dstlen >=2 && *(dst+1) == '{') {
 				src=strchr(dst+1, '}');
-				num_skip_chars=2;
+				num_skip_chars=1;
 			} else {
-				src=strpbrk(dst+1, " \t~`!$^&*()=|\\[];\"'<>?./");
+				src=dst+1;
+				while(isalnum(*src) || *src=='_') src++;
 			}
 			if (src == NULL) {
 				src = dst+dstlen;
 			}
 			delim_hold=*src;
 			*src='\0';  /* temporary */
-			var = getenv(dst + num_skip_chars);
+			var = getenv(dst + 1 + num_skip_chars);
 			*src=delim_hold;
-			if (num_skip_chars==2) {
-				src++;
-			}
+			src += num_skip_chars;
 		}
 		if (var == NULL) {
 			/* Seems we got an un-expandable variable.  So delete it. */
@@ -1149,8 +1135,7 @@ static int expand_arguments(char *command)
 			}
 			/* Move stuff to the end of the string to accommodate
 			 * filling the created gap with the new stuff */
-			memmove(dst+subst_len, src, trail_len);
-			*(dst+subst_len+trail_len)='\0';
+			memmove(dst+subst_len, src, trail_len+1);
 			/* Now copy in the new stuff */
 			memcpy(dst, var, subst_len);
 			src = dst+subst_len;
@@ -1475,7 +1460,6 @@ static int parse_command(char **command_ptr, struct job *job, int *inbg)
 					break;
 #else
 					error_msg("character expected after \\");
-					free(command);
 					free_job(job);
 					return 1;
 #endif
@@ -1566,9 +1550,9 @@ static int pseudo_exec(struct child_prog *child)
 #endif
 
 	{
-	    char** argv=child->argv;
+	    char** argv_l=child->argv;
 	    int argc_l;
-	    for(argc_l=0;*argv!=NULL; argv++, argc_l++);
+	    for(argc_l=0;*argv_l!=NULL; argv_l++, argc_l++);
 	    optind = 1;
 	    run_applet_by_name(name, argc_l, child->argv);
 	}
@@ -1581,19 +1565,19 @@ static int pseudo_exec(struct child_prog *child)
 static void insert_job(struct job *newjob, int inbg)
 {
 	struct job *thejob;
-	struct jobset *job_list=newjob->job_list;
+	struct jobset *j_list=newjob->job_list;
 
 	/* find the ID for thejob to use */
 	newjob->jobid = 1;
-	for (thejob = job_list->head; thejob; thejob = thejob->next)
+	for (thejob = j_list->head; thejob; thejob = thejob->next)
 		if (thejob->jobid >= newjob->jobid)
 			newjob->jobid = thejob->jobid + 1;
 
 	/* add thejob to the list of running jobs */
-	if (!job_list->head) {
-		thejob = job_list->head = xmalloc(sizeof(*thejob));
+	if (!j_list->head) {
+		thejob = j_list->head = xmalloc(sizeof(*thejob));
 	} else {
-		for (thejob = job_list->head; thejob->next; thejob = thejob->next) /* nothing */;
+		for (thejob = j_list->head; thejob->next; thejob = thejob->next) /* nothing */;
 		thejob->next = xmalloc(sizeof(*thejob));
 		thejob = thejob->next;
 	}
@@ -1839,8 +1823,10 @@ static int busy_loop(FILE * input)
 #ifdef BB_FEATURE_CLEAN_UP
 void free_memory(void)
 {
-	if (cwd)
+	if (cwd) {
 		free(cwd);
+		cwd = NULL;
+	}
 	if (local_pending_command)
 		free(local_pending_command);
 
@@ -1860,7 +1846,6 @@ int shell_main(int argc_l, char **argv_l)
 
 	/* These variables need re-initializing when recursing */
 	shell_context = 0;
-	cwd=NULL;
 	local_pending_command = NULL;
 	close_me_head = NULL;
 	job_list.head = NULL;
@@ -1931,8 +1916,7 @@ int shell_main(int argc_l, char **argv_l)
 	}
 
 	/* initialize the cwd -- this is never freed...*/
-	cwd=(char*)xmalloc(sizeof(char)*MAX_LINE+1);
-	getcwd(cwd, sizeof(char)*MAX_LINE);
+	cwd = xgetcwd(0);
 
 #ifdef BB_FEATURE_CLEAN_UP
 	atexit(free_memory);
@@ -1942,7 +1926,6 @@ int shell_main(int argc_l, char **argv_l)
 	cmdedit_set_initial_prompt();
 #else
 	PS1 = NULL;
-	PS2 = "> ";
 #endif
 	
 	return (busy_loop(input));

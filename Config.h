@@ -7,6 +7,7 @@
 //
 //
 // BusyBox Applications
+//#define BB_ADJTIMEX
 //#define BB_AR
 #define BB_BASENAME
 #define BB_CAT
@@ -31,6 +32,7 @@
 #define BB_DU
 //#define BB_DUMPKMAP
 #define BB_ECHO
+#define BB_ENV
 //#define BB_EXPR
 //#define BB_FBSET
 //#define BB_FDFLUSH
@@ -118,6 +120,7 @@
 //#define BB_UPDATE
 #define BB_UPTIME
 //#define BB_USLEEP
+//#define BB_VI
 //#define BB_WATCHDOG
 #define BB_WC
 //#define BB_WGET
@@ -152,12 +155,11 @@
 // I emailed Linus and this patch will not be going into the stock kernel.
 //#define BB_FEATURE_USE_DEVPS_PATCH
 //
-// This compiles out everything but the most 
-// trivial --help usage information (i.e. reduces binary size)
-#define BB_FEATURE_TRIVIAL_HELP
+// show verbose usage messages
+//#define BB_FEATURE_VERBOSE_USAGE
 //
 // Use termios to manipulate the screen ('more' is prettier with this on)
-#define BB_FEATURE_USE_TERMIOS
+//#define BB_FEATURE_USE_TERMIOS
 //
 // calculate terminal & column widths (for more and ls)
 #define BB_FEATURE_AUTOWIDTH
@@ -209,7 +211,7 @@
 #define BB_FEATURE_MOUNT_LOOP
 //
 // Enable support for a real /etc/mtab file instead of /proc/mounts
-//#define BB_FEATURE_MOUNT_MTAB_SUPPORT
+//#define BB_FEATURE_MTAB_SUPPORT
 //
 // Enable support for mounting remote NFS volumes. 
 // You may need to mount with "-o nolock" if you are
@@ -306,6 +308,9 @@
 // Enable a nifty progress meter in wget (adds just under 2k)
 #define BB_FEATURE_WGET_STATUSBAR
 //
+// Enable HTTP authentication in wget
+#define BB_FEATURE_WGET_AUTHENTICATION
+//
 // Clean up all memory before exiting -- usually not needed
 // as the OS can clean up...  Don't enable this unless you
 // have a really good reason for cleaning things up manually.
@@ -333,6 +338,20 @@
 #define BB_FEATURE_TFTP_PUT
 #define BB_FEATURE_TFTP_GET
 //
+// features for vi
+#define BB_FEATURE_VI_COLON		// ":" colon commands, no "ex" mode
+#define BB_FEATURE_VI_YANKMARK		// Yank/Put commands and Mark cmds
+#define BB_FEATURE_VI_SEARCH		// search and replace cmds
+#define BB_FEATURE_VI_USE_SIGNALS	// catch signals
+#define BB_FEATURE_VI_DOT_CMD		// remember previous cmd and "." cmd
+#define BB_FEATURE_VI_READONLY		// vi -R and "view" mode
+#define BB_FEATURE_VI_SETOPTS		// set-able options,  ai ic showmatch
+#define BB_FEATURE_VI_SET		// :set
+#define BB_FEATURE_VI_WIN_RESIZE	// handle window resize
+//
+// Enable a if you system have setuped locale
+//#define BB_LOCALE_SUPPORT
+//
 // End of Features List
 //
 //
@@ -344,20 +363,9 @@
 // Nothing beyond this point should ever be touched by 
 // mere mortals so leave this stuff alone.
 //
-#if defined BB_MOUNT || defined BB_UMOUNT || defined BB_DF
-	#ifdef BB_FEATURE_MOUNT_MTAB_SUPPORT
-		#define BB_MTAB
-	#endif
-#else
-	#undef BB_MTAB
-#endif	
-//
 #if defined BB_SH
 	#if defined BB_FEATURE_COMMAND_EDITING 
 		#define BB_CMDEDIT
-		#ifndef BB_FEATURE_USE_TERMIOS
-			#define BB_FEATURE_USE_TERMIOS
-		#endif
 	#else
 		#undef BB_FEATURE_COMMAND_EDITING
 		#undef BB_FEATURE_COMMAND_TAB_COMPLETION
@@ -365,7 +373,6 @@
 		#define BB_FEATURE_SH_SIMPLE_PROMPT
 	#endif
 #else
-	#undef BB_FEATURE_COMMAND_EDITING
 	#undef BB_FEATURE_SH_APPLETS_ALWAYS_WIN
 	#undef BB_FEATURE_SH_STANDALONE_SHELL
 	#undef BB_FEATURE_SH_SIMPLE_PROMPT

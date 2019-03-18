@@ -68,8 +68,25 @@ COMMANDS
     uudecode, uuencode, watchdog, wc, wget, which, whoami, xargs,
     yes, zcat, [
 
-    *ar*
-        ar -[ovR]{ptx} archive filenames
+    adjtimex
+        adjtimex [-q] [-o offset] [-f frequency] [-p timeconstant]
+        [-t tick]
+
+        Reads and optionally sets system timebase parameters. See
+        adjtimex(2).
+
+        Options:
+
+                -q              quiet mode - do not print
+                -o offset       time offset, microseconds
+                -f frequency    frequency adjust, integer kernel units (65536 is 1ppm)
+                                (positive values make the system clock run fast)
+                -t tick         microseconds per tick, usually 10000
+                -p timeconstant
+
+        -------------------------------
+
+    ar  ar -[ovR]{ptx} archive filenames
 
         Extract or list files from an ar archive.
 
@@ -84,7 +101,7 @@ COMMANDS
 
         -------------------------------
 
-    *basename*
+    basename
         basename FILE [SUFFIX]
 
         Strips directory path and suffixes from FILE. If specified,
@@ -101,8 +118,7 @@ COMMANDS
 
         -------------------------------
 
-    *cat*
-        cat [FILE]...
+    cat cat [FILE]...
 
         Concatenates FILE(s) and prints them to stdout.
 
@@ -113,7 +129,7 @@ COMMANDS
 
         -------------------------------
 
-    *chgrp*
+    chgrp
         chgrp [OPTION]... GROUP FILE...
 
         Change the group membership of each FILE to GROUP.
@@ -132,7 +148,7 @@ COMMANDS
 
         -------------------------------
 
-    *chmod*
+    chmod
         chmod [-R] MODE[,MODE]... FILE...
 
         Each MODE is one or more of the letters ugoa, one of the
@@ -155,8 +171,8 @@ COMMANDS
 
         -------------------------------
 
-    *chown*
-        chown [OPTION]... OWNER[<.|:>[GROUP] FILE...
+    chown
+        chown [OPTION]... OWNER[<.|:>[GROUP]] FILE...
 
         Change the owner and/or group of each FILE to OWNER and/or
         GROUP.
@@ -178,7 +194,7 @@ COMMANDS
 
         -------------------------------
 
-    *chroot*
+    chroot
         chroot NEWROOT [COMMAND...]
 
         Run COMMAND with root directory set to NEWROOT.
@@ -194,29 +210,27 @@ COMMANDS
 
         -------------------------------
 
-    *chvt*
+    chvt
         chvt N
 
         Changes the foreground virtual terminal to /dev/ttyN
 
         -------------------------------
 
-    *clear*
+    clear
         clear
 
         Clear screen.
 
         -------------------------------
 
-    *cmp*
-        cmp FILE1 [FILE2]
+    cmp cmp FILE1 [FILE2]
 
         Compare files.
 
         -------------------------------
 
-    *cp*
-        cp [OPTION]... SOURCE DEST
+    cp  cp [OPTION]... SOURCE DEST
 
         Copies SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.
 
@@ -228,8 +242,7 @@ COMMANDS
 
         -------------------------------
 
-    *cut*
-        cut [OPTION]... [FILE]...
+    cut cut [OPTION]... [FILE]...
 
         Prints selected fields from each input FILE to standard
         output.
@@ -245,14 +258,14 @@ COMMANDS
 
         Example:
 
-                $ echo Hello world | cut -f 1 -d ' '
+                $ echo "Hello world" | cut -f 1 -d ' '
                 Hello
-                $ echo Hello world | cut -f 2 -d ' '
+                $ echo "Hello world" | cut -f 2 -d ' '
                 world
 
         -------------------------------
 
-    *date*
+    date
         date [OPTION]... [+FORMAT]
 
         Displays the current time in the given FORMAT, or sets the
@@ -272,8 +285,7 @@ COMMANDS
 
         -------------------------------
 
-    *dc*
-        dc expression ...
+    dc  dc expression ...
 
         This is a Tiny RPN calculator that understands the following
         operations: +, -, /, *, and, or, not, eor. i.e. 'dc 2 2 add'
@@ -294,8 +306,7 @@ COMMANDS
 
         -------------------------------
 
-    *dd*
-        dd [if=FILE] [of=FILE] [bs=N] [count=N] [skip=N] [seek=N]
+    dd  dd [if=FILE] [of=FILE] [bs=N] [count=N] [skip=N] [seek=N]
         [conv=notrunc|sync]
 
         Copy a file, converting and formatting according to options
@@ -321,15 +332,14 @@ COMMANDS
 
         -------------------------------
 
-    *deallocvt*
+    deallocvt
         deallocvt N
 
         Deallocate unused virtual terminal /dev/ttyN
 
         -------------------------------
 
-    *df*
-        df [-hmk] [filesystem ...]
+    df  df [-hmk] [filesystem ...]
 
         Print the filesystem space used and space available.
 
@@ -337,7 +347,7 @@ COMMANDS
 
                 -h      print sizes in human readable format (e.g., 1K 243M 2G )
                 -m      print sizes in megabytes
-                -k      print sizes in kilobytes(default) 
+                -k      print sizes in kilobytes(default)
 
         Example:
 
@@ -351,7 +361,7 @@ COMMANDS
 
         -------------------------------
 
-    *dirname*
+    dirname
         dirname [FILENAME ...]
 
         Strips non-directory suffix from FILENAME
@@ -365,7 +375,7 @@ COMMANDS
 
         -------------------------------
 
-    *dmesg*
+    dmesg
         dmesg [-c] [-n LEVEL] [-s SIZE]
 
         Prints or controls the kernel ring buffer
@@ -378,7 +388,7 @@ COMMANDS
 
         -------------------------------
 
-    *dos2unix*
+    dos2unix
         dos2unix [option] [file]
 
         Converts a text file to/from dos format to unix format.
@@ -396,14 +406,14 @@ COMMANDS
 
         -------------------------------
 
-    *dpkg*
+    dpkg
         dpkg [-i|-r|--unpack|--configure] my.deb
 
         WORK IN PROGRESS, only usefull for debian-installer
 
         -------------------------------
 
-    *dpkg_deb*
+    dpkg_deb
         dpkg_deb [-cexX] file directory
 
         Perform actions on debian packages (.debs)
@@ -422,8 +432,7 @@ COMMANDS
 
         -------------------------------
 
-    *du*
-        du [-lshmk] [FILE]...
+    du  du [-lshmk] [FILE]...
 
         Summarizes disk space used for each FILE and/or directory.
         Disk space is printed in units of 1024 bytes.
@@ -434,7 +443,7 @@ COMMANDS
                 -s      display only a total for each argument
                 -h      print sizes in human readable format (e.g., 1K 243M 2G )
                 -m      print sizes in megabytes
-                -k      print sizes in kilobytes(default) 
+                -k      print sizes in kilobytes(default)
 
         Example:
 
@@ -452,7 +461,7 @@ COMMANDS
 
         -------------------------------
 
-    *dumpkmap*
+    dumpkmap
         dumpkmap > keymap
 
         Prints out a binary keyboard translation table to standard
@@ -464,7 +473,7 @@ COMMANDS
 
         -------------------------------
 
-    *dutmp*
+    dutmp
         dutmp [FILE]
 
         Dump utmp file format (pipe delimited) from FILE or stdin to
@@ -483,7 +492,7 @@ COMMANDS
 
         -------------------------------
 
-    *echo*
+    echo
         echo [-neE] [ARG ...]
 
         Prints the specified ARGs to stdout
@@ -496,24 +505,36 @@ COMMANDS
 
         Example:
 
-                $ echo Erik is cool
+                $ echo "Erik is cool"
                 Erik is cool
-                $  echo -e Erik
+                $  echo -e "Erik
                 is
-                cool
+                cool"
                 Erik
                 is
                 cool
-                $ echo Erik
+                $ echo "Erik
                 is
-                cool
+                cool"
                 Erik
                 is
                 cool
 
         -------------------------------
 
-    *expr*
+    env env [-] [-iu] [name=value ...] [command]
+
+        Prints the current environment or runs a program after
+        setting up the specified environment.
+
+        Options:
+
+                -, -i   start with an empty environment
+                -u      remove variable from the environment
+
+        -------------------------------
+
+    expr
         expr EXPRESSION
 
         Prints the value of EXPRESSION to standard output.
@@ -552,7 +573,7 @@ COMMANDS
 
         -------------------------------
 
-    *false*
+    false
         false
 
         Return an exit code of FALSE (1).
@@ -565,7 +586,7 @@ COMMANDS
 
         -------------------------------
 
-    *fbset*
+    fbset
         fbset [options] [mode]
 
         Show and modify frame buffer settings
@@ -573,8 +594,9 @@ COMMANDS
         Example:
 
                 $ fbset
-                mode 1024x768-76
-                                geometry 1024 768 1024 768 16
+                mode "1024x768-76"
+                        # D: 78.653 MHz, H: 59.949 kHz, V: 75.694 Hz
+                        geometry 1024 768 1024 768 16
                         timings 12714 128 32 16 4 128 4
                         accel false
                         rgba 5/11,6/5,5/0,0/0
@@ -582,14 +604,14 @@ COMMANDS
 
         -------------------------------
 
-    *fdflush*
+    fdflush
         fdflush DEVICE
 
         Forces floppy disk drive to detect disk change
 
         -------------------------------
 
-    *find*
+    find
         find [PATH...] [EXPRESSION]
 
         Search for files in a directory hierarchy. The default PATH
@@ -598,7 +620,8 @@ COMMANDS
         EXPRESSION may consist of:
 
                 -follow         Dereference symbolic links.
-                -name PATTERN   File name (leading directories removed) matches PATTERN.
+                -name PATTERN   File name (leading directories removed) matches PATTERN.        -print          Print (default and assumed).
+
                 -type X         Filetype matches X (where X is one of: f,d,l,b,c,...)
                 -perm PERMS     Permissions match any of (+NNN); all of (-NNN);
                                 or exactly (NNN)
@@ -612,7 +635,7 @@ COMMANDS
 
         -------------------------------
 
-    *free*
+    free
         free
 
         Displays the amount of free and used system memory
@@ -627,7 +650,7 @@ COMMANDS
 
         -------------------------------
 
-    *freeramdisk*
+    freeramdisk
         freeramdisk DEVICE
 
         Frees all memory used by the specified ramdisk.
@@ -638,7 +661,7 @@ COMMANDS
 
         -------------------------------
 
-    *fsck_minix*
+    fsck_minix
         fsck_minix [-larvsmf] /dev/name
 
         Performs a consistency check for MINIX filesystems.
@@ -650,12 +673,12 @@ COMMANDS
                 -a      Perform automatic repairs
                 -v      verbose
                 -s      Outputs super-block information
-                -m      Activates MINIX-like mode not cleared warnings
+                -m      Activates MINIX-like "mode not cleared" warnings
                 -f      Force file system check.
 
         -------------------------------
 
-    *getopt*
+    getopt
         getopt [OPTIONS]...
 
         Parse command options
@@ -673,27 +696,28 @@ COMMANDS
         Example:
 
                 $ cat getopt.test
+                #!/bin/sh
                 GETOPT=`getopt -o ab:c:: --long a-long,b-long:,c-long:: \
-                       -n 'example.busybox' -- $@`
+                       -n 'example.busybox' -- "$@"`
                 if [ $? != 0 ] ; then  exit 1 ; fi
-                eval set -- $GETOPT
+                eval set -- "$GETOPT"
                 while true ; do
                  case $1 in
-                   -a|--a-long) echo Option a ; shift ;;
-                   -b|--b-long) echo Option b, argument `$2' ; shift 2 ;;
+                   -a|--a-long) echo "Option a" ; shift ;;
+                   -b|--b-long) echo "Option b, argument `$2'" ; shift 2 ;;
                    -c|--c-long)
-                     case $2 in
-                       \) echo Option c, no argument; shift 2 ;;
-                       *)  echo Option c, argument `$2' ; shift 2 ;;
+                     case "$2" in
+                       "") echo "Option c, no argument"; shift 2 ;;
+                       *)  echo "Option c, argument `$2'" ; shift 2 ;;
                      esac ;;
                    --) shift ; break ;;
-                   *) echo Internal error! ; exit 1 ;;
+                   *) echo "Internal error!" ; exit 1 ;;
                  esac
                 done
 
         -------------------------------
 
-    *grep*
+    grep
         grep [-ihHnqvs] pattern [files...]
 
         Search for PATTERN in each FILE or standard input.
@@ -703,6 +727,7 @@ COMMANDS
                 -H      prefix output lines with filename where match was found
                 -h      suppress the prefixing filename on output
                 -i      ignore case distinctions
+                -l      list names of files that match
                 -n      print line number with output lines
                 -q      be quiet. Returns 0 if result was found, 1 otherwise
                 -v      select non-matching lines
@@ -717,7 +742,7 @@ COMMANDS
 
         -------------------------------
 
-    *gunzip*
+    gunzip
         gunzip [OPTION]... FILE
 
         Uncompress FILE (or standard input if FILE is '-').
@@ -737,7 +762,7 @@ COMMANDS
 
         -------------------------------
 
-    *gzip*
+    gzip
         gzip [OPTION]... FILE
 
         Compress FILE with maximum compression. When FILE is '-',
@@ -758,14 +783,14 @@ COMMANDS
 
         -------------------------------
 
-    *halt*
+    halt
         halt
 
         Halt the system.
 
         -------------------------------
 
-    *head*
+    head
         head [OPTION] [FILE]...
 
         Print first 10 lines of each FILE to standard output. With
@@ -785,14 +810,14 @@ COMMANDS
 
         -------------------------------
 
-    *hostid*
+    hostid
         hostid
 
         Print out a unique 32-bit identifier for the machine.
 
         -------------------------------
 
-    *hostname*
+    hostname
         hostname [OPTION] {hostname | -F file}
 
         Get or set the hostname or DNS domain name. If a hostname is
@@ -813,8 +838,7 @@ COMMANDS
 
         -------------------------------
 
-    *id*
-        id [OPTIONS]... [USERNAME]
+    id  id [OPTIONS]... [USERNAME]
 
         Print information for USERNAME or the current user
 
@@ -832,7 +856,7 @@ COMMANDS
 
         -------------------------------
 
-    *ifconfig*
+    ifconfig
         ifconfig [-a] <interface> [<address>]
 
         configure a network interface
@@ -850,7 +874,7 @@ COMMANDS
 
         -------------------------------
 
-    *init*
+    init
         init
 
         Init is the parent of all processes.
@@ -868,11 +892,16 @@ COMMANDS
 
                 ::sysinit:/etc/init.d/rcS
                 ::askfirst:/bin/sh
+                ::ctrlaltdel:/sbin/reboot
+                ::shutdown:/sbin/swapoff -a
+                ::shutdown:/bin/umount -a -r
 
         if it detects that /dev/console is _not_ a serial console,
         it will also run:
 
                 tty2::askfirst:/bin/sh
+                tty3::askfirst:/bin/sh
+                tty4::askfirst:/bin/sh
 
         If you choose to use an /etc/inittab file, the inittab entry
         format is as follows:
@@ -884,7 +913,7 @@ COMMANDS
                         WARNING: This field has a non-traditional meaning for BusyBox init!
                         The id field is used by BusyBox init to specify the controlling tty for
                         the specified process to run on.  The contents of this field are
-                        appended to /dev/ and used as-is.  There is no need for this field to
+                        appended to "/dev/" and used as-is.  There is no need for this field to
                         be unique, although if it isn't you may have strange results.  If this
                         field is left blank, the controlling tty is set to the console.  Also
                         note that if BusyBox detects that a serial console is in use, then only
@@ -899,7 +928,7 @@ COMMANDS
                 <action>: 
 
                         Valid actions include: sysinit, respawn, askfirst, wait, 
-                        once, and ctrlaltdel.
+                        once, ctrlaltdel, and shutdown.
 
                         The available actions can be classified into two groups: actions
                         that are run only once, and actions that are re-run when the specified
@@ -913,9 +942,12 @@ COMMANDS
                                 'wait' actions, like  'sysinit' actions, cause init to wait until
                                 the specified task completes.  'once' actions are asyncronous,
                                 therefore, init does not wait for them to complete.  'ctrlaltdel'
-                                actions are run immediately before init causes the system to reboot
-                                (unmounting filesystems with a 'ctrlaltdel' action is a very good
-                                idea).
+                                actions are run when the system detects that someone on the system
+                               console has pressed the CTRL-ALT-DEL key combination.  Typically one
+                               wants to run 'reboot' at this point to cause the system to reboot.
+                                Finally the 'shutdown' action specifies the actions to taken when
+                               init is told to reboot.  Unmounting filesystems and disabling swap
+                               is a very good here
 
                         Run repeatedly actions:
 
@@ -924,7 +956,7 @@ COMMANDS
                                 it.  Unlike sysvinit, BusyBox init does not stop processes from
                                 respawning out of control.  The 'askfirst' actions acts just like
                                 respawn, except that before running the specified process it
-                                displays the line Please press Enter to activate this console.
+                                displays the line "Please press Enter to activate this console."
                                 and then waits for the user to press enter before starting the
                                 specified process.  
 
@@ -938,24 +970,41 @@ COMMANDS
 
         Example /etc/inittab file:
 
+                # This is run first except when booting in single-user mode.
+                #
                 ::sysinit:/etc/init.d/rcS
                 
+                # /bin/sh invocations on selected ttys
+                #
+                # Start an "askfirst" shell on the console (whatever that may be)
                 ::askfirst:-/bin/sh
+                # Start an "askfirst" shell on /dev/tty2-4
                 tty2::askfirst:-/bin/sh
                 tty3::askfirst:-/bin/sh
                 tty4::askfirst:-/bin/sh
                 
+                # /sbin/getty invocations for selected ttys
+                #
                 tty4::respawn:/sbin/getty 38400 tty5
                 tty5::respawn:/sbin/getty 38400 tty6
                 
                 
+                # Example of how to put a getty on a serial line (for a terminal)
+                #
+                #::respawn:/sbin/getty -L ttyS0 9600 vt100
+                #::respawn:/sbin/getty -L ttyS1 9600 vt100
+                #
+                # Example how to put a getty on a modem line.
+                #::respawn:/sbin/getty 57600 ttyS2
                 
-                ::ctrlaltdel:/bin/umount -a -r
-                ::ctrlaltdel:/sbin/swapoff -a
+                # Stuff to do before rebooting
+                ::ctrlaltdel:/sbin/reboot
+                ::shutdown:/bin/umount -a -r
+                ::shutdown:/sbin/swapoff -a
 
         -------------------------------
 
-    *insmod*
+    insmod
         insmod [OPTION]... MODULE [symbol=value]...
 
         Loads the specified kernel modules into the kernel.
@@ -970,7 +1019,7 @@ COMMANDS
 
         -------------------------------
 
-    *kill*
+    kill
         kill [-signal] process-id [process-id ...]
 
         Send a signal (default is SIGTERM) to the specified
@@ -993,7 +1042,7 @@ COMMANDS
 
         -------------------------------
 
-    *killall*
+    killall
         killall [-signal] process-name [process-name ...]
 
         Send a signal (default is SIGTERM) to the specified
@@ -1009,7 +1058,7 @@ COMMANDS
 
         -------------------------------
 
-    *klogd*
+    klogd
         klogd -n
 
         Kernel logger. Options:
@@ -1018,20 +1067,19 @@ COMMANDS
 
         -------------------------------
 
-    *length*
+    length
         length STRING
 
         Prints out the length of the specified STRING.
 
         Example:
 
-                $ length Hello
+                $ length "Hello"
                 5
 
         -------------------------------
 
-    *ln*
-        ln [OPTION] TARGET... LINK_NAME|DIRECTORY
+    ln  ln [OPTION] TARGET... LINK_NAME|DIRECTORY
 
         Create a link named LINK_NAME or DIRECTORY to the specified
         TARGET
@@ -1053,7 +1101,7 @@ COMMANDS
 
         -------------------------------
 
-    *loadacm*
+    loadacm
         loadacm < mapfile
 
         Loads an acm from standard input.
@@ -1064,7 +1112,7 @@ COMMANDS
 
         -------------------------------
 
-    *loadfont*
+    loadfont
         loadfont < font
 
         Loads a console font from standard input.
@@ -1075,7 +1123,7 @@ COMMANDS
 
         -------------------------------
 
-    *loadkmap*
+    loadkmap
         loadkmap < keymap
 
         Loads a binary keyboard translation table from standard
@@ -1087,7 +1135,7 @@ COMMANDS
 
         -------------------------------
 
-    *logger*
+    logger
         logger [OPTION]... [MESSAGE]
 
         Write MESSAGE to the system log. If MESSAGE is omitted, log
@@ -1102,11 +1150,11 @@ COMMANDS
 
         Example:
 
-                $ logger hello
+                $ logger "hello"
 
         -------------------------------
 
-    *logname*
+    logname
         logname
 
         Print the name of the current user.
@@ -1118,15 +1166,14 @@ COMMANDS
 
         -------------------------------
 
-    *logread*
+    logread
         logread
 
         Shows the messages from syslogd (using circular buffer).
 
         -------------------------------
 
-    *ls*
-        ls [-1AacCdeFilnpLRrSsTtuvwxXhk] [filenames...]
+    ls  ls [-1AacCdeFilnpLRrSsTtuvwxXhk] [filenames...]
 
         List directory contents
 
@@ -1157,18 +1204,18 @@ COMMANDS
                 -x      list entries by lines instead of by columns
                 -X      sort the listing by extension
                 -h      print sizes in human readable format (e.g., 1K 243M 2G )
-                -k      print sizes in kilobytes(default)  
+                -k      print sizes in kilobytes(default)
 
         -------------------------------
 
-    *lsmod*
+    lsmod
         lsmod
 
         List the currently loaded kernel modules.
 
         -------------------------------
 
-    *makedevs*
+    makedevs
         makedevs NAME TYPE MAJOR MINOR FIRST LAST [s]
 
         Creates a range of block or character special files
@@ -1198,7 +1245,7 @@ COMMANDS
 
         -------------------------------
 
-    *md5sum*
+    md5sum
         md5sum [OPTION] [FILE]... or: md5sum [OPTION] -c [FILE]
 
         Print or check MD5 checksums.
@@ -1230,7 +1277,7 @@ COMMANDS
 
         -------------------------------
 
-    *mkdir*
+    mkdir
         mkdir [OPTION] DIRECTORY...
 
         Create the DIRECTORY(ies), if they do not already exist
@@ -1251,7 +1298,7 @@ COMMANDS
 
         -------------------------------
 
-    *mkfifo*
+    mkfifo
         mkfifo [OPTIONS] name
 
         Creates a named pipe (identical to 'mknod name p')
@@ -1262,7 +1309,7 @@ COMMANDS
 
         -------------------------------
 
-    *mkfs_minix*
+    mkfs_minix
         mkfs_minix [-c | -l filename] [-nXX] [-iXX] /dev/name
         [blocks]
 
@@ -1278,7 +1325,7 @@ COMMANDS
 
         -------------------------------
 
-    *mknod*
+    mknod
         mknod [OPTIONS] NAME TYPE MAJOR MINOR
 
         Create a special file (block, character, or pipe).
@@ -1300,7 +1347,7 @@ COMMANDS
 
         -------------------------------
 
-    *mkswap*
+    mkswap
         mkswap [-c] [-v0|-v1] device [block-count]
 
         Prepare a disk partition to be used as a swap partition.
@@ -1315,7 +1362,7 @@ COMMANDS
 
         -------------------------------
 
-    *mktemp*
+    mktemp
         mktemp [-q] TEMPLATE
 
         Creates a temporary file with its name based on TEMPLATE.
@@ -1330,7 +1377,7 @@ COMMANDS
 
         -------------------------------
 
-    *more*
+    more
         more [FILE ...]
 
         More is a filter for viewing FILE one screenful at a time.
@@ -1341,7 +1388,7 @@ COMMANDS
 
         -------------------------------
 
-    *mount*
+    mount
         mount [flags] device directory [-o options,more-options]
 
         Mount a filesystem
@@ -1349,14 +1396,14 @@ COMMANDS
         Flags:
 
                 -a:             Mount all filesystems in fstab.
-                -f:             Fake Add entry to mount table but don't mount it.
+                -f:             "Fake" Add entry to mount table but don't mount it.
                 -n:             Don't write a mount table entry.
                 -o option:      One of many filesystem options, listed below.
                 -r:             Mount the filesystem read-only.
                 -t fs-type:     Specify the filesystem type.
                 -w:             Mount for reading and writing (default).
 
-        Options for use with the -o flag:
+        Options for use with the "-o" flag:
 
                 async/sync:     Writes are asynchronous / synchronous.
                 atime/noatime:  Enable / disable updates to inode access times.
@@ -1382,8 +1429,7 @@ COMMANDS
 
         -------------------------------
 
-    *mt*
-        mt [-f device] opcode value
+    mt  mt [-f device] opcode value
 
         Control magnetic tape drive operation
 
@@ -1396,8 +1442,7 @@ COMMANDS
 
         -------------------------------
 
-    *mv*
-        mv SOURCE DEST or: mv SOURCE... DIRECTORY
+    mv  mv SOURCE DEST or: mv SOURCE... DIRECTORY
 
         Rename SOURCE to DEST, or move SOURCE(s) to DIRECTORY.
 
@@ -1407,15 +1452,15 @@ COMMANDS
 
         -------------------------------
 
-    *nc*
-        nc [IP] [port]
+    nc  nc [IP] [port]
 
         Netcat opens a pipe to IP:port
 
         Example:
 
                 $ nc foobar.somedomain.com 25
-                220 foobar ESMTP Exim 3.12 help
+                220 foobar ESMTP Exim 3.12 #1 Sat, 15 Apr 2000 00:03:02 -0600
+                help
                 214-Commands supported:
                 214-    HELO EHLO MAIL RCPT DATA AUTH
                 214     NOOP QUIT RSET HELP
@@ -1424,7 +1469,7 @@ COMMANDS
 
         -------------------------------
 
-    *nslookup*
+    nslookup
         nslookup [HOST]
 
         Queries the nameserver for the IP address of the given HOST
@@ -1440,7 +1485,7 @@ COMMANDS
 
         -------------------------------
 
-    *ping*
+    ping
         ping [OPTION]... host
 
         Send ICMP ECHO_REQUEST packets to network hosts.
@@ -1464,7 +1509,7 @@ COMMANDS
 
         -------------------------------
 
-    *pivot_root*
+    pivot_root
         pivot_root new_root put_old
 
         Move the current root file system to put_old and make
@@ -1472,7 +1517,7 @@ COMMANDS
 
         -------------------------------
 
-    *poweroff*
+    poweroff
         poweroff
 
         Halt the system and request that the kernel shut off the
@@ -1480,7 +1525,7 @@ COMMANDS
 
         -------------------------------
 
-    *printf*
+    printf
         printf FORMAT [ARGUMENT...]
 
         Formats and prints ARGUMENT(s) according to FORMAT, Where
@@ -1488,14 +1533,13 @@ COMMANDS
 
         Example:
 
-                $ printf Val=%d
-                 5
+                $ printf "Val=%d
+                " 5
                 Val=5
 
         -------------------------------
 
-    *ps*
-        ps
+    ps  ps
 
         Report process status
 
@@ -1517,8 +1561,7 @@ COMMANDS
 
         -------------------------------
 
-    *pwd*
-        pwd
+    pwd pwd
 
         Print the full filename of the current working directory.
 
@@ -1529,7 +1572,7 @@ COMMANDS
 
         -------------------------------
 
-    *rdate*
+    rdate
         rdate [OPTION] HOST
 
         Get and possibly set the system date and time from a remote
@@ -1542,21 +1585,21 @@ COMMANDS
 
         -------------------------------
 
-    *readlink*
+    readlink
         readlink
 
         Read a symbolic link.
 
         -------------------------------
 
-    *reboot*
+    reboot
         reboot
 
         Reboot the system.
 
         -------------------------------
 
-    *renice*
+    renice
         renice priority pid [pid ...]
 
         Changes priority of running processes. Allowed priorities
@@ -1566,15 +1609,14 @@ COMMANDS
 
         -------------------------------
 
-    *reset*
+    reset
         reset
 
         Resets the screen.
 
         -------------------------------
 
-    *rm*
-        rm [OPTION]... FILE...
+    rm  rm [OPTION]... FILE...
 
         Remove (unlink) the FILE(s). You may use '--' to indicate
         that all following arguments are non-options.
@@ -1591,16 +1633,18 @@ COMMANDS
 
         -------------------------------
 
-    *rmdir*
+    rmdir
         rmdir [OPTION]... DIRECTORY...
 
         Remove the DIRECTORY(ies), if they are empty.
 
         Example:
 
+                # rmdir /tmp/foo
+
         -------------------------------
 
-    *rmmod*
+    rmmod
         rmmod [OPTION]... [MODULE]...
 
         Unloads the specified kernel modules from the kernel.
@@ -1615,22 +1659,21 @@ COMMANDS
 
         -------------------------------
 
-    *route*
+    route
         route [{add|del|flush}]
 
         Edit the kernel's routing tables
 
         -------------------------------
 
-    *rpmunpack*
+    rpmunpack
         rpmunpack < package.rpm | gunzip | cpio -idmuv
 
         Extracts an rpm archive.
 
         -------------------------------
 
-    *sed*
-        sed [-Vhnef] pattern [files...]
+    sed sed [-Vhnef] pattern [files...]
 
         Options:
 
@@ -1646,12 +1689,12 @@ COMMANDS
 
         Example:
 
-                $ echo foo | sed -e 's/f[a-zA-Z]o/bar/g'
+                $ echo "foo" | sed -e 's/f[a-zA-Z]o/bar/g'
                 bar
 
         -------------------------------
 
-    *setkeycodes*
+    setkeycodes
         setkeycodes SCANCODE KEYCODE ...
 
         Set entries into the kernel's scancode-to-keycode map,
@@ -1666,8 +1709,7 @@ COMMANDS
 
         -------------------------------
 
-    *sh*
-        sh [FILE]... or: sh -c command [args]...
+    sh  sh [FILE]... or: sh -c command [args]...
 
         lash: The BusyBox LAme SHell (command interpreter)
 
@@ -1677,13 +1719,13 @@ COMMANDS
         handles pipes, redirects, job control, can be used as the
         shell for scripts, and has a sufficient set of builtins to
         do what is needed. It does not (yet) support Bourne Shell
-        syntax. If you need things like if-then-else, while, and
+        syntax. If you need things like "if-then-else", "while", and
         such use ash or bash. If you just need a very simple and
         extremely small shell, this will do the job.
 
         -------------------------------
 
-    *sleep*
+    sleep
         sleep N
 
         Pause for N seconds.
@@ -1695,19 +1737,19 @@ COMMANDS
 
         -------------------------------
 
-    *sort*
+    sort
         sort [-n] [-r] [FILE]...
 
         Sorts lines of text in the specified files
 
         Example:
 
-                $ echo -e e
+                $ echo -e "e
                 f
                 b
                 d
                 c
-                a | sort
+                a" | sort
                 a
                 b
                 c
@@ -1717,7 +1759,7 @@ COMMANDS
 
         -------------------------------
 
-    *stty*
+    stty
         stty [-a|g] [-F device] [SETTING]...
 
         Without arguments, prints baud rate, line discipline, and
@@ -1732,7 +1774,7 @@ COMMANDS
 
         -------------------------------
 
-    *swapoff*
+    swapoff
         swapoff [OPTION] [device]
 
         Stop swapping virtual memory pages on the given device.
@@ -1743,7 +1785,7 @@ COMMANDS
 
         -------------------------------
 
-    *swapon*
+    swapon
         swapon [OPTION] [device]
 
         Start swapping virtual memory pages on the given device.
@@ -1754,14 +1796,14 @@ COMMANDS
 
         -------------------------------
 
-    *sync*
+    sync
         sync
 
         Write all buffered filesystem blocks to disk.
 
         -------------------------------
 
-    *syslogd*
+    syslogd
         syslogd [OPTION]...
 
         Linux system and kernel logging utility. Note that this
@@ -1782,7 +1824,7 @@ COMMANDS
 
         -------------------------------
 
-    *tail*
+    tail
         tail [OPTION]... [FILE]...
 
         Print last 10 lines of each FILE to standard output. With
@@ -1811,9 +1853,8 @@ COMMANDS
 
         -------------------------------
 
-    *tar*
-        tar -[cxtvO] [--exclude File] [-X File][-f tarFile]
-        [FILE(s)] ...
+    tar tar -[cxtvO] [--exclude File] [-X File][-f tarFile] [FILE(s)]
+        ...
 
         Create, extract, or list files from a tar file.
 
@@ -1825,7 +1866,7 @@ COMMANDS
 
         File selection:
 
-                f               name of tarfile or - for stdin
+                f               name of tarfile or "-" for stdin
                 O               extract to stdout
                 exclude         file to exclude
                 X               file with names to exclude
@@ -1841,8 +1882,7 @@ COMMANDS
 
         -------------------------------
 
-    *tee*
-        tee [OPTION]... [FILE]...
+    tee tee [OPTION]... [FILE]...
 
         Copy standard input to each FILE, and also to standard
         output.
@@ -1853,13 +1893,13 @@ COMMANDS
 
         Example:
 
-                $ echo Hello | tee /tmp/foo
+                $ echo "Hello" | tee /tmp/foo
                 $ cat /tmp/foo
                 Hello
 
         -------------------------------
 
-    *telnet*
+    telnet
         telnet host [port]
 
         Telnet is used to establish interactive communication with
@@ -1867,7 +1907,7 @@ COMMANDS
 
         -------------------------------
 
-    *test*
+    test
         test EXPRESSION or [ EXPRESSION ]
 
         Checks file types and compares values returning an exit code
@@ -1890,21 +1930,21 @@ COMMANDS
 
         -------------------------------
 
-    *tftp*
+    tftp
         tftp command SOURCE DEST
 
-        Transfers a file from/to a tftp server using octet mode.
+        Transfers a file from/to a tftp server using "octet" mode.
 
         Commands:
 
                 get     Get file from server SOURCE and store to local DEST.
                 put     Put local file SOURCE to server DEST.
 
-        When nameing a server, use the syntax server:file.
+        When nameing a server, use the syntax "server:file".
 
         -------------------------------
 
-    *touch*
+    touch
         touch [-c] file [file ...]
 
         Update the last-modified date on the given file[s].
@@ -1923,8 +1963,7 @@ COMMANDS
 
         -------------------------------
 
-    *tr*
-        tr [-cds] STRING1 [STRING2]
+    tr  tr [-cds] STRING1 [STRING2]
 
         Translate, squeeze, and/or delete characters from standard
         input, writing to standard output.
@@ -1937,12 +1976,12 @@ COMMANDS
 
         Example:
 
-                $ echo gdkkn vnqkc | tr [a-y] [b-z]
+                $ echo "gdkkn vnqkc" | tr [a-y] [b-z]
                 hello world
 
         -------------------------------
 
-    *true*
+    true
         true
 
         Return an exit code of TRUE (0).
@@ -1955,8 +1994,7 @@ COMMANDS
 
         -------------------------------
 
-    *tty*
-        tty
+    tty tty
 
         Print the file name of the terminal connected to standard
         input.
@@ -1972,7 +2010,7 @@ COMMANDS
 
         -------------------------------
 
-    *umount*
+    umount
         umount [flags] filesystem|directory
 
         Unmount file systems
@@ -1991,7 +2029,7 @@ COMMANDS
 
         -------------------------------
 
-    *uname*
+    uname
         uname [OPTION]...
 
         Print certain system information. With no OPTION, same as -
@@ -2010,11 +2048,11 @@ COMMANDS
         Example:
 
                 $ uname -a
-                Linux debian 2.2.15pre13 
+                Linux debian 2.2.15pre13 #5 Tue Mar 14 16:03:50 MST 2000 i686 unknown
 
         -------------------------------
 
-    *uniq*
+    uniq
         uniq [OPTION]... [INPUT [OUTPUT]]
 
         Discard all but one of successive identical lines from INPUT
@@ -2028,26 +2066,26 @@ COMMANDS
 
         Example:
 
-                $ echo -e a
+                $ echo -e "a
                 a
                 b
                 c
                 c
-                a | sort | uniq
+                a" | sort | uniq
                 a
                 b
                 c
 
         -------------------------------
 
-    *unix2dos*
+    unix2dos
         unix2dos [option] [file]
 
         See 'dos2unix --help' for help!
 
         -------------------------------
 
-    *update*
+    update
         update [options]
 
         Periodically flushes filesystem buffers.
@@ -2060,7 +2098,7 @@ COMMANDS
 
         -------------------------------
 
-    *uptime*
+    uptime
         uptime
 
         Display the time since the last boot.
@@ -2072,7 +2110,7 @@ COMMANDS
 
         -------------------------------
 
-    *usleep*
+    usleep
         usleep N
 
         Pause for N microseconds.
@@ -2084,20 +2122,24 @@ COMMANDS
 
         -------------------------------
 
-    *uudecode*
+    uudecode
         uudecode [FILE]...
 
         Uudecode a file that is uuencoded.
 
         Options:
 
-                -o FILE direct output to FILE$ uudecode -o busybox busybox.uu
-        $ ls B<-l> busybox
-        B<-rwxr>-xr-x   1 ams      ams        245264 Jun  7 21:35 busybox
+                -o FILE direct output to FILE
+
+        Example:
+
+                $ uudecode -o busybox busybox.uu
+                $ ls -l busybox
+                -rwxr-xr-x   1 ams      ams        245264 Jun  7 21:35 busybox
 
         -------------------------------
 
-    *uuencode*
+    uuencode
         uuencode [OPTION] [INFILE] REMOTEFILE
 
         Uuencode a file.
@@ -2116,15 +2158,24 @@ COMMANDS
 
         -------------------------------
 
-    *watchdog*
+    vi  vi [OPTION] [FILE]...
+
+        edit FILE.
+
+        Options:
+
+                -R      Read-only- do not write to the file.
+
+        -------------------------------
+
+    watchdog
         watchdog DEV
 
         Periodically write to watchdog device DEV
 
         -------------------------------
 
-    *wc*
-        wc [OPTION]... [FILE]...
+    wc  wc [OPTION]... [FILE]...
 
         Print line, word, and byte counts for each FILE, and a total
         line if more than one FILE is specified. With no FILE, read
@@ -2144,19 +2195,20 @@ COMMANDS
 
         -------------------------------
 
-    *wget*
+    wget
         wget [-c] [-O file] url
 
-        wget retrieves files via HTTP
+        wget retrieves files via HTTP or FTP
 
         Options:
 
                 -c      continue retrieval of aborted transfers
+                -q      quiet mode - do not print
                 -O      save to filename ('-' for stdout)
 
         -------------------------------
 
-    *which*
+    which
         which [COMMAND ...]
 
         Locates a COMMAND.
@@ -2168,7 +2220,7 @@ COMMANDS
 
         -------------------------------
 
-    *whoami*
+    whoami
         whoami
 
         Prints the user name associated with the current effective
@@ -2176,7 +2228,7 @@ COMMANDS
 
         -------------------------------
 
-    *xargs*
+    xargs
         xargs [COMMAND] [ARGS...]
 
         Executes COMMAND on every item given by standard input.
@@ -2188,15 +2240,14 @@ COMMANDS
 
         -------------------------------
 
-    *yes*
-        yes [OPTION]... [STRING]...
+    yes yes [OPTION]... [STRING]...
 
         Repeatedly outputs a line with all specified STRING(s), or
         'y'.
 
         -------------------------------
 
-    *zcat*
+    zcat
         zcat FILE
 
         Uncompress to stdout.
@@ -2276,6 +2327,11 @@ AUTHORS
     Glenn McGrath <bug1@netconnect.com.au>
 
         ar.c
+
+    Vladimir Oleynik <dzo@simtreas.ru>
+
+        cmdedit, stty-port, locale, various fixes 
+        and irreconcilable critic of everything not perfect.
 
     Bruce Perens <bruce@pixar.com>
 

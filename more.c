@@ -91,7 +91,7 @@ extern int more_main(int argc, char **argv)
 #ifdef BB_FEATURE_USE_TERMIOS
 		cin = fopen("/dev/tty", "r");
 		if (!cin)
-			cin = fopen("/dev/console", "r");
+			cin = xfopen("/dev/console", "r");
 		getTermSettings(fileno(cin), &initial_settings);
 		new_settings = initial_settings;
 		new_settings.c_cc[VMIN] = 1;
@@ -124,13 +124,13 @@ extern int more_main(int argc, char **argv)
 				if (file != stdin) {
 #if _FILE_OFFSET_BITS == 64
 					len += printf("(%d%% of %lld bytes)",
+						   (int) (100 * ((double) ftell(file) /
+						   (double) st.st_size)), (long long)st.st_size);
 #else
 					len += printf("(%d%% of %ld bytes)",
+						   (int) (100 * ((double) ftell(file) /
+						   (double) st.st_size)), (long)st.st_size);
 #endif
-								   (int) (100 *
-										  ((double) ftell(file) /
-										   (double) st.st_size)),
-								   st.st_size);
 				}
 				len += printf("%s",
 #ifdef BB_FEATURE_USE_TERMIOS
@@ -154,12 +154,10 @@ extern int more_main(int argc, char **argv)
 
 #ifdef BB_FEATURE_USE_TERMIOS
 				/* Erase the "More" message */
+				putc('\r', stdout);
 				while (--len >= 0)
-					putc('\b', stdout);
-				while (++len <= terminal_width)
 					putc(' ', stdout);
-				while (--len >= 0)
-					putc('\b', stdout);
+				putc('\r', stdout);
 				fflush(stdout);
 #endif
 				len=0;

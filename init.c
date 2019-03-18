@@ -85,12 +85,13 @@ static const int RB_ENABLE_CAD = 0x89abcdef;
 static const int RB_DISABLE_CAD = 0;
 #define RB_POWER_OFF    0x4321fedc
 static const int RB_AUTOBOOT = 0x01234567;
-#if defined(__GLIBC__) || defined (__UCLIBC__)
-#include <sys/reboot.h>
+#endif
+
+#if __GNU_LIBRARY__ > 5
+  #include <sys/reboot.h>
   #define init_reboot(magic) reboot(magic)
 #else
   #define init_reboot(magic) reboot(0xfee1dead, 672274793, magic)
-#endif
 #endif
 
 #ifndef _PATH_STDPATH
@@ -112,13 +113,11 @@ static const int RB_AUTOBOOT = 0x01234567;
 
 #define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))
 
-#if defined(__GLIBC__)
-#include <sys/kdaemon.h>
+#if __GNU_LIBRARY__ > 5
+	#include <sys/kdaemon.h>
 #else
-#include <sys/syscall.h>
-#include <linux/unistd.h>
-static _syscall2(int, bdflush, int, func, int, data);
-#endif							/* __GLIBC__ */
+	extern int bdflush (int func, long int data);
+#endif
 
 
 #define VT_PRIMARY   "/dev/tty1"     /* Primary virtual console */
@@ -146,7 +145,8 @@ typedef enum {
 	ASKFIRST,
 	WAIT,
 	ONCE,
-	CTRLALTDEL
+	CTRLALTDEL,
+	SHUTDOWN
 } initActionEnum;
 
 /* A mapping between "inittab" action name strings and action type codes. */
@@ -162,6 +162,7 @@ static const struct initActionType actions[] = {
 	{"wait", WAIT},
 	{"once", ONCE},
 	{"ctrlaltdel", CTRLALTDEL},
+	{"shutdown", SHUTDOWN},
 	{0, 0}
 };
 
@@ -186,6 +187,7 @@ static char termType[32]   = "TERM=linux";
 static char console[32]    = _PATH_CONSOLE;
 
 static void delete_initAction(initAction * action);
+
 
 
 /* Print a message to the specified device.
@@ -393,6 +395,23 @@ static void console_init()
 	}
 	message(LOG, "console=%s\n", console);
 }
+	
+static void fixup_argv(int argc, char **argv, char *new_argv0)
+{
+	int len;
+	/* Fix up argv[0] to be certain we claim to be init */
+	len = strlen(argv[0]);
+	memset(argv[0], 0, len);
+	strncpy(argv[0], new_argv0, len);
+
+	/* Wipe argv[1]-argv[N] so they don't clutter the ps listing */
+	len = 1;
+	while (argc > len) {
+		memset(argv[len], 0, strlen(argv[len]));
+		len++;
+	}
+}
+
 
 static pid_t run(char *command, char *terminal, int get_enter)
 {
@@ -402,6 +421,7 @@ static pid_t run(char *command, char *terminal, int get_enter)
 	char *tmpCmd, *s;
 	char *cmd[255], *cmdpath;
 	char buf[255];
+	struct stat sb;
 	static const char press_enter[] =
 
 #ifdef CUSTOMIZED_BANNER
@@ -447,8 +467,7 @@ static pid_t run(char *command, char *terminal, int get_enter)
 		signal(SIGHUP, SIG_DFL);
 
 		if ((fd = device_open(terminal, O_RDWR)) < 0) {
-			struct stat statBuf;
-			if (stat(terminal, &statBuf) != 0) {
+			if (stat(terminal, &sb) != 0) {
 				message(LOG | CONSOLE, "device '%s' does not exist.\n",
 						terminal);
 				exit(1);
@@ -463,29 +482,6 @@ static pid_t run(char *command, char *terminal, int get_enter)
 		tcsetpgrp(0, getpgrp());
 		set_term(0);
 
-		if (get_enter == TRUE) {
-			/*
-			 * Save memory by not exec-ing anything large (like a shell)
-			 * before the user wants it. This is critical if swap is not
-			 * enabled and the system has low memory. Generally this will
-			 * be run on the second virtual console, and the first will
-			 * be allowed to start a shell or whatever an init script 
-			 * specifies.
-			 */
-#ifdef DEBUG_INIT
-			message(LOG, "Waiting for enter to start '%s' (pid %d, console %s)\r\n",
-					command, getpid(), terminal);
-#endif
-			write(fileno(stdout), press_enter, sizeof(press_enter) - 1);
-			getc(stdin);
-		}
-
-#ifdef DEBUG_INIT
-		/* Log the process name and args */
-		message(LOG, "Starting pid %d, console %s: '%s'\r\n",
-				getpid(), terminal, command);
-#endif
-
 		/* See if any special /bin/sh requiring characters are present */
 		if (strpbrk(command, "~`!$^&*()=|\\{}[];\"'<>?") != NULL) {
 			cmd[0] = SHELL;
@@ -497,7 +493,7 @@ static pid_t run(char *command, char *terminal, int get_enter)
 		} else {
 			/* Convert command (char*) into cmd (char**, one word per string) */
 			for (tmpCmd = command, i = 0;
-				 (tmpCmd = strsep(&command, " \t")) != NULL;) {
+					(tmpCmd = strsep(&command, " \t")) != NULL;) {
 				if (*tmpCmd != '\0') {
 					cmd[i] = tmpCmd;
 					tmpCmd++;
@@ -507,53 +503,72 @@ static pid_t run(char *command, char *terminal, int get_enter)
 			cmd[i] = NULL;
 		}
 
-               cmdpath = cmd[0];
+		cmdpath = cmd[0];
 
-               /*
-                   Interactive shells want to see a dash in argv[0].  This
-                   typically is handled by login, argv will be setup this 
-                   way if a dash appears at the front of the command path 
+		/*
+		   Interactive shells want to see a dash in argv[0].  This
+		   typically is handled by login, argv will be setup this 
+		   way if a dash appears at the front of the command path 
 		   (like "-/bin/sh").
-               */
+		 */
 
-               if (*cmdpath == '-') {
-                       char *s;
+		if (*cmdpath == '-') {
 
-                       /* skip over the dash */
-                         ++cmdpath;
+			/* skip over the dash */
+			++cmdpath;
 
-                       /* find the last component in the command pathname */
-						 s = get_last_path_component(cmdpath);
+			/* find the last component in the command pathname */
+			s = get_last_path_component(cmdpath);
 
-                       /* make a new argv[0] */
-                       if ((cmd[0] = malloc(strlen(s)+2)) == NULL) {
-                               message(LOG | CONSOLE, "malloc failed");
-                               cmd[0] = cmdpath;
-                       } else {
-                               cmd[0][0] = '-';
-                               strcpy(cmd[0]+1, s);
-                       }
-               }
+			/* make a new argv[0] */
+			if ((cmd[0] = malloc(strlen(s)+2)) == NULL) {
+				message(LOG | CONSOLE, "malloc failed");
+				cmd[0] = cmdpath;
+			} else {
+				cmd[0][0] = '-';
+				strcpy(cmd[0]+1, s);
+			}
+		}
+
+		if (get_enter == TRUE) {
+			/*
+			 * Save memory by not exec-ing anything large (like a shell)
+			 * before the user wants it. This is critical if swap is not
+			 * enabled and the system has low memory. Generally this will
+			 * be run on the second virtual console, and the first will
+			 * be allowed to start a shell or whatever an init script 
+			 * specifies.
+			 */
+#ifdef DEBUG_INIT
+			message(LOG, "Waiting for enter to start '%s' (pid %d, console %s)\r\n",
+					cmd[0], getpid(), terminal);
+#endif
+			write(fileno(stdout), press_enter, sizeof(press_enter) - 1);
+			getc(stdin);
+		}
+
+#ifdef DEBUG_INIT
+		/* Log the process name and args */
+		message(LOG, "Starting pid %d, console %s: '%s'\r\n",
+				getpid(), terminal, command);
+#endif
 
 #if defined BB_FEATURE_INIT_COREDUMPS
-		{
-			struct stat sb;
-			if (stat (CORE_ENABLE_FLAG_FILE, &sb) == 0) {
-				struct rlimit limit;
-				limit.rlim_cur = RLIM_INFINITY;
-				limit.rlim_max = RLIM_INFINITY;
-				setrlimit(RLIMIT_CORE, &limit);
-			}
+		if (stat (CORE_ENABLE_FLAG_FILE, &sb) == 0) {
+			struct rlimit limit;
+			limit.rlim_cur = RLIM_INFINITY;
+			limit.rlim_max = RLIM_INFINITY;
+			setrlimit(RLIMIT_CORE, &limit);
 		}
 #endif
 
 		/* Now run it.  The new program will take over this PID, 
 		 * so nothing further in init.c should be run. */
-                execve(cmdpath, cmd, environment);
+		execve(cmdpath, cmd, environment);
 
-                /* We're still here?  Some error happened. */
-                message(LOG | CONSOLE, "Bummer, could not run '%s': %s\n", cmdpath,
-                                strerror(errno));
+		/* We're still here?  Some error happened. */
+		message(LOG | CONSOLE, "Bummer, could not run '%s': %s\n", cmdpath,
+				strerror(errno));
 		exit(-1);
 	}
 	return pid;
@@ -603,12 +618,12 @@ static void check_memory()
 }
 
 /* Run all commands to be run right before halt/reboot */
-static void run_lastAction(void)
+static void run_actions(initActionEnum action)
 {
 	initAction *a, *tmp;
 	for (a = initActionList; a; a = tmp) {
 		tmp = a->nextPtr;
-		if (a->action == CTRLALTDEL) {
+		if (a->action == action) {
 			waitfor(a->process, a->console, FALSE);
 			delete_initAction(a);
 		}
@@ -640,7 +655,7 @@ static void shutdown_system(void)
 	sleep(1);
 
 	/* run everything to be run at "ctrlaltdel" */
-	run_lastAction();
+	run_actions(SHUTDOWN);
 
 	sync();
 	if (kernelVersion > 0 && kernelVersion <= KERNEL_VERSION(2,2,11)) {
@@ -680,6 +695,11 @@ static void reboot_signal(int sig)
 
 	init_reboot(RB_AUTOBOOT);
 	exit(0);
+}
+
+static void ctrlaltdel_signal(int sig)
+{
+	run_actions(CTRLALTDEL);
 }
 
 #endif							/* ! DEBUG_INIT */
@@ -753,10 +773,12 @@ static void parse_inittab(void)
 	if (file == NULL) {
 		/* No inittab file -- set up some default behavior */
 #endif
+		/* Reboot on Ctrl-Alt-Del */
+		new_initAction(CTRLALTDEL, "/sbin/reboot", console);
 		/* Swapoff on halt/reboot */
-		new_initAction(CTRLALTDEL, "/sbin/swapoff -a", console);
+		new_initAction(SHUTDOWN, "/sbin/swapoff -a", console);
 		/* Umount all filesystems on halt/reboot */
-		new_initAction(CTRLALTDEL, "/bin/umount -a -r", console);
+		new_initAction(SHUTDOWN, "/bin/umount -a -r", console);
 		/* Askfirst shell on tty1 */
 		new_initAction(ASKFIRST, SHELL, console);
 		/* Askfirst shell on tty2 */
@@ -869,7 +891,7 @@ extern int init_main(int argc, char **argv)
 	 * clear all of these in run() */
 	signal(SIGUSR1, halt_signal);
 	signal(SIGUSR2, halt_signal);
-	signal(SIGINT, reboot_signal);
+	signal(SIGINT, ctrlaltdel_signal);
 	signal(SIGTERM, reboot_signal);
 
 	/* Turn off rebooting via CTL-ALT-DEL -- we get a 
@@ -937,11 +959,8 @@ extern int init_main(int argc, char **argv)
 		parse_inittab();
 	}
 
-	/* Fix up argv[0] to be certain we claim to be init */
-	argv[0]="init";
-
-	if (argc > 1)
-		argv[1][0]=0;
+	/* Make the command line just say "init"  -- thats all, nothing else */
+	fixup_argv(argc, argv, "init");
 
 	/* Now run everything that needs to be run */
 

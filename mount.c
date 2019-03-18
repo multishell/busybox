@@ -84,11 +84,7 @@ extern int mount (__const char *__special_file, __const char *__dir,
 extern int umount (__const char *__special_file);
 extern int umount2 (__const char *__special_file, int __flags);
 
-#include <sys/syscall.h>
-#include <linux/unistd.h>
-static int sysfs( int option, unsigned int fs_index, char * buf);
-_syscall3(int, sysfs, int, option, unsigned int, fs_index, char *, buf);
-
+extern int sysfs( int option, unsigned int fs_index, char * buf);
 
 extern const char mtab_file[];	/* Defined in utility.c */
 
@@ -160,7 +156,7 @@ do_mount(char *specialfile, char *dir, char *filesystemtype,
 	/* If the mount was sucessful, do anything needed, then return TRUE */
 	if (status == 0 || fakeIt==TRUE) {
 
-#if defined BB_MTAB
+#if defined BB_FEATURE_MTAB_SUPPORT
 		if (useMtab == TRUE) {
 			erase_mtab(specialfile);	// Clean any stale entries
 			write_mtab(specialfile, dir, filesystemtype, flags, mtab_opts);
@@ -231,7 +227,7 @@ parse_mount_options(char *options, int *flags, char *strflags)
 	}
 }
 
-static int
+extern int
 mount_one(char *blockDevice, char *directory, char *filesystemType,
 		  unsigned long flags, char *string_flags, int useMtab, int fakeIt,
 		  char *mtab_opts, int whineOnErrors)
@@ -239,8 +235,8 @@ mount_one(char *blockDevice, char *directory, char *filesystemType,
 	int status = 0;
 
 	if (strcmp(filesystemType, "auto") == 0) {
-		static const char *strings[] = { "tmpfs", "shm", "proc", "ramfs", "devpts", 0 };
-		const char** nodevfss;
+		static const char *noauto_array[] = { "tmpfs", "shm", "proc", "ramfs", "devpts", "devfs", 0 };
+		const char **noauto_fstype;
 		const int num_of_filesystems = sysfs(3, 0, 0);
 		char buf[255];
 		int i=0;
@@ -249,12 +245,12 @@ mount_one(char *blockDevice, char *directory, char *filesystemType,
 
 		while(i < num_of_filesystems) {
 			sysfs(2, i++, filesystemType);
-			for (nodevfss = strings; *nodevfss; nodevfss++) {
-				if (!strcmp(filesystemType, *nodevfss)) {
+			for (noauto_fstype = noauto_array; *noauto_fstype; noauto_fstype++) {
+				if (!strcmp(filesystemType, *noauto_fstype)) {
 					break;
 				}
 			}
-			if (!*nodevfss) {
+			if (!*noauto_fstype) {
 				status = do_mount(blockDevice, directory, filesystemType,
 					flags | MS_MGC_VAL, string_flags,
 					useMtab, fakeIt, mtab_opts);
@@ -385,7 +381,7 @@ extern int mount_main(int argc, char **argv)
 				case 'f':
 					fakeIt = TRUE;
 					break;
-#ifdef BB_MTAB
+#ifdef BB_FEATURE_MTAB_SUPPORT
 				case 'n':
 					useMtab = FALSE;
 					break;

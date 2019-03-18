@@ -31,6 +31,7 @@
 #define BB_DU
 //#define BB_DUMPKMAP
 #define BB_ECHO
+//#define BB_ENV
 //#define BB_EXPR
 //#define BB_FBSET
 //#define BB_FDFLUSH
@@ -118,6 +119,7 @@
 //#define BB_UPDATE
 #define BB_UPTIME
 //#define BB_USLEEP
+//#define BB_VI
 //#define BB_WATCHDOG
 #define BB_WC
 #define BB_WGET
@@ -152,9 +154,8 @@
 // I emailed Linus and this patch will not be going into the stock kernel.
 //#define BB_FEATURE_USE_DEVPS_PATCH
 //
-// This compiles out everything but the most 
-// trivial --help usage information (i.e. reduces binary size)
-#define BB_FEATURE_TRIVIAL_HELP
+// show verbose usage messages
+//#define BB_FEATURE_VERBOSE_USAGE
 //
 // Use termios to manipulate the screen ('more' is prettier with this on)
 #define BB_FEATURE_USE_TERMIOS
@@ -209,7 +210,7 @@
 #define BB_FEATURE_MOUNT_LOOP
 //
 // Enable support for a real /etc/mtab file instead of /proc/mounts
-//#define BB_FEATURE_MOUNT_MTAB_SUPPORT
+//#define BB_FEATURE_MTAB_SUPPORT
 //
 // Enable support for mounting remote NFS volumes. 
 // You may need to mount with "-o nolock" if you are
@@ -306,6 +307,9 @@
 // Enable a nifty progress meter in wget (adds just under 2k)
 #define BB_FEATURE_WGET_STATUSBAR
 //
+// Enable HTTP authentication in wget
+#define BB_FEATURE_WGET_AUTHENTICATION
+//
 // Clean up all memory before exiting -- usually not needed
 // as the OS can clean up...  Don't enable this unless you
 // have a really good reason for cleaning things up manually.
@@ -343,14 +347,6 @@
 //---------------------------------------------------
 // Nothing beyond this point should ever be touched by 
 // mere mortals so leave this stuff alone.
-//
-#if defined BB_MOUNT || defined BB_UMOUNT || defined BB_DF
-	#ifdef BB_FEATURE_MOUNT_MTAB_SUPPORT
-		#define BB_MTAB
-	#endif
-#else
-	#undef BB_MTAB
-#endif	
 //
 #if defined BB_SH
 	#if defined BB_FEATURE_COMMAND_EDITING 
