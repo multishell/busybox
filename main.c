@@ -20,6 +20,9 @@ static const struct Applet	applets[] = {
 #ifdef BB_CHOWN	//bin
 { "chown",	chown_main, 0, chown_usage,			2, -1 },
 #endif
+#ifdef BB_CHROOT    //sbin
+{ "chroot",	chroot_main, 0, chroot_usage,			1, -1 },
+#endif
 #ifdef BB_CLEAR	//usr/bin
 { "clear",	clear_main, 0, clear_usage,			0, 0 },
 #endif
@@ -30,7 +33,7 @@ static const struct Applet	applets[] = {
 { "date",	date_main, 0, date_usage,			0, 1 },
 #endif
 #ifdef BB_DD	//bin
-{ "dd",		dd_main, 0, dd_usage,				0, 2 },
+{ "dd",		dd_main, 0, dd_usage,				0, 4 },
 #endif
 #ifdef BB_DF	//bin
 { "df",		df_main, 0, df_usage,				0, -1 },
@@ -49,6 +52,9 @@ static const struct Applet	applets[] = {
 #endif
 #ifdef BB_FIND	//usr/bin
 { "find",	find_main, find_fn, find_usage,			1, -1 },
+#endif
+#ifdef BB_GREP	//bin
+{ "grep",	grep_main, 0, grep_usage,			1, 0 },
 #endif
 #ifdef BB_HALT	//sbin
 { "halt",	halt_main, 0, halt_usage,			0, 0 },
@@ -122,9 +128,8 @@ static const struct Applet	applets[] = {
 #ifdef BB_SLEEP	//bin
 { "sleep",	sleep_main, 0, sleep_usage,			1, -1 },
 #endif
-#ifdef BB_STAR	//bin
-{ "star",	star_main, 0, star_usage,			0, 0 },
-{ "untar",	star_main, 0, star_usage,			0, 0 },
+#ifdef BB_TAR	//bin
+{ "tar",	tar_main, 0, tar_usage,				1, 0 },
 #endif
 #ifdef BB_SWAPOFF	//sbin
 { "swapoff",	monadic_main, swapoff_fn, swapoff_usage,	1, -1 },
@@ -134,9 +139,6 @@ static const struct Applet	applets[] = {
 #endif
 #ifdef BB_SYNC	//bin
 { "sync",	sync_main, 0, sync_usage,			0, 0 },
-#endif
-#ifdef BB_TARCAT	//bin
-{ "tarcat",	tarcat_main, 0, tarcat_usage,			1, 1 },
 #endif
 #ifdef BB_TOUCH	//usr/bin
 { "touch",	monadic_main, touch_fn, touch_usage,		1, -1 },

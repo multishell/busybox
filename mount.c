@@ -135,38 +135,38 @@ mount_one(
 
 	char	buf[255];
 		
-if (!fake)
-	if (*filesystemType == 'a') { 			//Will fail on real FS starting with 'a'
+	if (!fake) {
+		if (*filesystemType == 'a') { 			//Will fail on real FS starting with 'a'
 
-		FILE	*f = fopen("/proc/filesystems", "r");
+			FILE	*f = fopen("/proc/filesystems", "r");
 
-		if (f == NULL)	return 1;
+			if (f == NULL)	return 1;
 
-		while (fgets(buf, sizeof(buf), f) != NULL) {
-			filesystemType = buf;
-			if (*filesystemType == '\t') {  // Not a nodev filesystem
-				
-				while (*filesystemType && *filesystemType != '\n')	filesystemType++;
-				*filesystemType = '\0';
-					
+			while (fgets(buf, sizeof(buf), f) != NULL) {
 				filesystemType = buf;
-				filesystemType++;	//hop past tab
-				
-				status = mount(blockDevice, directory, filesystemType,
-						flags|MS_MGC_VAL ,string_flags);
-				error = errno;
+				if (*filesystemType == '\t') {  // Not a nodev filesystem
+					
+					while (*filesystemType && *filesystemType != '\n')	filesystemType++;
+					*filesystemType = '\0';
+						
+					filesystemType = buf;
+					filesystemType++;	//hop past tab
+					
+					status = mount(blockDevice, directory, filesystemType,
+							flags|MS_MGC_VAL ,string_flags);
+					error = errno;
 
-				if (status == 0) break;
+					if (status == 0) break;
+				}
 			}
+			fclose(f);
+		} else {	
+
+			status = mount( blockDevice, directory, filesystemType,
+					flags|MS_MGC_VAL ,string_flags);
+			error = errno;
 		}
-		fclose(f);
-	} else {	
-
-		status = mount( blockDevice, directory, filesystemType,
-				flags|MS_MGC_VAL ,string_flags);
-		error = errno;
 	}
-
 
 	if ( status == 0 ) {
 		char *	s = &string_flags[strlen(string_flags)];

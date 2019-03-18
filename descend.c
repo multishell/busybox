@@ -4,8 +4,9 @@
 #include <string.h>
 #include <errno.h>
 
-static int
-noDots(struct dirent * e)
+
+static int 
+noDots(const struct dirent * e)
 {
 	if ( e->d_name[0] == '.'
 	 && (e->d_name[1] == '\0'

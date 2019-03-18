@@ -15,7 +15,10 @@ swapon_fn(const struct FileInfo * i)
 
         if (!(swapon(i->source, 0))) {
 		if ((swapsTable = setmntent("/etc/swaps", "a+"))) {
-			m.mnt_fsname = i->source;
+			/* Needs the cast to avoid warning about conversion from
+			 * const char* to just  char*
+			 */
+			m.mnt_fsname = (char*)i->source;
 			m.mnt_dir = "none";
 			m.mnt_type = "swap";
 			m.mnt_opts = "sw";

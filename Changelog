@@ -1,6 +1,3 @@
-0.28	
-	mini-netcat (mnc) rewritten.
-	
 0.27
 	Mount now supports -a, and -t auto.
 	Mount now updates mtab correctly for 'ro'.

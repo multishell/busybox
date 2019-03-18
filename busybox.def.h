@@ -8,6 +8,7 @@
 #define BB_CHGRP
 #define BB_CHMOD
 #define BB_CHOWN
+#define BB_CHROOT
 #define BB_CLEAR
 #define BB_CP
 #define BB_DATE
@@ -21,8 +22,9 @@
 #define BB_FDFLUSH
 #define BB_FIND
 #define BB_FINDMOUNT
+#define BB_GREP
 //#define BB_HALT
-//#define BB_INIT
+#define BB_INIT
 #define BB_KILL
 //#define BB_LENGTH
 #define BB_LN
@@ -44,16 +46,14 @@
 #define BB_POSTPROCESS
 #define BB_PRINTF
 #define BB_PWD
-//#define BB_REBOOT
+#define BB_REBOOT
 #define BB_RM
 #define BB_RMDIR
 #define BB_SLEEP
-#define BB_STAR
 //#define BB_SWAPOFF
 #define BB_SWAPON
 #define BB_SYNC
-//#define BB_TARCAT
-#define BB_TARFN
+#define BB_TAR
 #define BB_TOUCH
 #define BB_TRUE
 #define BB_UMOUNT

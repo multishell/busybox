@@ -3,11 +3,9 @@
 
     0.0.1   6K      It works.
     0.0.2   5K      Smaller and you can also check the exit condition if you wish.
-    0.0.3	    Uses select()	
+
 
     19980918 Busy Boxed! Dave Cinege
-    19990512 Uses Select. Charles P. Wright
-    19990513 Fixes stdin stupidity and uses buffers.  Charles P. Wright
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -37,24 +35,26 @@
 #include <sys/time.h>
 #include <sys/ioctl.h>
 
-#define BUFSIZE 100
-
 const char mnc_usage[] = 
-"mini-netcat 0.0.3 -- Open pipe to IP:port\n"
+"mini-netcat 0.0.1 -- Open pipe to IP:port\n"
 "\tmnc [IP] [port]\n";
 
 int
 mnc_main(struct FileInfo * i, int argc, char **argv)
 {
+ 
         int sfd;
         int result;
         int len;
-        char ch[BUFSIZE];
+        int pid;
+        char ch;
         
         struct sockaddr_in address;
         struct hostent *hostinfo;
 
+#ifdef SELECT
         fd_set readfds, testfds;
+#endif
 
         sfd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -78,6 +78,7 @@ mnc_main(struct FileInfo * i, int argc, char **argv)
                 exit(2);
         }
 
+#ifdef SELECT
         FD_ZERO(&readfds);
         FD_SET(sfd, &readfds);
         FD_SET(fileno(stdin), &readfds);
@@ -85,7 +86,6 @@ mnc_main(struct FileInfo * i, int argc, char **argv)
         while(1)
         {
                 int fd;
-		int ofd;
                 int nread;
 
                 testfds = readfds;
@@ -101,33 +101,48 @@ mnc_main(struct FileInfo * i, int argc, char **argv)
                 {
                         if(FD_ISSET(fd,&testfds))
                         {
-				int trn = 0;
-				int rn;
-
                                 ioctl(fd, FIONREAD, &nread);
+
+                                if (nread == 0)
+                                        exit(0);
 
                                 if(fd == sfd)
                                 {
-                                	if (nread == 0)
-                                        	exit(0);
-					ofd = fileno(stdout);
-				}
-				else
-				{
-					ofd = sfd;
-				}
-
-
-
-				do
-				{
-					rn = (BUFSIZE < nread - trn) ? BUFSIZE : nread - trn;
-					trn += rn;
-                                       	read(fd, ch, rn);
-                                      	write(ofd, ch, rn);
-				}
-				while (trn < nread);
-			}
+                                        read(sfd, &ch, 1);
+                                        write(fileno(stdout), &ch, 1);
+                                }
+                                else
+                                {
+                                        read(fileno(stdin), &ch, 1);
+                                        write(sfd, &ch, 1);
+                                }
+                        }
                 }
         }
+#else
+        pid = fork();
+
+        if (!pid)
+        {
+                int retval;
+                retval = 1;
+                while(retval == 1)
+                {
+                        retval = read(fileno(stdin), &ch, 1);
+                        write(sfd, &ch, 1);
+                }
+        }
+        else
+        {
+                int retval;
+                retval = 1;
+                while(retval == 1)
+                {
+                        retval = read(sfd, &ch, 1);
+                        write(fileno(stdout), &ch, 1);
+                }
+        }
+
+        exit(0);
+#endif
 }

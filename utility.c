@@ -44,3 +44,8 @@ join_paths(char * buffer, const char * a, const char * b)
 	}
 	return buffer;
 }
+
+
+/* END CODE */
+
+

@@ -8,6 +8,24 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
+
+/* Some useful definitions */
+typedef int     BOOL;
+#define STDIN	0
+#define STDOUT	1
+#define FALSE   ((BOOL) 0)
+#define TRUE    ((BOOL) 1)
+
+#define PATH_LEN        1024
+#define BUF_SIZE        8192
+
+#define isBlank(ch)     (((ch) == ' ') || ((ch) == '\t'))
+#define isDecimal(ch)   (((ch) >= '0') && ((ch) <= '9'))
+#define isOctal(ch)     (((ch) >= '0') && ((ch) <= '7'))
+#define isWildCard(ch)  (((ch) == '*') || ((ch) == '?') || ((ch) == '['))
+
+
+
 struct FileInfo {
 	unsigned int	complainInPostProcess:1;
 	unsigned int	changeUserID:1;
@@ -65,6 +83,7 @@ extern int cat_more_main(struct FileInfo * i, int argc, char * * argv);
 extern int chgrp_main(struct FileInfo * i, int argc, char * * argv);
 extern int chmod_main(struct FileInfo * i, int argc, char * * argv);
 extern int chown_main(struct FileInfo * i, int argc, char * * argv);
+extern int chroot_main(struct FileInfo * i, int argc, char * * argv);
 extern int clear_main(struct FileInfo * i, int argc, char * * argv);
 extern int date_main(struct FileInfo * i, int argc, char * * argv);
 extern int dd_main(struct FileInfo * i, int argc, char * * argv);
@@ -74,6 +93,7 @@ extern int dyadic_main(struct FileInfo * i, int argc, char * * argv);
 extern int false_main(struct FileInfo * i, int argc, char * * argv);
 extern int fdisk_main(struct FileInfo * i, int argc, char * * argv);
 extern int find_main(struct FileInfo * i, int argc, char * * argv);
+extern int grep_main(struct FileInfo * i, int argc, char * * argv);
 extern int halt_main(struct FileInfo * i, int argc, char * * argv);
 extern int init_main(struct FileInfo * i, int argc, char * * argv);
 extern int kill_main(struct FileInfo * i, int argc, char * * argv);
@@ -97,9 +117,8 @@ extern int rm_main(struct FileInfo * i, int argc, char * * argv);
 extern int scan_partitions_main(struct FileInfo * i, int argc, char * * argv);
 extern int sh_main(struct FileInfo * i, int argc, char * * argv);
 extern int sleep_main(struct FileInfo * i, int argc, char * * argv);
-extern int star_main(struct FileInfo * i, int argc, char * * argv);
+extern int tar_main(struct FileInfo * i, int argc, char * * argv);
 extern int sync_main(struct FileInfo * i, int argc, char * * argv);
-extern int tarcat_main(struct FileInfo * i, int argc, char * * argv);
 extern int tput_main(struct FileInfo * i, int argc, char * * argv);
 extern int true_main(struct FileInfo * i, int argc, char * * argv);
 extern int tryopen_main(struct FileInfo * i, int argc, char * * argv);
@@ -114,6 +133,7 @@ extern int dutmp_fn(const struct FileInfo * i);
 extern int fdflush_fn(const struct FileInfo * i);
 extern int find_fn(const struct FileInfo * i);
 extern int ln_fn(const struct FileInfo * i);
+extern int mkdir_until(const char *s, const struct FileInfo * fi);
 extern int mkdir_fn(const struct FileInfo * i);
 extern int more_fn(const struct FileInfo * i);
 extern int mv_fn(const struct FileInfo * i);
@@ -143,6 +163,7 @@ extern const char	cat_usage[];
 extern const char	chgrp_usage[];
 extern const char	chmod_usage[];
 extern const char	chown_usage[];
+extern const char	chroot_usage[];
 extern const char	clear_usage[];
 extern const char	cp_usage[];
 extern const char	date_usage[];
@@ -153,6 +174,7 @@ extern const char	dutmp_usage[];
 extern const char	false_usage[];
 extern const char	fdflush_usage[];
 extern const char	find_usage[];
+extern const char	grep_usage[];
 extern const char	halt_usage[];
 extern const char	init_usage[];
 extern const char	kill_usage[];
@@ -178,11 +200,10 @@ extern const char	rm_usage[];
 extern const char	rmdir_usage[];
 extern const char	scan_partitions_usage[];
 extern const char	sleep_usage[];
-extern const char	star_usage[];
+extern const char	tar_usage[];
 extern const char	swapoff_usage[];
 extern const char	swapon_usage[];
 extern const char	sync_usage[];
-extern const char	tarcat_usage[];
 extern const char	touch_usage[];
 extern const char	tput_usage[];
 extern const char	true_usage[];
@@ -192,4 +213,7 @@ extern const char	update_usage[];
 extern const char	zcat_usage[];
 extern const char	gzip_usage[];
 
+
+
 #endif
+

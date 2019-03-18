@@ -259,7 +259,11 @@ init_main(struct FileInfo * i, int argc, char * * argv)
 	int							pid2 = 0;
 	int							create_swap= -1;
 	struct stat					statbuf;
+#ifndef INCLUDE_DINSTALL
+	const char *				tty_commands[2] = { "bin/sh", "bin/sh"};
+#else
 	const char *				tty_commands[2] = { "sbin/dinstall", "bin/sh"};
+#endif
 	char						swap[20];
 	int							serial_console = 0;
 

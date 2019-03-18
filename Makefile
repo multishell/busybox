@@ -1,5 +1,5 @@
 
-VERSION=0.28
+VERSION=0.29alpha1
 BUILDTIME=$(shell date "+%Y%m%d-%H%M")
 
 #This will choke on a non-debian system
@@ -11,6 +11,8 @@ STRIP= strip --remove-section=.note --remove-section=.comment busybox
 LDFLAGS= -s
 
 CFLAGS=-Wall -O2 -fomit-frame-pointer -fno-builtin -D_GNU_SOURCE
+# For debugging only
+#CFLAGS=-Wall -g -D_GNU_SOURCE
 LIBRARIES=-lc
 OBJECTS=$(shell ./busybox.obj)
 
