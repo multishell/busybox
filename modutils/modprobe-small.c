@@ -218,7 +218,6 @@ static void parse_module(module_info *info, const char *pathname)
 	bksp(); /* remove last ' ' */
 	appendc('\0');
 	info->aliases = copy_stringbuf();
-	replace(info->aliases, '-', '_');
 
 	/* "dependency1 depandency2" */
 	reset_stringbuf();
@@ -680,7 +679,7 @@ int modprobe_main(int argc UNUSED_PARAM, char **argv)
 {
 	struct utsname uts;
 	char applet0 = applet_name[0];
-	USE_FEATURE_MODPROBE_SMALL_OPTIONS_ON_CMDLINE(char *options;)
+	IF_FEATURE_MODPROBE_SMALL_OPTIONS_ON_CMDLINE(char *options;)
 
 	/* are we lsmod? -> just dump /proc/modules */
 	if ('l' == applet0) {
@@ -774,8 +773,8 @@ int modprobe_main(int argc UNUSED_PARAM, char **argv)
 		len = MAXINT(ssize_t);
 		map = xmalloc_xopen_read_close(*argv, &len);
 		if (init_module(map, len,
-			USE_FEATURE_MODPROBE_SMALL_OPTIONS_ON_CMDLINE(options ? options : "")
-			SKIP_FEATURE_MODPROBE_SMALL_OPTIONS_ON_CMDLINE("")
+			IF_FEATURE_MODPROBE_SMALL_OPTIONS_ON_CMDLINE(options ? options : "")
+			IF_NOT_FEATURE_MODPROBE_SMALL_OPTIONS_ON_CMDLINE("")
 				) != 0)
 			bb_error_msg_and_die("can't insert '%s': %s",
 					*argv, moderror(errno));
@@ -792,7 +791,7 @@ int modprobe_main(int argc UNUSED_PARAM, char **argv)
 	} while (*argv);
 
 	if (ENABLE_FEATURE_CLEAN_UP) {
-		USE_FEATURE_MODPROBE_SMALL_OPTIONS_ON_CMDLINE(free(options);)
+		IF_FEATURE_MODPROBE_SMALL_OPTIONS_ON_CMDLINE(free(options);)
 	}
 	return EXIT_SUCCESS;
 }
