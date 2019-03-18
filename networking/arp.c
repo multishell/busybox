@@ -46,17 +46,15 @@ static int sockfd;              /* active socket descriptor     */
 static smallint hw_set;         /* flag if hw-type was set (-H) */
 static const char *device = ""; /* current device               */
 
-static const char *const options[] = {
-	"pub",
-	"priv",
-	"temp",
-	"trail",
-	"dontpub",
-	"auto",
-	"dev",
-	"netmask",
-	NULL
-};
+static const char options[] ALIGN1 =
+	"pub\0"
+	"priv\0"
+	"temp\0"
+	"trail\0"
+	"dontpub\0"
+	"auto\0"
+	"dev\0"
+	"netmask\0";
 
 /* Delete an entry from the ARP cache. */
 /* Called only from main, once */
@@ -85,7 +83,7 @@ static int arp_del(char **args)
 	req.arp_flags = ATF_PERM;
 	args++;
 	while (*args != NULL) {
-		switch (index_in_str_array(options, *args)) {
+		switch (index_in_strings(options, *args)) {
 		case 0: /* "pub" */
 			flags |= 1;
 			args++;
@@ -188,9 +186,8 @@ static void arp_getdevhw(char *ifname, struct sockaddr *sa,
 	const struct hwtype *xhw;
 
 	strcpy(ifr.ifr_name, ifname);
-	if (ioctl(sockfd, SIOCGIFHWADDR, &ifr) < 0) {
-		bb_perror_msg_and_die("cant get HW-Address for '%s'", ifname);
-	}
+	ioctl_or_perror_and_die(sockfd, SIOCGIFHWADDR, &ifr,
+					"cant get HW-Address for '%s'", ifname);
 	if (hwt && (ifr.ifr_hwaddr.sa_family != hw->type)) {
 		bb_error_msg_and_die("protocol type mismatch");
 	}
@@ -240,7 +237,7 @@ static int arp_set(char **args)
 	/* Check out any modifiers. */
 	flags = ATF_PERM | ATF_COM;
 	while (*args != NULL) {
-		switch (index_in_str_array(options, *args)) {
+		switch (index_in_strings(options, *args)) {
 		case 0: /* "pub" */
 			flags |= ATF_PUBL;
 			args++;
@@ -306,9 +303,7 @@ static int arp_set(char **args)
 	/* Call the kernel. */
 	if (option_mask32 & ARP_OPT_v)
 		bb_error_msg("SIOCSARP()");
-	if (ioctl(sockfd, SIOCSARP, &req) < 0) {
-		bb_perror_msg_and_die("SIOCSARP");
-	}
+	xioctl(sockfd, SIOCSARP, &req);
 	return 0;
 }
 
@@ -450,7 +445,7 @@ int arp_main(int argc, char **argv)
 	if (!ap)
 		bb_error_msg_and_die("%s: %s not supported", DFLT_AF, "address family");
 
-	getopt32(argc, argv, "A:p:H:t:i:adnDsv", &protocol, &protocol,
+	getopt32(argv, "A:p:H:t:i:adnDsv", &protocol, &protocol,
 				 &hw_type, &hw_type, &device);
 	argv += optind;
 	if (option_mask32 & ARP_OPT_A || option_mask32 & ARP_OPT_p) {

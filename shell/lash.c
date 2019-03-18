@@ -146,8 +146,8 @@ static const struct built_in_command bltins[] = {
 	/* to do: add ulimit */
 };
 
-#define VEC_SIZE(v) (sizeof(v)/sizeof(v[0]))
-#define VEC_LAST(v) v[VEC_SIZE(v)-1]
+
+#define VEC_LAST(v) v[ARRAY_SIZE(v)-1]
 
 
 static int shell_context;  /* Type prompt trigger (PS1 or PS2) */
@@ -711,7 +711,7 @@ static char * strsep_space(char *string, int * ix)
 
 static int expand_arguments(char *command)
 {
-	static const char out_of_space[] = "out of space during expansion";
+	static const char out_of_space[] ALIGN1 = "out of space during expansion";
 
 	int total_length = 0, length, i, retval, ix = 0;
 	expand_t expand_result;
@@ -1524,7 +1524,7 @@ int lash_main(int argc_l, char **argv_l)
 		}
 	}
 
-	opt = getopt32(argc_l, argv_l, "+ic:", &local_pending_command);
+	opt = getopt32(argv_l, "+ic:", &local_pending_command);
 #define LASH_OPT_i (1<<0)
 #define LASH_OPT_c (1<<1)
 	if (opt & LASH_OPT_c) {
@@ -1548,9 +1548,9 @@ int lash_main(int argc_l, char **argv_l)
 	if (opt & LASH_OPT_i) {
 		/* Looks like they want an interactive shell */
 		if (!ENABLE_FEATURE_SH_EXTRA_QUIET) {
-			printf("\n\n%s Built-in shell (lash)\n"
+			printf("\n\n%s built-in shell (lash)\n"
 					"Enter 'help' for a list of built-in commands.\n\n",
-					BB_BANNER);
+					bb_banner);
 		}
 	} else if (!local_pending_command && argv[optind]) {
 		//printf( "optind=%d  argv[optind]='%s'\n", optind, argv[optind]);

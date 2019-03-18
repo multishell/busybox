@@ -53,15 +53,18 @@
 # define ATTRIBUTE_PACKED __attribute__ ((__packed__))
 # define ATTRIBUTE_ALIGNED(m) __attribute__ ((__aligned__(m)))
 # if __GNUC_PREREQ (3,0)
-#  define ATTRIBUTE_ALWAYS_INLINE __attribute__ ((always_inline)) inline
+#  define ALWAYS_INLINE __attribute__ ((always_inline)) inline
 #  if !ENABLE_WERROR
 #   define ATTRIBUTE_DEPRECATED __attribute__ ((__deprecated__))
+#   define ATTRIBUTE_UNUSED_RESULT __attribute__ ((warn_unused_result))
 #  else
 #   define ATTRIBUTE_DEPRECATED /* n/a */
+#   define ATTRIBUTE_UNUSED_RESULT /* n/a */
 #  endif
 # else
-#  define ATTRIBUTE_ALWAYS_INLINE inline
+#  define ALWAYS_INLINE inline
 #  define ATTRIBUTE_DEPRECATED /* n/a */
+#  define ATTRIBUTE_UNUSED_RESULT /* n/a */
 # endif
 
 /* -fwhole-program makes all symbols local. The attribute externally_visible
@@ -166,7 +169,7 @@ __extension__ typedef unsigned long long __u64;
 # error "Sorry, this libc version is not supported :("
 #endif
 
-// Don't perpetuate e2fsck crap into the headers.  Clean up e2fsck instead.
+/* Don't perpetuate e2fsck crap into the headers.  Clean up e2fsck instead. */
 
 #if defined __GLIBC__ || defined __UCLIBC__ \
 	|| defined __dietlibc__ || defined _NEWLIB_VERSION
@@ -207,6 +210,16 @@ typedef unsigned smalluint;
 #include <stdbool.h>
 #endif
 
+/* Try to defeat gcc's alignment of "char message[]"-like data */
+#if 1 /* if needed: !defined(arch1) && !defined(arch2) */
+#define ALIGN1 __attribute__((aligned(1)))
+#define ALIGN2 __attribute__((aligned(2)))
+#else
+/* Arches which MUST have 2 or 4 byte alignment for everything are here */
+#define ALIGN1
+#define ALIGN2
+#endif
+
 
 /* uclibc does not implement daemon() for no-mmu systems.
  * For 0.9.29 and svn, __ARCH_USE_MMU__ indicates no-mmu reliably.
@@ -238,7 +251,7 @@ typedef unsigned smalluint;
 #endif
 
 #if defined(__dietlibc__)
-static ATTRIBUTE_ALWAYS_INLINE char* strchrnul(const char *s, char c)
+static ALWAYS_INLINE char* strchrnul(const char *s, char c)
 {
 	while (*s && *s != c) ++s;
 	return (char*)s;
@@ -286,7 +299,7 @@ static ATTRIBUTE_ALWAYS_INLINE char* strchrnul(const char *s, char c)
 
 #if defined(__linux__)
 #include <sys/mount.h>
-// Make sure we have all the new mount flags we actually try to use.
+/* Make sure we have all the new mount flags we actually try to use. */
 #ifndef MS_BIND
 #define MS_BIND        (1<<12)
 #endif
@@ -300,7 +313,7 @@ static ATTRIBUTE_ALWAYS_INLINE char* strchrnul(const char *s, char c)
 #define MS_SILENT      (1<<15)
 #endif
 
-// The shared subtree stuff, which went in around 2.6.15
+/* The shared subtree stuff, which went in around 2.6.15. */
 #ifndef MS_UNBINDABLE
 #define MS_UNBINDABLE  (1<<17)
 #endif

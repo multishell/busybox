@@ -38,8 +38,8 @@ typedef struct {
 	char processor[8];			/* for "unknown" */
 } uname_info_t;
 
-static const char options[] = "snrvmpa";
-static const unsigned short int utsname_offset[] = {
+static const char options[] ALIGN1 = "snrvmpa";
+static const unsigned short utsname_offset[] ALIGN2 = {
 	offsetof(uname_info_t,name.sysname),
 	offsetof(uname_info_t,name.nodename),
 	offsetof(uname_info_t,name.release),
@@ -58,7 +58,7 @@ int uname_main(int argc, char **argv)
 	const unsigned short int *delta;
 	char toprint;
 
-	toprint = getopt32(argc, argv, options);
+	toprint = getopt32(argv, options);
 
 	if (argc != optind) {
 		bb_show_usage();

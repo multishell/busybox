@@ -23,7 +23,7 @@
 */
 
 /* These are sort types */
-static const char OPT_STR[] = "ngMucszbrdfimS:T:o:k:t:";
+static const char OPT_STR[] ALIGN1 = "ngMucszbrdfimS:T:o:k:t:";
 enum {
 	FLAG_n  = 1,            /* Numeric sort */
 	FLAG_g  = 2,            /* Sort using strtod() */
@@ -288,9 +288,9 @@ int sort_main(int argc, char **argv)
 
 	/* Parse command line options */
 	/* -o and -t can be given at most once */
-	opt_complementary = "?:o--o:t--t:" /* -t, -o: maximum one of each */
+	opt_complementary = "o--o:t--t:" /* -t, -o: maximum one of each */
 			"k::"; /* -k takes list */
-	getopt32(argc, argv, OPT_STR, &str_ignored, &str_ignored, &str_o, &lst_k, &str_t);
+	getopt32(argv, OPT_STR, &str_ignored, &str_ignored, &str_o, &lst_k, &str_t);
 #if ENABLE_FEATURE_SORT_BIG
 	if (option_mask32 & FLAG_o) outfile = xfopen(str_o, "w");
 	if (option_mask32 & FLAG_t) {

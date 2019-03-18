@@ -9,9 +9,9 @@
 #include <netinet/in.h>
 #include "libbb.h"
 
-int setsockopt_reuseaddr(int fd)
+void setsockopt_reuseaddr(int fd)
 {
-	return setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &const_int_1, sizeof(const_int_1));
+	setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &const_int_1, sizeof(const_int_1));
 }
 int setsockopt_broadcast(int fd)
 {
@@ -208,23 +208,31 @@ len_and_sockaddr* xdotted2sockaddr(const char *host, int port)
 	return str2sockaddr(host, port, AF_UNSPEC, AI_NUMERICHOST | DIE_ON_ERROR);
 }
 
-int xsocket_type(len_and_sockaddr **lsap, int sock_type)
+int xsocket_type(len_and_sockaddr **lsap, USE_FEATURE_IPV6(int family,) int sock_type)
 {
+	SKIP_FEATURE_IPV6(enum { family = AF_INET };)
 	len_and_sockaddr *lsa;
 	int fd;
-	int len = sizeof(struct sockaddr_in);
-	int family = AF_INET;
+	int len;
 
 #if ENABLE_FEATURE_IPV6
-	fd = socket(AF_INET6, sock_type, 0);
-	if (fd >= 0) {
-		len = sizeof(struct sockaddr_in6);
-		family = AF_INET6;
-	} else
-#endif
-	{
-		fd = xsocket(AF_INET, sock_type, 0);
+	if (family == AF_UNSPEC) {
+		fd = socket(AF_INET6, sock_type, 0);
+		if (fd >= 0) {
+			family = AF_INET6;
+			goto done;
+		}
+		family = AF_INET;
 	}
+#endif
+	fd = xsocket(family, sock_type, 0);
+	len = sizeof(struct sockaddr_in);
+#if ENABLE_FEATURE_IPV6
+	if (family == AF_INET6) {
+ done:
+		len = sizeof(struct sockaddr_in6);
+	}
+#endif
 	lsa = xzalloc(offsetof(len_and_sockaddr, sa) + len);
 	lsa->len = len;
 	lsa->sa.sa_family = family;
@@ -234,7 +242,7 @@ int xsocket_type(len_and_sockaddr **lsap, int sock_type)
 
 int xsocket_stream(len_and_sockaddr **lsap)
 {
-	return xsocket_type(lsap, SOCK_STREAM);
+	return xsocket_type(lsap, USE_FEATURE_IPV6(AF_UNSPEC,) SOCK_STREAM);
 }
 
 static int create_and_bind_or_die(const char *bindaddr, int port, int sock_type)
@@ -247,7 +255,7 @@ static int create_and_bind_or_die(const char *bindaddr, int port, int sock_type)
 		/* user specified bind addr dictates family */
 		fd = xsocket(lsa->sa.sa_family, sock_type, 0);
 	} else {
-		fd = xsocket_type(&lsa, sock_type);
+		fd = xsocket_type(&lsa, USE_FEATURE_IPV6(AF_UNSPEC,) sock_type);
 		set_nport(lsa, htons(port));
 	}
 	setsockopt_reuseaddr(fd);
@@ -290,11 +298,21 @@ int xconnect_stream(const len_and_sockaddr *lsa)
 /* We hijack this constant to mean something else */
 /* It doesn't hurt because we will add this bit anyway */
 #define IGNORE_PORT NI_NUMERICSERV
-static char* sockaddr2str(const struct sockaddr *sa, socklen_t salen, int flags)
+static char* sockaddr2str(const struct sockaddr *sa, int flags)
 {
 	char host[128];
 	char serv[16];
-	int rc = getnameinfo(sa, salen,
+	int rc;
+	socklen_t salen;
+
+	salen = LSA_SIZEOF_SA;
+#if ENABLE_FEATURE_IPV6
+	if (sa->sa_family == AF_INET)
+		salen = sizeof(struct sockaddr_in);
+	if (sa->sa_family == AF_INET6)
+		salen = sizeof(struct sockaddr_in6);
+#endif
+	rc = getnameinfo(sa, salen,
 			host, sizeof(host),
 	/* can do ((flags & IGNORE_PORT) ? NULL : serv) but why bother? */
 			serv, sizeof(serv),
@@ -319,26 +337,26 @@ static char* sockaddr2str(const struct sockaddr *sa, socklen_t salen, int flags)
 	/*return xstrdup(host);*/
 }
 
-char* xmalloc_sockaddr2host(const struct sockaddr *sa, socklen_t salen)
+char* xmalloc_sockaddr2host(const struct sockaddr *sa)
 {
-	return sockaddr2str(sa, salen, 0);
+	return sockaddr2str(sa, 0);
 }
 
-char* xmalloc_sockaddr2host_noport(const struct sockaddr *sa, socklen_t salen)
+char* xmalloc_sockaddr2host_noport(const struct sockaddr *sa)
 {
-	return sockaddr2str(sa, salen, IGNORE_PORT);
+	return sockaddr2str(sa, IGNORE_PORT);
 }
 
-char* xmalloc_sockaddr2hostonly_noport(const struct sockaddr *sa, socklen_t salen)
+char* xmalloc_sockaddr2hostonly_noport(const struct sockaddr *sa)
 {
-	return sockaddr2str(sa, salen, NI_NAMEREQD | IGNORE_PORT);
+	return sockaddr2str(sa, NI_NAMEREQD | IGNORE_PORT);
 }
-char* xmalloc_sockaddr2dotted(const struct sockaddr *sa, socklen_t salen)
+char* xmalloc_sockaddr2dotted(const struct sockaddr *sa)
 {
-	return sockaddr2str(sa, salen, NI_NUMERICHOST);
+	return sockaddr2str(sa, NI_NUMERICHOST);
 }
 
-char* xmalloc_sockaddr2dotted_noport(const struct sockaddr *sa, socklen_t salen)
+char* xmalloc_sockaddr2dotted_noport(const struct sockaddr *sa)
 {
-	return sockaddr2str(sa, salen, NI_NUMERICHOST | IGNORE_PORT);
+	return sockaddr2str(sa, NI_NUMERICHOST | IGNORE_PORT);
 }

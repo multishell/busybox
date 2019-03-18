@@ -49,14 +49,11 @@ static void do_chflags(char *dev, uint32_t flags, uint32_t mask)
 
 	strncpy(ifr.ifr_name, dev, sizeof(ifr.ifr_name));
 	fd = get_ctl_fd();
-	if (ioctl(fd, SIOCGIFFLAGS, &ifr)) {
-		bb_perror_msg_and_die("SIOCGIFFLAGS");
-	}
+	xioctl(fd, SIOCGIFFLAGS, &ifr);
 	if ((ifr.ifr_flags ^ flags) & mask) {
 		ifr.ifr_flags &= ~mask;
 		ifr.ifr_flags |= mask & flags;
-		if (ioctl(fd, SIOCSIFFLAGS, &ifr))
-			bb_perror_msg_and_die("SIOCSIFFLAGS");
+		xioctl(fd, SIOCSIFFLAGS, &ifr);
 	}
 	close(fd);
 }
@@ -66,15 +63,11 @@ static void do_changename(char *dev, char *newdev)
 {
 	struct ifreq ifr;
 	int fd;
-	int err;
 
 	strncpy(ifr.ifr_name, dev, sizeof(ifr.ifr_name));
 	strncpy(ifr.ifr_newname, newdev, sizeof(ifr.ifr_newname));
 	fd = get_ctl_fd();
-	err = ioctl(fd, SIOCSIFNAME, &ifr);
-	if (err) {
-		bb_perror_msg_and_die("SIOCSIFNAME");
-	}
+	xioctl(fd, SIOCSIFNAME, &ifr);
 	close(fd);
 }
 
@@ -88,9 +81,7 @@ static void set_qlen(char *dev, int qlen)
 	memset(&ifr, 0, sizeof(ifr));
 	strncpy(ifr.ifr_name, dev, sizeof(ifr.ifr_name));
 	ifr.ifr_qlen = qlen;
-	if (ioctl(s, SIOCSIFTXQLEN, &ifr) < 0) {
-		bb_perror_msg_and_die("SIOCSIFXQLEN");
-	}
+	xioctl(s, SIOCSIFTXQLEN, &ifr);
 	close(s);
 }
 
@@ -104,9 +95,7 @@ static void set_mtu(char *dev, int mtu)
 	memset(&ifr, 0, sizeof(ifr));
 	strncpy(ifr.ifr_name, dev, sizeof(ifr.ifr_name));
 	ifr.ifr_mtu = mtu;
-	if (ioctl(s, SIOCSIFMTU, &ifr) < 0) {
-		bb_perror_msg_and_die("SIOCSIFMTU");
-	}
+	xioctl(s, SIOCSIFMTU, &ifr);
 	close(s);
 }
 
@@ -122,9 +111,7 @@ static int get_address(char *dev, int *htype)
 
 	memset(&ifr, 0, sizeof(ifr));
 	strncpy(ifr.ifr_name, dev, sizeof(ifr.ifr_name));
-	if (ioctl(s, SIOCGIFINDEX, &ifr) < 0) {
-		bb_perror_msg_and_die("SIOCGIFINDEX");
-	}
+	xioctl(s, SIOCGIFINDEX, &ifr);
 
 	memset(&me, 0, sizeof(me));
 	me.sll_family = AF_PACKET;
@@ -163,9 +150,10 @@ static void set_address(struct ifreq *ifr, int brd)
 	int s;
 
 	s = get_ctl_fd();
-	if (ioctl(s, brd ? SIOCSIFHWBROADCAST  :SIOCSIFHWADDR, ifr) < 0) {
-		bb_perror_msg_and_die(brd ? "SIOCSIFHWBROADCAST" : "SIOCSIFHWADDR");
-	}
+	if (brd)
+		xioctl(s, SIOCSIFHWBROADCAST, ifr);
+	else
+		xioctl(s, SIOCSIFHWADDR, ifr);
 	close(s);
 }
 
@@ -183,16 +171,15 @@ static int do_set(int argc, char **argv)
 	struct ifreq ifr0, ifr1;
 	char *newname = NULL;
 	int htype, halen;
-	static const char * const keywords[] = {
-		"up", "down", "name", "mtu", "multicast", "arp", "addr", "dev",
-		"on", "off", NULL
-	};
+	static const char keywords[] ALIGN1 =
+		"up\0""down\0""name\0""mtu\0""multicast\0""arp\0""addr\0""dev\0"
+		"on\0""off\0";
 	enum { ARG_up = 1, ARG_down, ARG_name, ARG_mtu, ARG_multicast, ARG_arp,
 		ARG_addr, ARG_dev, PARM_on, PARM_off };
 	smalluint key;
 
 	while (argc > 0) {
-		key = index_in_str_array(keywords, *argv) + 1;
+		key = index_in_strings(keywords, *argv) + 1;
 		if (key == ARG_up) {
 			mask |= IFF_UP;
 			flags |= IFF_UP;
@@ -211,7 +198,7 @@ static int do_set(int argc, char **argv)
 		} else if (key == ARG_multicast) {
 			NEXT_ARG();
 			mask |= IFF_MULTICAST;
-			key = index_in_str_array(keywords, *argv) + 1;
+			key = index_in_strings(keywords, *argv) + 1;
 			if (key == PARM_on) {
 				flags |= IFF_MULTICAST;
 			} else if (key == PARM_off) {
@@ -221,7 +208,7 @@ static int do_set(int argc, char **argv)
 		} else if (key == ARG_arp) {
 			NEXT_ARG();
 			mask |= IFF_NOARP;
-			key = index_in_str_array(keywords, *argv) + 1;
+			key = index_in_strings(keywords, *argv) + 1;
 			if (key == PARM_on) {
 				flags &= ~IFF_NOARP;
 			} else if (key == PARM_off) {
@@ -288,13 +275,12 @@ static int ipaddr_list_link(int argc, char **argv)
 /* Return value becomes exitcode. It's okay to not return at all */
 int do_iplink(int argc, char **argv)
 {
-	static const char * const keywords[] = {
-		"set", "show", "lst", "list", NULL
-	};
+	static const char keywords[] ALIGN1 =
+		"set\0""show\0""lst\0""list\0";
 	smalluint key;
 	if (argc <= 0)
 		return ipaddr_list_link(0, NULL);
-	key = index_in_substr_array(keywords, *argv) + 1;
+	key = index_in_substrings(keywords, *argv) + 1;
 	if (key == 0)
 		bb_error_msg_and_die(bb_msg_invalid_arg, *argv, applet_name);
 	argc--; argv++;

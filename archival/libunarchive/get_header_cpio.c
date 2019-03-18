@@ -16,8 +16,9 @@ typedef struct hardlinks_s {
 char get_header_cpio(archive_handle_t *archive_handle)
 {
 	static hardlinks_t *saved_hardlinks = NULL;
-	static unsigned short pending_hardlinks = 0;
+	static unsigned pending_hardlinks = 0;
 	static int inode;
+
 	file_header_t *file_header = archive_handle->file_header;
 	char cpio_header[110];
 	int namesize;
@@ -30,7 +31,7 @@ char get_header_cpio(archive_handle_t *archive_handle)
 		tmp = saved_hardlinks;
 		oldtmp = NULL;
 
-		file_header->link_name = file_header->name;
+		file_header->link_target = file_header->name;
 		file_header->size = 0;
 
 		while (tmp) {
@@ -56,7 +57,7 @@ char get_header_cpio(archive_handle_t *archive_handle)
 				saved_hardlinks = tmp;
 		}
 
-		file_header->name = file_header->link_name;
+		file_header->name = file_header->link_target;
 
 		if (pending_hardlinks > 1) {
 			bb_error_msg("error resolving hardlink: archive made by GNU cpio 2.0-2.2?");
@@ -122,12 +123,12 @@ char get_header_cpio(archive_handle_t *archive_handle)
 	}
 
 	if (S_ISLNK(file_header->mode)) {
-		file_header->link_name = xzalloc(file_header->size + 1);
-		xread(archive_handle->src_fd, file_header->link_name, file_header->size);
+		file_header->link_target = xzalloc(file_header->size + 1);
+		xread(archive_handle->src_fd, file_header->link_target, file_header->size);
 		archive_handle->offset += file_header->size;
 		file_header->size = 0; /* Stop possible seeks in future */
 	} else {
-		file_header->link_name = NULL;
+		file_header->link_target = NULL;
 	}
 	if (nlink > 1 && !S_ISDIR(file_header->mode)) {
 		if (file_header->size == 0) { /* Put file on a linked list for later */
@@ -154,7 +155,7 @@ char get_header_cpio(archive_handle_t *archive_handle)
 
 	archive_handle->offset += file_header->size;
 
-	free(file_header->link_name);
+	free(file_header->link_target);
 
 	return EXIT_SUCCESS;
 }

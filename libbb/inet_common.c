@@ -14,7 +14,9 @@
 int INET_resolve(const char *name, struct sockaddr_in *s_in, int hostfirst)
 {
 	struct hostent *hp;
+#if ENABLE_FEATURE_ETC_NETWORKS
 	struct netent *np;
+#endif
 
 	/* Grmpf. -FvK */
 	s_in->sin_family = AF_INET;
@@ -43,6 +45,7 @@ int INET_resolve(const char *name, struct sockaddr_in *s_in, int hostfirst)
 			return 0;
 		}
 	}
+#if ENABLE_FEATURE_ETC_NETWORKS
 	/* Try the NETWORKS database to see if this is a known network. */
 #ifdef DEBUG
 	bb_error_msg("getnetbyname(%s)", name);
@@ -52,6 +55,7 @@ int INET_resolve(const char *name, struct sockaddr_in *s_in, int hostfirst)
 		s_in->sin_addr.s_addr = htonl(np->n_net);
 		return 1;
 	}
+#endif
 	if (hostfirst) {
 		/* Don't try again */
 		return -1;
@@ -72,37 +76,35 @@ int INET_resolve(const char *name, struct sockaddr_in *s_in, int hostfirst)
 	return 0;
 }
 
-/* cache */
-struct addr {
-	struct sockaddr_in addr;
-	char *name;
-	int host;
-	struct addr *next;
-};
-
-static struct addr *INET_nn = NULL;	/* addr-to-name cache */
 
 /* numeric: & 0x8000: default instead of *,
  *          & 0x4000: host instead of net,
  *          & 0x0fff: don't resolve
  */
-int INET_rresolve(char *name, size_t len, struct sockaddr_in *s_in,
-				  int numeric, unsigned int netmask)
+char *INET_rresolve(struct sockaddr_in *s_in, int numeric, uint32_t netmask)
 {
-	struct hostent *ent;
-	struct netent *np;
+	/* addr-to-name cache */
+	struct addr {
+		struct addr *next;
+		struct sockaddr_in addr;
+		int host;
+		char name[1];
+	};
+	static struct addr *cache = NULL;
+
 	struct addr *pn;
+	char *name;
 	uint32_t ad, host_ad;
 	int host = 0;
 
 	/* Grmpf. -FvK */
 	if (s_in->sin_family != AF_INET) {
 #ifdef DEBUG
-		bb_error_msg("rresolve: unsupport address family %d !",
+		bb_error_msg("rresolve: unsupported address family %d!",
 				  s_in->sin_family);
 #endif
 		errno = EAFNOSUPPORT;
-		return -1;
+		return NULL;
 	}
 	ad = s_in->sin_addr.s_addr;
 #ifdef DEBUG
@@ -111,65 +113,58 @@ int INET_rresolve(char *name, size_t len, struct sockaddr_in *s_in,
 	if (ad == INADDR_ANY) {
 		if ((numeric & 0x0FFF) == 0) {
 			if (numeric & 0x8000)
-				safe_strncpy(name, bb_str_default, len);
-			else
-				safe_strncpy(name, "*", len);
-			return 0;
+				return xstrdup(bb_str_default);
+			return xstrdup("*");
 		}
 	}
-	if (numeric & 0x0FFF) {
-		safe_strncpy(name, inet_ntoa(s_in->sin_addr), len);
-		return 0;
-	}
+	if (numeric & 0x0FFF)
+		return xstrdup(inet_ntoa(s_in->sin_addr));
 
 	if ((ad & (~netmask)) != 0 || (numeric & 0x4000))
 		host = 1;
-	pn = INET_nn;
-	while (pn != NULL) {
+	pn = cache;
+	while (pn) {
 		if (pn->addr.sin_addr.s_addr == ad && pn->host == host) {
-			safe_strncpy(name, pn->name, len);
 #ifdef DEBUG
 			bb_error_msg("rresolve: found %s %08x in cache",
 					  (host ? "host" : "net"), (unsigned)ad);
 #endif
-			return 0;
+			return xstrdup(pn->name);
 		}
 		pn = pn->next;
 	}
 
 	host_ad = ntohl(ad);
-	np = NULL;
-	ent = NULL;
+	name = NULL;
 	if (host) {
+		struct hostent *ent;
 #ifdef DEBUG
 		bb_error_msg("gethostbyaddr (%08x)", (unsigned)ad);
 #endif
 		ent = gethostbyaddr((char *) &ad, 4, AF_INET);
-		if (ent != NULL) {
-			safe_strncpy(name, ent->h_name, len);
-		}
-	} else {
+		if (ent)
+			name = xstrdup(ent->h_name);
+	} else if (ENABLE_FEATURE_ETC_NETWORKS) {
+		struct netent *np;
 #ifdef DEBUG
 		bb_error_msg("getnetbyaddr (%08x)", (unsigned)host_ad);
 #endif
 		np = getnetbyaddr(host_ad, AF_INET);
-		if (np != NULL) {
-			safe_strncpy(name, np->n_name, len);
-		}
+		if (np)
+			name = xstrdup(np->n_name);
 	}
-	if (!ent && !np) {
-		safe_strncpy(name, inet_ntoa(s_in->sin_addr), len);
-	}
-	pn = xmalloc(sizeof(struct addr));
+	if (!name)
+		name = xstrdup(inet_ntoa(s_in->sin_addr));
+	pn = xmalloc(sizeof(*pn) + strlen(name)); /* no '+ 1', it's already accounted for */
+	pn->next = cache;
 	pn->addr = *s_in;
-	pn->next = INET_nn;
 	pn->host = host;
-	pn->name = xstrdup(name);
-	INET_nn = pn;
-	return 0;
+	strcpy(pn->name, name);
+	cache = pn;
+	return name;
 }
 
-#ifdef CONFIG_FEATURE_IPV6
+#if ENABLE_FEATURE_IPV6
 
 int INET6_resolve(const char *name, struct sockaddr_in6 *sin6)
 {
@@ -195,9 +190,9 @@ int INET6_resolve(const char *name, struct sockaddr_in6 *sin6)
 #endif
 
 
-int INET6_rresolve(char *name, size_t len, struct sockaddr_in6 *sin6,
-				   int numeric)
+char *INET6_rresolve(struct sockaddr_in6 *sin6, int numeric)
 {
+	char name[128];
 	int s;
 
 	/* Grmpf. -FvK */
@@ -207,29 +202,25 @@ int INET6_rresolve(char *name, size_t len, struct sockaddr_in6 *sin6,
 				  sin6->sin6_family);
 #endif
 		errno = EAFNOSUPPORT;
-		return -1;
+		return NULL;
 	}
 	if (numeric & 0x7FFF) {
-		inet_ntop(AF_INET6, &sin6->sin6_addr, name, len);
-		return 0;
+		inet_ntop(AF_INET6, &sin6->sin6_addr, name, sizeof(name));
+		return xstrdup(name);
 	}
 	if (IN6_IS_ADDR_UNSPECIFIED(&sin6->sin6_addr)) {
-		if (numeric & 0x8000) {
-			strcpy(name, bb_str_default);
-		} else {
-			name[0] = '*';
-			name[1] = '\0';
-		}
-		return 0;
+		if (numeric & 0x8000)
+			return xstrdup(bb_str_default);
+		return xstrdup("*");
 	}
 
 	s = getnameinfo((struct sockaddr *) sin6, sizeof(struct sockaddr_in6),
-				name, len, NULL, 0, 0);
+				name, sizeof(name), NULL, 0, 0);
 	if (s) {
 		bb_error_msg("getnameinfo failed");
-		return -1;
+		return NULL;
 	}
-	return 0;
+	return xstrdup(name);
 }
 
 #endif							/* CONFIG_FEATURE_IPV6 */

@@ -202,8 +202,16 @@ int spawn_and_wait(char **argv)
 	return wait4pid(rc);
 }
 
-
 #if !BB_MMU
+void re_exec(char **argv)
+{
+	/* high-order bit of first char in argv[0] is a hidden
+	 * "we have (already) re-execed, don't do it again" flag */
+	argv[0][0] |= 0x80;
+	execv(bb_busybox_exec_path, argv);
+	bb_perror_msg_and_die("exec %s", bb_busybox_exec_path);
+}
+
 void forkexit_or_rexec(char **argv)
 {
 	pid_t pid;
@@ -217,11 +225,7 @@ void forkexit_or_rexec(char **argv)
 	if (pid) /* parent */
 		exit(0);
 	/* child - re-exec ourself */
-	/* high-order bit of first char in argv[0] is a hidden
-	 * "we have (alrealy) re-execed, don't do it again" flag */
-	argv[0][0] |= 0x80;
-	execv(CONFIG_BUSYBOX_EXEC_PATH, argv);
-	bb_perror_msg_and_die("exec %s", CONFIG_BUSYBOX_EXEC_PATH);
+	re_exec(argv);
 }
 #else
 /* Dance around (void)...*/
@@ -245,8 +249,6 @@ void bb_daemonize_or_rexec(int flags, char **argv)
 {
 	int fd;
 
-	fd = xopen(bb_dev_null, O_RDWR);
-
 	if (flags & DAEMON_CHDIR_ROOT)
 		xchdir("/");
 
@@ -256,22 +258,25 @@ void bb_daemonize_or_rexec(int flags, char **argv)
 		close(2);
 	}
 
+	fd = xopen(bb_dev_null, O_RDWR);
+
 	while ((unsigned)fd < 2)
 		fd = dup(fd); /* have 0,1,2 open at least to /dev/null */
 
 	if (!(flags & DAEMON_ONLY_SANITIZE)) {
 		forkexit_or_rexec(argv);
-		/* if daemonizing, make sure we detach from stdio */
+		/* if daemonizing, make sure we detach from stdio & ctty */
 		setsid();
 		dup2(fd, 0);
 		dup2(fd, 1);
 		dup2(fd, 2);
 	}
-	if (fd > 2)
+	while (fd > 2) {
 		close(fd--);
-	if (flags & DAEMON_CLOSE_EXTRA_FDS)
-		while (fd > 2)
-			close(fd--); /* close everything after fd#2 */
+		if (!(flags & DAEMON_CLOSE_EXTRA_FDS))
+			return;
+		/* else close everything after fd#2 */
+	}
 }
 
 void bb_sanitize_stdio(void)

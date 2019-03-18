@@ -83,6 +83,14 @@ config HTTPD
 	help
 	  Serve web pages via an HTTP server.
 
+config FEATURE_HTTPD_USE_SENDFILE
+	bool "Use sendfile system call"
+	default n
+	depends on HTTPD
+	help
+	  When enabled, httpd will use the kernel sendfile() function
+	  instead of read/write loop.
+
 config FEATURE_HTTPD_RELOAD_CONFIG_SIGHUP
 	bool "Support reloading the global config file using hup signal"
 	default n
@@ -162,6 +170,19 @@ config FEATURE_HTTPD_ENCODE_URL_STR
 	  For example, httpd -e "<Hello World>" as
 	  "&#60Hello&#32World&#62".
 
+config FEATURE_HTTPD_ERROR_PAGES
+	bool "Enable support for custom error pages"
+	default n
+	depends on HTTPD
+	help
+	  This option allows you to define custom error pages in
+	  the configuration file instead of the default HTTP status
+	  error pages. For instance, if you add the line:
+	        E404:/path/e404.html
+	  in the config file, the server will respond the specified
+	  '/path/e404.html' file instead of the terse '404 NOT FOUND'
+	  message.
+
 config IFCONFIG
 	bool "ifconfig"
 	default n
@@ -224,6 +245,16 @@ config IFUPDOWN
 	  enable these additional options.  It is up to you to supply either
 	  "ifconfig", "route" and "run-parts" or the "ip" command, either
 	  via busybox or via standalone utilities.
+
+config IFUPDOWN_IFSTATE_PATH
+	string "Absolute path to ifstate file"
+	default "/var/run/ifstate"
+	help
+	  ifupdown keeps state information in a file called ifstate.
+	  Typically it is located in /var/run/ifstate, however
+	  some distributions tend to put it in other places
+	  (debian, for example, uses /etc/network/run/ifstate).
+	  This config option defines location of ifstate.
 
 config FEATURE_IFUPDOWN_IP
 	bool "Use ip applet"
@@ -347,7 +378,8 @@ config FEATURE_INETD_SUPPORT_BUILTIN_CHARGEN
 config FEATURE_INETD_RPC
 	bool "Support RPC services"
 	default n
-	depends on INETD && FEATURE_HAVE_RPC
+	depends on INETD
+	select FEATURE_HAVE_RPC
 	help
 	  Support Sun-RPC based services
 
@@ -527,6 +559,12 @@ config PING6
 	help
 	  This will give you a ping that can talk IPv6.
 
+config PSCAN
+	bool "pscan"
+	default n
+	help
+	  Simple network port scanner.
+
 config FEATURE_FANCY_PING
 	bool "Enable fancy ping output"
 	default y
@@ -540,6 +578,12 @@ config ROUTE
 	default n
 	help
 	  Route displays or manipulates the kernel's IP routing tables.
+
+config SLATTACH
+	bool "slattach"
+	default n
+	help
+	  slattach is a small utility to attach network interfaces to serial lines.
 
 config TELNET
 	bool "telnet"

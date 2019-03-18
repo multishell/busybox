@@ -8,9 +8,14 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
+/* NB: we have a problem here with /proc/NN/exe usage, similar to
+ * one fixed in killall/pidof */
+
 #include <getopt.h>
 #include <sys/resource.h>
 
+/* Override ENABLE_FEATURE_PIDFILE */
+#define WANT_PIDFILE 1
 #include "libbb.h"
 
 static int signal_nr = 15;
@@ -28,33 +33,22 @@ struct pid_list {
 
 static struct pid_list *found;
 
-static inline void push(pid_t pid)
-{
-	struct pid_list *p;
-
-	p = xmalloc(sizeof(*p));
-	p->next = found;
-	p->pid = pid;
-	found = p;
-}
-
 static int pid_is_exec(pid_t pid, const char *name)
 {
 	char buf[sizeof("/proc//exe") + sizeof(int)*3];
 	char *execbuf;
-	int sz;
-	int equal;
+	int n;
 
-	sprintf(buf, "/proc/%d/exe", pid);
-	sz = strlen(name) + 1;
-	execbuf = xzalloc(sz);
-	readlink(buf, execbuf, sz);
+	sprintf(buf, "/proc/%u/exe", pid);
+	n = strlen(name) + 1;
+	execbuf = xzalloc(n + 1);
+	readlink(buf, execbuf, n);
 
 	/* if readlink fails, execbuf still contains "" */
-	equal = !strcmp(execbuf, name);
+	n = strcmp(execbuf, name);
 	if (ENABLE_FEATURE_CLEAN_UP)
 		free(execbuf);
-	return equal;
+	return !n; /* nonzero (true) if execbuf == name */
 }
 
 static int pid_is_user(int pid, int uid)
@@ -90,9 +84,10 @@ static int pid_is_cmd(pid_t pid, const char *name)
 	return r;
 }
 
-
 static void check(int pid)
 {
+	struct pid_list *p;
+
 	if (execname && !pid_is_exec(pid, execname)) {
 		return;
 	}
@@ -102,14 +97,16 @@ static void check(int pid)
 	if (cmdname && !pid_is_cmd(pid, cmdname)) {
 		return;
 	}
-	push(pid);
+	p = xmalloc(sizeof(*p));
+	p->next = found;
+	p->pid = pid;
+	found = p;
 }
-
 
 static void do_pidfile(void)
 {
 	FILE *f;
-	pid_t pid;
+	unsigned pid;
 
 	f = fopen(pidfile, "r");
 	if (f) {
@@ -143,9 +140,8 @@ static void do_procinit(void)
 	}
 	closedir(procdir);
 	if (!foundany)
-		bb_error_msg_and_die ("nothing in /proc - not mounted?");
+		bb_error_msg_and_die("nothing in /proc - not mounted?");
 }
-
 
 static int do_stop(void)
 {
@@ -155,11 +151,13 @@ static int do_stop(void)
 
 	do_procinit();
 
-	if (cmdname)
-		what = xstrdup(cmdname);
-	else if (execname)
-		what = xstrdup(execname);
-	else if (pidfile)
+	if (cmdname) {
+		if (ENABLE_FEATURE_CLEAN_UP) what = xstrdup(cmdname);
+		if (!ENABLE_FEATURE_CLEAN_UP) what = cmdname;
+	} else if (execname) {
+		if (ENABLE_FEATURE_CLEAN_UP) what = xstrdup(execname);
+		if (!ENABLE_FEATURE_CLEAN_UP) what = execname;
+	} else if (pidfile)
 		what = xasprintf("process in pidfile '%s'", pidfile);
 	else if (userspec)
 		what = xasprintf("process(es) owned by '%s'", userspec);
@@ -169,54 +167,53 @@ static int do_stop(void)
 	if (!found) {
 		if (!quiet)
 			printf("no %s found; none killed\n", what);
-		if (ENABLE_FEATURE_CLEAN_UP)
-			free(what);
-		return -1;
+		killed = -1;
+		goto ret;
 	}
 	for (p = found; p; p = p->next) {
 		if (kill(p->pid, signal_nr) == 0) {
-			p->pid = -p->pid;
+			p->pid = - p->pid;
 			killed++;
 		} else {
-			bb_perror_msg("warning: failed to kill %d", p->pid);
+			bb_perror_msg("warning: killing process %u", p->pid);
 		}
 	}
 	if (!quiet && killed) {
 		printf("stopped %s (pid", what);
 		for (p = found; p; p = p->next)
 			if (p->pid < 0)
-				printf(" %d", -p->pid);
+				printf(" %u", - p->pid);
 		puts(")");
 	}
+ ret:
 	if (ENABLE_FEATURE_CLEAN_UP)
 		free(what);
 	return killed;
 }
 
 #if ENABLE_FEATURE_START_STOP_DAEMON_LONG_OPTIONS
-static const struct option long_options[] = {
-	{ "stop",               0,      NULL,   'K' },
-	{ "start",              0,      NULL,   'S' },
-	{ "background",         0,      NULL,   'b' },
-	{ "quiet",              0,      NULL,   'q' },
-	{ "make-pidfile",       0,      NULL,   'm' },
+static const char start_stop_daemon_longopts[] ALIGN1 =
+	"stop\0"         No_argument       "K"
+	"start\0"        No_argument       "S"
+	"background\0"   No_argument       "b"
+	"quiet\0"        No_argument       "q"
+	"make-pidfile\0" No_argument       "m"
 #if ENABLE_FEATURE_START_STOP_DAEMON_FANCY
-	{ "oknodo",             0,      NULL,   'o' },
-	{ "verbose",            0,      NULL,   'v' },
-	{ "nicelevel",          1,      NULL,   'N' },
+	"oknodo\0"       No_argument       "o"
+	"verbose\0"      No_argument       "v"
+	"nicelevel\0"    Required_argument "N"
 #endif
-	{ "startas",            1,      NULL,   'a' },
-	{ "name",               1,      NULL,   'n' },
-	{ "signal",             1,      NULL,   's' },
-	{ "user",               1,      NULL,   'u' },
-	{ "chuid",              1,      NULL,   'c' },
-	{ "exec",               1,      NULL,   'x' },
-	{ "pidfile",            1,      NULL,   'p' },
+	"startas\0"      Required_argument "a"
+	"name\0"         Required_argument "n"
+	"signal\0"       Required_argument "s"
+	"user\0"         Required_argument "u"
+	"chuid\0"        Required_argument "c"
+	"exec\0"         Required_argument "x"
+	"pidfile\0"      Required_argument "p"
 #if ENABLE_FEATURE_START_STOP_DAEMON_FANCY
-	{ "retry",              1,      NULL,   'R' },
+	"retry\0"        Required_argument "R"
 #endif
-	{ 0,                    0,      0,      0 }
-};
+	;
 #endif
 
 enum {
@@ -250,12 +247,12 @@ int start_stop_daemon_main(int argc, char **argv)
 	char *opt_N;
 #endif
 #if ENABLE_FEATURE_START_STOP_DAEMON_LONG_OPTIONS
-	applet_long_options = long_options;
+	applet_long_options = start_stop_daemon_longopts;
 #endif
 
 	/* Check required one context option was given */
-	opt_complementary = "K:S:?:K--S:S--K:m?p:K?xpun:S?xa";
-	opt = getopt32(argc, argv, "KSbqma:n:s:u:c:x:p:"
+	opt_complementary = "K:S:K--S:S--K:m?p:K?xpun:S?xa";
+	opt = getopt32(argv, "KSbqma:n:s:u:c:x:p:"
 		USE_FEATURE_START_STOP_DAEMON_FANCY("ovN:"),
 //		USE_FEATURE_START_STOP_DAEMON_FANCY("ovN:R:"),
 		&startas, &cmdname, &signame, &userspec, &chuid, &execname, &pidfile
@@ -288,7 +285,7 @@ int start_stop_daemon_main(int argc, char **argv)
 
 	if (opt & CTX_STOP) {
 		int i = do_stop();
-		return (opt & OPT_OKNODO) ? 0 : (i<=0);
+		return (opt & OPT_OKNODO) ? 0 : (i <= 0);
 	}
 
 	do_procinit();
@@ -300,15 +297,32 @@ int start_stop_daemon_main(int argc, char **argv)
 	}
 	*--argv = startas;
 	if (opt & OPT_BACKGROUND) {
+#if BB_MMU
 		bb_daemonize(0);
+#else
+		pid_t pid = vfork();
+		if (pid < 0) /* error */
+			bb_perror_msg_and_die("vfork");
+		if (pid != 0) {
+			/* parent */
+			/* why _exit? the child may have changed the stack,
+			 * so "return 0" may do bad things */
+			_exit(0);
+		}
+		/* child */
+		setsid(); /* detach from controlling tty */
+		/* Redirect stdio to /dev/null, close extra FDs.
+		 * We do not actually daemonize because of DAEMON_ONLY_SANITIZE */
+		bb_daemonize_or_rexec(
+			DAEMON_DEVNULL_STDIO
+			+ DAEMON_CLOSE_EXTRA_FDS
+			+ DAEMON_ONLY_SANITIZE,
+			NULL /* argv, unused */ );
+#endif
 	}
 	if (opt & OPT_MAKEPID) {
 		/* user wants _us_ to make the pidfile */
-		FILE *pidf = xfopen(pidfile, "w");
-
-		pid_t pidt = getpid();
-		fprintf(pidf, "%d\n", pidt);
-		fclose(pidf);
+		write_pidfile(pidfile);
 	}
 	if (opt & OPT_c) {
 		struct bb_uidgid_t ugid;

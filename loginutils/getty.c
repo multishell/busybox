@@ -93,7 +93,7 @@ struct options {
 	int speeds[MAX_SPEED];          /* baud rates to be tried */
 };
 
-static const char opt_string[] = "I:LH:f:hil:mt:wn";
+static const char opt_string[] ALIGN1 = "I:LH:f:hil:mt:wn";
 #define F_INITSTRING    (1<<0)          /* initstring is set */
 #define F_LOCAL         (1<<1)          /* force local */
 #define F_FAKEHOST      (1<<2)          /* force fakehost */
@@ -180,7 +180,7 @@ static void parse_args(int argc, char **argv, struct options *op)
 {
 	char *ts;
 
-	op->flags = getopt32(argc, argv, opt_string,
+	op->flags = getopt32(argv, opt_string,
 		&(op->initstring), &fakehost, &(op->issue),
 		&(op->login), &ts);
 	if (op->flags & F_INITSTRING) {
@@ -226,25 +226,17 @@ static void parse_args(int argc, char **argv, struct options *op)
 	debug("exiting parseargs\n");
 }
 
-static void xdup2(int srcfd, int dstfd, const char *tty)
-{
-	if (dup2(srcfd, dstfd) == -1)
-		bb_perror_msg_and_die("%s: dup", tty);
-}
-
 /* open_tty - set up tty as standard { input, output, error } */
 static void open_tty(const char *tty, struct termios *tp, int local)
 {
 	int chdir_to_root = 0;
 
 	/* Set up new standard input, unless we are given an already opened port. */
-
 	if (NOT_LONE_DASH(tty)) {
 		struct stat st;
 		int fd;
 
 		/* Sanity checks... */
-
 		xchdir("/dev");
 		chdir_to_root = 1;
 		xstat(tty, &st);
@@ -252,25 +244,24 @@ static void open_tty(const char *tty, struct termios *tp, int local)
 			bb_error_msg_and_die("%s: not a character device", tty);
 
 		/* Open the tty as standard input. */
-
 		debug("open(2)\n");
 		fd = xopen(tty, O_RDWR | O_NONBLOCK);
-		xdup2(fd, 0, tty);
-		while (fd > 2) close(fd--);
+		xdup2(fd, 0);
+		while (fd > 2)
+			close(fd--);
 	} else {
 		/*
 		 * Standard input should already be connected to an open port. Make
 		 * sure it is open for read/write.
 		 */
-
-		if ((fcntl(0, F_GETFL, 0) & O_RDWR) != O_RDWR)
+		if ((fcntl(0, F_GETFL) & O_RDWR) != O_RDWR)
 			bb_error_msg_and_die("stdin is not open for read/write");
 	}
 
 	/* Replace current standard output/error fd's with new ones */
 	debug("duping\n");
-	xdup2(0, 1, tty);
-	xdup2(0, 2, tty);
+	xdup2(0, 1);
+	xdup2(0, 2);
 
 	/*
 	 * The following ioctl will fail if stdin is not a tty, but also when
@@ -280,9 +271,7 @@ static void open_tty(const char *tty, struct termios *tp, int local)
 	 * by patching the SunOS kernel variable "zsadtrlow" to a larger value;
 	 * 5 seconds seems to be a good value.
 	 */
-
-	if (ioctl(0, TCGETS, tp) < 0)
-		bb_perror_msg_and_die("%s: ioctl(TCGETS)", tty);
+	ioctl_or_perror_and_die(0, TCGETS, tp, "%s: TCGETS", tty);
 
 	/*
 	 * It seems to be a terminal. Set proper protections and ownership. Mode
@@ -369,7 +358,7 @@ static void termios_init(struct termios *tp, int speed, struct options *op)
 	ioctl(0, TCSETS, tp);
 
 	/* go to blocking input even in local mode */
-	fcntl(0, F_SETFL, fcntl(0, F_GETFL, 0) & ~O_NONBLOCK);
+	ndelay_off(0);
 
 	debug("term_io 2\n");
 }
@@ -647,8 +636,7 @@ static void termios_final(struct options *op, struct termios *tp, struct chardat
 
 	/* Finally, make the new settings effective */
 
-	if (ioctl(0, TCSETS, tp) < 0)
-		bb_perror_msg_and_die("%s: ioctl(TCSETS)", op->tty);
+	ioctl_or_perror_and_die(0, TCSETS, tp, "%s: TCSETS", op->tty);
 }
 
 
@@ -799,7 +787,7 @@ int getty_main(int argc, char **argv)
 
 	if (!(options.flags & F_LOCAL)) {
 		/* go to blocking write mode unless -L is specified */
-		fcntl(1, F_SETFL, fcntl(1, F_GETFL, 0) & ~O_NONBLOCK);
+		ndelay_off(1);
 	}
 
 	/* Optionally detect the baud rate from the modem status message. */

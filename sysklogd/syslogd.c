@@ -17,10 +17,10 @@
 #include <paths.h>
 #include <sys/un.h>
 
-/* SYSLOG_NAMES defined to pull some extra junk from syslog.h: */
-/* prioritynames[] and facilitynames[]. uclibc pulls those in _rwdata_! :( */
-
+/* SYSLOG_NAMES defined to pull prioritynames[] and facilitynames[]
+ * from syslog.h. Grrrr - glibc puts those in _rwdata_! :( */
 #define SYSLOG_NAMES
+#define SYSLOG_NAMES_CONST /* uclibc is saner :) */
 #include <sys/syslog.h>
 #include <sys/uio.h>
 
@@ -46,8 +46,7 @@ enum { MAX_READ = 256 };
 
 /* Semaphore operation structures */
 struct shbuf_ds {
-	int32_t size;   /* size of data written */
-	int32_t head;   /* start of message list */
+	int32_t size;   /* size of data - 1 */
 	int32_t tail;   /* end of message list */
 	char data[1];   /* data/messages */
 };
@@ -202,7 +201,7 @@ static void ipcsyslog_init(void)
 	if (DEBUG)
 		printf("shmget(%lx, %d,...)\n", KEY_ID, G.shm_size);
 
-	G.shmid = shmget(KEY_ID, G.shm_size, IPC_CREAT | 1023);
+	G.shmid = shmget(KEY_ID, G.shm_size, IPC_CREAT | 0644);
 	if (G.shmid == -1) {
 		bb_perror_msg_and_die("shmget");
 	}
@@ -212,8 +211,9 @@ static void ipcsyslog_init(void)
 		bb_perror_msg_and_die("shmat");
 	}
 
-	G.shbuf->size = G.shm_size - offsetof(struct shbuf_ds, data);
-	G.shbuf->head = G.shbuf->tail = 0;
+	memset(G.shbuf, 0, G.shm_size);
+	G.shbuf->size = G.shm_size - offsetof(struct shbuf_ds, data) - 1;
+	/*G.shbuf->tail = 0;*/
 
 	// we'll trust the OS to set initial semval to 0 (let's hope)
 	G.s_semid = semget(KEY_ID, 2, IPC_CREAT | IPC_EXCL | 1023);
@@ -231,7 +231,6 @@ static void ipcsyslog_init(void)
 static void log_to_shmem(const char *msg, int len)
 {
 	int old_tail, new_tail;
-	char *c;
 
 	if (semop(G.s_semid, G.SMwdn, 3) == -1) {
 		bb_perror_msg_and_die("SMwdn");
@@ -240,49 +239,20 @@ static void log_to_shmem(const char *msg, int len)
 	/* Circular Buffer Algorithm:
 	 * --------------------------
 	 * tail == position where to store next syslog message.
-	 * head == position of next message to retrieve ("print").
-	 * if head == tail, there is no "unprinted" messages left.
-	 * head is typically advanced by separate "reader" program,
-	 * but if there isn't one, we have to do it ourself.
-	 * messages are NUL-separated.
+	 * tail's max value is (shbuf->size - 1)
+	 * Last byte of buffer is never used and remains NUL.
 	 */
 	len++; /* length with NUL included */
  again:
 	old_tail = G.shbuf->tail;
 	new_tail = old_tail + len;
 	if (new_tail < G.shbuf->size) {
-		/* No need to move head if shbuf->head <= old_tail,
-		 * else... */
-		if (old_tail < G.shbuf->head && G.shbuf->head <= new_tail) {
-			/* ...need to move head forward */
-			c = memchr(G.shbuf->data + new_tail, '\0',
-					   G.shbuf->size - new_tail);
-			if (!c) /* no NUL ahead of us, wrap around */
-				c = memchr(G.shbuf->data, '\0', old_tail);
-			if (!c) { /* still nothing? point to this msg... */
-				G.shbuf->head = old_tail;
-			} else {
-				/* convert pointer to offset + skip NUL */
-				G.shbuf->head = c - G.shbuf->data + 1;
-			}
-		}
 		/* store message, set new tail */
 		memcpy(G.shbuf->data + old_tail, msg, len);
 		G.shbuf->tail = new_tail;
 	} else {
-		/* we need to break up the message and wrap it around */
 		/* k == available buffer space ahead of old tail */
-		int k = G.shbuf->size - old_tail - 1;
-		if (G.shbuf->head > old_tail) {
-			/* we are going to overwrite head, need to
-			 * move it out of the way */
-			c = memchr(G.shbuf->data, '\0', old_tail);
-			if (!c) { /* nothing? point to this msg... */
-				G.shbuf->head = old_tail;
-			} else { /* convert pointer to offset + skip NUL */
-				G.shbuf->head = c - G.shbuf->data + 1;
-			}
-		}
+		int k = G.shbuf->size - old_tail;
 		/* copy what fits to the end of buffer, and repeat */
 		memcpy(G.shbuf->data + old_tail, msg, k);
 		msg += k;
@@ -294,7 +264,7 @@ static void log_to_shmem(const char *msg, int len)
 		bb_perror_msg_and_die("SMwup");
 	}
 	if (DEBUG)
-		printf("head:%d tail:%d\n", G.shbuf->head, G.shbuf->tail);
+		printf("tail:%d\n", G.shbuf->tail);
 }
 #else
 void ipcsyslog_cleanup(void);
@@ -339,11 +309,10 @@ static void log_locally(char *msg)
 		}
 #if ENABLE_FEATURE_ROTATE_LOGFILE
 		{
-		struct stat statf;
-
-		G.isRegular = (fstat(G.logFD, &statf) == 0 && (statf.st_mode & S_IFREG));
-		/* bug (mostly harmless): can wrap around if file > 4gb */
-		G.curFileSize = statf.st_size;
+			struct stat statf;
+			G.isRegular = (fstat(G.logFD, &statf) == 0 && S_ISREG(statf.st_mode));
+			/* bug (mostly harmless): can wrap around if file > 4gb */
+			G.curFileSize = statf.st_size;
 		}
 #endif
 	}
@@ -386,7 +355,7 @@ static void log_locally(char *msg)
 
 static void parse_fac_prio_20(int pri, char *res20)
 {
-	CODE *c_pri, *c_fac;
+	const CODE *c_pri, *c_fac;
 
 	if (pri != 0) {
 		c_fac = facilitynames;
@@ -467,7 +436,7 @@ static void split_escape_and_log(char *tmpbuf, int len)
 		while ((c = *p++)) {
 			if (c == '\n')
 				c = ' ';
-			if (!(c & ~0x1f)) {
+			if (!(c & ~0x1f) && c != '\t') {
 				*q++ = '^';
 				c += '@'; /* ^@, ^A, ^B... */
 			}
@@ -604,7 +573,7 @@ int syslogd_main(int argc, char **argv)
 
 	/* do normal option parsing */
 	opt_complementary = "=0"; /* no non-option params */
-	getopt32(argc, argv, OPTION_STR, OPTION_PARAM);
+	getopt32(argv, OPTION_STR, OPTION_PARAM);
 #ifdef SYSLOGD_MARK
 	if (option_mask32 & OPT_mark) // -m
 		G.markInterval = xatou_range(opt_m, 0, INT_MAX/60) * 60;

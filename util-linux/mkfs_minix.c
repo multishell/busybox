@@ -90,11 +90,10 @@ enum { version2 = 0 };
 #endif
 
 struct globals {
-
 	int dev_fd;
 
 #if ENABLE_FEATURE_MINIX2
-	int version2;
+	smallint version2;
 #define version2 G.version2
 #endif
 	char *device_name;
@@ -121,7 +120,7 @@ struct globals {
 
 #define G (*ptr_to_globals)
 
-static ATTRIBUTE_ALWAYS_INLINE unsigned div_roundup(unsigned size, unsigned n)
+static ALWAYS_INLINE unsigned div_roundup(unsigned size, unsigned n)
 {
 	return (size + n-1) / n;
 }
@@ -627,7 +626,7 @@ int mkfs_minix_main(int argc, char **argv)
 		bb_error_msg_and_die("bad inode size");
 #endif
 
-	opt = getopt32(argc, argv, "ci:l:n:v", &str_i, &listfile, &str_n);
+	opt = getopt32(argv, "ci:l:n:v", &str_i, &listfile, &str_n);
 	argv += optind;
 	//if (opt & 1) -c
 	if (opt & 2) G.req_nr_inodes = xatoul(str_i); // -i

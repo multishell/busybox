@@ -91,19 +91,19 @@ static const char *const optletters_optnames[] = {
 	"a"   "allexport",
 	"b"   "notify",
 	"u"   "nounset",
-	"\0"  "vi",
+	"\0"  "vi"
 #if DEBUG
-	"\0"  "nolog",
-	"\0"  "debug",
+	,"\0"  "nolog"
+	,"\0"  "debug"
 #endif
 };
 
 #define optletters(n) optletters_optnames[(n)][0]
 #define optnames(n) (&optletters_optnames[(n)][1])
 
-#define NOPTS (sizeof(optletters_optnames)/sizeof(optletters_optnames[0]))
+enum { NOPTS = ARRAY_SIZE(optletters_optnames) };
 
-static char optlist[NOPTS];
+static char optlist[NOPTS] ALIGN1;
 
 #define eflag optlist[0]
 #define fflag optlist[1]
@@ -127,14 +127,13 @@ static char optlist[NOPTS];
 
 /* ============ Misc data */
 
-static char nullstr[1];                /* zero length string */
-static const char homestr[] = "HOME";
-static const char snlfmt[] = "%s\n";
-static const char illnum[] = "Illegal number: %s";
+static char nullstr[1] ALIGN1;  /* zero length string */
+static const char homestr[] ALIGN1 = "HOME";
+static const char snlfmt[] ALIGN1 = "%s\n";
+static const char illnum[] ALIGN1 = "Illegal number: %s";
 
-static char *minusc;                   /* argument to -c option */
+static char *minusc;  /* argument to -c option */
 
-static int isloginsh;
 /* pid of main shell */
 static int rootpid;
 /* shell level: 0 for the main shell, 1 for its children, and so on */
@@ -142,6 +141,7 @@ static int shlvl;
 #define rootshell (!shlvl)
 /* trap handler commands */
 static char *trap[NSIG];
+static smallint isloginsh;
 /* current value of signal */
 static char sigmode[NSIG - 1];
 /* indicates specified signal received */
@@ -447,7 +447,9 @@ out2str(const char *p)
 #define VSTRIMLEFTMAX   0x9             /* ${var##pattern} */
 #define VSLENGTH        0xa             /* ${#var} */
 
-static const char dolatstr[] = { CTLVAR, VSNORMAL|VSQUOTE, '@', '=', '\0' };
+static const char dolatstr[] ALIGN1 = {
+	CTLVAR, VSNORMAL|VSQUOTE, '@', '=', '\0'
+};
 
 #define NCMD 0
 #define NPIPE 1
@@ -724,7 +726,7 @@ opentrace(void)
 		}
 	}
 #ifdef O_APPEND
-	flags = fcntl(fileno(tracefile), F_GETFL, 0);
+	flags = fcntl(fileno(tracefile), F_GETFL);
 	if (flags >= 0)
 		fcntl(fileno(tracefile), F_SETFL, flags | O_APPEND);
 #endif
@@ -840,23 +842,24 @@ shcmd(union node *cmd, FILE *fp)
 
 	first = 1;
 	for (np = cmd->ncmd.args; np; np = np->narg.next) {
-		if (! first)
-			putchar(' ');
+		if (!first)
+			putc(' ', fp);
 		sharg(np, fp);
 		first = 0;
 	}
 	for (np = cmd->ncmd.redirect; np; np = np->nfile.next) {
-		if (! first)
-			putchar(' ');
+		if (!first)
+			putc(' ', fp);
+		dftfd = 0;
 		switch (np->nfile.type) {
-		case NTO:       s = ">";  dftfd = 1; break;
-		case NCLOBBER:  s = ">|"; dftfd = 1; break;
-		case NAPPEND:   s = ">>"; dftfd = 1; break;
-		case NTOFD:     s = ">&"; dftfd = 1; break;
-		case NFROM:     s = "<";  dftfd = 0; break;
-		case NFROMFD:   s = "<&"; dftfd = 0; break;
-		case NFROMTO:   s = "<>"; dftfd = 0; break;
-		default:        s = "*error*"; dftfd = 0; break;
+		case NTO:      s = ">>"+1; dftfd = 1; break;
+		case NCLOBBER: s = ">|"; dftfd = 1; break;
+		case NAPPEND:  s = ">>"; dftfd = 1; break;
+		case NTOFD:    s = ">&"; dftfd = 1; break;
+		case NFROM:    s = "<";  break;
+		case NFROMFD:  s = "<&"; break;
+		case NFROMTO:  s = "<>"; break;
+		default:       s = "*error*"; break;
 		}
 		if (np->nfile.fd != dftfd)
 			fprintf(fp, "%d", np->nfile.fd);
@@ -1581,12 +1584,11 @@ static unsigned long rseed;
 # define VDYNAMIC       0
 #endif
 
-static const char defpathvar[] = "PATH=/usr/local/bin:/usr/bin:/sbin:/bin";
 #ifdef IFS_BROKEN
-static const char defifsvar[] = "IFS= \t\n";
+static const char defifsvar[] ALIGN1 = "IFS= \t\n";
 #define defifs (defifsvar + 4)
 #else
-static const char defifs[] = " \t\n";
+static const char defifs[] ALIGN1 = " \t\n";
 #endif
 
 struct shparam {
@@ -1674,7 +1676,7 @@ static struct var varinit[] = {
 	{ NULL, VSTRFIXED|VTEXTFIXED|VUNSET,    "MAIL\0",       changemail },
 	{ NULL, VSTRFIXED|VTEXTFIXED|VUNSET,    "MAILPATH\0",   changemail },
 #endif
-	{ NULL, VSTRFIXED|VTEXTFIXED,           defpathvar,     changepath },
+	{ NULL, VSTRFIXED|VTEXTFIXED,           bb_PATH_root_path, changepath },
 	{ NULL, VSTRFIXED|VTEXTFIXED,           "PS1=$ ",       NULL },
 	{ NULL, VSTRFIXED|VTEXTFIXED,           "PS2=> ",       NULL },
 	{ NULL, VSTRFIXED|VTEXTFIXED,           "PS4=+ ",       NULL },
@@ -1710,7 +1712,6 @@ static struct var varinit[] = {
 #else
 #define vrandom (&vps4)[1]
 #endif
-#define defpath (defpathvar + 5)
 
 /*
  * The following macros access the values of the above variables.
@@ -1839,7 +1840,7 @@ initvar(void)
 		vps1.text = "PS1=# ";
 #endif
 	vp = varinit;
-	end = vp + sizeof(varinit) / sizeof(varinit[0]);
+	end = vp + ARRAY_SIZE(varinit);
 	do {
 		vpp = hashvar(vp->text);
 		vp->next = *vpp;
@@ -2549,16 +2550,16 @@ static const char S_I_T[][3] = {
 static int
 SIT(int c, int syntax)
 {
-	static const char spec_symbls[] = "\t\n !\"$&'()*-/:;<=>?[\\]`|}~";
+	static const char spec_symbls[] ALIGN1 = "\t\n !\"$&'()*-/:;<=>?[\\]`|}~";
 #if ENABLE_ASH_ALIAS
-	static const char syntax_index_table[] = {
+	static const char syntax_index_table[] ALIGN1 = {
 		1, 2, 1, 3, 4, 5, 1, 6,         /* "\t\n !\"$&'" */
 		7, 8, 3, 3, 3, 3, 1, 1,         /* "()*-/:;<" */
 		3, 1, 3, 3, 9, 3, 10, 1,        /* "=>?[\\]`|" */
 		11, 3                           /* "}~" */
 	};
 #else
-	static const char syntax_index_table[] = {
+	static const char syntax_index_table[] ALIGN1 = {
 		0, 1, 0, 2, 3, 4, 0, 5,         /* "\t\n !\"$&'" */
 		6, 7, 2, 2, 2, 2, 0, 0,         /* "()*-/:;<" */
 		2, 0, 2, 2, 8, 2, 9, 0,         /* "=>?[\\]`|" */
@@ -3142,20 +3143,18 @@ struct job {
 };
 
 static pid_t backgndpid;        /* pid of last background process */
-static int job_warning;         /* user was warned about stopped jobs */
-#if JOBS
-static int jobctl;              /* true if doing job control */
-#endif
+static smallint job_warning;    /* user was warned about stopped jobs (can be 2, 1 or 0). */
 
 static struct job *makejob(union node *, int);
 static int forkshell(struct job *, union node *, int);
 static int waitforjob(struct job *);
 
-#if ! JOBS
-#define setjobctl(on)   /* do nothing */
+#if !JOBS
+enum { jobctl = 0 };
+#define setjobctl(on) do {} while (0)
 #else
+static smallint jobctl;              /* true if doing job control */
 static void setjobctl(int);
-static void showjobs(FILE *, int);
 #endif
 
 /*
@@ -3776,7 +3775,7 @@ showjob(FILE *out, struct job *jp, int mode)
 	struct procstat *ps;
 	struct procstat *psend;
 	int col;
-	int indent;
+	int indent_col;
 	char s[80];
 
 	ps = jp->ps;
@@ -3788,7 +3787,7 @@ showjob(FILE *out, struct job *jp, int mode)
 	}
 
 	col = fmtstr(s, 16, "[%d]   ", jobno(jp));
-	indent = col;
+	indent_col = col;
 
 	if (jp == curjob)
 		s[col - 2] = '+';
@@ -3814,7 +3813,7 @@ showjob(FILE *out, struct job *jp, int mode)
 
 	do {
 		/* for each process */
-		col = fmtstr(s, 48, " |\n%*c%d ", indent, ' ', ps->pid) - 3;
+		col = fmtstr(s, 48, " |\n%*c%d ", indent_col, ' ', ps->pid) - 3;
  start:
 		fprintf(out, "%s%*c%s",
 			s, 33 - col >= 0 ? 33 - col : 0, ' ', ps->cmd
@@ -3837,32 +3836,6 @@ showjob(FILE *out, struct job *jp, int mode)
 	}
 }
 
-static int
-jobscmd(int argc, char **argv)
-{
-	int mode, m;
-	FILE *out;
-
-	mode = 0;
-	while ((m = nextopt("lp"))) {
-		if (m == 'l')
-			mode = SHOW_PID;
-		else
-			mode = SHOW_PGID;
-	}
-
-	out = stdout;
-	argv = argptr;
-	if (*argv) {
-		do
-			showjob(out, getjob(*argv,0), mode);
-		while (*++argv);
-	} else
-		showjobs(out, mode);
-
-	return 0;
-}
-
 /*
  * Print a list of jobs.  If "change" is nonzero, only print jobs whose
  * statuses have changed since the last call to showjobs.
@@ -3879,9 +3852,34 @@ showjobs(FILE *out, int mode)
 		continue;
 
 	for (jp = curjob; jp; jp = jp->prev_job) {
-		if (!(mode & SHOW_CHANGED) || jp->changed)
+		if (!(mode & SHOW_CHANGED) || jp->changed) {
 			showjob(out, jp, mode);
+		}
 	}
+}
+
+static int
+jobscmd(int argc, char **argv)
+{
+	int mode, m;
+
+	mode = 0;
+	while ((m = nextopt("lp"))) {
+		if (m == 'l')
+			mode = SHOW_PID;
+		else
+			mode = SHOW_PGID;
+	}
+
+	argv = argptr;
+	if (*argv) {
+		do
+			showjob(stdout, getjob(*argv,0), mode);
+		while (*++argv);
+	} else
+		showjobs(stdout, mode);
+
+	return 0;
 }
 #endif /* JOBS */
 
@@ -4044,6 +4042,8 @@ makejob(union node *node, int nprocs)
 	}
 	memset(jp, 0, sizeof(*jp));
 #if JOBS
+	/* jp->jobctl is a bitfield.
+	 * "jp->jobctl |= jobctl" likely to give awful code */
 	if (jobctl)
 		jp->jobctl = 1;
 #endif
@@ -4376,8 +4376,10 @@ clear_traps(void)
 		}
 	}
 }
-/* lives far away from here, needed for forkchild */
+
+/* Lives far away from here, needed for forkchild */
 static void closescript(void);
+/* Called after fork(), in child */
 static void
 forkchild(struct job *jp, union node *n, int mode)
 {
@@ -4421,11 +4423,19 @@ forkchild(struct job *jp, union node *n, int mode)
 		setsignal(SIGQUIT);
 		setsignal(SIGTERM);
 	}
+#if JOBS
+	/* For "jobs | cat" to work like in bash, we must retain list of jobs
+	 * in child, but we do need to remove ourself */
+	if (jp)
+		freejob(jp);
+#else
 	for (jp = curjob; jp; jp = jp->prev_job)
 		freejob(jp);
+#endif
 	jobless = 0;
 }
 
+/* Called after fork(), in parent */
 static void
 forkparent(struct job *jp, union node *n, int mode, pid_t pid)
 {
@@ -4995,7 +5005,7 @@ esclen(const char *start, const char *p)
 static char *
 _rmescapes(char *str, int flag)
 {
-	static const char qchars[] = { CTLESC, CTLQUOTEMARK, '\0' };
+	static const char qchars[] ALIGN1 = { CTLESC, CTLQUOTEMARK, '\0' };
 
 	char *p, *q, *r;
 	unsigned inquotes;
@@ -5412,7 +5422,7 @@ static char *evalvar(char *p, int flag);
 static void
 argstr(char *p, int flag)
 {
-	static const char spclchars[] = {
+	static const char spclchars[] ALIGN1 = {
 		'=',
 		':',
 		CTLQUOTEMARK,
@@ -6258,7 +6268,7 @@ expsort(struct strlist *str)
 static void
 expandmeta(struct strlist *str, int flag)
 {
-	static const char metachars[] = {
+	static const char metachars[] ALIGN1 = {
 		'*', '?', '[', 0
 	};
 	/* TODO - EXP_REDIR */
@@ -6471,7 +6481,7 @@ tryexec(char *cmd, char **argv, char **envp)
 				run_current_applet_and_exit(argv);
 			}
 			/* re-exec ourselves with the new arguments */
-			execve(CONFIG_BUSYBOX_EXEC_PATH, argv, envp);
+			execve(bb_busybox_exec_path, argv, envp);
 			/* If they called chroot or otherwise made the binary no longer
 			 * executable, fall through */
 		}
@@ -6878,8 +6888,8 @@ static const char *const *
 findkwd(const char *s)
 {
 	return bsearch(s, tokname_array + KWDOFFSET,
-			(sizeof(tokname_array) / sizeof(char *)) - KWDOFFSET,
-			sizeof(char *), pstrcmp);
+			ARRAY_SIZE(tokname_array) - KWDOFFSET,
+			sizeof(tokname_array[0]), pstrcmp);
 }
 
 /*
@@ -6988,7 +6998,7 @@ typecmd(int argc, char **argv)
 	int verbose = 1;
 
 	/* type -p ... ? (we don't bother checking for 'p') */
-	if (argv[1][0] == '-') {
+	if (argv[1] && argv[1][0] == '-') {
 		i++;
 		verbose = 0;
 	}
@@ -7739,16 +7749,16 @@ setinteractive(int on)
 #if !ENABLE_FEATURE_SH_EXTRA_QUIET
 	if (is_interactive > 1) {
 		/* Looks like they want an interactive shell */
-		static smallint do_banner;
+		static smallint did_banner;
 
-		if (!do_banner) {
+		if (!did_banner) {
 			out1fmt(
 				"\n\n"
-				"%s Built-in shell (ash)\n"
+				"%s built-in shell (ash)\n"
 				"Enter 'help' for a list of built-in commands."
 				"\n\n",
-				BB_BANNER);
-			do_banner = 1;
+				bb_banner);
+			did_banner = 1;
 		}
 	}
 #endif
@@ -7874,7 +7884,7 @@ parse_command_args(char **argv, const char **path)
 		do {
 			switch (c) {
 			case 'p':
-				*path = defpath;
+				*path = bb_default_path;
 				break;
 			default:
 				/* run 'typecmd' for other options */
@@ -8096,7 +8106,6 @@ static const struct builtincmd builtintab[] = {
 	{ BUILTIN_REGULAR       "wait", waitcmd },
 };
 
-#define NUMBUILTINS (sizeof(builtintab) / sizeof(builtintab[0]))
 
 #define COMMANDCMD (builtintab + 5 + \
 	2 * ENABLE_ASH_BUILTIN_TEST + \
@@ -8118,7 +8127,7 @@ find_builtin(const char *name)
 	struct builtincmd *bp;
 
 	bp = bsearch(
-		name, builtintab, NUMBUILTINS, sizeof(builtintab[0]),
+		name, builtintab, ARRAY_SIZE(builtintab), sizeof(builtintab[0]),
 		pstrcmp
 	);
 	return bp;
@@ -8556,7 +8565,7 @@ preadfd(void)
 
 	if (nr < 0) {
 		if (parsefile->fd == 0 && errno == EWOULDBLOCK) {
-			int flags = fcntl(0, F_GETFL, 0);
+			int flags = fcntl(0, F_GETFL);
 			if (flags >= 0 && flags & O_NONBLOCK) {
 				flags &=~ O_NONBLOCK;
 				if (fcntl(0, F_SETFL, flags) >= 0) {
@@ -9029,8 +9038,11 @@ options(int cmdline)
 	if (cmdline)
 		minusc = NULL;
 	while ((p = *argptr) != NULL) {
-		argptr++;
 		c = *p++;
+		if (c != '-' && c != '+')
+			break;
+		argptr++;
+		val = 0; /* val = 0 if c == '+' */
 		if (c == '-') {
 			val = 1;
 			if (p[0] == '\0' || LONE_DASH(p)) {
@@ -9044,20 +9056,20 @@ options(int cmdline)
 				}
 				break;    /* "-" or  "--" terminates options */
 			}
-		} else if (c == '+') {
-			val = 0;
-		} else {
-			argptr--;
-			break;
 		}
+		/* first char was + or - */
 		while ((c = *p++) != '\0') {
+			/* bash 3.2 indeed handles -c CMD and +c CMD the same */
 			if (c == 'c' && cmdline) {
-				minusc = p;     /* command is after shell args*/
+				minusc = p;     /* command is after shell args */
 			} else if (c == 'o') {
 				minus_o(*argptr, val);
 				if (*argptr)
 					argptr++;
-			} else if (cmdline && (c == '-')) {     // long options
+			} else if (cmdline && (c == 'l')) { /* -l or +l == --login */
+				isloginsh = 1;
+			/* bash does not accept +-login, we also won't */
+			} else if (cmdline && val && (c == '-')) { /* long options */
 				if (strcmp(p, "login") == 0)
 					isloginsh = 1;
 				break;
@@ -10190,7 +10202,7 @@ parsesub: {
 	int typeloc;
 	int flags;
 	char *p;
-	static const char types[] = "}-+?=";
+	static const char types[] ALIGN1 = "}-+?=";
 
 	c = pgetc();
 	if (
@@ -10486,13 +10498,15 @@ parsearith: {
 #define NEW_xxreadtoken
 #ifdef NEW_xxreadtoken
 /* singles must be first! */
-static const char xxreadtoken_chars[7] = { '\n', '(', ')', '&', '|', ';', 0 };
+static const char xxreadtoken_chars[7] ALIGN1 = {
+	'\n', '(', ')', '&', '|', ';', 0
+};
 
-static const char xxreadtoken_tokens[] = {
+static const char xxreadtoken_tokens[] ALIGN1 = {
 	TNL, TLP, TRP,          /* only single occurrence allowed */
 	TBACKGND, TPIPE, TSEMI, /* if single occurrence */
 	TEOF,                   /* corresponds to trailing nul */
-	TAND, TOR, TENDCASE,    /* if double occurrence */
+	TAND, TOR, TENDCASE     /* if double occurrence */
 };
 
 #define xxreadtoken_doubles \
@@ -10882,7 +10896,8 @@ cmdloop(int top)
 			}
 			numeof++;
 		} else if (nflag == 0) {
-			job_warning = (job_warning == 2) ? 1 : 0;
+			/* job_warning can only be 2,1,0. Here 2->1, 1/0->0 */
+			job_warning >>= 1;
 			numeof = 0;
 			evaltree(n, 0);
 		}
@@ -10987,7 +11002,7 @@ echocmd(int argc, char **argv)
 static int
 testcmd(int argc, char **argv)
 {
-	return bb_test(argc, argv);
+	return test_main(argc, argv);
 }
 #endif
 
@@ -11110,14 +11125,16 @@ find_command(char *name, struct cmdentry *entry, int act, const char *path)
  loop:
 	while ((fullname = padvance(&path, name)) != NULL) {
 		stunalloc(fullname);
+		/* NB: code below will still use fullname
+		 * despite it being "unallocated" */
 		idx++;
 		if (pathopt) {
 			if (prefix(pathopt, "builtin")) {
 				if (bcmd)
 					goto builtin_success;
 				continue;
-			} else if (!(act & DO_NOFUNC) &&
-				   prefix(pathopt, "func")) {
+			} else if (!(act & DO_NOFUNC)
+			 && prefix(pathopt, "func")) {
 				/* handled below */
 			} else {
 				/* ignore unimplemented options */
@@ -11145,6 +11162,9 @@ find_command(char *name, struct cmdentry *entry, int act, const char *path)
 			continue;
 		if (pathopt) {          /* this is a %func directory */
 			stalloc(strlen(fullname) + 1);
+			/* NB: stalloc will return space pointed by fullname
+			 * (because we don't have any intervening allocations
+			 * between stunalloc above and this stalloc) */
 			readcmdfile(fullname);
 			cmdp = cmdlookup(name, 0);
 			if (cmdp == NULL || cmdp->cmdtype != CMDFUNCTION)
@@ -11257,7 +11277,7 @@ helpcmd(int argc, char **argv)
 	int col, i;
 
 	out1fmt("\nBuilt-in commands:\n-------------------\n");
-	for (col = 0, i = 0; i < NUMBUILTINS; i++) {
+	for (col = 0, i = 0; i < ARRAY_SIZE(builtintab); i++) {
 		col += out1fmt("%c%s", ((col == 0) ? '\t' : ' '),
 					builtintab[i].name + 1);
 		if (col > 60) {
@@ -11363,7 +11383,7 @@ unsetcmd(int argc, char **argv)
 
 #include <sys/times.h>
 
-static const unsigned char timescmd_str[] = {
+static const unsigned char timescmd_str[] ALIGN1 = {
 	' ',  offsetof(struct tms, tms_utime),
 	'\n', offsetof(struct tms, tms_stime),
 	' ',  offsetof(struct tms, tms_cutime),
@@ -11569,8 +11589,8 @@ readcmd(int argc, char **argv)
 #endif
 #if ENABLE_ASH_READ_TIMEOUT
 	if (ts.tv_sec || ts.tv_usec) {
-		FD_ZERO (&set);
-		FD_SET (0, &set);
+		FD_ZERO(&set);
+		FD_SET(0, &set);
 
 		i = select(FD_SETSIZE, &set, NULL, NULL, &ts);
 		if (!i) {
@@ -11643,9 +11663,9 @@ readcmd(int argc, char **argv)
 static int
 umaskcmd(int argc, char **argv)
 {
-	static const char permuser[3] = "ugo";
-	static const char permmode[3] = "rwx";
-	static const short int permmask[] = {
+	static const char permuser[3] ALIGN1 = "ugo";
+	static const char permmode[3] ALIGN1 = "rwx";
+	static const short permmask[] ALIGN2 = {
 		S_IRUSR, S_IWUSR, S_IXUSR,
 		S_IRGRP, S_IWGRP, S_IXGRP,
 		S_IROTH, S_IWOTH, S_IXOTH
@@ -12302,7 +12322,7 @@ arith_apply(operator op, v_n_t *numstack, v_n_t **numstackptr)
 }
 
 /* longest must be first */
-static const char op_tokens[] = {
+static const char op_tokens[] ALIGN1 = {
 	'<','<','=',0, TOK_LSHIFT_ASSIGN,
 	'>','>','=',0, TOK_RSHIFT_ASSIGN,
 	'<','<',    0, TOK_LSHIFT,

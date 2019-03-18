@@ -36,14 +36,14 @@
  * (adapted from example in gnu wc.c)
  *
  *      echo hello > /tmp/testfile &&
- *      (dd ibs=1k skip=1 count=0 &> /dev/null ; wc -c) < /tmp/testfile
+ *      (dd ibs=1k skip=1 count=0 &> /dev/null; wc -c) < /tmp/testfile
  *
  * for which 'wc -c' should output '0'.
  */
 
 #include "libbb.h"
 
-#ifdef CONFIG_LOCALE_SUPPORT
+#if ENABLE_LOCALE_SUPPORT
 #define isspace_given_isprint(c) isspace(c)
 #else
 #undef isspace
@@ -86,7 +86,7 @@ int wc_main(int argc, char **argv)
 	smallint in_word;
 	unsigned print_type;
 
-	print_type = getopt32(argc, argv, "lwcL");
+	print_type = getopt32(argv, "lwcL");
 
 	if (print_type == 0) {
 		print_type = (1 << WC_LINES) | (1 << WC_WORDS) | (1 << WC_CHARS);

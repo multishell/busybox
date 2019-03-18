@@ -278,15 +278,15 @@ static int tftp( USE_GETPUT(const int cmd,)
 				"unknown transfer id",
 				"file already exists",
 				"no such user",
-				"bad option",
+				"bad option"
 			};
-			enum { NUM_ERRCODE = sizeof(errcode_str) / sizeof(errcode_str[0]) };
+
 			const char *msg = "";
 
 			if (rbuf[4] != '\0') {
 				msg = &rbuf[4];
 				rbuf[tftp_bufsize - 1] = '\0';
-			} else if (recv_blk < NUM_ERRCODE) {
+			} else if (recv_blk < ARRAY_SIZE(errcode_str)) {
 				msg = errcode_str[recv_blk];
 			}
 			bb_error_msg("server error: (%u) %s", recv_blk, msg);
@@ -309,7 +309,7 @@ static int tftp( USE_GETPUT(const int cmd,)
 						/* htons can be impossible to use in const initializer: */
 						/*static const uint16_t error_8[2] = { htons(TFTP_ERROR), htons(8) };*/
 						/* thus we open-code big-endian layout */
-						static const char error_8[4] = { 0,TFTP_ERROR, 0,8 };
+						static const uint8_t error_8[4] = { 0,TFTP_ERROR, 0,8 };
 						xsendto(socketfd, error_8, 4, &peer_lsa->sa, peer_lsa->len);
 						bb_error_msg("server proposes bad blksize %d, exiting", blksize);
 						goto ret;
@@ -405,7 +405,7 @@ int tftp_main(int argc, char **argv)
 	opt_complementary = "" USE_FEATURE_TFTP_GET("g:") USE_FEATURE_TFTP_PUT("p:")
 			USE_GETPUT("?g--p:p--g");
 
-	USE_GETPUT(cmd =) getopt32(argc, argv,
+	USE_GETPUT(cmd =) getopt32(argv,
 			USE_FEATURE_TFTP_GET("g") USE_FEATURE_TFTP_PUT("p")
 				"l:r:" USE_FEATURE_TFTP_BLOCKSIZE("b:"),
 			&localfile, &remotefile
@@ -443,7 +443,7 @@ int tftp_main(int argc, char **argv)
 
 #if ENABLE_DEBUG_TFTP
 	fprintf(stderr, "using server '%s', remotefile '%s', localfile '%s'\n",
-			xmalloc_sockaddr2dotted(&peer_lsa->sa, peer_lsa->len),
+			xmalloc_sockaddr2dotted(&peer_lsa->sa),
 			remotefile, localfile);
 #endif
 

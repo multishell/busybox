@@ -16,20 +16,19 @@
 #include "libcoreutils/coreutils.h"
 
 #if ENABLE_FEATURE_INSTALL_LONG_OPTIONS
-static const struct option install_long_options[] = {
-	{ "directory",           0, NULL, 'd' },
-	{ "preserve-timestamps", 0, NULL, 'p' },
-	{ "strip",               0, NULL, 's' },
-	{ "group",               0, NULL, 'g' },
-	{ "mode",                0, NULL, 'm' },
-	{ "owner",               0, NULL, 'o' },
+static const char install_longopts[] ALIGN1 =
+	"directory\0"           No_argument       "d"
+	"preserve-timestamps\0" No_argument       "p"
+	"strip\0"               No_argument       "s"
+	"group\0"               No_argument       "g"
+	"mode\0"                No_argument       "m"
+	"owner\0"               No_argument       "o"
 #if ENABLE_SELINUX
-	{ "context",             1, NULL, 'Z' },
-	{ "preserve_context",    0, NULL, 0xff },
-	{ "preserve-context",    0, NULL, 0xff },
+	"context\0"             Required_argument "Z"
+	"preserve_context\0"    No_argument       "\xff"
+	"preserve-context\0"    No_argument       "\xff"
 #endif
-	{ 0, 0, 0, 0 }
-};
+	;
 #endif
 
 
@@ -97,12 +96,13 @@ int install_main(int argc, char **argv)
 	};
 
 #if ENABLE_FEATURE_INSTALL_LONG_OPTIONS
-	applet_long_options = install_long_options;
+	applet_long_options = install_longopts;
 #endif
-	opt_complementary = "?:s--d:d--s" USE_SELINUX(":Z--\xff:\xff--Z");
+	opt_complementary = "s--d:d--s" USE_SELINUX(":Z--\xff:\xff--Z");
 	/* -c exists for backwards compatibility, it's needed */
 
-	flags = getopt32(argc, argv, "cdpsg:m:o:" USE_SELINUX("Z:"), &gid_str, &mode_str, &uid_str USE_SELINUX(, &scontext));
+	flags = getopt32(argv, "cdpsg:m:o:" USE_SELINUX("Z:"),
+			&gid_str, &mode_str, &uid_str USE_SELINUX(, &scontext));
 
 #if ENABLE_SELINUX
 	if (flags & OPT_PRESERVE_SECURITY_CONTEXT) {
@@ -165,7 +165,8 @@ int install_main(int argc, char **argv)
 		return ret;
 	}
 
-	isdir = lstat(argv[argc - 1], &statbuf) < 0 ? 0 : S_ISDIR(statbuf.st_mode);
+	/* coreutils install resolves link in this case, don't use lstat */
+	isdir = stat(argv[argc - 1], &statbuf) < 0 ? 0 : S_ISDIR(statbuf.st_mode);
 
 	for (i = optind; i < argc - 1; i++) {
 		char *dest;
@@ -192,7 +193,11 @@ int install_main(int argc, char **argv)
 			ret = EXIT_FAILURE;
 		}
 		if (flags & OPT_STRIP) {
-			if (BB_EXECLP("strip", "strip", dest, NULL) == -1) {
+			char *args[3];
+			args[0] = (char*)"strip";
+			args[1] = dest;
+			args[2] = NULL;
+			if (spawn_and_wait(args)) {
 				bb_perror_msg("strip");
 				ret = EXIT_FAILURE;
 			}

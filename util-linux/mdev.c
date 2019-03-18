@@ -12,19 +12,19 @@
 #include "libbb.h"
 #include "xregex.h"
 
-#define DEV_PATH	"/dev"
-
-struct mdev_globals
-{
+struct globals {
 	int root_major, root_minor;
-} mdev_globals;
+};
+#define G (*(struct globals*)&bb_common_bufsiz1)
+#define root_major (G.root_major)
+#define root_minor (G.root_minor)
 
-#define bbg mdev_globals
+#define MAX_SYSFS_DEPTH 3 /* prevent infinite loops in /sys symlinks */
 
 /* mknod in /dev based on a path like "/sys/block/hda/hda1" */
 static void make_device(char *path, int delete)
 {
-	char *device_name;
+	const char *device_name;
 	int major, minor, type, len;
 	int mode = 0660;
 	uid_t uid = 0;
@@ -46,7 +46,7 @@ static void make_device(char *path, int delete)
 
 	/* Determine device name, type, major and minor */
 
-	device_name = strrchr(path, '/') + 1;
+	device_name = bb_basename(path);
 	type = path[5]=='c' ? S_IFCHR : S_IFBLK;
 
 	/* If we have a config file, look up permissions for this device */
@@ -90,7 +90,7 @@ static void make_device(char *path, int delete)
 				if (field == 0) {
 					/* Regex to match this device */
 
-					char *regex = strndupa(pos, end2-pos);
+					char *regex = xstrndup(pos, end2-pos);
 					regex_t match;
 					regmatch_t off;
 					int result;
@@ -99,6 +99,7 @@ static void make_device(char *path, int delete)
 					xregcomp(&match,regex, REG_EXTENDED);
 					result = regexec(&match, device_name, 1, &off, 0);
 					regfree(&match);
+					free(regex);
 
 					/* If not this device, skip rest of line */
 					if (result || off.rm_so
@@ -119,7 +120,9 @@ static void make_device(char *path, int delete)
 					uid = strtoul(pos, &s2, 10);
 					if (s != s2) {
 						struct passwd *pass;
-						pass = getpwnam(strndupa(pos, s-pos));
+						char *_unam = xstrndup(pos, s-pos);
+						pass = getpwnam(_unam);
+						free(_unam);
 						if (!pass) break;
 						uid = pass->pw_uid;
 					}
@@ -128,7 +131,9 @@ static void make_device(char *path, int delete)
 					gid = strtoul(s, &s2, 10);
 					if (end2 != s2) {
 						struct group *grp;
-						grp = getgrnam(strndupa(s, end2-s));
+						char *_grnam = xstrndup(s, end2-s);
+						grp = getgrnam(_grnam);
+						free(_grnam);
 						if (!grp) break;
 						gid = grp->gr_gid;
 					}
@@ -174,60 +179,112 @@ static void make_device(char *path, int delete)
 		if (mknod(device_name, mode | type, makedev(major, minor)) && errno != EEXIST)
 			bb_perror_msg_and_die("mknod %s", device_name);
 
-		if (major == bbg.root_major && minor == bbg.root_minor)
+		if (major == root_major && minor == root_minor)
 			symlink(device_name, "root");
 
 		if (ENABLE_FEATURE_MDEV_CONF) chown(device_name, uid, gid);
 	}
 	if (command) {
-		int rc;
-		char *s;
-
-		s = xasprintf("MDEV=%s", device_name);
+		/* setenv will leak memory, so use putenv */
+		char *s = xasprintf("MDEV=%s", device_name);
 		putenv(s);
-		rc = system(command);
-		s[4] = 0;
-		putenv(s);
+		if (system(command) == -1)
+			bb_perror_msg_and_die("cannot run %s", command);
+		s[4] = '\0';
+		unsetenv(s);
 		free(s);
 		free(command);
-		if (rc == -1) bb_perror_msg_and_die("cannot run %s", command);
 	}
 	if (delete) unlink(device_name);
 }
 
-/* Recursive search of /sys/block or /sys/class.  path must be a writeable
- * buffer of size PATH_MAX containing the directory string to start at. */
-
-static void find_dev(char *path)
+/* File callback for /sys/ traversal */
+static int fileAction(const char *fileName, struct stat *statbuf,
+                      void *userData, int depth)
 {
-	DIR *dir;
-	size_t len = strlen(path);
-	struct dirent *entry;
+	size_t len = strlen(fileName) - 4;
+	char *scratch = userData;
 
-	dir = opendir(path);
-	if (dir == NULL)
-		return;
+	if (strcmp(fileName + len, "/dev"))
+		return FALSE;
 
-	while ((entry = readdir(dir)) != NULL) {
-		struct stat st;
+	strcpy(scratch, fileName);
+	scratch[len] = 0;
+	make_device(scratch, 0);
 
-		/* Skip "." and ".." (also skips hidden files, which is ok) */
+	return TRUE;
+}
 
-		if (entry->d_name[0] == '.')
-			continue;
+/* Directory callback for /sys/ traversal */
+static int dirAction(const char *fileName, struct stat *statbuf,
+                      void *userData, int depth)
+{
+	return (depth >= MAX_SYSFS_DEPTH ? SKIP : TRUE);
+}
 
-		// uClibc doesn't fill out entry->d_type reliably. so we use lstat().
+/* For the full gory details, see linux/Documentation/firmware_class/README
+ *
+ * Firmware loading works like this:
+ * - kernel sets FIRMWARE env var
+ * - userspace checks /lib/firmware/$FIRMWARE
+ * - userspace waits for /sys/$DEVPATH/loading to appear
+ * - userspace writes "1" to /sys/$DEVPATH/loading
+ * - userspace copies /lib/firmware/$FIRMWARE into /sys/$DEVPATH/data
+ * - userspace writes "0" (worked) or "-1" (failed) to /sys/$DEVPATH/loading
+ * - kernel loads firmware into device
+ */
+static void load_firmware(const char *const firmware, const char *const sysfs_path)
+{
+	int cnt;
+	int firmware_fd, loading_fd, data_fd;
 
-		snprintf(path+len, PATH_MAX-len, "/%s", entry->d_name);
-		if (!lstat(path, &st) && S_ISDIR(st.st_mode)) find_dev(path);
-		path[len] = 0;
+	/* check for $FIRMWARE from kernel */
+	/* XXX: dont bother: open(NULL) works same as open("no-such-file")
+	 * if (!firmware)
+	 *	return;
+	 */
 
-		/* If there's a dev entry, mknod it */
+	/* check for /lib/firmware/$FIRMWARE */
+	xchdir("/lib/firmware");
+	firmware_fd = xopen(firmware, O_RDONLY);
 
-		if (!strcmp(entry->d_name, "dev")) make_device(path, 0);
+	/* in case we goto out ... */
+	data_fd = -1;
+
+	/* check for /sys/$DEVPATH/loading ... give 30 seconds to appear */
+	xchdir(sysfs_path);
+	for (cnt = 0; cnt < 30; ++cnt) {
+		loading_fd = open("loading", O_WRONLY);
+		if (loading_fd == -1)
+			sleep(1);
+		else
+			break;
 	}
+	if (loading_fd == -1)
+		goto out;
 
-	closedir(dir);
+	/* tell kernel we're loading by `echo 1 > /sys/$DEVPATH/loading` */
+	if (write(loading_fd, "1", 1) != 1)
+		goto out;
+
+	/* load firmware by `cat /lib/firmware/$FIRMWARE > /sys/$DEVPATH/data */
+	data_fd = open("data", O_WRONLY);
+	if (data_fd == -1)
+		goto out;
+	cnt = bb_copyfd_eof(firmware_fd, data_fd);
+
+	/* tell kernel result by `echo [0|-1] > /sys/$DEVPATH/loading` */
+	if (cnt > 0)
+		write(loading_fd, "0", 1);
+	else
+		write(loading_fd, "-1", 2);
+
+ out:
+	if (ENABLE_FEATURE_CLEAN_UP) {
+		close(firmware_fd);
+		close(loading_fd);
+		close(data_fd);
+	}
 }
 
 int mdev_main(int argc, char **argv);
@@ -237,7 +294,7 @@ int mdev_main(int argc, char **argv)
 	char *env_path;
 	RESERVE_CONFIG_BUFFER(temp,PATH_MAX);
 
-	xchdir(DEV_PATH);
+	xchdir("/dev");
 
 	/* Scan */
 
@@ -245,12 +302,16 @@ int mdev_main(int argc, char **argv)
 		struct stat st;
 
 		xstat("/", &st);
-		bbg.root_major = major(st.st_dev);
-		bbg.root_minor = minor(st.st_dev);
-		strcpy(temp,"/sys/block");
-		find_dev(temp);
-		strcpy(temp,"/sys/class");
-		find_dev(temp);
+		root_major = major(st.st_dev);
+		root_minor = minor(st.st_dev);
+
+		recursive_action("/sys/block",
+			ACTION_RECURSE | ACTION_FOLLOWLINKS,
+			fileAction, dirAction, temp, 0);
+
+		recursive_action("/sys/class",
+			ACTION_RECURSE | ACTION_FOLLOWLINKS,
+			fileAction, dirAction, temp, 0);
 
 	/* Hotplug */
 
@@ -261,8 +322,14 @@ int mdev_main(int argc, char **argv)
 			bb_show_usage();
 
 		sprintf(temp, "/sys%s", env_path);
-		if (!strcmp(action, "add")) make_device(temp,0);
-		else if (!strcmp(action, "remove")) make_device(temp,1);
+		if (!strcmp(action, "remove"))
+			make_device(temp, 1);
+		else if (!strcmp(action, "add")) {
+			make_device(temp, 0);
+
+			if (ENABLE_FEATURE_MDEV_LOAD_FIRMWARE)
+				load_firmware(getenv("FIRMWARE"), temp);
+		}
 	}
 
 	if (ENABLE_FEATURE_CLEAN_UP) RELEASE_CONFIG_BUFFER(temp);

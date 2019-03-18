@@ -30,7 +30,7 @@ static const struct suffix_mult tail_suffixes[] = {
 	{ "b", 512 },
 	{ "k", 1024 },
 	{ "m", 1024*1024 },
-	{ NULL, 0 }
+	{ }
 };
 
 struct globals {
@@ -63,7 +63,7 @@ static ssize_t tail_read(int fd, char *buf, size_t count)
 	return r;
 }
 
-static const char header_fmt[] = "\n==> %s <==\n";
+static const char header_fmt[] ALIGN1 = "\n==> %s <==\n";
 
 static unsigned eat_num(const char *p)
 {
@@ -107,7 +107,7 @@ int tail_main(int argc, char **argv)
 	}
 #endif
 
-	opt = getopt32(argc, argv, "fc:n:" USE_FEATURE_FANCY_TAIL("qs:v"),
+	opt = getopt32(argv, "fc:n:" USE_FEATURE_FANCY_TAIL("qs:v"),
 			&str_c, &str_n USE_FEATURE_FANCY_TAIL(,&str_s));
 #define FOLLOW (opt & 0x1)
 #define COUNT_BYTES (opt & 0x2)

@@ -45,13 +45,12 @@ unsigned type xstrtou(_range_sfx)(const char *numstr, int base,
 	 * Note that we also allow nul suffixes with associated multipliers,
 	 * to allow for scaling of the numstr by some default multiplier. */
 	if (suffixes) {
-		while (suffixes->suffix) {
+		while (suffixes->mult) {
 			if (strcmp(suffixes->suffix, e) == 0) {
 				if (XSTR_UTYPE_MAX / suffixes->mult < r)
 					goto range; /* overflow! */
-				++e;
 				r *= suffixes->mult;
-				break;
+				goto chk_range;
 			}
 			++suffixes;
 		}
@@ -61,6 +60,7 @@ unsigned type xstrtou(_range_sfx)(const char *numstr, int base,
 	   It would be easy enough to allow though if desired. */
 	if (*e)
 		goto inval;
+ chk_range:
 	/* Finally, check for range limits. */
 	if (r >= lower && r <= upper)
 		return r;

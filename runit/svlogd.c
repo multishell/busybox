@@ -33,6 +33,10 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "libbb.h"
 #include "runit_lib.h"
 
+#define LESS(a,b) ((int)((unsigned)(b) - (unsigned)(a)) > 0)
+
+#define FMT_PTIME 30
+
 static unsigned verbose;
 static int linemax = 1000;
 ////static int buflen = 1024;
@@ -41,7 +45,7 @@ static int linelen;
 static char **fndir;
 static int fdwdir;
 static int wstat;
-static struct taia trotate;
+static unsigned nearest_rotate;
 
 static char *line;
 static smallint exitasap;
@@ -55,7 +59,6 @@ static char repl;
 static const char *replace = "";
 
 static sigset_t *blocked_sigset;
-static iopause_fd input;
 static int fl_flag_0;
 
 static struct logdir {
@@ -68,14 +71,13 @@ static struct logdir {
 	unsigned sizemax;
 	unsigned nmax;
 	unsigned nmin;
-	/* int (not long) because of taia_uint() usage: */
-	unsigned tmax;
+	unsigned rotate_period;
 	int ppid;
 	int fddir;
 	int fdcur;
 	FILE* filecur; ////
 	int fdlock;
-	struct taia trotate;
+	unsigned next_rotate;
 	char fnsave[FMT_PTIME];
 	char match;
 	char matcherr;
@@ -126,6 +128,50 @@ static char* wstrdup(const char *str)
 	while (!(s = strdup(str)))
 		pause_nomem();
 	return s;
+}
+
+/*** ex fmt_ptime.[ch] ***/
+
+/* NUL terminated */
+static void fmt_time_human_30nul(char *s)
+{
+	struct tm *t;
+	struct timeval tv;
+
+	gettimeofday(&tv, NULL);
+	t = gmtime(&(tv.tv_sec));
+	sprintf(s, "%04u-%02u-%02u_%02u:%02u:%02u.%06u000",
+		(unsigned)(1900 + t->tm_year),
+		(unsigned)(t->tm_mon + 1),
+		(unsigned)(t->tm_mday),
+		(unsigned)(t->tm_hour),
+		(unsigned)(t->tm_min),
+		(unsigned)(t->tm_sec),
+		(unsigned)(tv.tv_usec)
+	);
+	/* 4+1 + 2+1 + 2+1 + 2+1 + 2+1 + 2+1 + 9 = */
+	/* 5   + 3   + 3   + 3   + 3   + 3   + 9 = */
+	/* 20 (up to '.' inclusive) + 9 (not including '\0') */
+}
+
+/* NOT terminated! */
+static void fmt_time_bernstein_25(char *s)
+{
+	uint32_t pack[3];
+	struct timeval tv;
+	unsigned sec_hi;
+
+	gettimeofday(&tv, NULL);
+	sec_hi = (0x400000000000000aULL + tv.tv_sec) >> 32;
+	tv.tv_sec = (time_t)(0x400000000000000aULL) + tv.tv_sec;
+	tv.tv_usec *= 1000;
+	/* Network order is big-endian: most significant byte first.
+	 * This is exactly what we want here */
+	pack[0] = htonl(sec_hi);
+	pack[1] = htonl(tv.tv_sec);
+	pack[2] = htonl(tv.tv_usec);
+	*s++ = '@';
+	bin2hex(s, (char*)pack, 12);
 }
 
 static unsigned processorstart(struct logdir *ld)
@@ -264,15 +310,15 @@ static void rmoldest(struct logdir *ld)
 static unsigned rotate(struct logdir *ld)
 {
 	struct stat st;
-	struct taia now;
+	unsigned now;
 
 	if (ld->fddir == -1) {
-		ld->tmax = 0;
+		ld->rotate_period = 0;
 		return 0;
 	}
 	if (ld->ppid)
 		while (!processorstop(ld))
-			/* wait */;
+			continue;
 
 	while (fchdir(ld->fddir) == -1)
 		pause2cannot("change directory, want rotate", ld->name);
@@ -284,17 +330,16 @@ static unsigned rotate(struct logdir *ld)
 		ld->fnsave[26] = 'u';
 	ld->fnsave[27] = '\0';
 	do {
-		taia_now(&now);
-		fmt_taia25(ld->fnsave, &now);
+		fmt_time_bernstein_25(ld->fnsave);
 		errno = 0;
 		stat(ld->fnsave, &st);
 	} while (errno != ENOENT);
 
-	if (ld->tmax && taia_less(&ld->trotate, &now)) {
-		taia_uint(&ld->trotate, ld->tmax);
-		taia_add(&ld->trotate, &now, &ld->trotate);
-		if (taia_less(&ld->trotate, &trotate))
-			trotate = ld->trotate;
+	now = monotonic_sec();
+	if (ld->rotate_period && LESS(ld->next_rotate, now)) {
+		ld->next_rotate = now + ld->rotate_period;
+		if (LESS(ld->next_rotate, nearest_rotate))
+			nearest_rotate = ld->next_rotate;
 	}
 
 	if (ld->size > 0) {
@@ -425,10 +470,12 @@ static void logdir_close(struct logdir *ld)
 static unsigned logdir_open(struct logdir *ld, const char *fn)
 {
 	char buf[128];
-	struct taia now;
+	unsigned now;
 	char *new, *s, *np;
 	int i;
 	struct stat st;
+
+	now = monotonic_sec();
 
 	ld->fddir = open(fn, O_RDONLY|O_NDELAY);
 	if (ld->fddir == -1) {
@@ -456,7 +503,7 @@ static unsigned logdir_open(struct logdir *ld, const char *fn)
 	ld->size = 0;
 	ld->sizemax = 1000000;
 	ld->nmax = ld->nmin = 10;
-	ld->tmax = 0;
+	ld->rotate_period = 0;
 	ld->name = (char*)fn;
 	ld->ppid = 0;
 	ld->match = '+';
@@ -465,22 +512,26 @@ static unsigned logdir_open(struct logdir *ld, const char *fn)
 
 	/* read config */
 	i = open_read_close("config", buf, sizeof(buf));
-	if (i < 0)
-		warn2("cannot read config", ld->name);
+	if (i < 0 && errno != ENOENT)
+		bb_perror_msg(WARNING"%s/config", ld->name);
 	if (i > 0) {
-		if (verbose) bb_error_msg(INFO"read: %s/config", ld->name);
+		if (verbose)
+			bb_error_msg(INFO"read: %s/config", ld->name);
 		s = buf;
 		while (s) {
 			np = strchr(s, '\n');
-			if (np) *np++ = '\0';
+			if (np)
+				*np++ = '\0';
 			switch (s[0]) {
 			case '+':
 			case '-':
 			case 'e':
 			case 'E':
+				/* Add '\n'-terminated line to ld->inst */
 				while (1) {
-					int l = asprintf(&new, "%s%s\n", ld->inst?:"", s);
-					if (l >= 0 && new) break;
+					int l = asprintf(&new, "%s%s\n", ld->inst ? : "", s);
+					if (l >= 0 && new)
+						break;
 					pause_nomem();
 				}
 				free(ld->inst);
@@ -488,9 +539,9 @@ static unsigned logdir_open(struct logdir *ld, const char *fn)
 				break;
 			case 's': {
 				static const struct suffix_mult km_suffixes[] = {
-						{ "k", 1024 },
-						{ "m", 1024*1024 },
-						{ NULL, 0 }
+					{ "k", 1024 },
+					{ "m", 1024*1024 },
+					{ }
 				};
 				ld->sizemax = xatou_sfx(&s[1], km_suffixes);
 				break;
@@ -503,17 +554,16 @@ static unsigned logdir_open(struct logdir *ld, const char *fn)
 				break;
 			case 't': {
 				static const struct suffix_mult mh_suffixes[] = {
-						{ "m", 60 },
-						{ "h", 60*60 },
-						/*{ "d", 24*60*60 },*/
-						{ NULL, 0 }
+					{ "m", 60 },
+					{ "h", 60*60 },
+					/*{ "d", 24*60*60 },*/
+					{ }
 				};
-				ld->tmax = xatou_sfx(&s[1], mh_suffixes);
-				if (ld->tmax) {
-					taia_uint(&ld->trotate, ld->tmax);
-					taia_add(&ld->trotate, &now, &ld->trotate);
-					if (!tmaxflag || taia_less(&ld->trotate, &trotate))
-						trotate = ld->trotate;
+				ld->rotate_period = xatou_sfx(&s[1], mh_suffixes);
+				if (ld->rotate_period) {
+					ld->next_rotate = now + ld->rotate_period;
+					if (!tmaxflag || LESS(ld->next_rotate, nearest_rotate))
+						nearest_rotate = ld->next_rotate;
 					tmaxflag = 1;
 				}
 				break;
@@ -531,7 +581,8 @@ static unsigned logdir_open(struct logdir *ld, const char *fn)
 		s = ld->inst;
 		while (s) {
 			np = strchr(s, '\n');
-			if (np) *np++ = '\0';
+			if (np)
+				*np++ = '\0';
 			s = np;
 		}
 	}
@@ -539,13 +590,12 @@ static unsigned logdir_open(struct logdir *ld, const char *fn)
 	/* open current */
 	i = stat("current", &st);
 	if (i != -1) {
-		if (st.st_size && ! (st.st_mode & S_IXUSR)) {
+		if (st.st_size && !(st.st_mode & S_IXUSR)) {
 			ld->fnsave[25] = '.';
 			ld->fnsave[26] = 'u';
 			ld->fnsave[27] = '\0';
 			do {
-				taia_now(&now);
-				fmt_taia25(ld->fnsave, &now);
+				fmt_time_bernstein_25(ld->fnsave);
 				errno = 0;
 				stat(ld->fnsave, &st);
 			} while (errno != ENOENT);
@@ -554,8 +604,9 @@ static unsigned logdir_open(struct logdir *ld, const char *fn)
 			rmoldest(ld);
 			i = -1;
 		} else {
-			/* Be paranoid: st.st_size can be not just bigger, but WIDER! */
-			/* (bug in original svlogd. remove this comment when fixed there) */
+			/* st.st_size can be not just bigger, but WIDER!
+			 * This code is safe: if st.st_size > 4GB, we select
+			 * ld->sizemax (because it's "unsigned") */
 			ld->size = (st.st_size > ld->sizemax) ? ld->sizemax : st.st_size;
 		}
 	} else {
@@ -589,17 +640,17 @@ static unsigned logdir_open(struct logdir *ld, const char *fn)
 
 static void logdirs_reopen(void)
 {
-	struct taia now;
 	int l;
 	int ok = 0;
 
 	tmaxflag = 0;
-	taia_now(&now);
 	for (l = 0; l < dirn; ++l) {
 		logdir_close(&dir[l]);
-		if (logdir_open(&dir[l], fndir[l])) ok = 1;
+		if (logdir_open(&dir[l], fndir[l]))
+			ok = 1;
 	}
-	if (!ok) fatalx("no functional log directories");
+	if (!ok)
+		fatalx("no functional log directories");
 }
 
 /* Will look good in libbb one day */
@@ -614,42 +665,55 @@ static ssize_t ndelay_read(int fd, void *buf, size_t count)
 }
 
 /* Used for reading stdin */
-static int buffer_pread(int fd, char *s, unsigned len, struct taia *now)
+static int buffer_pread(int fd, char *s, unsigned len)
 {
+	unsigned now;
+	struct pollfd input;
 	int i;
 
-	if (rotateasap) {
-		for (i = 0; i < dirn; ++i)
-			rotate(dir+i);
-		rotateasap = 0;
-	}
-	if (exitasap) {
-		if (linecomplete)
-			return 0;
-		len = 1;
-	}
-	if (reopenasap) {
-		logdirs_reopen();
-		reopenasap = 0;
-	}
-	taia_uint(&trotate, 2744);
-	taia_add(&trotate, now, &trotate);
-	for (i = 0; i < dirn; ++i)
-		if (dir[i].tmax) {
-			if (taia_less(&dir[i].trotate, now))
-				rotate(dir+i);
-			if (taia_less(&dir[i].trotate, &trotate))
-				trotate = dir[i].trotate;
-		}
+	input.fd = 0;
+	input.events = POLLIN;
 
 	do {
+		if (rotateasap) {
+			for (i = 0; i < dirn; ++i)
+				rotate(dir + i);
+			rotateasap = 0;
+		}
+		if (exitasap) {
+			if (linecomplete)
+				return 0;
+			len = 1;
+		}
+		if (reopenasap) {
+			logdirs_reopen();
+			reopenasap = 0;
+		}
+		now = monotonic_sec();
+		nearest_rotate = now + (45 * 60 + 45);
+		for (i = 0; i < dirn; ++i) {
+			if (dir[i].rotate_period) {
+				if (LESS(dir[i].next_rotate, now))
+					rotate(dir + i);
+				if (LESS(dir[i].next_rotate, nearest_rotate))
+					nearest_rotate = dir[i].next_rotate;
+			}
+		}
+
 		sigprocmask(SIG_UNBLOCK, blocked_sigset, NULL);
-		iopause(&input, 1, &trotate, now);
-// TODO: do not unblock/block, but use sigpending after iopause
-// to see whether there was any sig? (one syscall less...)
+		i = nearest_rotate - now;
+		if (i > 1000000)
+			i = 1000000;
+		if (i <= 0)
+			i = 1;
+		poll(&input, 1, i * 1000);
 		sigprocmask(SIG_BLOCK, blocked_sigset, NULL);
+
 		i = ndelay_read(fd, s, len);
-		if (i >= 0) break;
+		if (i >= 0)
+			break;
+		if (errno == EINTR)
+			continue;
 		if (errno != EAGAIN) {
 			warn("cannot read standard input");
 			break;
@@ -660,7 +724,8 @@ static int buffer_pread(int fd, char *s, unsigned len, struct taia *now)
 	if (i > 0) {
 		int cnt;
 		linecomplete = (s[i-1] == '\n');
-		if (!repl) return i;
+		if (!repl)
+			return i;
 
 		cnt = i;
 		while (--cnt >= 0) {
@@ -684,7 +749,6 @@ static int buffer_pread(int fd, char *s, unsigned len, struct taia *now)
 	return i;
 }
 
-
 static void sig_term_handler(int sig_no)
 {
 	if (verbose)
@@ -698,13 +762,15 @@ static void sig_child_handler(int sig_no)
 
 	if (verbose)
 		bb_error_msg(INFO"sig%s received", "child");
-	while ((pid = wait_nohang(&wstat)) > 0)
-		for (l = 0; l < dirn; ++l)
+	while ((pid = wait_nohang(&wstat)) > 0) {
+		for (l = 0; l < dirn; ++l) {
 			if (dir[l].ppid == pid) {
 				dir[l].ppid = 0;
 				processorstop(&dir[l]);
 				break;
 			}
+		}
+	}
 }
 
 static void sig_alarm_handler(int sig_no)
@@ -759,7 +825,7 @@ int svlogd_main(int argc, char **argv)
 #define line bb_common_bufsiz1
 
 	opt_complementary = "tt:vv";
-	opt = getopt32(argc, argv, "r:R:l:b:tv",
+	opt = getopt32(argv, "r:R:l:b:tv",
 			&r, &replace, &l, &b, &timestamp, &verbose);
 	if (opt & 1) { // -r
 		repl = r[0];
@@ -795,12 +861,10 @@ int svlogd_main(int argc, char **argv)
 	}
 	/* line = xmalloc(linemax + (timestamp ? 26 : 0)); */
 	fndir = argv;
-	input.fd = 0;
-	input.events = IOPAUSE_READ;
 	/* We cannot set NONBLOCK on fd #0 permanently - this setting
 	 * _isn't_ per-process! It is shared among all other processes
 	 * with the same stdin */
-	fl_flag_0 = fcntl(0, F_GETFL, 0);
+	fl_flag_0 = fcntl(0, F_GETFL);
 
 	blocked_sigset = &ss;
 	sigemptyset(&ss);
@@ -826,7 +890,6 @@ int svlogd_main(int argc, char **argv)
 
 	/* Each iteration processes one or more lines */
 	while (1) {
-		struct taia now;
 		char stamp[FMT_PTIME];
 		char *lineptr;
 		char *printptr;
@@ -835,19 +898,8 @@ int svlogd_main(int argc, char **argv)
 		char ch;
 
 		lineptr = line;
-		taia_now(&now);
-		/* Prepare timestamp if needed */
-		if (timestamp) {
-			switch (timestamp) {
-			case 1:
-				fmt_taia25(stamp, &now);
-				break;
-			default: /* case 2: */
-				fmt_ptime30nul(stamp, &now);
-				break;
-			}
+		if (timestamp)
 			lineptr += 26;
-		}
 
 		/* lineptr[0..linemax-1] - buffer for stdin */
 		/* (possibly has some unprocessed data from prev loop) */
@@ -857,7 +909,7 @@ int svlogd_main(int argc, char **argv)
 		if (!np && !exitasap) {
 			i = linemax - stdin_cnt; /* avail. bytes at tail */
 			if (i >= 128) {
-				i = buffer_pread(0, lineptr + stdin_cnt, i, &now);
+				i = buffer_pread(0, lineptr + stdin_cnt, i);
 				if (i <= 0) /* EOF or error on stdin */
 					exitasap = 1;
 				else {
@@ -889,6 +941,10 @@ int svlogd_main(int argc, char **argv)
 		printlen = linelen;
 		printptr = lineptr;
 		if (timestamp) {
+			if (timestamp == 1)
+				fmt_time_bernstein_25(stamp);
+			else /* 2: */
+				fmt_time_human_30nul(stamp);
 			printlen += 26;
 			printptr -= 26;
 			memcpy(printptr, stamp, 25);
@@ -910,8 +966,7 @@ int svlogd_main(int argc, char **argv)
 		/* read/write repeatedly until we see it */
 		while (ch != '\n') {
 			/* lineptr is emptied now, safe to use as buffer */
-			taia_now(&now);
-			stdin_cnt = exitasap ? -1 : buffer_pread(0, lineptr, linemax, &now);
+			stdin_cnt = exitasap ? -1 : buffer_pread(0, lineptr, linemax);
 			if (stdin_cnt <= 0) { /* EOF or error on stdin */
 				exitasap = 1;
 				lineptr[0] = ch = '\n';

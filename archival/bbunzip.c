@@ -155,13 +155,13 @@ char* make_new_name_bunzip2(char *filename)
 static
 USE_DESKTOP(long long) int unpack_bunzip2(void)
 {
-	return uncompressStream(STDIN_FILENO, STDOUT_FILENO);
+	return unpack_bz2_stream(STDIN_FILENO, STDOUT_FILENO);
 }
 
 int bunzip2_main(int argc, char **argv);
 int bunzip2_main(int argc, char **argv)
 {
-	getopt32(argc, argv, "cf");
+	getopt32(argv, "cf");
 	argv += optind;
 	if (applet_name[2] == 'c')
 		option_mask32 |= OPT_STDOUT;
@@ -212,7 +212,7 @@ char* make_new_name_gunzip(char *filename)
 
 	extension++;
 	if (strcmp(extension, "tgz" + 1) == 0
-#ifdef CONFIG_FEATURE_GUNZIP_UNCOMPRESS
+#if ENABLE_FEATURE_GUNZIP_UNCOMPRESS
 	 || strcmp(extension, "Z") == 0
 #endif
 	) {
@@ -242,7 +242,7 @@ USE_DESKTOP(long long) int unpack_gunzip(void)
 			status = uncompress(STDIN_FILENO, STDOUT_FILENO);
 		} else if (magic2 == 0x8b) {
 			check_header_gzip_or_die(STDIN_FILENO);
-			status = inflate_gunzip(STDIN_FILENO, STDOUT_FILENO);
+			status = unpack_gz_stream(STDIN_FILENO, STDOUT_FILENO);
 		} else {
 			goto bad_magic;
 		}
@@ -260,7 +260,7 @@ USE_DESKTOP(long long) int unpack_gunzip(void)
 int gunzip_main(int argc, char **argv);
 int gunzip_main(int argc, char **argv)
 {
-	getopt32(argc, argv, "cfvdt");
+	getopt32(argv, "cfvdt");
 	argv += optind;
 	/* if called as zcat */
 	if (applet_name[1] == 'c')
@@ -292,13 +292,13 @@ char* make_new_name_unlzma(char *filename)
 static
 USE_DESKTOP(long long) int unpack_unlzma(void)
 {
-	return unlzma(STDIN_FILENO, STDOUT_FILENO);
+	return unpack_lzma_stream(STDIN_FILENO, STDOUT_FILENO);
 }
 
 int unlzma_main(int argc, char **argv);
 int unlzma_main(int argc, char **argv)
 {
-	getopt32(argc, argv, "c");
+	getopt32(argv, "c");
 	argv += optind;
 	/* lzmacat? */
 	if (applet_name[4] == 'c')
@@ -340,7 +340,7 @@ USE_DESKTOP(long long) int unpack_uncompress(void)
 int uncompress_main(int argc, char **argv);
 int uncompress_main(int argc, char **argv)
 {
-	getopt32(argc, argv, "cf");
+	getopt32(argv, "cf");
 	argv += optind;
 
 	return bbunpack(argv, make_new_name_uncompress, unpack_uncompress);

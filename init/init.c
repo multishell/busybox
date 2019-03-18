@@ -24,10 +24,6 @@
 #define CONSOLE_NAME_SIZE 32
 #define MAXENV	16		/* Number of env. vars */
 
-#ifndef _PATH_STDPATH
-#define _PATH_STDPATH	"/usr/bin:/bin:/usr/sbin:/sbin"
-#endif
-
 #if ENABLE_FEATURE_INIT_COREDUMPS
 /*
  * When a file named CORE_ENABLE_FLAG_FILE exists, setrlimit is called
@@ -110,9 +106,9 @@ enum {
 #endif
 };
 
-static const char * const environment[] = {
+static const char *const environment[] = {
 	"HOME=/",
-	"PATH=" _PATH_STDPATH,
+	bb_PATH_root_path,
 	"SHELL=/bin/sh",
 	"USER=root",
 	NULL
@@ -295,20 +291,14 @@ static void console_init(void)
 		putenv((char*)"TERM=linux");
 }
 
-static void fixup_argv(int argc, char **argv, const char *new_argv0)
+static void fixup_argv(char **argv)
 {
-	int len;
-
 	/* Fix up argv[0] to be certain we claim to be init */
-	len = strlen(argv[0]);
-	strncpy(argv[0], new_argv0, len);
+	strncpy(argv[0], "init", strlen(argv[0]));
 
 	/* Wipe argv[1]-argv[N] so they don't clutter the ps listing */
-	len = 1;
-	while (argc > len) {
-		memset(argv[len], 0, strlen(argv[len]));
-		len++;
-	}
+	while (*++argv)
+		memset(*argv, 0, strlen(*argv));
 }
 
 /* Open the new terminal device */
@@ -467,7 +457,7 @@ static pid_t run(const struct init_action *a)
 
 #if !defined(__UCLIBC__) || defined(__ARCH_HAS_MMU__)
 	if (a->action & ASKFIRST) {
-		static const char press_enter[] =
+		static const char press_enter[] ALIGN1 =
 #ifdef CUSTOMIZED_BANNER
 #include CUSTOMIZED_BANNER
 #endif
@@ -926,13 +916,14 @@ int init_main(int argc, char **argv)
 	init_reboot(RB_DISABLE_CAD);
 #endif
 
+
 	/* Figure out where the default console should be */
 	console_init();
 	set_sane_term();
 	chdir("/");
 	setsid();
 	{
-		const char * const *e;
+		const char *const *e;
 		/* Make sure environs is set to something sane */
 		for (e = environment; *e; e++)
 			putenv((char *) *e);
@@ -941,7 +932,7 @@ int init_main(int argc, char **argv)
 	if (argc > 1) setenv("RUNLEVEL", argv[1], 1);
 
 	/* Hello world */
-	message(MAYBE_CONSOLE | L_LOG, "init started: %s", bb_msg_full_version);
+	message(MAYBE_CONSOLE | L_LOG, "init started: %s", bb_banner);
 
 	/* Make sure there is enough memory to do something useful. */
 	if (ENABLE_SWAPONOFF) {
@@ -979,7 +970,7 @@ int init_main(int argc, char **argv)
 	if (getenv("SELINUX_INIT") == NULL) {
 		int enforce = 0;
 
-		putenv("SELINUX_INIT=YES");
+		putenv((char*)"SELINUX_INIT=YES");
 		if (selinux_init_load_policy(&enforce) == 0) {
 			BB_EXECVP(argv[0], argv);
 		} else if (enforce > 0) {
@@ -993,7 +984,7 @@ int init_main(int argc, char **argv)
 #endif /* CONFIG_SELINUX */
 
 	/* Make the command line just say "init"  -- thats all, nothing else */
-	fixup_argv(argc, argv, "init");
+	fixup_argv(argv);
 
 	/* Now run everything that needs to be run */
 

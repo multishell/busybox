@@ -24,7 +24,7 @@
 
 /* options */
 #define OPTSTR_GREP \
-	"lnqvscFiHhe:f:Lor" \
+	"lnqvscFiHhe:f:Lorm:" \
 	USE_FEATURE_GREP_CONTEXT("A:B:C:") \
 	USE_FEATURE_GREP_EGREP_ALIAS("E") \
 	USE_DESKTOP("w") \
@@ -33,26 +33,27 @@
 /* ignored: -I "assume binary files have no matches" */
 
 enum {
-	OPTBIT_l,
-	OPTBIT_n,
-	OPTBIT_q,
-	OPTBIT_v,
-	OPTBIT_s,
-	OPTBIT_c,
-	OPTBIT_F,
-	OPTBIT_i,
-	OPTBIT_H,
-	OPTBIT_h,
-	OPTBIT_e,
-	OPTBIT_f,
-	OPTBIT_L,
-	OPTBIT_o,
-	OPTBIT_r,
-	USE_FEATURE_GREP_CONTEXT(    OPTBIT_A ,)
-	USE_FEATURE_GREP_CONTEXT(    OPTBIT_B ,)
-	USE_FEATURE_GREP_CONTEXT(    OPTBIT_C ,)
-	USE_FEATURE_GREP_EGREP_ALIAS(OPTBIT_E ,)
-	USE_DESKTOP(                 OPTBIT_w ,)
+	OPTBIT_l, /* list matched file names only */
+	OPTBIT_n, /* print line# */
+	OPTBIT_q, /* quiet - exit(0) of first match */
+	OPTBIT_v, /* invert the match, to select non-matching lines */
+	OPTBIT_s, /* suppress errors about file open errors */
+	OPTBIT_c, /* count matches per file (suppresses normal output) */
+	OPTBIT_F, /* literal match */
+	OPTBIT_i, /* case-insensitive */
+	OPTBIT_H, /* force filename display */
+	OPTBIT_h, /* inhibit filename display */
+	OPTBIT_e, /* -e PATTERN */
+	OPTBIT_f, /* -f FILE_WITH_PATTERNS */
+	OPTBIT_L, /* list unmatched file names only */
+	OPTBIT_o, /* show only matching parts of lines */
+	OPTBIT_r, /* recurse dirs */
+	OPTBIT_m, /* -m MAX_MATCHES */
+	USE_FEATURE_GREP_CONTEXT(    OPTBIT_A ,) /* -A NUM: after-match context */
+	USE_FEATURE_GREP_CONTEXT(    OPTBIT_B ,) /* -B NUM: before-match context */
+	USE_FEATURE_GREP_CONTEXT(    OPTBIT_C ,) /* -C NUM: -A and -B combined */
+	USE_FEATURE_GREP_EGREP_ALIAS(OPTBIT_E ,) /* extended regexp */
+	USE_DESKTOP(                 OPTBIT_w ,) /* whole word match */
 	OPT_l = 1 << OPTBIT_l,
 	OPT_n = 1 << OPTBIT_n,
 	OPT_q = 1 << OPTBIT_q,
@@ -68,6 +69,7 @@ enum {
 	OPT_L = 1 << OPTBIT_L,
 	OPT_o = 1 << OPTBIT_o,
 	OPT_r = 1 << OPTBIT_r,
+	OPT_m = 1 << OPTBIT_m,
 	OPT_A = USE_FEATURE_GREP_CONTEXT(    (1 << OPTBIT_A)) + 0,
 	OPT_B = USE_FEATURE_GREP_CONTEXT(    (1 << OPTBIT_B)) + 0,
 	OPT_C = USE_FEATURE_GREP_CONTEXT(    (1 << OPTBIT_C)) + 0,
@@ -85,18 +87,19 @@ enum {
 
 typedef unsigned char byte_t;
 
+static int max_matches;
 static int reflags;
 static byte_t invert_search;
 static byte_t print_filename;
 static byte_t open_errors;
 
 #if ENABLE_FEATURE_GREP_CONTEXT
+static byte_t did_print_line;
 static int lines_before;
 static int lines_after;
 static char **before_buf;
 static int last_line_printed;
 #endif /* ENABLE_FEATURE_GREP_CONTEXT */
-
 /* globals used internally */
 static llist_t *pattern_head;   /* growable list of patterns to match */
 static const char *cur_file;    /* the current file we are reading */
@@ -112,11 +115,17 @@ typedef struct grep_list_data_t {
 static void print_line(const char *line, int linenum, char decoration)
 {
 #if ENABLE_FEATURE_GREP_CONTEXT
+	/* Happens when we go to next file, immediately hit match
+	 * and try to print prev context... from prev file! Don't do it */
+	if (linenum < 1)
+		return;
 	/* possibly print the little '--' separator */
-	if ((lines_before || lines_after) && last_line_printed &&
-			last_line_printed < linenum - 1) {
+	if ((lines_before || lines_after) && did_print_line &&
+			last_line_printed != linenum - 1) {
 		puts("--");
 	}
+	/* guard against printing "--" before first line of first file */
+	did_print_line = 1;
 	last_line_printed = linenum;
 #endif
 	if (print_filename)
@@ -124,7 +133,7 @@ static void print_line(const char *line, int linenum, char decoration)
 	if (PRINT_LINE_NUM)
 		printf("%i%c", linenum, decoration);
 	/* Emulate weird GNU grep behavior with -ov */
-	if ((option_mask32 & (OPT_v+OPT_o)) != (OPT_v+OPT_o))
+	if ((option_mask32 & (OPT_v|OPT_o)) != (OPT_v|OPT_o))
 		puts(line);
 }
 
@@ -139,6 +148,8 @@ static int grep_file(FILE *file)
 	int print_n_lines_after = 0;
 	int curpos = 0; /* track where we are in the circular 'before' buffer */
 	int idx = 0; /* used for iteration through the circular buffer */
+#else
+	enum { print_n_lines_after = 0 };
 #endif /* ENABLE_FEATURE_GREP_CONTEXT */
 
 	while ((line = xmalloc_getline(file)) != NULL) {
@@ -183,19 +194,33 @@ static int grep_file(FILE *file)
 		} /* while (pattern_ptr) */
 
 		if (ret ^ invert_search) {
-			if (PRINT_FILES_WITH_MATCHES || BE_QUIET)
-				free(line);
-
-			/* if we found a match but were told to be quiet, stop here */
-			if (BE_QUIET || PRINT_FILES_WITHOUT_MATCHES)
-				return -1;
-
 			/* keep track of matches */
 			nmatches++;
 
-			/* if we're just printing filenames, we stop after the first match */
-			if (PRINT_FILES_WITH_MATCHES)
+			/* quiet/print (non)matching file names only? */
+			if (option_mask32 & (OPT_q|OPT_l|OPT_L)) {
+				free(line); /* we don't need line anymore */
+				if (BE_QUIET) {
+					/* manpage says about -q:
+					 * "exit immediately with zero status
+					 * if any match is found,
+					 * even if errors were detected" */
+					exit(0);
+				}
+				/* if we're just printing filenames, we stop after the first match */
+				if (PRINT_FILES_WITH_MATCHES) {
+					puts(cur_file);
+					/* fall thru to "return 1" */
+				}
+				/* OPT_L aka PRINT_FILES_WITHOUT_MATCHES: return early */
+				return 1; /* one match */
+			}
+
+#if ENABLE_FEATURE_GREP_CONTEXT
+			/* Were we printing context and saw next (unwanted) match? */
+			if ((option_mask32 & OPT_m) && nmatches > max_matches)
 				break;
+#endif
 
 			/* print the matched line */
 			if (PRINT_MATCH_COUNTS == 0) {
@@ -239,21 +264,27 @@ static int grep_file(FILE *file)
 		}
 #if ENABLE_FEATURE_GREP_CONTEXT
 		else { /* no match */
-			/* Add the line to the circular 'before' buffer */
-			if (lines_before) {
+			/* if we need to print some context lines after the last match, do so */
+			if (print_n_lines_after) {
+				print_line(line, linenum, '-');
+				print_n_lines_after--;
+			} else if (lines_before) {
+				/* Add the line to the circular 'before' buffer */
 				free(before_buf[curpos]);
-				before_buf[curpos] = xstrdup(line);
+				before_buf[curpos] = line;
 				curpos = (curpos + 1) % lines_before;
+				/* avoid free(line) - we took line */
+				line = NULL;
 			}
 		}
 
-		/* if we need to print some context lines after the last match, do so */
-		if (print_n_lines_after && (last_line_printed != linenum)) {
-			print_line(line, linenum, '-');
-			print_n_lines_after--;
-		}
 #endif /* ENABLE_FEATURE_GREP_CONTEXT */
 		free(line);
+
+		/* Did we print all context after last requested match? */
+		if ((option_mask32 & OPT_m)
+		 && !print_n_lines_after && nmatches == max_matches)
+			break;
 	}
 
 	/* special-case file post-processing for options where we don't print line
@@ -266,13 +297,11 @@ static int grep_file(FILE *file)
 		printf("%d\n", nmatches);
 	}
 
-	/* grep -l: print just the filename, but only if we grepped the line in the file  */
-	if (PRINT_FILES_WITH_MATCHES && nmatches > 0) {
-		puts(cur_file);
-	}
-
-	/* grep -L: print just the filename, but only if we didn't grep the line in the file  */
-	if (PRINT_FILES_WITHOUT_MATCHES && nmatches == 0) {
+	/* grep -L: print just the filename */
+	if (PRINT_FILES_WITHOUT_MATCHES) {
+		/* nmatches is zero, no need to check it:
+		 * we return 1 early if we detected a match
+		 * and PRINT_FILES_WITHOUT_MATCHES is set */
 		puts(cur_file);
 	}
 
@@ -296,7 +325,6 @@ static char * add_grep_list_data(char *pattern)
 #endif
 	return (char *)gl;
 }
-
 
 static void load_regexes_from_file(llist_t *fopt)
 {
@@ -351,6 +379,7 @@ int grep_main(int argc, char **argv)
 {
 	FILE *file;
 	int matched;
+	char *mopt;
 	llist_t *fopt = NULL;
 
 	/* do normal option parsing */
@@ -360,9 +389,9 @@ int grep_main(int argc, char **argv)
 	char *Copt;
 
 	opt_complementary = "H-h:e::f::C-AB";
-	getopt32(argc, argv,
+	getopt32(argv,
 		OPTSTR_GREP,
-		&pattern_head, &fopt,
+		&pattern_head, &fopt, &mopt,
 		&slines_after, &slines_before, &Copt);
 
 	if (option_mask32 & OPT_C) {
@@ -390,9 +419,12 @@ int grep_main(int argc, char **argv)
 #else
 	/* with auto sanity checks */
 	opt_complementary = "H-h:e::f::c-n:q-n:l-n";
-	getopt32(argc, argv, OPTSTR_GREP,
-		&pattern_head, &fopt);
+	getopt32(argv, OPTSTR_GREP,
+		&pattern_head, &fopt, &mopt);
 #endif
+	if (option_mask32 & OPT_m) {
+		max_matches = xatoi_u(mopt);
+	}
 	invert_search = ((option_mask32 & OPT_v) != 0); /* 0 | 1 */
 
 	if (pattern_head != NULL) {
@@ -473,12 +505,7 @@ int grep_main(int argc, char **argv)
 		}
 		matched += grep_file(file);
 		fclose_if_not_stdin(file);
- grep_done:
-		if (matched < 0) {
-			/* we found a match but were told to be quiet, stop here and
-			* return success */
-			break;
-		}
+ grep_done: ;
 	}
 
 	/* destroy all the elments in the pattern list */
@@ -498,10 +525,6 @@ int grep_main(int argc, char **argv)
 		}
 	}
 	/* 0 = success, 1 = failed, 2 = error */
-	/* If the -q option is specified, the exit status shall be zero
-	 * if an input line is selected, even if an error was detected.  */
-	if (BE_QUIET && matched)
-		return 0;
 	if (open_errors)
 		return 2;
 	return !matched; /* invert return value 0 = success, 1 = failed */

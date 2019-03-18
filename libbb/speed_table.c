@@ -54,7 +54,7 @@ static const struct speed_map speeds[] = {
 #endif
 };
 
-enum { NUM_SPEEDS = (sizeof(speeds) / sizeof(struct speed_map)) };
+enum { NUM_SPEEDS = ARRAY_SIZE(speeds) };
 
 unsigned int tty_baud_to_value(speed_t speed)
 {
@@ -94,7 +94,7 @@ int main(void)
 	unsigned long v;
 	speed_t s;
 
-	for (v = 0 ; v < 500000 ; v++) {
+	for (v = 0 ; v < 500000; v++) {
 		s = tty_value_to_baud(v);
 		if (s == (speed_t) -1) {
 			continue;
@@ -104,7 +104,7 @@ int main(void)
 
 	printf("-------------------------------\n");
 
-	for (s = 0 ; s < 010017+1 ; s++) {
+	for (s = 0 ; s < 010017+1; s++) {
 		v = tty_baud_to_value(s);
 		if (!v) {
 			continue;

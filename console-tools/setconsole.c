@@ -11,10 +11,9 @@
 #include "libbb.h"
 
 #if ENABLE_FEATURE_SETCONSOLE_LONG_OPTIONS
-static const struct option setconsole_long_options[] = {
-	{ "reset", 0, NULL, 'r' },
-	{ 0, 0, 0, 0 }
-};
+static const char setconsole_longopts[] ALIGN1 =
+	"reset\0" No_argument "r"
+	;
 #endif
 
 #define OPT_SETCONS_RESET 1
@@ -26,9 +25,9 @@ int setconsole_main(int argc, char **argv)
 	const char *device = CURRENT_TTY;
 
 #if ENABLE_FEATURE_SETCONSOLE_LONG_OPTIONS
-	applet_long_options = setconsole_long_options;
+	applet_long_options = setconsole_longopts;
 #endif
-	flags = getopt32(argc, argv, "r");
+	flags = getopt32(argv, "r");
 
 	if (argc - optind > 1)
 		bb_show_usage();
@@ -42,8 +41,6 @@ int setconsole_main(int argc, char **argv)
 			device = DEV_CONSOLE;
 	}
 
-	if (-1 == ioctl(xopen(device, O_RDONLY), TIOCCONS)) {
-		bb_perror_msg_and_die("TIOCCONS");
-	}
+	xioctl(xopen(device, O_RDONLY), TIOCCONS, NULL);
 	return EXIT_SUCCESS;
 }

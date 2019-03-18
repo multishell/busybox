@@ -13,7 +13,7 @@
 
 #include "libbb.h"
 
-static const char head_opts[] =
+static const char head_opts[] ALIGN1 =
 	"n:"
 #if ENABLE_FEATURE_FANCY_HEAD
 	"c:qv"
@@ -25,11 +25,11 @@ static const struct suffix_mult head_suffixes[] = {
 	{ "b", 512 },
 	{ "k", 1024 },
 	{ "m", 1024*1024 },
-	{ NULL, 0 }
+	{ }
 };
 #endif
 
-static const char header_fmt_str[] = "\n==> %s <==\n";
+static const char header_fmt_str[] ALIGN1 = "\n==> %s <==\n";
 
 int head_main(int argc, char **argv);
 int head_main(int argc, char **argv)

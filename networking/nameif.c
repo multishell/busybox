@@ -66,7 +66,7 @@ int nameif_main(int argc, char **argv)
 	int if_index = 1;
 	mactable_t *ch;
 
-	if (1 & getopt32(argc, argv, "sc:", &fname)) {
+	if (1 & getopt32(argv, "sc:", &fname)) {
 		openlog(applet_name, 0, LOG_LOCAL0);
 		logmode = LOGMODE_SYSLOG;
 	}
@@ -148,9 +148,9 @@ int nameif_main(int argc, char **argv)
 			continue;
 
 		strcpy(ifr.ifr_newname, ch->ifname);
-		if (ioctl(ctl_sk, SIOCSIFNAME, &ifr) < 0)
-			bb_perror_msg_and_die("cannot change ifname %s to %s",
-				   ifr.ifr_name, ch->ifname);
+		ioctl_or_perror_and_die(ctl_sk, SIOCSIFNAME, &ifr,
+					"cannot change ifname %s to %s",
+					ifr.ifr_name, ch->ifname);
 
 		/* Remove list entry of renamed interface */
 		if (ch->prev != NULL) {

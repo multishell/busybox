@@ -453,8 +453,7 @@ static void setup(servtab_t *sep)
 		bb_perror_msg("%s/%s: socket", sep->se_service, sep->se_proto);
 		return;
 	}
-	if (setsockopt_reuseaddr(sep->se_fd) < 0)
-		bb_perror_msg("setsockopt(SO_REUSEADDR)");
+	setsockopt_reuseaddr(sep->se_fd);
 
 #if ENABLE_FEATURE_INETD_RPC
 	if (isrpcservice(sep)) {
@@ -1279,7 +1278,7 @@ int inetd_main(int argc, char **argv)
 	if (uid != 0)
 		config_filename = NULL;
 
-	opt = getopt32(argc, argv, "R:f", &stoomany);
+	opt = getopt32(argv, "R:f", &stoomany);
 	if (opt & 1)
 		toomany = xatoi_u(stoomany);
 	argv += optind;

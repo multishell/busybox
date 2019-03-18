@@ -129,20 +129,20 @@ struct tspec {
    10	unsigned decimal
    8	unsigned hexadecimal  */
 
-static const uint8_t bytes_to_oct_digits[] =
+static const uint8_t bytes_to_oct_digits[] ALIGN1 =
 {0, 3, 6, 8, 11, 14, 16, 19, 22, 25, 27, 30, 32, 35, 38, 41, 43};
 
-static const uint8_t bytes_to_signed_dec_digits[] =
+static const uint8_t bytes_to_signed_dec_digits[] ALIGN1 =
 {1, 4, 6, 8, 11, 13, 16, 18, 20, 23, 25, 28, 30, 33, 35, 37, 40};
 
-static const uint8_t bytes_to_unsigned_dec_digits[] =
+static const uint8_t bytes_to_unsigned_dec_digits[] ALIGN1 =
 {0, 3, 5, 8, 10, 13, 15, 17, 20, 22, 25, 27, 29, 32, 34, 37, 39};
 
-static const uint8_t bytes_to_hex_digits[] =
+static const uint8_t bytes_to_hex_digits[] ALIGN1 =
 {0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32};
 
 /* Convert enum size_spec to the size of the named type.  */
-static const signed char width_bytes[] = {
+static const signed char width_bytes[] ALIGN1 = {
 	-1,
 	sizeof(char),
 	sizeof(short),
@@ -153,49 +153,42 @@ static const signed char width_bytes[] = {
 	sizeof(double),
 	sizeof(longdouble_t)
 };
-
 /* Ensure that for each member of 'enum size_spec' there is an
    initializer in the width_bytes array.  */
-struct dummy {
-	int assert_width_bytes_matches_size_spec_decl
-		[sizeof width_bytes / sizeof width_bytes[0] == N_SIZE_SPECS ? 1 : -1];
+struct ERR_width_bytes_has_bad_size {
+	char ERR_width_bytes_has_bad_size[ARRAY_SIZE(width_bytes) == N_SIZE_SPECS ? 1 : -1];
 };
 
-static size_t string_min;
-static int flag_dump_strings;
-
+static smallint flag_dump_strings;
 /* Non-zero if an old-style 'pseudo-address' was specified.  */
-static int flag_pseudo_start;
-
-/* The difference between the old-style pseudo starting address and
-   the number of bytes to skip.  */
-static off_t pseudo_offset;
-
-/* Function that accepts an address and an optional following char,
-   and prints the address and char to stdout.  */
-static void (*format_address) (off_t, char);
-
-/* The number of input bytes to skip before formatting and writing.  */
-static off_t n_bytes_to_skip; // = 0;
-
-/* When zero, MAX_BYTES_TO_FORMAT and END_OFFSET are ignored, and all
-   input is formatted.  */
-static int limit_bytes_to_format; // = 0;
-
-/* The maximum number of bytes that will be formatted.  */
-static off_t max_bytes_to_format;
-
-/* The offset of the first byte after the last byte to be formatted.  */
-static off_t end_offset;
-
-/* When nonzero and two or more consecutive blocks are equal, format
+static smallint flag_pseudo_start;
+static smallint limit_bytes_to_format;
+/* When zero and two or more consecutive blocks are equal, format
    only the first block and output an asterisk alone on the following
    line to indicate that identical blocks have been elided.  */
-static int abbreviate_duplicate_blocks = 1;
+static smallint verbose;
+static smallint ioerror;
+
+static size_t string_min;
 
 /* An array of specs describing how to format each input block.  */
 static size_t n_specs;
 static struct tspec *spec;
+
+/* Function that accepts an address and an optional following char,
+   and prints the address and char to stdout.  */
+static void (*format_address)(off_t, char);
+/* The difference between the old-style pseudo starting address and
+   the number of bytes to skip.  */
+static off_t pseudo_offset;
+/* The number of input bytes to skip before formatting and writing.  */
+static off_t n_bytes_to_skip;
+/* When zero, MAX_BYTES_TO_FORMAT and END_OFFSET are ignored, and all
+   input is formatted.  */
+/* The maximum number of bytes that will be formatted.  */
+static off_t max_bytes_to_format;
+/* The offset of the first byte after the last byte to be formatted.  */
+static off_t end_offset;
 
 /* The number of input bytes formatted per output line.  It must be
    a multiple of the least common multiple of the sizes associated with
@@ -217,10 +210,8 @@ static char const *const default_file_list[] = { "-", NULL };
 /* The input stream associated with the current file.  */
 static FILE *in_stream;
 
-static int ioerror;
-
 #define MAX_INTEGRAL_TYPE_SIZE sizeof(ulonglong_t)
-static unsigned char integral_type_size[MAX_INTEGRAL_TYPE_SIZE + 1] = {
+static unsigned char integral_type_size[MAX_INTEGRAL_TYPE_SIZE + 1] ALIGN1 = {
 	[sizeof(char)] = CHAR,
 #if USHRT_MAX != UCHAR_MAX
 	[sizeof(short)] = SHORT,
@@ -237,11 +228,11 @@ static unsigned char integral_type_size[MAX_INTEGRAL_TYPE_SIZE + 1] = {
 };
 
 #define MAX_FP_TYPE_SIZE sizeof(longdouble_t)
-static unsigned char fp_type_size[MAX_FP_TYPE_SIZE + 1] = {
+static unsigned char fp_type_size[MAX_FP_TYPE_SIZE + 1] ALIGN1 = {
 	/* gcc seems to allow repeated indexes. Last one stays */
 	[sizeof(longdouble_t)] = FLOAT_LONG_DOUBLE,
 	[sizeof(double)] = FLOAT_DOUBLE,
-	[sizeof(float)] = FLOAT_SINGLE,
+	[sizeof(float)] = FLOAT_SINGLE
 };
 
 
@@ -391,7 +382,7 @@ print_named_ascii(size_t n_bytes, const char *block,
 		const char *unused_fmt_string ATTRIBUTE_UNUSED)
 {
 	/* Names for some non-printing characters.  */
-	static const char charname[33][3] = {
+	static const char charname[33][3] ALIGN1 = {
 		"nul", "soh", "stx", "etx", "eot", "enq", "ack", "bel",
 		" bs", " ht", " nl", " vt", " ff", " cr", " so", " si",
 		"dle", "dc1", "dc2", "dc3", "dc4", "nak", "syn", "etb",
@@ -568,7 +559,7 @@ decode_one_format(const char *s_orig, const char *s, const char **next,
 	case 'o':
 	case 'u':
 	case 'x': {
-		static const char CSIL[] = "CSIL";
+		static const char CSIL[] ALIGN1 = "CSIL";
 
 		c = *s++;
 		p = strchr(CSIL, *s);
@@ -604,7 +595,7 @@ decode_one_format(const char *s_orig, const char *s, const char **next,
 		size_spec = integral_type_size[size];
 
 		{
-			static const char doux[] = "doux";
+			static const char doux[] ALIGN1 = "doux";
 			static const char doux_fmt_letter[][4] = {
 				"lld", "llo", "llu", "llx"
 			};
@@ -661,7 +652,7 @@ decode_one_format(const char *s_orig, const char *s, const char **next,
 	}
 
 	case 'f': {
-		static const char FDL[] = "FDL";
+		static const char FDL[] ALIGN1 = "FDL";
 
 		fmt = FLOATING_POINT;
 		++s;
@@ -844,7 +835,7 @@ format_address_none(off_t address ATTRIBUTE_UNUSED, char c ATTRIBUTE_UNUSED)
 {
 }
 
-static char address_fmt[] = "%0n"OFF_FMT"xc";
+static char address_fmt[] ALIGN1 = "%0n"OFF_FMT"xc";
 /* Corresponds to 'x' above */
 #define address_base_char address_fmt[sizeof(address_fmt)-3]
 /* Corresponds to 'n' above */
@@ -907,8 +898,7 @@ write_block(off_t current_offset, size_t n_bytes,
 	static char prev_pair_equal = 0;
 	size_t i;
 
-	if (abbreviate_duplicate_blocks
-	 && !first
+	if (!verbose && !first
 	 && n_bytes == bytes_per_block
 	 && memcmp(prev_block, curr_block, bytes_per_block) == 0
 	) {
@@ -990,7 +980,7 @@ parse_old_offset(const char *s, off_t *offset)
 	static const struct suffix_mult Bb[] = {
 		{ "B", 1024 },
 		{ "b", 512 },
-		{ NULL, 0 }
+		{ }
 	};
 	char *p;
 	int radix;
@@ -1213,7 +1203,7 @@ int od_main(int argc, char **argv)
 		{ "b", 512 },
 		{ "k", 1024 },
 		{ "m", 1024*1024 },
-		{ NULL, 0 }
+		{ }
 	};
 	unsigned opt;
 	int l_c_m;
@@ -1242,17 +1232,16 @@ int od_main(int argc, char **argv)
 		OPT_traditional = (1 << 18) * ENABLE_GETOPT_LONG,
 	};
 #if ENABLE_GETOPT_LONG
-	static const struct option long_options[] = {
-		{ "skip-bytes",    required_argument, NULL, 'j' },
-		{ "address-radix", required_argument, NULL, 'A' },
-		{ "read-bytes",    required_argument, NULL, 'N' },
-		{ "format",        required_argument, NULL, 't' },
-		{ "output-duplicates", no_argument,   NULL, 'v' },
-		{ "strings",       optional_argument, NULL, 'S' },
-		{ "width",         optional_argument, NULL, 'w' },
-		{ "traditional",   no_argument,       NULL, 0xff },
-		{ NULL, 0, NULL, 0 }
-	};
+	static const char od_longopts[] ALIGN1 =
+		"skip-bytes\0"        Required_argument "j"
+		"address-radix\0"     Required_argument "A"
+		"read-bytes\0"        Required_argument "N"
+		"format\0"            Required_argument "t"
+		"output-duplicates\0" No_argument       "v"
+		"strings\0"           Optional_argument "S"
+		"width\0"             Optional_argument "w"
+		"traditional\0"       No_argument       "\xff"
+		;
 #endif
 	char *str_A, *str_N, *str_j, *str_S;
 	char *str_w = NULL;
@@ -1262,14 +1251,14 @@ int od_main(int argc, char **argv)
 	format_address = format_address_std;
 	address_base_char = 'o';
 	address_pad_len_char = '7';
-	flag_dump_strings = 0;
+	/* flag_dump_strings = 0; - already is */
 
 	/* Parse command line */
 	opt_complementary = "t::"; // list
 #if ENABLE_GETOPT_LONG
-	applet_long_options = long_options;
+	applet_long_options = od_longopts;
 #endif
-	opt = getopt32(argc, argv, "A:N:abcdfhij:lot:vxsS:"
+	opt = getopt32(argv, "A:N:abcdfhij:lot:vxsS:"
 		"w::", // -w with optional param
 		// -S was -s and also had optional parameter
 		// but in coreutils 6.3 it was renamed and now has
@@ -1278,11 +1267,11 @@ int od_main(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 	if (opt & OPT_A) {
-		static const char doxn[] = "doxn";
-		static const char doxn_address_base_char[] = {
+		static const char doxn[] ALIGN1 = "doxn";
+		static const char doxn_address_base_char[] ALIGN1 = {
 			'u', 'o', 'x', /* '?' fourth one is not important */
 		};
-		static const uint8_t doxn_address_pad_len_char[] = {
+		static const uint8_t doxn_address_pad_len_char[] ALIGN1 = {
 			'7', '7', '6', /* '?' */
 		};
 		char *p;
@@ -1315,7 +1304,7 @@ int od_main(int argc, char **argv)
 		decode_format_string(lst_t->data);
 		lst_t = lst_t->link;
 	}
-	if (opt & OPT_v) abbreviate_duplicate_blocks = 0;
+	if (opt & OPT_v) verbose = 1;
 	if (opt & OPT_x) decode_format_string("x2");
 	if (opt & OPT_s) decode_format_string("d2");
 	if (opt & OPT_S) {
@@ -1459,5 +1448,5 @@ int od_main(int argc, char **argv)
 	if (fclose(stdin) == EOF)
 		bb_perror_msg_and_die(bb_msg_standard_input);
 
-	return (ioerror != 0); /* err != 0 - return 1 (failure) */
+	return ioerror;
 }

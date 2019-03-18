@@ -128,6 +128,13 @@ config LOGIN
 	  Note that Busybox binary must be setuid root for this applet to
 	  work properly.
 
+config PAM
+	bool "Support for PAM (Pluggable Authentication Modules)"
+	default n
+	depends on LOGIN
+	help
+	  Use PAM in login(1) instead of direct access to password database.
+
 config LOGIN_SCRIPTS
 	bool "Support for login scripts"
 	depends on LOGIN
@@ -136,12 +143,20 @@ config LOGIN_SCRIPTS
 	  Enable this if you want login to execute $LOGIN_PRE_SUID_SCRIPT
 	  just prior to switching from root to logged-in user.
 
+config FEATURE_NOLOGIN
+	bool "Support for /etc/nologin"
+	default y
+	depends on LOGIN
+	help
+	  The file /etc/nologin is used by (some versions of) login(1).
+	  If it exists, non-root logins are prohibited.
+
 config FEATURE_SECURETTY
 	bool "Support for /etc/securetty"
 	default y
 	depends on LOGIN
 	help
-	  The file  /etc/securetty  is used by (some versions of) login(1).
+	  The file /etc/securetty is used by (some versions of) login(1).
 	  The file contains the device names of tty lines (one per line,
 	  without leading /dev/) on which root is allowed to login.
 
@@ -171,6 +186,14 @@ config CRYPTPW
 	default n
 	help
 	  Applet for crypting a string.
+
+config CHPASSWD
+       bool "chpasswd"
+       default n
+       help
+         chpasswd  reads  a  file  of user name and password pairs from
+         standard input and uses this information to update a group of
+         existing users.
 
 config SU
 	bool "su"

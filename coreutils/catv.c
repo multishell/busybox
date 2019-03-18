@@ -15,40 +15,49 @@
 int catv_main(int argc, char **argv);
 int catv_main(int argc, char **argv)
 {
-	int retval = EXIT_SUCCESS, fd;
+	int retval = EXIT_SUCCESS;
+	int fd;
 	unsigned flags;
 
-	flags = getopt32(argc, argv, "etv");
+	flags = getopt32(argv, "etv");
 #define CATV_OPT_e (1<<0)
 #define CATV_OPT_t (1<<1)
 #define CATV_OPT_v (1<<2)
 	flags ^= CATV_OPT_v;
-
 	argv += optind;
+
+	/* Read from stdin if there's nothing else to do. */
+	fd = 0;
+	if (!argv[0]) {
+		argv--;
+		goto jump_in;
+	}
 	do {
-		/* Read from stdin if there's nothing else to do. */
-		fd = 0;
-		if (*argv && 0 > (fd = xopen(*argv, O_RDONLY)))
+		fd = open_or_warn(*argv, O_RDONLY);
+		if (fd < 0) {
 			retval = EXIT_FAILURE;
-		else for (;;) {
+			continue;
+		}
+ jump_in:
+		for (;;) {
 			int i, res;
 
-			res = read(fd, bb_common_bufsiz1, sizeof(bb_common_bufsiz1));
+#define read_buf bb_common_bufsiz1
+			res = read(fd, read_buf, COMMON_BUFSIZE);
 			if (res < 0)
 				retval = EXIT_FAILURE;
 			if (res < 1)
 				break;
 			for (i = 0; i < res; i++) {
-				char c = bb_common_bufsiz1[i];
+				unsigned char c = read_buf[i];
 
 				if (c > 126 && (flags & CATV_OPT_v)) {
 					if (c == 127) {
 						printf("^?");
 						continue;
-					} else {
-						printf("M-");
-						c -= 128;
 					}
+					printf("M-");
+					c -= 128;
 				}
 				if (c < 32) {
 					if (c == 10) {

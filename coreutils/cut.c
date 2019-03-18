@@ -15,7 +15,7 @@
 
 
 /* option vars */
-static const char optstring[] = "b:c:f:d:sn";
+static const char optstring[] ALIGN1 = "b:c:f:d:sn";
 #define CUT_OPT_BYTE_FLGS	(1<<0)
 #define CUT_OPT_CHAR_FLGS	(1<<1)
 #define CUT_OPT_FIELDS_FLGS	(1<<2)
@@ -163,7 +163,7 @@ static void cut_file(FILE * file)
 	}
 }
 
-static const char _op_on_field[] = " only when operating on fields";
+static const char _op_on_field[] ALIGN1 = " only when operating on fields";
 
 int cut_main(int argc, char **argv);
 int cut_main(int argc, char **argv)
@@ -171,13 +171,11 @@ int cut_main(int argc, char **argv)
 	char *sopt, *ltok;
 
 	opt_complementary = "b--bcf:c--bcf:f--bcf";
-	getopt32(argc, argv, optstring, &sopt, &sopt, &sopt, &ltok);
+	getopt32(argv, optstring, &sopt, &sopt, &sopt, &ltok);
 //	argc -= optind;
 	argv += optind;
 	if (!(option_mask32 & (CUT_OPT_BYTE_FLGS | CUT_OPT_CHAR_FLGS | CUT_OPT_FIELDS_FLGS)))
 		bb_error_msg_and_die("expected a list of bytes, characters, or fields");
-	if (option_mask32 & BB_GETOPT_ERROR)
-		bb_error_msg_and_die("only one type of list may be specified");
 
 	if (option_mask32 & CUT_OPT_DELIM_FLGS) {
 		if (strlen(ltok) > 1) {

@@ -5,17 +5,14 @@
  * run as root, but NOT setuid root
  *
  * Copyright 1994 Matthew Dillon (dillon@apollo.west.oic.com)
+ * (version 2.3.2)
  * Vladimir Oleynik <dzo@simtreas.ru> (C) 2002
  *
  * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
-#define VERSION "2.3.2"
-
-#include "libbb.h"
 #include <sys/syslog.h>
-
-#define arysize(ary)    (sizeof(ary)/sizeof((ary)[0]))
+#include "libbb.h"
 
 #ifndef CRONTABS
 #define CRONTABS        "/var/spool/cron/crontabs"
@@ -24,7 +21,7 @@
 #define TMPDIR          "/var/spool/cron"
 #endif
 #ifndef SENDMAIL
-#define SENDMAIL        "/usr/sbin/sendmail"
+#define SENDMAIL        "sendmail"
 #endif
 #ifndef SENDMAIL_ARGS
 #define SENDMAIL_ARGS   "-ti", "oem"
@@ -140,7 +137,7 @@ int crond_main(int ac, char **av)
 
 	opt_complementary = "f-b:b-f:S-L:L-S" USE_DEBUG_CROND_OPTION(":d-l");
 	opterr = 0;			/* disable getopt 'errors' message. */
-	opt = getopt32(ac, av, "l:L:fbSc:" USE_DEBUG_CROND_OPTION("d:"),
+	opt = getopt32(av, "l:L:fbSc:" USE_DEBUG_CROND_OPTION("d:"),
 			&lopt, &Lopt, &copt USE_DEBUG_CROND_OPTION(, &dopt));
 	if (opt & 1) /* -l */
 		LogLevel = xatou(lopt);
@@ -173,7 +170,7 @@ int crond_main(int ac, char **av)
 	 * main loop - synchronize to 1 second after the minute, minimum sleep
 	 *             of 1 second.
 	 */
-	crondlog("\011%s " VERSION " dillon, started, log level %d\n",
+	crondlog("\011%s " BB_VER " started, log level %d\n",
 			 applet_name, LogLevel);
 
 	SynchronizeDir();
@@ -290,56 +287,19 @@ static void startlogger(void)
 }
 
 
-static const char *const DowAry[] = {
-	"sun",
-	"mon",
-	"tue",
-	"wed",
-	"thu",
-	"fri",
-	"sat",
+static const char DowAry[] ALIGN1 =
+	"sun""mon""tue""wed""thu""fri""sat"
+	/* "Sun""Mon""Tue""Wed""Thu""Fri""Sat" */
+;
 
-	"Sun",
-	"Mon",
-	"Tue",
-	"Wed",
-	"Thu",
-	"Fri",
-	"Sat",
-	NULL
-};
-
-static const char *const MonAry[] = {
-	"jan",
-	"feb",
-	"mar",
-	"apr",
-	"may",
-	"jun",
-	"jul",
-	"aug",
-	"sep",
-	"oct",
-	"nov",
-	"dec",
-
-	"Jan",
-	"Feb",
-	"Mar",
-	"Apr",
-	"May",
-	"Jun",
-	"Jul",
-	"Aug",
-	"Sep",
-	"Oct",
-	"Nov",
-	"Dec",
-	NULL
-};
+static const char MonAry[] ALIGN1 =
+	"jan""feb""mar""apr""may""jun""jul""aug""sep""oct""nov""dec"
+	/* "Jan""Feb""Mar""Apr""May""Jun""Jul""Aug""Sep""Oct""Nov""Dec" */
+;
 
 static char *ParseField(char *user, char *ary, int modvalue, int off,
-						const char *const *names, char *ptr)
+				const char *names, char *ptr)
+/* 'names' is a pointer to a set of 3-char abbreviations */
 {
 	char *base = ptr;
 	int n1 = -1;
@@ -369,19 +329,18 @@ static char *ParseField(char *user, char *ary, int modvalue, int off,
 		} else if (names) {
 			int i;
 
-			for (i = 0; names[i]; ++i) {
-				if (strncmp(ptr, names[i], strlen(names[i])) == 0) {
+			for (i = 0; names[i]; i += 3) {
+				/* was using strncmp before... */
+				if (strncasecmp(ptr, &names[i], 3) == 0) {
+					ptr += 3;
+					if (n1 < 0) {
+						n1 = i / 3;
+					} else {
+						n2 = i / 3;
+					}
+					skip = 1;
 					break;
 				}
-			}
-			if (names[i]) {
-				ptr += strlen(names[i]);
-				if (n1 < 0) {
-					n1 = i;
-				} else {
-					n2 = i;
-				}
-				skip = 1;
 			}
 		}
 
@@ -468,13 +427,13 @@ static void FixDayDow(CronLine * line)
 	int weekUsed = 0;
 	int daysUsed = 0;
 
-	for (i = 0; i < (int)(arysize(line->cl_Dow)); ++i) {
+	for (i = 0; i < (int)(ARRAY_SIZE(line->cl_Dow)); ++i) {
 		if (line->cl_Dow[i] == 0) {
 			weekUsed = 1;
 			break;
 		}
 	}
-	for (i = 0; i < (int)(arysize(line->cl_Days)); ++i) {
+	for (i = 0; i < (int)(ARRAY_SIZE(line->cl_Days)); ++i) {
 		if (line->cl_Days[i] == 0) {
 			daysUsed = 1;
 			break;
@@ -942,8 +901,10 @@ static void EndJob(const char *user, CronLine * line)
 		return;
 	}
 
-	if (fstat(mailFd, &sbuf) < 0 || sbuf.st_uid != DaemonUid ||	sbuf.st_nlink != 0 ||
-		sbuf.st_size == line->cl_MailPos || !S_ISREG(sbuf.st_mode)) {
+	if (fstat(mailFd, &sbuf) < 0 || sbuf.st_uid != DaemonUid
+	 || sbuf.st_nlink != 0 || sbuf.st_size == line->cl_MailPos
+	 || !S_ISREG(sbuf.st_mode)
+	) {
 		close(mailFd);
 		return;
 	}

@@ -120,7 +120,6 @@ struct {
 	{"remount", MS_REMOUNT},  // action flag
 };
 
-#define VECTOR_SIZE(v) (sizeof(v) / sizeof((v)[0]))
 
 /* Append mount options to string */
 static void append_mount_options(char **oldopts, const char *newopts)
@@ -168,7 +167,7 @@ static int parse_mount_options(char *options, char **unrecognized)
 		if (comma) *comma = 0;
 
 		// Find this option in mount_options
-		for (i = 0; i < VECTOR_SIZE(mount_options); i++) {
+		for (i = 0; i < ARRAY_SIZE(mount_options); i++) {
 			if (!strcasecmp(mount_options[i].name, options)) {
 				long fl = mount_options[i].flags;
 				if (fl < 0) flags &= fl;
@@ -177,7 +176,7 @@ static int parse_mount_options(char *options, char **unrecognized)
 			}
 		}
 		// If unrecognized not NULL, append unrecognized mount options */
-		if (unrecognized && i == VECTOR_SIZE(mount_options)) {
+		if (unrecognized && i == ARRAY_SIZE(mount_options)) {
 			// Add it to strflags, to pass on to kernel
 			i = *unrecognized ? strlen(*unrecognized) : 0;
 			*unrecognized = xrealloc(*unrecognized, i+strlen(options)+2);
@@ -889,33 +888,31 @@ static int nfsmount(struct mntent *mp, int vfsflags, char *filteropts)
 	if (filteropts)	for (opt = strtok(filteropts, ","); opt; opt = strtok(NULL, ",")) {
 		char *opteq = strchr(opt, '=');
 		if (opteq) {
-			static const char *const options[] = {
-				/* 0 */ "rsize",
-				/* 1 */ "wsize",
-				/* 2 */ "timeo",
-				/* 3 */ "retrans",
-				/* 4 */ "acregmin",
-				/* 5 */ "acregmax",
-				/* 6 */ "acdirmin",
-				/* 7 */ "acdirmax",
-				/* 8 */ "actimeo",
-				/* 9 */ "retry",
-				/* 10 */ "port",
-				/* 11 */ "mountport",
-				/* 12 */ "mounthost",
-				/* 13 */ "mountprog",
-				/* 14 */ "mountvers",
-				/* 15 */ "nfsprog",
-				/* 16 */ "nfsvers",
-				/* 17 */ "vers",
-				/* 18 */ "proto",
-				/* 19 */ "namlen",
-				/* 20 */ "addr",
-				NULL
-			};
+			static const char options[] ALIGN1 =
+				/* 0 */ "rsize\0"
+				/* 1 */ "wsize\0"
+				/* 2 */ "timeo\0"
+				/* 3 */ "retrans\0"
+				/* 4 */ "acregmin\0"
+				/* 5 */ "acregmax\0"
+				/* 6 */ "acdirmin\0"
+				/* 7 */ "acdirmax\0"
+				/* 8 */ "actimeo\0"
+				/* 9 */ "retry\0"
+				/* 10 */ "port\0"
+				/* 11 */ "mountport\0"
+				/* 12 */ "mounthost\0"
+				/* 13 */ "mountprog\0"
+				/* 14 */ "mountvers\0"
+				/* 15 */ "nfsprog\0"
+				/* 16 */ "nfsvers\0"
+				/* 17 */ "vers\0"
+				/* 18 */ "proto\0"
+				/* 19 */ "namlen\0"
+				/* 20 */ "addr\0";
 			int val = xatoi_u(opteq + 1);
 			*opteq = '\0';
-			switch (index_in_str_array(options, opt)) {
+			switch (index_in_strings(options, opt)) {
 			case 0: // "rsize"
 				data.rsize = val;
 				break;
@@ -994,26 +991,24 @@ static int nfsmount(struct mntent *mp, int vfsflags, char *filteropts)
 			}
 		}
 		else {
-			static const char *const options[] = {
-				"bg",
-				"fg",
-				"soft",
-				"hard",
-				"intr",
-				"posix",
-				"cto",
-				"ac",
-				"tcp",
-				"udp",
-				"lock",
-				NULL
-			};
+			static const char options[] ALIGN1 =
+				"bg\0"
+				"fg\0"
+				"soft\0"
+				"hard\0"
+				"intr\0"
+				"posix\0"
+				"cto\0"
+				"ac\0"
+				"tcp\0"
+				"udp\0"
+				"lock\0";
 			int val = 1;
 			if (!strncmp(opt, "no", 2)) {
 				val = 0;
 				opt += 2;
 			}
-			switch (index_in_str_array(options, opt)) {
+			switch (index_in_strings(options, opt)) {
 			case 0: // "bg"
 				bg = val;
 				break;
@@ -1418,7 +1413,7 @@ static int singlemount(struct mntent *mp, int ignore_busy)
 
 		// insert ip=... option into string flags.
 
-		dotted = xmalloc_sockaddr2dotted_noport(&lsa->sa, lsa->len);
+		dotted = xmalloc_sockaddr2dotted_noport(&lsa->sa);
 		ip = xasprintf("ip=%s", dotted);
 		parse_mount_options(ip, &filteropts);
 
@@ -1444,7 +1439,7 @@ static int singlemount(struct mntent *mp, int ignore_busy)
 	// Might this be an NFS filesystem?
 
 	if (ENABLE_FEATURE_MOUNT_NFS
-	 && (!mp->mnt_type || !strcmp(mp->mnt_type,"nfs"))
+	 && (!mp->mnt_type || !strcmp(mp->mnt_type, "nfs"))
 	 && strchr(mp->mnt_fsname, ':') != NULL
 	) {
 		rc = nfsmount(mp, vfsflags, filteropts);
@@ -1463,15 +1458,12 @@ static int singlemount(struct mntent *mp, int ignore_busy)
 
 		if (ENABLE_FEATURE_MOUNT_LOOP && S_ISREG(st.st_mode)) {
 			loopFile = bb_simplify_path(mp->mnt_fsname);
-			mp->mnt_fsname = 0;
-			switch (set_loop(&(mp->mnt_fsname), loopFile, 0)) {
-			case 0:
-			case 1:
-				break;
-			default:
-				bb_error_msg( errno == EPERM || errno == EACCES
-					? bb_msg_perm_denied_are_you_root
-					: "cannot setup loop device");
+			mp->mnt_fsname = NULL; /* will receive malloced loop dev name */
+			if (set_loop(&(mp->mnt_fsname), loopFile, 0) < 0) {
+				if (errno == EPERM || errno == EACCES)
+					bb_error_msg(bb_msg_perm_denied_are_you_root);
+				else
+					bb_perror_msg("cannot setup loop device");
 				return errno;
 			}
 
@@ -1521,10 +1513,10 @@ static int singlemount(struct mntent *mp, int ignore_busy)
 	if (ENABLE_FEATURE_CLEAN_UP)
 		free(filteropts);
 
-	if (rc && errno == EBUSY && ignore_busy) rc = 0;
+	if (rc && errno == EBUSY && ignore_busy)
+		rc = 0;
 	if (rc < 0)
-		/* perror here sometimes says "mounting ... on ... failed: Success" */
-		bb_error_msg("mounting %s on %s failed", mp->mnt_fsname, mp->mnt_dir);
+		bb_perror_msg("mounting %s on %s failed", mp->mnt_fsname, mp->mnt_dir);
 
 	return rc;
 }
@@ -1532,7 +1524,7 @@ static int singlemount(struct mntent *mp, int ignore_busy)
 // Parse options, if necessary parse fstab/mtab, and call singlemount for
 // each directory to be mounted.
 
-const char must_be_root[] = "you must be root";
+static const char must_be_root[] ALIGN1 = "you must be root";
 
 int mount_main(int argc, char **argv);
 int mount_main(int argc, char **argv)
@@ -1562,7 +1554,7 @@ int mount_main(int argc, char **argv)
 
 	// Parse remaining options
 
-	opt = getopt32(argc, argv, "o:t:rwanfvs", &opt_o, &fstype);
+	opt = getopt32(argv, "o:t:rwanfvs", &opt_o, &fstype);
 	if (opt & 0x1) append_mount_options(&cmdopts, opt_o); // -o
 	//if (opt & 0x2) // -t
 	if (opt & 0x4) append_mount_options(&cmdopts, "ro"); // -r

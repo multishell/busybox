@@ -7,7 +7,7 @@
 
 /* returns the array index of the string */
 /* (index of first match is returned, or -1) */
-int index_in_str_array(const char * const string_array[], const char *key)
+int index_in_str_array(const char *const string_array[], const char *key)
 {
 	int i;
 
@@ -19,9 +19,24 @@ int index_in_str_array(const char * const string_array[], const char *key)
 	return -1;
 }
 
+int index_in_strings(const char *strings, const char *key)
+{
+	int idx = 0;
+
+	while (strings[0]) {
+		if (strcmp(strings, key) == 0) {
+			return idx;
+		}
+		strings += strlen(strings) + 1; /* skip NUL */
+		idx++;
+	}
+	return -1;
+}
+
 /* returns the array index of the string, even if it matches only a beginning */
 /* (index of first match is returned, or -1) */
-int index_in_substr_array(const char * const string_array[], const char *key)
+#ifdef UNUSED
+int index_in_substr_array(const char *const string_array[], const char *key)
 {
 	int i;
 	int len = strlen(key);
@@ -30,6 +45,24 @@ int index_in_substr_array(const char * const string_array[], const char *key)
 			if (strncmp(string_array[i], key, len) == 0) {
 				return i;
 			}
+		}
+	}
+	return -1;
+}
+#endif
+
+int index_in_substrings(const char *strings, const char *key)
+{
+	int len = strlen(key);
+
+	if (len) {
+		int idx = 0;
+		while (strings[0]) {
+			if (strncmp(strings, key, len) == 0) {
+				return idx;
+			}
+			strings += strlen(strings) + 1; /* skip NUL */
+			idx++;
 		}
 	}
 	return -1;

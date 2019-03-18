@@ -25,19 +25,13 @@
 
 
 /* Create a random xid */
-unsigned long random_xid(void)
+uint32_t random_xid(void)
 {
-	static int initialized;
-	if (!initialized) {
-		unsigned long seed;
+	static smallint initialized;
 
-		if (open_read_close("/dev/urandom", &seed, sizeof(seed)) < 0) {
-			bb_info_msg("Cannot load seed "
-				"from /dev/urandom: %s", strerror(errno));
-			seed = time(0);
-		}
-		srand(seed);
-		initialized++;
+	if (!initialized) {
+		srand(monotonic_us());
+		initialized = 1;
 	}
 	return rand();
 }
@@ -50,8 +44,10 @@ static void init_packet(struct dhcpMessage *packet, char type)
 	memcpy(packet->chaddr, client_config.arp, 6);
 	if (client_config.clientid)
 		add_option_string(packet->options, client_config.clientid);
-	if (client_config.hostname) add_option_string(packet->options, client_config.hostname);
-	if (client_config.fqdn) add_option_string(packet->options, client_config.fqdn);
+	if (client_config.hostname)
+		add_option_string(packet->options, client_config.hostname);
+	if (client_config.fqdn)
+		add_option_string(packet->options, client_config.fqdn);
 	add_option_string(packet->options, client_config.vendorclass);
 }
 
@@ -75,7 +71,7 @@ static void add_requests(struct dhcpMessage *packet)
 
 
 /* Broadcast a DHCP discover packet to the network, with an optionally requested IP */
-int send_discover(unsigned long xid, unsigned long requested)
+int send_discover(uint32_t xid, uint32_t requested)
 {
 	struct dhcpMessage packet;
 
@@ -92,7 +88,7 @@ int send_discover(unsigned long xid, unsigned long requested)
 
 
 /* Broadcasts a DHCP request message */
-int send_selecting(unsigned long xid, unsigned long server, unsigned long requested)
+int send_selecting(uint32_t xid, uint32_t server, uint32_t requested)
 {
 	struct dhcpMessage packet;
 	struct in_addr addr;
@@ -112,10 +108,9 @@ int send_selecting(unsigned long xid, unsigned long server, unsigned long reques
 
 
 /* Unicasts or broadcasts a DHCP renew message */
-int send_renew(unsigned long xid, unsigned long server, unsigned long ciaddr)
+int send_renew(uint32_t xid, uint32_t server, uint32_t ciaddr)
 {
 	struct dhcpMessage packet;
-	int ret = 0;
 
 	init_packet(&packet, DHCPREQUEST);
 	packet.xid = xid;
@@ -124,15 +119,15 @@ int send_renew(unsigned long xid, unsigned long server, unsigned long ciaddr)
 	add_requests(&packet);
 	bb_info_msg("Sending renew...");
 	if (server)
-		ret = udhcp_kernel_packet(&packet, ciaddr, CLIENT_PORT, server, SERVER_PORT);
-	else ret = udhcp_raw_packet(&packet, INADDR_ANY, CLIENT_PORT, INADDR_BROADCAST,
+		return udhcp_kernel_packet(&packet, ciaddr, CLIENT_PORT, server, SERVER_PORT);
+
+	return udhcp_raw_packet(&packet, INADDR_ANY, CLIENT_PORT, INADDR_BROADCAST,
 				SERVER_PORT, MAC_BCAST_ADDR, client_config.ifindex);
-	return ret;
 }
 
 
 /* Unicasts a DHCP release message */
-int send_release(unsigned long server, unsigned long ciaddr)
+int send_release(uint32_t server, uint32_t ciaddr)
 {
 	struct dhcpMessage packet;
 
@@ -220,5 +215,4 @@ int get_raw_packet(struct dhcpMessage *payload, int fd)
 	}
 	DEBUG("oooooh!!! got some!");
 	return bytes - (sizeof(packet.ip) + sizeof(packet.udp));
-
 }

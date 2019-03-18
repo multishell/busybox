@@ -34,7 +34,7 @@ int ln_main(int argc, char **argv)
 	struct stat statbuf;
 	int (*link_func)(const char *, const char *);
 
-	flag = getopt32(argc, argv, "sfnbS:", &suffix);
+	flag = getopt32(argv, "sfnbS:", &suffix);
 
 	if (argc == optind) {
 		bb_show_usage();
@@ -54,7 +54,8 @@ int ln_main(int argc, char **argv)
 
 		if (is_directory(src,
 		                (flag & LN_NODEREFERENCE) ^ LN_NODEREFERENCE,
-		            	NULL)) {
+		                NULL)
+		) {
 			src_name = xstrdup(*argv);
 			src = concat_path_file(src, bb_get_last_path_component(src_name));
 			free(src_name);

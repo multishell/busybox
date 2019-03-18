@@ -36,7 +36,7 @@
 # define bb_dev_null "/dev/null"
 # define DEFAULT_SHELL "/proc/self/exe"
 # define CONFIG_BUSYBOX_EXEC_PATH "/proc/self/exe"
-# define BB_BANNER "busybox standalone"
+# define bb_banner "busybox standalone"
 # define ENABLE_FEATURE_SH_STANDALONE 0
 # define bb_msg_memory_exhausted "memory exhausted"
 # define xmalloc(size) malloc(size)
@@ -280,7 +280,7 @@ struct brkcon {
  * -x: trace
  * -u: unset variables net diagnostic
  */
-static char flags['z' - 'a' + 1];
+static char flags['z' - 'a' + 1] ALIGN1;
 /* this looks weird, but is OK ... we index FLAG with 'a'...'z' */
 #define FLAG (flags - 'a')
 
@@ -577,7 +577,7 @@ struct here {
 	struct here *h_next;
 };
 
-static const char * const signame[] = {
+static const char *const signame[] = {
 	"Signal 0",
 	"Hangup",
 	NULL,  /* interrupt */
@@ -593,10 +593,9 @@ static const char * const signame[] = {
 	"SIGUSR2",
 	NULL,  /* broken pipe */
 	"Alarm clock",
-	"Terminated",
+	"Terminated"
 };
 
-#define	NSIGNAL (sizeof(signame)/sizeof(signame[0]))
 
 struct res {
 	const char *r_name;
@@ -2997,7 +2996,7 @@ static int waitfor(int lastpid, int canintr)
 		} else {
 			rv = WAITSIG(s);
 			if (rv != 0) {
-				if (rv < NSIGNAL) {
+				if (rv < ARRAY_SIZE(signame)) {
 					if (signame[rv] != NULL) {
 						if (pid != lastpid) {
 							prn(pid);
@@ -3016,7 +3015,7 @@ static int waitfor(int lastpid, int canintr)
 				}
 				if (WAITCORE(s))
 					prs(" - core dumped");
-				if (rv >= NSIGNAL || signame[rv])
+				if (rv >= ARRAY_SIZE(signame) || signame[rv])
 					prs("\n");
 				rv = -1;
 			} else
@@ -3062,7 +3061,7 @@ static const char *rexecve(char *c, char **v, char **envp)
 			/* We have to exec here since we vforked.  Running
 			 * run_applet_and_exit() won't work and bad things
 			 * will happen. */
-			execve(CONFIG_BUSYBOX_EXEC_PATH, v, envp);
+			execve(bb_busybox_exec_path, v, envp);
 		}
 	}
 
@@ -4209,7 +4208,7 @@ static char *unquote(char *as)
 #define	NDENT	((BLKSIZ+sizeof(struct dirent)-1)/sizeof(struct dirent))
 
 static struct wdblock *cl, *nl;
-static char spcl[] = "[?*";
+static const char spcl[] ALIGN1= "[?*";
 
 static struct wdblock *glob(char *cp, struct wdblock *wb)
 {
@@ -5213,9 +5212,9 @@ int msh_main(int argc, char **argv)
 	if (path->value == null) {
 		/* Can be merged with same string elsewhere in bbox */
 		if (geteuid() == 0)
-			setval(path, "/sbin:/usr/sbin:/bin:/usr/bin");
+			setval(path, bb_default_root_path);
 		else
-			setval(path, "/sbin:/usr/sbin:/bin:/usr/bin" + sizeof("/sbin:/usr/sbin"));
+			setval(path, bb_default_path);
 	}
 	export(path);
 
@@ -5315,9 +5314,9 @@ int msh_main(int argc, char **argv)
 			interactive++;
 #if !ENABLE_FEATURE_SH_EXTRA_QUIET
 #ifdef MSHDEBUG
-			printf("\n\n%s Built-in shell (msh with debug)\n", BB_BANNER);
+			printf("\n\n%s built-in shell (msh with debug)\n", bb_banner);
 #else
-			printf("\n\n%s Built-in shell (msh)\n", BB_BANNER);
+			printf("\n\n%s built-in shell (msh)\n", bb_banner);
 #endif
 			printf("Enter 'help' for a list of built-in commands.\n\n");
 #endif

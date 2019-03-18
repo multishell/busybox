@@ -21,7 +21,7 @@ int readlink_main(int argc, char **argv)
 		unsigned opt;
 		/* We need exactly one non-option argument.  */
 		opt_complementary = "=1";
-		opt = getopt32(argc, argv, "f");
+		opt = getopt32(argv, "f");
 		fname = argv[optind];
 	)
 	SKIP_FEATURE_READLINK_FOLLOW(
@@ -43,7 +43,7 @@ int readlink_main(int argc, char **argv)
 		return EXIT_FAILURE;
 	puts(buf);
 
-	if (ENABLE_FEATURE_CLEAN_UP && buf != bb_common_bufsiz1)
+	if (ENABLE_FEATURE_CLEAN_UP && !opt)
 		free(buf);
 
 	fflush_stdout_and_exit(EXIT_SUCCESS);

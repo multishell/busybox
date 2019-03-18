@@ -2,9 +2,6 @@
 # Build system
 # ==========================================================================
 
-%.bflt: %_unstripped
-	$(CROSS_COMPILE)elf2flt $(ELF2FLTFLAGS) $< -o $@
-
 busybox.links: $(srctree)/applets/busybox.mkll $(objtree)/include/autoconf.h $(srctree)/include/applets.h
 	$(Q)-$(SHELL) $^ >$@
 
@@ -70,6 +67,7 @@ sizes: busybox_unstripped
 .PHONY: bloatcheck
 bloatcheck: busybox_old busybox_unstripped
 	@$(srctree)/scripts/bloat-o-meter busybox_old busybox_unstripped
+	@$(CROSS_COMPILE)size busybox_old busybox_unstripped
 
 .PHONY: baseline
 baseline: busybox_unstripped
@@ -79,9 +77,13 @@ baseline: busybox_unstripped
 objsizes: busybox_unstripped
 	$(srctree)/scripts/objsizes
 
+.PHONY: stksizes
+stksizes: busybox_unstripped
+	$(CROSS_COMPILE)objdump -d busybox_unstripped | $(srctree)/scripts/checkstack.pl $(ARCH)
+
 .PHONY: bigdata
 bigdata: busybox_unstripped
-	nm --size-sort busybox_unstripped | grep -vi ' [tr] ' | tail -20
+	$(CROSS_COMPILE)nm --size-sort busybox_unstripped | grep -vi ' [tr] '
 
 # Documentation Targets
 .PHONY: doc

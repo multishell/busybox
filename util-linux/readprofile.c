@@ -38,8 +38,8 @@
 #define S_LEN 128
 
 /* These are the defaults */
-static const char defaultmap[] = "/boot/System.map";
-static const char defaultpro[] = "/proc/profile";
+static const char defaultmap[] ALIGN1 = "/boot/System.map";
+static const char defaultpro[] ALIGN1 = "/proc/profile";
 
 int readprofile_main(int argc, char **argv);
 int readprofile_main(int argc, char **argv)
@@ -67,7 +67,7 @@ int readprofile_main(int argc, char **argv)
 	mapFile = defaultmap;
 
 	opt_complementary = "nn:aa:bb:ss:ii:rr:vv";
-	getopt32(argc, argv, "M:m:p:nabsirv",
+	getopt32(argv, "M:m:p:nabsirv",
 			&mult, &mapFile, &proFile,
 			&optNative, &optAll, &optBins, &optSub,
 			&optInfo, &optReset, &optVerbose);
@@ -99,7 +99,7 @@ int readprofile_main(int argc, char **argv)
 	/*
 	 * Use an fd for the profiling buffer, to skip stdio overhead
 	 */
-	len = INT_MAX;
+	len = MAXINT(ssize_t);
 	buf = xmalloc_open_read_close(proFile, &len);
 	if (!optNative) {
 		int entries = len/sizeof(*buf);

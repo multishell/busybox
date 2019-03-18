@@ -8,7 +8,7 @@
 
 /* We want libc to give us xxx64 functions also */
 /* http://www.unix.org/version2/whatsnew/lfs20mar.html */
-#define _LARGEFILE64_SOURCE 1
+//#define _LARGEFILE64_SOURCE 1
 
 #include <getopt.h>	/* for struct option */
 #include "libbb.h"
@@ -38,30 +38,31 @@ static bool chunked;                     /* chunked transfer encoding */
 #if ENABLE_FEATURE_WGET_STATUSBAR
 static void progressmeter(int flag);
 static const char *curfile;             /* Name of current file being transferred */
-static struct timeval start;            /* Time a transfer started */
 enum {
 	STALLTIME = 5                   /* Seconds when xfer considered "stalled" */
 };
 #else
-static void progressmeter(int flag) {}
+static ALWAYS_INLINE void progressmeter(int flag) {}
 #endif
 
-/* Read NMEMB elements of SIZE bytes into PTR from STREAM.  Returns the
- * number of elements read, and a short count if an eof or non-interrupt
- * error is encountered.  */
-static size_t safe_fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
+/* Read NMEMB bytes into PTR from STREAM.  Returns the number of bytes read,
+ * and a short count if an eof or non-interrupt error is encountered.  */
+static size_t safe_fread(void *ptr, size_t nmemb, FILE *stream)
 {
-	size_t ret = 0;
+	size_t ret;
+	char *p = (char*)ptr;
 
 	do {
 		clearerr(stream);
-		ret += fread((char *)ptr + (ret * size), size, nmemb - ret, stream);
-	} while (ret < nmemb && ferror(stream) && errno == EINTR);
+		ret = fread(p, 1, nmemb, stream);
+		p += ret;
+		nmemb -= ret;
+	} while (nmemb && ferror(stream) && errno == EINTR);
 
-	return ret;
+	return p - (char*)ptr;
 }
 
-/* Read a line or SIZE - 1 bytes into S, whichever is less, from STREAM.
+/* Read a line or SIZE-1 bytes into S, whichever is less, from STREAM.
  * Returns S, or NULL if an eof or non-interrupt error is encountered.  */
 static char *safe_fgets(char *s, int size, FILE *stream)
 {
@@ -76,10 +77,13 @@ static char *safe_fgets(char *s, int size, FILE *stream)
 }
 
 #if ENABLE_FEATURE_WGET_AUTHENTICATION
-/* Base64-encode character string and return the string.  */
-static char *base64enc(unsigned char *p, char *buf, int len)
+/* Base64-encode character string. buf is assumed to be char buf[512]. */
+static char *base64enc_512(char buf[512], const char *str)
 {
-	bb_uuencode(p, buf, len, bb_uuenc_tbl_base64);
+	unsigned len = strlen(str);
+	if (len > 512/4*3 - 10) /* paranoia */
+		len = 512/4*3 - 10;
+	bb_uuencode(buf, str, len, bb_uuenc_tbl_base64);
 	return buf;
 }
 #endif
@@ -105,14 +109,13 @@ int wget_main(int argc, char **argv)
 	FILE *sfp = NULL;               /* socket to web/ftp server         */
 	FILE *dfp = NULL;               /* socket to ftp server (data)      */
 	char *fname_out = NULL;         /* where to direct output (-O)      */
-	bool got_clen = 0;               /* got content-length: from server  */
+	bool got_clen = 0;              /* got content-length: from server  */
 	int output_fd = -1;
-	bool use_proxy = 1;              /* Use proxies if env vars are set  */
+	bool use_proxy = 1;             /* Use proxies if env vars are set  */
 	const char *proxy_flag = "on";  /* Use proxies if env vars are set  */
 	const char *user_agent = "Wget";/* "User-Agent" header field        */
-	static const char * const keywords[] = {
-		"content-length", "transfer-encoding", "chunked", "location", NULL
-	};
+	static const char keywords[] ALIGN1 =
+		"content-length\0""transfer-encoding\0""chunked\0""location\0";
 	enum {
 		KEY_content_length = 1, KEY_transfer_encoding, KEY_chunked, KEY_location
 	};
@@ -128,24 +131,23 @@ int wget_main(int argc, char **argv)
 		WGET_OPT_HEADER     = 0x100,
 	};
 #if ENABLE_FEATURE_WGET_LONG_OPTIONS
-	static const struct option wget_long_options[] = {
-		/* name, has_arg, flag, val */
-		{ "continue",         no_argument, NULL, 'c' },
-		{ "spider",           no_argument, NULL, 's' },
-		{ "quiet",            no_argument, NULL, 'q' },
-		{ "output-document",  required_argument, NULL, 'O' },
-		{ "directory-prefix", required_argument, NULL, 'P' },
-		{ "proxy",            required_argument, NULL, 'Y' },
-		{ "user-agent",       required_argument, NULL, 'U' },
-		{ "passive-ftp",      no_argument, NULL, 0xff },
-		{ "header",           required_argument, NULL, 0xfe },
-		{ 0, 0, 0, 0 }
-	};
-	applet_long_options = wget_long_options;
+	static const char wget_longopts[] ALIGN1 =
+		/* name, has_arg, val */
+		"continue\0"         No_argument       "c"
+		"spider\0"           No_argument       "s"
+		"quiet\0"            No_argument       "q"
+		"output-document\0"  Required_argument "O"
+		"directory-prefix\0" Required_argument "P"
+		"proxy\0"            Required_argument "Y"
+		"user-agent\0"       Required_argument "U"
+		"passive-ftp\0"      No_argument       "\xff"
+		"header\0"           Required_argument "\xfe"
+		;
+	applet_long_options = wget_longopts;
 #endif
 	/* server.allocated = target.allocated = NULL; */
 	opt_complementary = "-1" USE_FEATURE_WGET_LONG_OPTIONS(":\xfe::");
-	opt = getopt32(argc, argv, "csqO:P:Y:U:",
+	opt = getopt32(argv, "csqO:P:Y:U:",
 				&fname_out, &dir_prefix,
 				&proxy_flag, &user_agent
 				USE_FEATURE_WGET_LONG_OPTIONS(, &headers_llist)
@@ -234,7 +236,7 @@ int wget_main(int argc, char **argv)
 	lsa = xhost2sockaddr(server.host, server.port);
 	if (!(opt & WGET_OPT_QUIET)) {
 		fprintf(stderr, "Connecting to %s (%s)\n", server.host,
-				xmalloc_sockaddr2dotted(&lsa->sa, lsa->len));
+				xmalloc_sockaddr2dotted(&lsa->sa));
 		/* We leak result of xmalloc_sockaddr2dotted */
 	}
 
@@ -266,12 +268,12 @@ int wget_main(int argc, char **argv)
 
 #if ENABLE_FEATURE_WGET_AUTHENTICATION
 			if (target.user) {
-				fprintf(sfp, "Authorization: Basic %s\r\n",
-					base64enc((unsigned char*)target.user, buf, strlen(target.user)));
+				fprintf(sfp, "Proxy-Authorization: Basic %s\r\n"+6,
+					base64enc_512(buf, target.user));
 			}
 			if (use_proxy && server.user) {
 				fprintf(sfp, "Proxy-Authorization: Basic %s\r\n",
-					base64enc((unsigned char*)server.user, buf, strlen(server.user)));
+					base64enc_512(buf, server.user));
 			}
 #endif
 
@@ -324,7 +326,7 @@ int wget_main(int argc, char **argv)
 			 */
 			while ((str = gethdr(buf, sizeof(buf), sfp, &n)) != NULL) {
 				/* gethdr did already convert the "FOO:" string to lowercase */
-				smalluint key = index_in_str_array(keywords, *&buf) + 1;
+				smalluint key = index_in_strings(keywords, *&buf) + 1;
 				if (key == KEY_content_length) {
 					content_len = BB_STRTOOFF(str, NULL, 10);
 					if (errno || content_len < 0) {
@@ -334,7 +336,7 @@ int wget_main(int argc, char **argv)
 					continue;
 				}
 				if (key == KEY_transfer_encoding) {
-					if (index_in_str_array(keywords, str_tolower(str)) + 1 != KEY_chunked)
+					if (index_in_strings(keywords, str_tolower(str)) + 1 != KEY_chunked)
 						bb_error_msg_and_die("server wants to do %s transfer encoding", str);
 					chunked = got_clen = 1;
 				}
@@ -460,7 +462,7 @@ int wget_main(int argc, char **argv)
 			unsigned rdsz = sizeof(buf);
 			if (content_len < sizeof(buf) && (chunked || got_clen))
 				rdsz = (unsigned)content_len;
-			n = safe_fread(buf, 1, rdsz, dfp);
+			n = safe_fread(buf, rdsz, dfp);
 			if (n <= 0)
 				break;
 			if (full_write(output_fd, buf, n) != n) {
@@ -537,7 +539,7 @@ static void parse_url(char *src_url, struct host_info *h)
 	p = strchr(h->host, '#'); if (!sp || (p && sp > p)) sp = p;
 	if (!sp) {
 		/* must be writable because of bb_get_last_path_component() */
-		static char nullstr[] = "";
+		static char nullstr[] ALIGN1 = "";
 		h->path = nullstr;
 	} else if (*sp == '/') {
 		*sp = '\0';
@@ -683,42 +685,44 @@ static void alarmtimer(int iwait)
 	setitimer(ITIMER_REAL, &itv, NULL);
 }
 
-
 static void
 progressmeter(int flag)
 {
-	static struct timeval lastupdate;
+	static unsigned lastupdate_sec;
+	static unsigned start_sec;
 	static off_t lastsize, totalsize;
 
-	struct timeval now, td, tvwait;
 	off_t abbrevsize;
-	int elapsed, ratio, barlength, i;
-	char buf[256];
+	unsigned since_last_update, elapsed;
+	unsigned ratio;
+	int barlength, i;
 
 	if (flag == -1) { /* first call to progressmeter */
-		gettimeofday(&start, (struct timezone *) 0);
-		lastupdate = start;
+		start_sec = monotonic_sec();
+		lastupdate_sec = start_sec;
 		lastsize = 0;
 		totalsize = content_len + beg_range; /* as content_len changes.. */
 	}
 
-	gettimeofday(&now, (struct timezone *) 0);
 	ratio = 100;
 	if (totalsize != 0 && !chunked) {
-		/* long long helps to have working ETA even if !LFS */
-		ratio = (int) (100 * (unsigned long long)(transferred+beg_range) / totalsize);
-		ratio = MIN(ratio, 100);
+		/* long long helps to have it working even if !LFS */
+		ratio = (unsigned) (100ULL * (transferred+beg_range) / totalsize);
+		if (ratio > 100) ratio = 100;
 	}
 
 	fprintf(stderr, "\r%-20.20s%4d%% ", curfile, ratio);
 
-	barlength = getttywidth() - 51;
-	if (barlength > 0 && barlength < sizeof(buf)) {
+	barlength = getttywidth() - 49;
+	if (barlength > 0) {
+		/* god bless gcc for variable arrays :) */
 		i = barlength * ratio / 100;
-		memset(buf, '*', i);
-		memset(buf + i, ' ', barlength - i);
-		buf[barlength] = '\0';
-		fprintf(stderr, "|%s|", buf);
+		{
+			char buf[i+1];
+			memset(buf, '*', i);
+			buf[i] = '\0';
+			fprintf(stderr, "|%s%*s|", buf, barlength - i, "");
+		}
 	}
 	i = 0;
 	abbrevsize = transferred + beg_range;
@@ -727,24 +731,30 @@ progressmeter(int flag)
 		abbrevsize >>= 10;
 	}
 	/* see http://en.wikipedia.org/wiki/Tera */
-	fprintf(stderr, "%6d %c%c ", (int)abbrevsize, " KMGTPEZY"[i], i?'B':' ');
+	fprintf(stderr, "%6d%c ", (int)abbrevsize, " kMGTPEZY"[i]);
 
-	timersub(&now, &lastupdate, &tvwait);
+// Nuts! Ain't it easier to update progress meter ONLY when we transferred++?
+// FIXME: get rid of alarmtimer + updateprogressmeter mess
+
+	elapsed = monotonic_sec();
+	since_last_update = elapsed - lastupdate_sec;
 	if (transferred > lastsize) {
-		lastupdate = now;
+		lastupdate_sec = elapsed;
 		lastsize = transferred;
-		if (tvwait.tv_sec >= STALLTIME)
-			timeradd(&start, &tvwait, &start);
-		tvwait.tv_sec = 0;
+		if (since_last_update >= STALLTIME) {
+			/* We "cut off" these seconds from elapsed time
+			 * by adjusting start time */
+			start_sec += since_last_update;
+		}
+		since_last_update = 0; /* we are un-stalled now */
 	}
-	timersub(&now, &start, &td);
-	elapsed = td.tv_sec;
+	elapsed -= start_sec; /* now it's "elapsed since start" */
 
-	if (tvwait.tv_sec >= STALLTIME) {
+	if (since_last_update >= STALLTIME) {
 		fprintf(stderr, " - stalled -");
 	} else {
 		off_t to_download = totalsize - beg_range;
-		if (transferred <= 0 || elapsed <= 0 || transferred > to_download || chunked) {
+		if (transferred <= 0 || (int)elapsed <= 0 || transferred > to_download || chunked) {
 			fprintf(stderr, "--:--:-- ETA");
 		} else {
 			/* to_download / (transferred/elapsed) - elapsed: */
@@ -768,7 +778,7 @@ progressmeter(int flag)
 		putc('\n', stderr);
 	}
 }
-#endif
+#endif /* FEATURE_WGET_STATUSBAR */
 
 /* Original copyright notice which applies to the CONFIG_FEATURE_WGET_STATUSBAR stuff,
  * much of which was blatantly stolen from openssh.  */

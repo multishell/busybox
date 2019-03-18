@@ -3613,12 +3613,12 @@ static int obj_gpl_license(struct obj_file *f, const char **license)
 	 * linux/include/linux/module.h.  Checking for leading "GPL" will not
 	 * work, somebody will use "GPL sucks, this is proprietary".
 	 */
-	static const char * const gpl_licenses[] = {
+	static const char *const gpl_licenses[] = {
 		"GPL",
 		"GPL v2",
 		"GPL and additional rights",
 		"Dual BSD/GPL",
-		"Dual MPL/GPL",
+		"Dual MPL/GPL"
 	};
 
 	sec = obj_find_section(f, ".modinfo");
@@ -3632,7 +3632,7 @@ static int obj_gpl_license(struct obj_file *f, const char **license)
 				int i;
 				if (license)
 					*license = value+1;
-				for (i = 0; i < sizeof(gpl_licenses)/sizeof(gpl_licenses[0]); ++i) {
+				for (i = 0; i < ARRAY_SIZE(gpl_licenses); ++i) {
 					if (strcmp(value+1, gpl_licenses[i]) == 0)
 						return 0;
 				}
@@ -3656,16 +3656,18 @@ static int obj_gpl_license(struct obj_file *f, const char **license)
 static void set_tainted(struct obj_file *f, int fd, char *m_name,
 		int kernel_has_tainted, int taint, const char *text1, const char *text2)
 {
+	static smallint printed_info;
+
 	char buf[80];
 	int oldval;
-	static int first = 1;
+
 	if (fd < 0 && !kernel_has_tainted)
 		return;		/* New modutils on old kernel */
 	printf("Warning: loading %s will taint the kernel: %s%s\n",
 			m_name, text1, text2);
-	if (first) {
+	if (!printed_info) {
 		printf("  See %s for information about tainted modules\n", TAINT_URL);
-		first = 0;
+		printed_info = 1;
 	}
 	if (fd >= 0) {
 		read(fd, buf, sizeof(buf)-1);
@@ -3679,7 +3681,8 @@ static void set_tainted(struct obj_file *f, int fd, char *m_name,
 /* Check if loading this module will taint the kernel. */
 static void check_tainted_module(struct obj_file *f, char *m_name)
 {
-	static const char tainted_file[] = TAINT_FILENAME;
+	static const char tainted_file[] ALIGN1 = TAINT_FILENAME;
+
 	int fd, kernel_has_tainted;
 	const char *ptr;
 
@@ -3748,7 +3751,8 @@ static void
 add_ksymoops_symbols(struct obj_file *f, const char *filename,
 				 const char *m_name)
 {
-	static const char symprefix[] = "__insmod_";
+	static const char symprefix[] ALIGN1 = "__insmod_";
+
 	struct obj_section *sec;
 	struct obj_symbol *sym;
 	char *name, *absolute_filename;
@@ -3831,7 +3835,7 @@ add_ksymoops_symbols(struct obj_file *f, const char *filename,
 #endif /* _NOT_SUPPORTED_ */
 	/* tag the desired sections if size is non-zero */
 
-	for (i = 0; i < sizeof(section_names)/sizeof(section_names[0]); ++i) {
+	for (i = 0; i < ARRAY_SIZE(section_names); ++i) {
 		sec = obj_find_section(f, section_names[i]);
 		if (sec && sec->header.sh_size) {
 			l = sizeof(symprefix)+		/* "__insmod_" */
@@ -3976,7 +3980,7 @@ int insmod_main( int argc, char **argv)
 	struct utsname myuname;
 
 	/* Parse any options */
-	getopt32(argc, argv, OPTION_STR, &opt_o);
+	getopt32(argv, OPTION_STR, &opt_o);
 	arg1 = argv[optind];
 	if (option_mask32 & OPT_o) { // -o /* name the output module */
 		free(m_name);
@@ -4112,18 +4116,13 @@ int insmod_main( int argc, char **argv)
 		}
 
 		if (strncmp(uts_info.release, m_strversion, STRVERSIONLEN) != 0) {
-			if (flag_force_load) {
-				bb_error_msg("warning: kernel-module version mismatch\n"
-						"\t%s was compiled for kernel version %s\n"
-						"\twhile this kernel is version %s",
-						m_filename, m_strversion, uts_info.release);
-			} else {
-				bb_error_msg("kernel-module version mismatch\n"
-						"\t%s was compiled for kernel version %s\n"
-						"\twhile this kernel is version %s.",
-						m_filename, m_strversion, uts_info.release);
+			bb_error_msg("%skernel-module version mismatch\n"
+				"\t%s was compiled for kernel version %s\n"
+				"\twhile this kernel is version %s",
+				flag_force_load ? "warning: " : "",
+				m_filename, m_strversion, uts_info.release);
+			if (!flag_force_load)
 				goto out;
-			}
 		}
 	}
 	k_crcs = 0;
@@ -4267,6 +4266,7 @@ int insmod_ng_main(int argc, char **argv)
 {
 	long ret;
 	size_t len;
+	int optlen;
 	void *map;
 	char *filename, *options;
 
@@ -4275,12 +4275,12 @@ int insmod_ng_main(int argc, char **argv)
 		bb_show_usage();
 
 	/* Rest is options */
-	options = xstrdup("");
+	options = xzalloc(1);
+	optlen = 0;
 	while (*++argv) {
-		int optlen = strlen(options);
 		options = xrealloc(options, optlen + 2 + strlen(*argv) + 2);
 		/* Spaces handled by "" pairs, but no way of escaping quotes */
-		sprintf(options + optlen, (strchr(*argv,' ') ? "\"%s\" " : "%s "), *argv);
+		optlen += sprintf(options + optlen, (strchr(*argv,' ') ? "\"%s\" " : "%s "), *argv);
 	}
 
 #if 0

@@ -30,27 +30,39 @@ int udhcpd_main(int argc, char **argv)
 	struct dhcpMessage packet;
 	uint8_t *state, *server_id, *requested;
 	uint32_t server_id_align, requested_align, static_lease_ip;
-	unsigned long timeout_end, num_ips;
+	unsigned timeout_end;
+	unsigned num_ips;
+	unsigned opt;
 	struct option_set *option;
 	struct dhcpOfferedAddr *lease, static_lease;
 
-//Huh, dhcpd don't have --foreground, --syslog options?? TODO
+	opt = getopt32(argv, "fS");
+	argv += optind;
 
-	if (!ENABLE_FEATURE_UDHCP_DEBUG) {
-		bb_daemonize_or_rexec(DAEMON_CHDIR_ROOT, argv);
+	if (!(opt & 1)) { /* no -f */
+		bb_daemonize_or_rexec(0, argv);
 		logmode &= ~LOGMODE_STDIO;
 	}
 
-	if (ENABLE_FEATURE_UDHCP_SYSLOG) {
+	if (opt & 2) { /* -S */
 		openlog(applet_name, LOG_PID, LOG_LOCAL0);
 		logmode |= LOGMODE_SYSLOG;
 	}
 
 	/* Would rather not do read_config before daemonization -
 	 * otherwise NOMMU machines will parse config twice */
-	read_config(argc < 2 ? DHCPD_CONF_FILE : argv[1]);
+	read_config(argv[0] ? argv[0] : DHCPD_CONF_FILE);
 
-	udhcp_make_pidfile(server_config.pidfile);
+	/* Make sure fd 0,1,2 are open */
+	bb_sanitize_stdio();
+	/* Equivalent of doing a fflush after every \n */
+	setlinebuf(stdout);
+
+	/* Create pidfile */
+	write_pidfile(server_config.pidfile);
+	/* if (!..) bb_perror_msg("cannot create pidfile %s", pidfile); */
+
+	bb_info_msg("%s (v%s) started", applet_name, BB_VER);
 
 	option = find_option(server_config.options, DHCP_LEASE_TIME);
 	server_config.lease = LEASE_TIME;
@@ -60,19 +72,18 @@ int udhcpd_main(int argc, char **argv)
 	}
 
 	/* Sanity check */
-	num_ips = ntohl(server_config.end) - ntohl(server_config.start) + 1;
+	num_ips = server_config.end_ip - server_config.start_ip + 1;
 	if (server_config.max_leases > num_ips) {
-		bb_error_msg("max_leases value (%lu) not sane, "
-			"setting to %lu instead",
-			server_config.max_leases, num_ips);
+		bb_error_msg("max_leases=%u is too big, setting to %u",
+			(unsigned)server_config.max_leases, num_ips);
 		server_config.max_leases = num_ips;
 	}
 
-	leases = xzalloc(server_config.max_leases * sizeof(struct dhcpOfferedAddr));
+	leases = xzalloc(server_config.max_leases * sizeof(*leases));
 	read_leases(server_config.lease_file);
 
 	if (read_interface(server_config.interface, &server_config.ifindex,
-			   &server_config.server, server_config.arp) < 0) {
+			   &server_config.server, server_config.arp)) {
 		retval = 1;
 		goto ret;
 	}
@@ -80,17 +91,17 @@ int udhcpd_main(int argc, char **argv)
 	/* Setup the signal pipe */
 	udhcp_sp_setup();
 
-	timeout_end = time(0) + server_config.auto_time;
+	timeout_end = monotonic_sec() + server_config.auto_time;
 	while (1) { /* loop until universe collapses */
 
 		if (server_socket < 0) {
-			server_socket = listen_socket(INADDR_ANY, SERVER_PORT,
+			server_socket = listen_socket(/*INADDR_ANY,*/ SERVER_PORT,
 					server_config.interface);
 		}
 
 		max_sock = udhcp_sp_fd_set(&rfds, server_socket);
 		if (server_config.auto_time) {
-			tv.tv_sec = timeout_end - time(0);
+			tv.tv_sec = timeout_end - monotonic_sec();
 			tv.tv_usec = 0;
 		}
 		retval = 0;
@@ -100,7 +111,7 @@ int udhcpd_main(int argc, char **argv)
 		}
 		if (retval == 0) {
 			write_leases();
-			timeout_end = time(0) + server_config.auto_time;
+			timeout_end = monotonic_sec() + server_config.auto_time;
 			continue;
 		}
 		if (retval < 0 && errno != EINTR) {
@@ -113,7 +124,7 @@ int udhcpd_main(int argc, char **argv)
 			bb_info_msg("Received a SIGUSR1");
 			write_leases();
 			/* why not just reset the timeout, eh */
-			timeout_end = time(0) + server_config.auto_time;
+			timeout_end = monotonic_sec() + server_config.auto_time;
 			continue;
 		case SIGTERM:
 			bb_info_msg("Received a SIGTERM");
@@ -207,11 +218,15 @@ int udhcpd_main(int argc, char **argv)
 					/* make some contention for this address */
 					} else
 						sendNAK(&packet);
-				} else if (requested_align < server_config.start
-				        || requested_align > server_config.end
-				) {
-					sendNAK(&packet);
-				} /* else remain silent */
+				} else {
+					uint32_t r = ntohl(requested_align);
+					if (r < server_config.start_ip
+				         || r > server_config.end_ip
+					) {
+						sendNAK(&packet);
+					}
+					/* else remain silent */
+				}
 
 			} else {
 				/* RENEWING or REBINDING State */
@@ -240,7 +255,7 @@ int udhcpd_main(int argc, char **argv)
  ret0:
 	retval = 0;
  ret:
-	if (server_config.pidfile)
+	/*if (server_config.pidfile) - server_config.pidfile is never NULL */
 		remove_pidfile(server_config.pidfile);
 	return retval;
 }

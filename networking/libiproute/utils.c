@@ -251,13 +251,6 @@ void duparg2(const char *key, const char *arg)
 	bb_error_msg_and_die("either \"%s\" is duplicate, or \"%s\" is garbage", key, arg);
 }
 
-int matches(const char *cmd, const char *pattern)
-{
-	int len = strlen(cmd);
-
-	return strncmp(pattern, cmd, len);
-}
-
 int inet_addr_match(inet_prefix * a, inet_prefix * b, int bits)
 {
 	uint32_t *a1 = a->data;
@@ -316,9 +309,12 @@ const char *format_host(int af, int len, void *addr, char *buf, int buflen)
 			default:;
 			}
 		}
-		if (len > 0 && (h_ent = gethostbyaddr(addr, len, af)) != NULL) {
-			snprintf(buf, buflen - 1, "%s", h_ent->h_name);
-			return buf;
+		if (len > 0) {
+			h_ent = gethostbyaddr(addr, len, af);
+			if (h_ent != NULL) {
+				safe_strncpy(buf, h_ent->h_name, buflen);
+				return buf;
+			}
 		}
 	}
 #endif

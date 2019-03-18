@@ -55,10 +55,12 @@ static char *extract_filename(char *line, int patch_level)
 	int i;
 
 	/* Terminate string at end of source filename */
-	temp = strchr(filename_start_ptr, '\t');
-	if (temp) *temp = 0;
+	temp = strchrnul(filename_start_ptr, '\t');
+	*temp = '\0';
 
-	/* skip over (patch_level) number of leading directories */
+	/* Skip over (patch_level) number of leading directories */
+	if (patch_level == -1)
+		patch_level = INT_MAX;
 	for (i = 0; i < patch_level; i++) {
 		temp = strchr(filename_start_ptr, '/');
 		if (!temp)
@@ -85,7 +87,7 @@ int patch_main(int argc, char **argv)
 
 	{
 		char *p, *i;
-		ret = getopt32(argc, argv, "p:i:", &p, &i);
+		ret = getopt32(argv, "p:i:", &p, &i);
 		if (ret & 1)
 			patch_level = xatol_range(p, -1, USHRT_MAX);
 		if (ret & 2) {
@@ -96,7 +98,7 @@ int patch_main(int argc, char **argv)
 		ret = 0;
 	}
 
-	patch_line = xmalloc_fgets(patch_file);
+	patch_line = xmalloc_getline(patch_file);
 	while (patch_line) {
 		FILE *src_stream;
 		FILE *dst_stream;
@@ -115,7 +117,7 @@ int patch_main(int argc, char **argv)
 		 */
 		while (patch_line && strncmp(patch_line, "--- ", 4) != 0) {
 			free(patch_line);
-			patch_line = xmalloc_fgets(patch_file);
+			patch_line = xmalloc_getline(patch_file);
 		}
 		/* FIXME: patch_line NULL check?? */
 
@@ -123,7 +125,7 @@ int patch_main(int argc, char **argv)
 		original_filename = extract_filename(patch_line, patch_level);
 		free(patch_line);
 
-		patch_line = xmalloc_fgets(patch_file);
+		patch_line = xmalloc_getline(patch_file);
 		/* FIXME: NULL check?? */
 		if (strncmp(patch_line, "+++ ", 4) != 0) {
 			ret = 2;

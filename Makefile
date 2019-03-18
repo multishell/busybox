@@ -1,6 +1,6 @@
 VERSION = 1
-PATCHLEVEL = 6
-SUBLEVEL = 2
+PATCHLEVEL = 7
+SUBLEVEL = 0
 EXTRAVERSION =
 NAME = Unnamed
 
@@ -183,11 +183,6 @@ CONFIG_SHELL := $(shell if [ -x "$$BASH" ]; then echo $$BASH; \
 	  else if [ -x /bin/bash ]; then echo /bin/bash; \
 	  else echo sh; fi ; fi)
 
-HOSTCC  	= gcc
-HOSTCXX  	= g++
-HOSTCFLAGS	= -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer
-HOSTCXXFLAGS	= -O2
-
 # 	Decide whether to build built-in, modular, or both.
 #	Normally, just do built-in.
 
@@ -262,8 +257,15 @@ export quiet Q KBUILD_VERBOSE
 # Look for make include files relative to root of kernel src
 MAKEFLAGS += --include-dir=$(srctree)
 
+HOSTCC  	= gcc
+HOSTCXX  	= g++
+HOSTCFLAGS	:=
+HOSTCXXFLAGS	:=
 # We need some generic definitions
 include $(srctree)/scripts/Kbuild.include
+
+HOSTCFLAGS	+= $(call hostcc-option,-Wall -Wstrict-prototypes -O2 -fomit-frame-pointer,)
+HOSTCXXFLAGS	+= -O2
 
 # For maximum performance (+ possibly random breakage, uncomment
 # the following)
@@ -567,7 +569,7 @@ busybox-all  := $(core-y) $(libs-y)
 # May be overridden by arch/$(ARCH)/Makefile
 quiet_cmd_busybox__ ?= LINK    $@
       cmd_busybox__ ?= $(srctree)/scripts/trylink $(CC) $(LDFLAGS) \
-      -o $@ -Wl,-M \
+      -o $@ -Wl,-Map -Wl,$@.map \
       -Wl,--warn-common -Wl,--sort-common -Wl,--gc-sections \
       -Wl,--start-group $(busybox-all) -Wl,--end-group \
       $(LDLIBS)
@@ -677,8 +679,12 @@ busybox_unstripped: $(busybox-all) FORCE
 	$(Q)rm -f .old_version
 
 busybox: busybox_unstripped
+ifeq ($(SKIP_STRIP),y)
+	$(Q)cp $< $@
+else
 	$(Q)$(STRIP) -s --remove-section=.note --remove-section=.comment \
 		busybox_unstripped -o $@
+endif
 
 # The actual objects are generated when descending,
 # make sure no implicit rule kicks in
@@ -754,7 +760,7 @@ PHONY += prepare-all
 # 2) Create the include2 directory, used for the second asm symlink
 prepare3: .kernelrelease
 ifneq ($(KBUILD_SRC),)
-	@echo '  Using $(srctree) as source for kernel'
+	@echo '  Using $(srctree) as source for busybox'
 	$(Q)if [ -f $(srctree)/.config ]; then \
 		echo "  $(srctree) is not clean, please run 'make mrproper'";\
 		echo "  in the '$(srctree)' directory.";\

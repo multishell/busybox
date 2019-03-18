@@ -11,9 +11,14 @@
 // /proc/stat:
 // disk_io: (3,0):(22272,17897,410702,4375,54750)
 // btime 1059401962
+//TODO: use sysinfo libc call/syscall, if appropriate
+// (faster than open/read/close):
+// sysinfo({uptime=15017, loads=[5728, 15040, 16480]
+//  totalram=2107416576, freeram=211525632, sharedram=0, bufferram=157204480}
+//  totalswap=134209536, freeswap=134209536, procs=157})
 
-#include "libbb.h"
 #include <time.h>
+#include "libbb.h"
 
 typedef unsigned long long ullong;
 
@@ -31,7 +36,7 @@ static const char *const proc_name[] = {
 	"net/dev",
 	"meminfo",
 	"diskstats",
-	"sys/fs/file-nr",
+	"sys/fs/file-nr"
 };
 
 struct globals {
@@ -69,15 +74,15 @@ struct globals {
 #define proc_meminfo       (G.proc_meminfo      )
 #define proc_diskstats     (G.proc_diskstats    )
 #define proc_sys_fs_filenr (G.proc_sys_fs_filenr)
-
-// We depend on this being a char[], not char* - we take sizeof() of it
-#define outbuf bb_common_bufsiz1
-
 #define INIT_G() do { \
+		PTR_TO_GLOBALS = xzalloc(sizeof(G)); \
 		cur_outbuf = outbuf; \
 		final_str = "\n"; \
 		deltanz = delta = 1000000; \
 	} while (0)
+
+// We depend on this being a char[], not char* - we take sizeof() of it
+#define outbuf bb_common_bufsiz1
 
 static inline void reset_outbuf(void)
 {
@@ -749,7 +754,7 @@ static void collect_info(s_stat *s)
 
 typedef s_stat* init_func(const char *param);
 
-static const char options[] = "ncmsfixptbdr";
+static const char options[] ALIGN1 = "ncmsfixptbdr";
 static init_func *const init_functions[] = {
 	init_if,
 	init_cpu,
@@ -762,7 +767,7 @@ static init_func *const init_functions[] = {
 	init_time,
 	init_blk,
 	init_delay,
-	init_cr,
+	init_cr
 };
 
 int nmeter_main(int argc, char **argv);
@@ -774,7 +779,6 @@ int nmeter_main(int argc, char **argv)
 	s_stat *s;
 	char *cur, *prev;
 
-	PTR_TO_GLOBALS = xzalloc(sizeof(G));
 	INIT_G();
 
 	xchdir("/proc");

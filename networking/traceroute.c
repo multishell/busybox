@@ -275,7 +275,8 @@ struct hostinfo {
 struct outdata {
 	unsigned char seq;             /* sequence number of this packet */
 	unsigned char ttl;             /* ttl packet left with */
-	struct timeval tv ATTRIBUTE_PACKED; /* time packet left */
+// UNUSED. Retaining to have the same packet size.
+	struct timeval tv_UNUSED ATTRIBUTE_PACKED; /* time packet left */
 };
 
 struct IFADDRLIST {
@@ -371,6 +372,8 @@ struct globals {
 static int
 ifaddrlist(struct IFADDRLIST **ipaddrp)
 {
+	enum { IFREQ_BUFSIZE = (32 * 1024) / sizeof(struct ifreq) };
+
 	int fd, nipaddr;
 #ifdef HAVE_SOCKADDR_SA_LEN
 	int n;
@@ -379,22 +382,24 @@ ifaddrlist(struct IFADDRLIST **ipaddrp)
 	struct sockaddr_in *addr_sin;
 	struct IFADDRLIST *al;
 	struct ifconf ifc;
-	struct ifreq ibuf[(32 * 1024) / sizeof(struct ifreq)], ifr;
+	struct ifreq ifr;
+	/* Was on stack, but 32k is a bit too much: */
+	struct ifreq *ibuf = xmalloc(IFREQ_BUFSIZE * sizeof(ibuf[0]));
 	struct IFADDRLIST *st_ifaddrlist;
 
 	fd = xsocket(AF_INET, SOCK_DGRAM, 0);
 
-	ifc.ifc_len = sizeof(ibuf);
+	ifc.ifc_len = IFREQ_BUFSIZE * sizeof(ibuf[0]);
 	ifc.ifc_buf = (caddr_t)ibuf;
 
-	if (ioctl(fd, SIOCGIFCONF, (char *)&ifc) < 0 ||
-	    ifc.ifc_len < sizeof(struct ifreq)) {
+	if (ioctl(fd, SIOCGIFCONF, (char *)&ifc) < 0
+	 || ifc.ifc_len < sizeof(struct ifreq)
+	) {
 		if (errno == EINVAL)
 			bb_error_msg_and_die(
-			    "SIOCGIFCONF: ifreq struct too small (%d bytes)",
-			    (int)sizeof(ibuf));
-		else
-			bb_perror_msg_and_die("SIOCGIFCONF");
+			    "SIOCGIFCONF: ifreq struct too small (%u bytes)",
+			    (unsigned)(IFREQ_BUFSIZE * sizeof(ibuf[0])));
+		bb_perror_msg_and_die("SIOCGIFCONF");
 	}
 	ifrp = ibuf;
 	ifend = (struct ifreq *)((char *)ibuf + ifc.ifc_len);
@@ -440,8 +445,8 @@ ifaddrlist(struct IFADDRLIST **ipaddrp)
 		if (strchr(al->device, ':') != NULL)
 			continue;
 #endif
-		if (ioctl(fd, SIOCGIFADDR, (char *)&ifr) < 0)
-			bb_perror_msg_and_die("SIOCGIFADDR: %s", al->device);
+		ioctl_or_perror_and_die(fd, SIOCGIFADDR, (char *)&ifr,
+				"SIOCGIFADDR: %s", al->device);
 
 		addr_sin = (struct sockaddr_in *)&ifr.ifr_addr;
 		al->addr = addr_sin->sin_addr.s_addr;
@@ -449,9 +454,10 @@ ifaddrlist(struct IFADDRLIST **ipaddrp)
 		++nipaddr;
 	}
 	if (nipaddr == 0)
-		bb_error_msg_and_die ("can't find any network interfaces");
-	(void)close(fd);
+		bb_error_msg_and_die("can't find any network interfaces");
 
+	free(ibuf);
+	close(fd);
 	*ipaddrp = st_ifaddrlist;
 	return nipaddr;
 }
@@ -492,11 +498,13 @@ findsaddr(const struct sockaddr_in *to, struct sockaddr_in *from)
 		++n;
 		if (n == 1 && strncmp(buf, "Iface", 5) == 0)
 			continue;
-		if ((i = sscanf(buf, "%255s %x %*s %*s %*s %*s %*s %x",
-		    tdevice, &dest, &tmask)) != 3)
-			bb_error_msg_and_die ("junk in buffer");
-		if ((to->sin_addr.s_addr & tmask) == dest &&
-		    (tmask > mask || mask == 0)) {
+		i = sscanf(buf, "%255s %x %*s %*s %*s %*s %*s %x",
+					tdevice, &dest, &tmask);
+		if (i != 3)
+			bb_error_msg_and_die("junk in buffer");
+		if ((to->sin_addr.s_addr & tmask) == dest
+		 && (tmask > mask || mask == 0)
+		) {
 			mask = tmask;
 			strcpy(device, tdevice);
 		}
@@ -504,7 +512,7 @@ findsaddr(const struct sockaddr_in *to, struct sockaddr_in *from)
 	fclose(f);
 
 	if (device[0] == '\0')
-		bb_error_msg_and_die ("can't find interface");
+		bb_error_msg_and_die("can't find interface");
 
 	/* Get the interface address list */
 	n = ifaddrlist(&al);
@@ -526,37 +534,19 @@ findsaddr(const struct sockaddr_in *to, struct sockaddr_in *from)
 
 */
 
-/*
- * Subtract 2 timeval structs:  out = out - in.
- * Out is assumed to be >= in.
- */
-static inline void
-tvsub(struct timeval *out, struct timeval *in)
-{
-
-	if ((out->tv_usec -= in->tv_usec) < 0)   {
-		--out->tv_sec;
-		out->tv_usec += 1000000;
-	}
-	out->tv_sec -= in->tv_sec;
-}
-
 static int
-wait_for_reply(int sock, struct sockaddr_in *fromp, const struct timeval *tp)
+wait_for_reply(int sock, struct sockaddr_in *fromp)
 {
 	fd_set fds;
-	struct timeval now, tvwait;
-	struct timezone tz;
+	struct timeval tvwait;
 	int cc = 0;
 	socklen_t fromlen = sizeof(*fromp);
 
 	FD_ZERO(&fds);
 	FD_SET(sock, &fds);
 
-	tvwait.tv_sec = tp->tv_sec + waittime;
-	tvwait.tv_usec = tp->tv_usec;
-	(void)gettimeofday(&now, &tz);
-	tvsub(&tvwait, &now);
+	tvwait.tv_sec = waittime;
+	tvwait.tv_usec = 0;
 
 	if (select(sock + 1, &fds, NULL, NULL, &tvwait) > 0)
 		cc = recvfrom(sock, (char *)packet, sizeof(packet), 0,
@@ -602,7 +592,7 @@ in_cksum(uint16_t *addr, int len)
 
 
 static void
-send_probe(int seq, int ttl, struct timeval *tp)
+send_probe(int seq, int ttl)
 {
 	int cc;
 	struct udpiphdr *ui, *oui;
@@ -626,7 +616,8 @@ send_probe(int seq, int ttl, struct timeval *tp)
 	/* Payload */
 	outdata->seq = seq;
 	outdata->ttl = ttl;
-	memcpy(&outdata->tv, tp, sizeof(outdata->tv));
+// UNUSED: was storing gettimeofday's result there, but never ever checked it
+	/*memcpy(&outdata->tv, tp, sizeof(outdata->tv));*/
 
 #if ENABLE_FEATURE_TRACEROUTE_USE_ICMP
 	if (useicmp)
@@ -699,18 +690,7 @@ send_probe(int seq, int ttl, struct timeval *tp)
 	    packlen, (struct sockaddr *)&whereto, sizeof(whereto));
 	if (cc != packlen)  {
 		bb_info_msg("wrote %s %d chars, ret=%d", hostname, packlen, cc);
-//		(void)fflush(stdout);
 	}
-}
-
-static inline double
-deltaT(struct timeval *t1p, struct timeval *t2p)
-{
-	double dt;
-
-	dt = (double)(t2p->tv_sec - t1p->tv_sec) * 1000.0 +
-	     (double)(t2p->tv_usec - t1p->tv_usec) / 1000.0;
-	return dt;
 }
 
 #if ENABLE_FEATURE_TRACEROUTE_VERBOSE
@@ -720,7 +700,7 @@ deltaT(struct timeval *t1p, struct timeval *t2p)
 static inline const char *
 pr_type(unsigned char t)
 {
-	static const char * const ttab[] = {
+	static const char *const ttab[] = {
 	"Echo Reply",   "ICMP 1",       "ICMP 2",       "Dest Unreachable",
 	"Source Quench", "Redirect",    "ICMP 6",       "ICMP 7",
 	"Echo",         "Router Advert", "Router Solicit", "Time Exceeded",
@@ -808,7 +788,7 @@ packet_ok(unsigned char *buf, int cc, struct sockaddr_in *from, int seq)
 		       "%s: icmp type %d (%s) code %d\n",
 		    cc, inet_ntoa(from->sin_addr),
 		    inet_ntoa(ip->ip_dst), type, pr_type(type), icp->icmp_code);
-		for (i = 4; i < cc ; i += sizeof(*lp))
+		for (i = 4; i < cc; i += sizeof(*lp))
 			printf("%2d: x%8.8x\n", i, *lp++);
 	}
 #endif
@@ -822,22 +802,20 @@ packet_ok(unsigned char *buf, int cc, struct sockaddr_in *from, int seq)
  * numeric value, otherwise try for symbolic name.
  */
 static inline void
-inetname(struct sockaddr_in *from)
+print_inetname(struct sockaddr_in *from)
 {
-	const char *n = NULL;
 	const char *ina;
-	char name[257];
 
-	if (!nflag && from->sin_addr.s_addr != INADDR_ANY) {
-		if (INET_rresolve(name, sizeof(name), from, 0x4000,
-						0xffffffff) >= 0)
-			n = name;
-	}
 	ina = inet_ntoa(from->sin_addr);
 	if (nflag)
 		printf(" %s", ina);
-	else
+	else {
+		char *n = NULL;
+		if (from->sin_addr.s_addr != INADDR_ANY)
+			n = xmalloc_sockaddr2host_noport((struct sockaddr*)from);
 		printf(" %s (%s)", (n ? n : ina), ina);
+		free(n);
+	}
 }
 
 static inline void
@@ -850,7 +828,7 @@ print(unsigned char *buf, int cc, struct sockaddr_in *from)
 	hlen = ip->ip_hl << 2;
 	cc -= hlen;
 
-	inetname(from);
+	print_inetname(from);
 #if ENABLE_FEATURE_TRACEROUTE_VERBOSE
 	if (verbose)
 		printf(" %d bytes to %s", cc, inet_ntoa(ip->ip_dst));
@@ -894,9 +872,8 @@ static void
 freehostinfo(struct hostinfo *hi)
 {
 	free(hi->name);
-	hi->name = NULL;
-	free((char *)hi->addrs);
-	free((char *)hi);
+	free(hi->addrs);
+	free(hi);
 }
 
 #if ENABLE_FEATURE_TRACEROUTE_SOURCE_ROUTE
@@ -911,6 +888,12 @@ getaddr(uint32_t *ap, const char *host)
 }
 #endif
 
+static void
+print_delta_ms(unsigned t1p, unsigned t2p)
+{
+	unsigned tt = t2p - t1p;
+	printf("  %u.%03u ms", tt/1000, tt%1000);
+}
 
 int traceroute_main(int argc, char **argv);
 int traceroute_main(int argc, char **argv)
@@ -958,7 +941,7 @@ int traceroute_main(int argc, char **argv)
 	opt_complementary = "x-x";
 #endif
 
-	op = getopt32(argc, argv, "FIlnrdvxt:i:m:p:q:s:w:z:f:"
+	op = getopt32(argv, "FIlnrdvxt:i:m:p:q:s:w:z:f:"
 #if ENABLE_FEATURE_TRACEROUTE_SOURCE_ROUTE
 					"g:"
 #endif
@@ -1228,17 +1211,17 @@ int traceroute_main(int argc, char **argv)
 		printf("%2d ", ttl);
 		for (probe = 0; probe < nprobes; ++probe) {
 			int cc;
-			struct timeval t1, t2;
-			struct timezone tz;
+			unsigned t1;
+			unsigned t2;
 			struct ip *ip;
 
 			if (sentfirst && pausemsecs > 0)
 				usleep(pausemsecs * 1000);
-			(void)gettimeofday(&t1, &tz);
-			send_probe(++seq, ttl, &t1);
+			t1 = monotonic_us();
+			send_probe(++seq, ttl);
 			++sentfirst;
-			while ((cc = wait_for_reply(s, from, &t1)) != 0) {
-				(void)gettimeofday(&t2, &tz);
+			while ((cc = wait_for_reply(s, from)) != 0) {
+				t2 = monotonic_us();
 				i = packet_ok(packet, cc, from, seq);
 				/* Skip short packet */
 				if (i == 0)
@@ -1249,7 +1232,7 @@ int traceroute_main(int argc, char **argv)
 					lastaddr = from->sin_addr.s_addr;
 					++gotlastaddr;
 				}
-				printf("  %.3f ms", deltaT(&t1, &t2));
+				print_delta_ms(t1, t2);
 				ip = (struct ip *)packet;
 				if (op & OPT_TTL_FLAG)
 					printf(" (%d)", ip->ip_ttl);

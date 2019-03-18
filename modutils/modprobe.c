@@ -234,7 +234,7 @@ static void include_conf(struct dep_t **first, struct dep_t **current, char *buf
 {
 	int continuation_line = 0;
 
-	// alias parsing is not 100% correct (no correct handling of continuation lines within an alias) !
+	// alias parsing is not 100% correct (no correct handling of continuation lines within an alias)!
 
 	while (reads(fd, buffer, buflen)) {
 		int l;
@@ -376,18 +376,13 @@ static struct dep_t *build_dep(void)
 
 			if (col) {
 				/* This line is a dep description */
-				char *mods;
+				const char *mods;
 				char *modpath;
 				char *mod;
 
 				/* Find the beginning of the module file name */
 				*col = 0;
-				mods = strrchr(buffer, '/');
-
-				if (!mods)
-					mods = buffer; /* no path for this module */
-				else
-					mods++; /* there was a path for this module... */
+				mods = bb_basename(buffer);
 
 				/* find the path of the module */
 				modpath = strchr(buffer, '/'); /* ... and this is the path */
@@ -433,7 +428,7 @@ static struct dep_t *build_dep(void)
 		/* p points to the first dependable module; if NULL, no dependable module */
 		if (p && *p) {
 			char *end = &buffer[l-1];
-			char *deps;
+			const char *deps;
 			char *dep;
 			char *next;
 			int ext = 0;
@@ -451,15 +446,11 @@ static struct dep_t *build_dep(void)
 					next = end;
 
 				/* find the beginning of the module file name */
-				deps = strrchr(p, '/');
-
-				if (!deps || (deps < p)) {
-					deps = p;
-
+				deps = bb_basename(p);
+				if (deps == p) {
 					while (isblank(*deps))
 						deps++;
-				} else
-					deps++;
+				}
 
 				/* find the end of the module name in the file name */
 				if (ENABLE_FEATURE_2_6_MODULES
@@ -513,12 +504,27 @@ static struct dep_t *build_dep(void)
 
 	/* Only 2.6 has a modules.alias file */
 	if (ENABLE_FEATURE_2_6_MODULES) {
-		/* Parse kernel-declared aliases */
+		/* Parse kernel-declared module aliases */
 		filename = xasprintf("/lib/modules/%s/modules.alias", un.release);
 		fd = open(filename, O_RDONLY);
 		if (fd < 0) {
 			/* Ok, that didn't work.  Fall back to looking in /lib/modules */
 			fd = open("/lib/modules/modules.alias", O_RDONLY);
+		}
+		if (ENABLE_FEATURE_CLEAN_UP)
+			free(filename);
+
+		if (fd >= 0) {
+			include_conf(&first, &current, buffer, sizeof(buffer), fd);
+			close(fd);
+		}
+
+		/* Parse kernel-declared symbol aliases */
+		filename = xasprintf("/lib/modules/%s/modules.symbols", un.release);
+		fd = open(filename, O_RDONLY);
+		if (fd < 0) {
+			/* Ok, that didn't work.  Fall back to looking in /lib/modules */
+			fd = open("/lib/modules/modules.symbols", O_RDONLY);
 		}
 		if (ENABLE_FEATURE_CLEAN_UP)
 			free(filename);
@@ -862,7 +868,7 @@ int modprobe_main(int argc, char** argv)
 	char *unused;
 
 	opt_complementary = "?V-:q-v:v-q";
-	main_opts = getopt32(argc, argv, "acdklnqrst:vVC:",
+	main_opts = getopt32(argv, "acdklnqrst:vVC:",
 							&unused, &unused);
 	if (main_opts & (DUMP_CONF_EXIT | LIST_ALL))
 		return EXIT_SUCCESS;

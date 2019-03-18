@@ -413,7 +413,7 @@ static void add_split_dependencies(common_node_t *parent_node, const char *whole
 			or_edge = xmalloc(sizeof(edge_t));
 			or_edge->type = edge_type + 1;
 			or_edge->name = search_name_hashtable(field);
-			or_edge->version = 0; // tracks the number of altenatives
+			or_edge->version = 0; // tracks the number of alternatives
 			add_edge_to_node(parent_node, or_edge);
 		}
 
@@ -432,7 +432,7 @@ static void add_split_dependencies(common_node_t *parent_node, const char *whole
 				edge->version = search_name_hashtable("ANY");
 			} else {
 				/* Skip leading ' ' or '(' */
-				version += strspn(field2, " (");
+				version += strspn(version, " (");
 				/* Calculate length of any operator characters */
 				offset_ch = strspn(version, "<=>");
 				/* Determine operator */
@@ -582,10 +582,10 @@ static int read_package_field(const char *package_buffer, char **field_name, cha
 
 static unsigned fill_package_struct(char *control_buffer)
 {
-	static const char *const field_names[] = { "Package", "Version",
-		"Pre-Depends", "Depends","Replaces", "Provides",
-		"Conflicts", "Suggests", "Recommends", "Enhances", NULL
-	};
+	static const char field_names[] ALIGN1 =
+		"Package\0""Version\0"
+		"Pre-Depends\0""Depends\0""Replaces\0""Provides\0"
+		"Conflicts\0""Suggests\0""Recommends\0""Enhances\0";
 
 	common_node_t *new_node = xzalloc(sizeof(common_node_t));
 	char *field_name;
@@ -602,10 +602,10 @@ static unsigned fill_package_struct(char *control_buffer)
 				&field_name, &field_value);
 
 		if (field_name == NULL) {
-			goto fill_package_struct_cleanup; /* Oh no, the dreaded goto statement ! */
+			goto fill_package_struct_cleanup; /* Oh no, the dreaded goto statement! */
 		}
 
-		field_num = index_in_str_array(field_names, field_name);
+		field_num = index_in_strings(field_names, field_name);
 		switch (field_num) {
 		case 0: /* Package */
 			new_node->name = search_name_hashtable(field_value);
@@ -712,9 +712,9 @@ static void set_status(const unsigned status_node_num, const char *new_value, co
 
 static const char *describe_status(int status_num)
 {
-	int status_want, status_state ;
+	int status_want, status_state;
 	if (status_hashtable[status_num] == NULL || status_hashtable[status_num]->status == 0)
-		return "is not installed or flagged to be installed\n";
+		return "is not installed or flagged to be installed";
 
 	status_want = get_status(status_num, 1);
 	status_state = get_status(status_num, 3);
@@ -1227,7 +1227,7 @@ static int run_package_script(const char *package_name, const char *script_type)
 	return result;
 }
 
-static const char *all_control_files[] = {
+static const char *const all_control_files[] = {
 	"preinst", "postinst", "prerm", "postrm",
 	"list", "md5sums", "shlibs", "conffiles",
 	"config", "templates", NULL
@@ -1412,10 +1412,10 @@ static void init_archive_deb_control(archive_handle_t *ar_handle)
 	tar_handle->src_fd = ar_handle->src_fd;
 
 	/* We don't care about data.tar.* or debian-binary, just control.tar.* */
-#ifdef CONFIG_FEATURE_DEB_TAR_GZ
+#if ENABLE_FEATURE_DEB_TAR_GZ
 	llist_add_to(&(ar_handle->accept), (char*)"control.tar.gz");
 #endif
-#ifdef CONFIG_FEATURE_DEB_TAR_BZ2
+#if ENABLE_FEATURE_DEB_TAR_BZ2
 	llist_add_to(&(ar_handle->accept), (char*)"control.tar.bz2");
 #endif
 
@@ -1432,10 +1432,10 @@ static void init_archive_deb_data(archive_handle_t *ar_handle)
 	tar_handle->src_fd = ar_handle->src_fd;
 
 	/* We don't care about control.tar.* or debian-binary, just data.tar.* */
-#ifdef CONFIG_FEATURE_DEB_TAR_GZ
+#if ENABLE_FEATURE_DEB_TAR_GZ
 	llist_add_to(&(ar_handle->accept), (char*)"data.tar.gz");
 #endif
-#ifdef CONFIG_FEATURE_DEB_TAR_BZ2
+#if ENABLE_FEATURE_DEB_TAR_BZ2
 	llist_add_to(&(ar_handle->accept), (char*)"data.tar.bz2");
 #endif
 
@@ -1579,7 +1579,7 @@ int dpkg_main(int argc, char **argv)
 		OPT_unpack = 0x40,
 	};
 
-	opt = getopt32(argc, argv, "CF:ilPru", &str_f);
+	opt = getopt32(argv, "CF:ilPru", &str_f);
 	//if (opt & OPT_configure) ... // -C
 	if (opt & OPT_force_ignore_depends) { // -F (--force in official dpkg)
 		if (strcmp(str_f, "depends"))

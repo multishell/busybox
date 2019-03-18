@@ -290,12 +290,6 @@ config MT
 	  to advance or rewind a tape past a specified number of archive
 	  files on the tape.
 
-config NMETER
-	bool "nmeter"
-	default n
-	help
-	  nmeter prints various system parameters continuously.
-
 config RAIDAUTORUN
 	bool "raidautorun"
 	default n
@@ -371,6 +365,14 @@ config TIME
 	  The time command runs the specified program with the given arguments.
 	  When the command finishes, time writes a message to standard output
 	  giving timing statistics about this program run.
+
+config TTYSIZE
+	bool "ttysize"
+	default n
+	help
+	  A replacement for "stty size". Unlike stty, can report only width,
+	  only height, or both, in any order. It also does not complain on error,
+	  but returns default 80x24. Usage in shell scripts: width=`ttysize w`.
 
 config WATCHDOG
 	bool "watchdog"

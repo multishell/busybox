@@ -81,7 +81,8 @@ static void passwd_wrapper(const char *login) ATTRIBUTE_NORETURN;
 
 static void passwd_wrapper(const char *login)
 {
-	static const char prog[] = "passwd";
+	static const char prog[] ALIGN1 = "passwd";
+
 	BB_EXECLP(prog, prog, login, NULL);
 	bb_error_msg_and_die("failed to execute '%s', you must set the password for '%s' manually", prog, login);
 }
@@ -179,18 +180,17 @@ int adduser_main(int argc, char **argv)
 	pw.pw_shell = (char *)DEFAULT_SHELL;
 	pw.pw_dir = NULL;
 
-	/* check for min, max and missing args and exit on error */
-	opt_complementary = "-1:?1:?";
-	getopt32(argc, argv, "h:g:s:G:DSH", &pw.pw_dir, &pw.pw_gecos, &pw.pw_shell, &usegroup);
-
-	/* create string for $HOME if not specified already */
-	if (!pw.pw_dir) {
-		snprintf(bb_common_bufsiz1, BUFSIZ, "/home/%s", argv[optind]);
-		pw.pw_dir = bb_common_bufsiz1;
-	}
+	/* exactly one non-option arg */
+	opt_complementary = "=1";
+	getopt32(argv, "h:g:s:G:DSH", &pw.pw_dir, &pw.pw_gecos, &pw.pw_shell, &usegroup);
+	argv += optind;
 
 	/* create a passwd struct */
-	pw.pw_name = argv[optind];
+	pw.pw_name = argv[0];
+	if (!pw.pw_dir) {
+		/* create string for $HOME if not specified already */
+		pw.pw_dir = xasprintf("/home/%s", argv[0]);
+	}
 	pw.pw_passwd = (char *)"x";
 	pw.pw_uid = 0;
 	pw.pw_gid = usegroup ? xgroup2gid(usegroup) : 0; /* exits on failure */

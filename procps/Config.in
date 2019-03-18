@@ -43,6 +43,12 @@ config KILLALL5
 	default n
 	depends on KILL
 
+config NMETER
+	bool "nmeter"
+	default n
+	help
+	  Prints selected system stats continuously, one line per update.
+
 config PIDOF
 	bool "pidof"
 	default n
@@ -102,11 +108,25 @@ config TOP
 	  system.
 
 config FEATURE_TOP_CPU_USAGE_PERCENTAGE
-	bool "Support showing CPU usage percentage (add 2k bytes)"
+	bool "Show CPU per-process usage percentage (adds 2k bytes)"
 	default y
 	depends on TOP
 	help
-	  Make top display CPU usage.
+	  Make top display CPU usage for each process.
+
+config FEATURE_TOP_CPU_GLOBAL_PERCENTS
+	bool "Show CPU global usage percentage (adds 0.5k bytes)"
+	default y
+	depends on FEATURE_TOP_CPU_USAGE_PERCENTAGE
+	help
+	  Makes top display "CPU: NN% usr NN% sys..." line.
+
+config FEATURE_TOP_DECIMALS
+	bool "Show 1/10th of a percent in CPU/mem statistics (adds 0.3k bytes)"
+	default n
+	depends on FEATURE_TOP_CPU_USAGE_PERCENTAGE
+	help
+	  Show 1/10th of a percent in CPU/mem statistics.
 
 config UPTIME
 	bool "uptime"
@@ -115,6 +135,14 @@ config UPTIME
 	  uptime gives a one line display of the current time, how long
 	  the system has been running, how many users are currently logged
 	  on, and the system load averages for the past 1, 5, and 15 minutes.
+
+config WATCH
+	bool "watch"
+	default n
+	#huh?? select DATE
+	help
+	  watch is used to execute a program periodically, showing
+	  output to the screen.
 
 
 endmenu

@@ -51,9 +51,9 @@ int date_main(int argc, char **argv)
 	char *isofmt_arg;
 	char *hintfmt_arg;
 
-	opt_complementary = "?:d--s:s--d"
+	opt_complementary = "d--s:s--d"
 		USE_FEATURE_DATE_ISOFMT(":R--I:I--R");
-	opt = getopt32(argc, argv, "Rs:ud:r:"
+	opt = getopt32(argv, "Rs:ud:r:"
 			USE_FEATURE_DATE_ISOFMT("I::D:"),
 			&date_str, &date_str, &filename
 			USE_FEATURE_DATE_ISOFMT(, &isofmt_arg, &hintfmt_arg));
@@ -63,8 +63,9 @@ int date_main(int argc, char **argv)
 		if (!isofmt_arg) {
 			ifmt = 0; /* default is date */
 		} else {
-			static const char * const isoformats[] =
-				{ "date", "hours", "minutes", "seconds" };
+			static const char *const isoformats[] = {
+				"date", "hours", "minutes", "seconds"
+			};
 
 			for (ifmt = 0; ifmt < 4; ifmt++)
 				if (!strcmp(isofmt_arg, isoformats[ifmt]))
@@ -216,9 +217,10 @@ int date_main(int argc, char **argv)
 			date_fmt = (char*)"%a %b %e %H:%M:%S %Z %Y";
 	}
 
+#define date_buf bb_common_bufsiz1
 	if (*date_fmt == '\0') {
 		/* With no format string, just print a blank line */
-		*bb_common_bufsiz1 = 0;
+		date_buf[0] = '\0';
 	} else {
 		/* Handle special conversions */
 
@@ -227,9 +229,9 @@ int date_main(int argc, char **argv)
 		}
 
 		/* Generate output string */
-		strftime(bb_common_bufsiz1, 200, date_fmt, &tm_time);
+		strftime(date_buf, sizeof(date_buf), date_fmt, &tm_time);
 	}
-	puts(bb_common_bufsiz1);
+	puts(date_buf);
 
 	return EXIT_SUCCESS;
 }

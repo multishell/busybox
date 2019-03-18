@@ -20,8 +20,6 @@
 # define USE_FEATURE_FDISK_BLKSIZE(a)
 #endif
 
-#define SIZE(a) (sizeof(a)/sizeof((a)[0]))
-
 #define DEFAULT_SECTOR_SIZE     512
 #define MAX_SECTOR_SIZE 2048
 #define SECTOR_SIZE     512     /* still used in osf/sgi/sun code */
@@ -50,12 +48,12 @@ struct hd_geometry {
 
 #define HDIO_GETGEO     0x0301  /* get device geometry */
 
-static const char msg_building_new_label[] =
+static const char msg_building_new_label[] ALIGN1 =
 "Building a new %s. Changes will remain in memory only,\n"
 "until you decide to write them. After that the previous content\n"
 "won't be recoverable.\n\n";
 
-static const char msg_part_already_defined[] =
+static const char msg_part_already_defined[] ALIGN1 =
 "Partition %d is already defined, delete it before re-adding\n";
 
 
@@ -84,11 +82,11 @@ struct partition {
 	unsigned char size4[4];         /* nr of sectors in partition */
 } ATTRIBUTE_PACKED;
 
-static const char unable_to_open[] = "cannot open %s";
-static const char unable_to_read[] = "cannot read from %s";
-static const char unable_to_seek[] = "cannot seek on %s";
-static const char unable_to_write[] = "cannot write to %s";
-static const char ioctl_error[] = "BLKGETSIZE ioctl failed on %s";
+static const char unable_to_open[] ALIGN1 = "cannot open %s";
+static const char unable_to_read[] ALIGN1 = "cannot read from %s";
+static const char unable_to_seek[] ALIGN1 = "cannot seek on %s";
+static const char unable_to_write[] ALIGN1 = "cannot write to %s";
+static const char ioctl_error[] ALIGN1 = "BLKGETSIZE ioctl failed on %s";
 static void fdisk_fatal(const char *why) ATTRIBUTE_NORETURN;
 
 enum label_type {
@@ -402,14 +400,14 @@ set_all_unchanged(void)
 		ptes[i].changed = 0;
 }
 
-static ATTRIBUTE_ALWAYS_INLINE void
+static ALWAYS_INLINE void
 set_changed(int i)
 {
 	ptes[i].changed = 1;
 }
 #endif /* FEATURE_FDISK_WRITABLE */
 
-static ATTRIBUTE_ALWAYS_INLINE struct partition *
+static ALWAYS_INLINE struct partition *
 get_part_table(int i)
 {
 	return ptes[i].part_table;
@@ -430,7 +428,7 @@ valid_part_table_flag(const char *mbuffer)
 }
 
 #if ENABLE_FEATURE_FDISK_WRITABLE
-static ATTRIBUTE_ALWAYS_INLINE void
+static ALWAYS_INLINE void
 write_part_table_flag(char *b)
 {
 	b[510] = 0x55;
@@ -1825,7 +1823,7 @@ wrong_p_order(int *prev)
 	ullong last_p_start_pos = 0, p_start_pos;
 	int i, last_i = 0;
 
-	for (i = 0 ; i < partitions; i++) {
+	for (i = 0; i < partitions; i++) {
 		if (i == 4) {
 			last_i = 4;
 			last_p_start_pos = 0;
@@ -2043,7 +2041,7 @@ x_list_table(int extend)
 	printf("\nDisk %s: %d heads, %d sectors, %d cylinders\n\n",
 		disk_device, heads, sectors, cylinders);
 	printf("Nr AF  Hd Sec  Cyl  Hd Sec  Cyl      Start       Size ID\n");
-	for (i = 0 ; i < partitions; i++) {
+	for (i = 0; i < partitions; i++) {
 		pe = &ptes[i];
 		p = (extend ? pe->ext_pointer : pe->part_table);
 		if (p != NULL) {
@@ -2436,23 +2434,9 @@ reread_partition_table(int leave)
 	printf("Calling ioctl() to re-read partition table\n");
 	sync();
 	/* sleep(2); Huh? */
-	i = ioctl(fd, BLKRRPART);
-#if 0
-	else {
-		/* some kernel versions (1.2.x) seem to have trouble
-		   rereading the partition table, but if asked to do it
-		   twice, the second time works. - biro@yggdrasil.com */
-		sync();
-		sleep(2);
-		i = ioctl(fd, BLKRRPART);
-	}
-#endif
-
-	if (i) {
-		bb_perror_msg("WARNING: rereading partition table "
+	i = ioctl_or_perror(fd, BLKRRPART, NULL,
+			"WARNING: rereading partition table "
 			"failed, kernel still uses old table");
-	}
-
 #if 0
 	if (dos_changed)
 		printf(
@@ -2768,7 +2752,7 @@ int fdisk_main(int argc, char **argv)
 
 	PTR_TO_GLOBALS = xzalloc(sizeof(G));
 
-	opt = getopt32(argc, argv, "b:C:H:lS:u" USE_FEATURE_FDISK_BLKSIZE("s"),
+	opt = getopt32(argv, "b:C:H:lS:u" USE_FEATURE_FDISK_BLKSIZE("s"),
 				&str_b, &str_C, &str_H, &str_S);
 	argc -= optind;
 	argv += optind;

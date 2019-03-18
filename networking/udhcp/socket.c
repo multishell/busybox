@@ -43,18 +43,15 @@ int read_interface(const char *interface, int *ifindex, uint32_t *addr, uint8_t 
 	struct ifreq ifr;
 	struct sockaddr_in *our_ip;
 
-	memset(&ifr, 0, sizeof(struct ifreq));
-	fd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
-	if (fd < 0) {
-		bb_perror_msg("socket failed");
-		return -1;
-	}
+	memset(&ifr, 0, sizeof(ifr));
+	fd = xsocket(AF_INET, SOCK_RAW, IPPROTO_RAW);
 
 	ifr.ifr_addr.sa_family = AF_INET;
 	strncpy(ifr.ifr_name, interface, sizeof(ifr.ifr_name));
 	if (addr) {
-		if (ioctl(fd, SIOCGIFADDR, &ifr) != 0) {
-			bb_perror_msg("SIOCGIFADDR failed, is the interface up and configured?");
+		if (ioctl_or_perror(fd, SIOCGIFADDR, &ifr,
+			"is interface %s up and configured?", interface)
+		) {
 			close(fd);
 			return -1;
 		}
@@ -64,8 +61,7 @@ int read_interface(const char *interface, int *ifindex, uint32_t *addr, uint8_t 
 	}
 
 	if (ifindex) {
-		if (ioctl(fd, SIOCGIFINDEX, &ifr) != 0) {
-			bb_perror_msg("SIOCGIFINDEX failed");
+		if (ioctl_or_warn(fd, SIOCGIFINDEX, &ifr) != 0) {
 			close(fd);
 			return -1;
 		}
@@ -74,8 +70,7 @@ int read_interface(const char *interface, int *ifindex, uint32_t *addr, uint8_t 
 	}
 
 	if (arp) {
-		if (ioctl(fd, SIOCGIFHWADDR, &ifr) != 0) {
-			bb_perror_msg("SIOCGIFHWADDR failed");
+		if (ioctl_or_warn(fd, SIOCGIFHWADDR, &ifr) != 0) {
 			close(fd);
 			return -1;
 		}
@@ -84,43 +79,34 @@ int read_interface(const char *interface, int *ifindex, uint32_t *addr, uint8_t 
 			arp[0], arp[1], arp[2], arp[3], arp[4], arp[5]);
 	}
 
+	close(fd);
 	return 0;
 }
 
-
-int listen_socket(uint32_t ip, int port, const char *inf)
+/* 1. None of the callers expects it to ever fail */
+/* 2. ip was always INADDR_ANY */
+int listen_socket(/*uint32_t ip,*/ int port, const char *inf)
 {
-	struct ifreq interface;
 	int fd;
+	struct ifreq interface;
 	struct sockaddr_in addr;
 
-	DEBUG("Opening listen socket on 0x%08x:%d %s", ip, port, inf);
+	DEBUG("Opening listen socket on *:%d %s", port, inf);
 	fd = xsocket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+	setsockopt_reuseaddr(fd);
+	if (setsockopt_broadcast(fd) == -1)
+		bb_perror_msg_and_die("SO_BROADCAST");
+
+	strncpy(interface.ifr_name, inf, IFNAMSIZ);
+	if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, &interface, sizeof(interface)) == -1)
+		bb_perror_msg_and_die("SO_BINDTODEVICE");
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(port);
-	addr.sin_addr.s_addr = ip;
-
-	if (setsockopt_reuseaddr(fd) == -1) {
-		close(fd);
-		return -1;
-	}
-	if (setsockopt_broadcast(fd) == -1) {
-		close(fd);
-		return -1;
-	}
-
-	strncpy(interface.ifr_name, inf, IFNAMSIZ);
-	if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, &interface, sizeof(interface)) < 0) {
-		close(fd);
-		return -1;
-	}
-
-	if (bind(fd, (struct sockaddr *)&addr, sizeof(struct sockaddr)) == -1) {
-		close(fd);
-		return -1;
-	}
+	/* addr.sin_addr.s_addr = ip; - all-zeros is INADDR_ANY */
+	xbind(fd, (struct sockaddr *)&addr, sizeof(addr));
 
 	return fd;
 }

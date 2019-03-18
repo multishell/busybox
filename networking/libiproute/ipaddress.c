@@ -46,7 +46,7 @@ static void print_link_flags(FILE *fp, unsigned flags, unsigned mdown)
 	fprintf(fp, "<");
 	flags &= ~IFF_RUNNING;
 #define _PF(f) if (flags&IFF_##f) { \
-		  flags &= ~IFF_##f ; \
+		  flags &= ~IFF_##f; \
 		  fprintf(fp, #f "%s", flags ? "," : ""); }
 	_PF(LOOPBACK);
 	_PF(BROADCAST);
@@ -84,8 +84,7 @@ static void print_queuelen(char *name)
 
 	memset(&ifr, 0, sizeof(ifr));
 	strncpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
-	if (ioctl(s, SIOCGIFTXQLEN, &ifr) < 0) {
-		bb_perror_msg("SIOCGIFXQLEN");
+	if (ioctl_or_warn(s, SIOCGIFTXQLEN, &ifr) < 0) {
 		close(s);
 		return;
 	}
@@ -413,7 +412,7 @@ static void ipaddr_reset_filter(int _oneline)
 /* Return value becomes exitcode. It's okay to not return at all */
 int ipaddr_list_or_flush(int argc, char **argv, int flush)
 {
-	static const char *const option[] = { "to", "scope", "up", "label", "dev", 0 };
+	static const char option[] ALIGN1 = "to\0""scope\0""up\0""label\0""dev\0";
 
 	struct nlmsg_list *linfo = NULL;
 	struct nlmsg_list *ainfo = NULL;
@@ -438,7 +437,7 @@ int ipaddr_list_or_flush(int argc, char **argv, int flush)
 	}
 
 	while (argc > 0) {
-		const int option_num = index_in_str_array(option, *argv);
+		const int option_num = index_in_strings(option, *argv);
 		switch (option_num) {
 			case 0: /* to */
 				NEXT_ARG();
@@ -600,26 +599,24 @@ static int default_scope(inet_prefix *lcl)
 /* Return value becomes exitcode. It's okay to not return at all */
 static int ipaddr_modify(int cmd, int argc, char **argv)
 {
-	static const char *const option[] = {
-		"peer", "remote", "broadcast", "brd",
-		"anycast", "scope", "dev", "label", "local", 0
-	};
-
+	static const char option[] ALIGN1 =
+		"peer\0""remote\0""broadcast\0""brd\0"
+		"anycast\0""scope\0""dev\0""label\0""local\0";
 	struct rtnl_handle rth;
 	struct {
-		struct nlmsghdr		n;
-		struct ifaddrmsg	ifa;
-		char			buf[256];
+		struct nlmsghdr  n;
+		struct ifaddrmsg ifa;
+		char             buf[256];
 	} req;
-	char  *d = NULL;
-	char  *l = NULL;
+	char *d = NULL;
+	char *l = NULL;
 	inet_prefix lcl;
 	inet_prefix peer;
 	int local_len = 0;
 	int peer_len = 0;
 	int brd_len = 0;
 	int any_len = 0;
-	int scoped = 0;
+	bool scoped = 0;
 
 	memset(&req, 0, sizeof(req));
 
@@ -629,7 +626,7 @@ static int ipaddr_modify(int cmd, int argc, char **argv)
 	req.ifa.ifa_family = preferred_family;
 
 	while (argc > 0) {
-		const int option_num = index_in_str_array(option, *argv);
+		const int option_num = index_in_strings(option, *argv);
 		switch (option_num) {
 			case 0: /* peer */
 			case 1: /* remote */
@@ -724,7 +721,7 @@ static int ipaddr_modify(int cmd, int argc, char **argv)
 		bb_error_msg(bb_msg_requires_arg,"\"dev\"");
 		return -1;
 	}
-	if (l && matches(d, l) != 0) {
+	if (l && strncmp(d, l, strlen(d)) != 0) {
 		bb_error_msg_and_die("\"dev\" (%s) must match \"label\" (%s)", d, l);
 	}
 
@@ -771,26 +768,24 @@ static int ipaddr_modify(int cmd, int argc, char **argv)
 /* Return value becomes exitcode. It's okay to not return at all */
 int do_ipaddr(int argc, char **argv)
 {
-	static const char *const commands[] = {
-		"add", "delete", "list", "show", "lst", "flush", 0
-	};
+	static const char commands[] ALIGN1 =
+		"add\0""delete\0""list\0""show\0""lst\0""flush\0";
 
-	int command_num = 2;
+	int command_num = 2; /* default command is list */
 
 	if (*argv) {
-		command_num = index_in_substr_array(commands, *argv);
+		command_num = index_in_substrings(commands, *argv);
 	}
-	switch (command_num) {
-		case 0: /* add */
-			return ipaddr_modify(RTM_NEWADDR, argc-1, argv+1);
-		case 1: /* delete */
-			return ipaddr_modify(RTM_DELADDR, argc-1, argv+1);
-		case 2: /* list */
-		case 3: /* show */
-		case 4: /* lst */
-			return ipaddr_list_or_flush(argc-1, argv+1, 0);
-		case 5: /* flush */
-			return ipaddr_list_or_flush(argc-1, argv+1, 1);
-	}
-	bb_error_msg_and_die("unknown command %s", *argv);
+	if (command_num < 0 || command_num > 5)
+		bb_error_msg_and_die("unknown command %s", *argv);
+	--argc;
+	++argv;
+	if (command_num == 0) /* add */
+		return ipaddr_modify(RTM_NEWADDR, argc, argv);
+	else if (command_num == 1) /* delete */
+		return ipaddr_modify(RTM_DELADDR, argc, argv);
+	else if (command_num == 5) /* flush */
+		return ipaddr_list_or_flush(argc, argv, 1);
+	else /* 2 == list, 3 == show, 4 == lst */
+		return ipaddr_list_or_flush(argc, argv, 0);
 }

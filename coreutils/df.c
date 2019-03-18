@@ -22,32 +22,32 @@
 #include <sys/vfs.h>
 #include "libbb.h"
 
-#ifndef CONFIG_FEATURE_HUMAN_READABLE
-static long kscale(long b, long bs)
+#if !ENABLE_FEATURE_HUMAN_READABLE
+static unsigned long kscale(unsigned long b, unsigned long bs)
 {
-	return ( b * (long long) bs + 1024/2 ) / 1024;
+	return (b * (unsigned long long) bs + 1024/2) / 1024;
 }
 #endif
 
 int df_main(int argc, char **argv);
 int df_main(int argc, char **argv)
 {
-	long blocks_used;
-	long blocks_percent_used;
-#ifdef CONFIG_FEATURE_HUMAN_READABLE
-	unsigned long df_disp_hr = 1024;
+	unsigned long blocks_used;
+	unsigned blocks_percent_used;
+#if ENABLE_FEATURE_HUMAN_READABLE
+	unsigned df_disp_hr = 1024;
 #endif
 	int status = EXIT_SUCCESS;
 	unsigned opt;
 	FILE *mount_table;
 	struct mntent *mount_entry;
 	struct statfs s;
-	static const char hdr_1k[] = "1k-blocks"; /* default display is kilobytes */
-	const char *disp_units_hdr = hdr_1k;
+	/* default display is kilobytes */
+	const char *disp_units_hdr = "1k-blocks";
 
-#ifdef CONFIG_FEATURE_HUMAN_READABLE
+#if ENABLE_FEATURE_HUMAN_READABLE
 	opt_complementary = "h-km:k-hm:m-hk";
-	opt = getopt32(argc, argv, "hmk");
+	opt = getopt32(argv, "hmk");
 	if (opt & 1) {
 		df_disp_hr = 0;
 		disp_units_hdr = "     Size";
@@ -57,7 +57,7 @@ int df_main(int argc, char **argv)
 		disp_units_hdr = "1M-blocks";
 	}
 #else
-	opt = getopt32(argc, argv, "k");
+	opt = getopt32(argv, "k");
 #endif
 
 	printf("Filesystem%11s%-15sUsed Available Use%% Mounted on\n",
@@ -72,7 +72,7 @@ int df_main(int argc, char **argv)
 		}
 	}
 
-	do {
+	while (1) {
 		const char *device;
 		const char *mount_point;
 
@@ -108,7 +108,7 @@ int df_main(int argc, char **argv)
 			blocks_used = s.f_blocks - s.f_bfree;
 			blocks_percent_used = 0;
 			if (blocks_used + s.f_bavail) {
-				blocks_percent_used = (((long long) blocks_used) * 100
+				blocks_percent_used = (blocks_used * 100ULL
 						+ (blocks_used + s.f_bavail)/2
 						) / (blocks_used + s.f_bavail);
 			}
@@ -124,28 +124,28 @@ int df_main(int argc, char **argv)
 				}
 			}
 
-#ifdef CONFIG_FEATURE_HUMAN_READABLE
-			printf("%-20s %9s ", device,
+			if (printf("\n%-20s" + 1, device) > 20)
+				    printf("\n%-20s", "");
+#if ENABLE_FEATURE_HUMAN_READABLE
+			printf(" %9s ",
 				make_human_readable_str(s.f_blocks, s.f_bsize, df_disp_hr));
 
-			printf("%9s ",
-				make_human_readable_str( (s.f_blocks - s.f_bfree),
+			printf(" %9s " + 1,
+				make_human_readable_str((s.f_blocks - s.f_bfree),
 						s.f_bsize, df_disp_hr));
 
-			printf("%9s %3ld%% %s\n",
-					  make_human_readable_str(s.f_bavail, s.f_bsize, df_disp_hr),
-					  blocks_percent_used, mount_point);
+			printf("%9s %3u%% %s\n",
+					make_human_readable_str(s.f_bavail, s.f_bsize, df_disp_hr),
+					blocks_percent_used, mount_point);
 #else
-			printf("%-20s %9ld %9ld %9ld %3ld%% %s\n",
-					  device,
-					  kscale(s.f_blocks, s.f_bsize),
-					  kscale(s.f_blocks-s.f_bfree, s.f_bsize),
-					  kscale(s.f_bavail, s.f_bsize),
-					  blocks_percent_used, mount_point);
+			printf(" %9lu %9lu %9lu %3u%% %s\n",
+					kscale(s.f_blocks, s.f_bsize),
+					kscale(s.f_blocks-s.f_bfree, s.f_bsize),
+					kscale(s.f_bavail, s.f_bsize),
+					blocks_percent_used, mount_point);
 #endif
 		}
-
-	} while (1);
+	}
 
 	fflush_stdout_and_exit(status);
 }

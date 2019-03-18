@@ -26,7 +26,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <string.h>
-#include <strings.h>
+/* #include <strings.h> - said to be obsolete */
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
@@ -200,6 +200,8 @@ struct sysinfo {
 };
 int sysinfo(struct sysinfo* info);
 
+unsigned long long monotonic_us(void);
+unsigned monotonic_sec(void);
 
 extern void chomp(char *s);
 extern void trim(char *s);
@@ -212,15 +214,16 @@ extern int is_directory(const char *name, int followLinks, struct stat *statBuf)
 extern int remove_file(const char *path, int flags);
 extern int copy_file(const char *source, const char *dest, int flags);
 enum {
-	ACTION_RECURSE     = (1 << 0),
-	ACTION_FOLLOWLINKS = (1 << 1),
-	ACTION_DEPTHFIRST  = (1 << 2),
-	/*ACTION_REVERSE   = (1 << 3), - unused */
+	ACTION_RECURSE        = (1 << 0),
+	ACTION_FOLLOWLINKS    = (1 << 1),
+	ACTION_FOLLOWLINKS_L0 = (1 << 2),
+	ACTION_DEPTHFIRST     = (1 << 3),
+	/*ACTION_REVERSE      = (1 << 4), - unused */
 };
 extern int recursive_action(const char *fileName, unsigned flags,
 	int (*fileAction) (const char *fileName, struct stat* statbuf, void* userData, int depth),
 	int (*dirAction) (const char *fileName, struct stat* statbuf, void* userData, int depth),
-	void* userData, const unsigned depth);
+	void* userData, unsigned depth);
 extern int device_open(const char *device, int mode);
 extern int get_console_fd(void);
 extern char *find_block_device(const char *path);
@@ -238,6 +241,7 @@ extern char *bb_get_last_path_component(char *path);
 
 int ndelay_on(int fd);
 int ndelay_off(int fd);
+void xdup2(int, int);
 void xmove_fd(int, int);
 
 
@@ -277,9 +281,15 @@ int xsocket(int domain, int type, int protocol);
 void xbind(int sockfd, struct sockaddr *my_addr, socklen_t addrlen);
 void xlisten(int s, int backlog);
 void xconnect(int s, const struct sockaddr *s_addr, socklen_t addrlen);
-ssize_t xsendto(int s, const  void *buf, size_t len, const struct sockaddr *to,
+ssize_t xsendto(int s, const void *buf, size_t len, const struct sockaddr *to,
 				socklen_t tolen);
-int setsockopt_reuseaddr(int fd);
+/* SO_REUSEADDR allows a server to rebind to an address that is already
+ * "in use" by old connections to e.g. previous server instance which is
+ * killed or crashed. Without it bind will fail until all such connections
+ * time out. Linux does not allow multiple live binds on same ip:port
+ * regardless of SO_REUSEADDR (unlike some other flavors of Unix).
+ * Turn it on before you call bind(). */
+void setsockopt_reuseaddr(int fd); /* On Linux this never fails. */
 int setsockopt_broadcast(int fd);
 /* NB: returns port in host byte order */
 unsigned bb_lookup_port(const char *port, const char *protocol, unsigned default_port);
@@ -304,14 +314,18 @@ enum {
 		}
 	)
 };
-/* Create stream socket, and allocated suitable lsa
- * (lsa of correct size and lsa->sa.sa_family (AF_INET/AF_INET6)) */
-int xsocket_type(len_and_sockaddr **lsap, int sock_type);
+/* Create stream socket, and allocate suitable lsa.
+ * (lsa of correct size and lsa->sa.sa_family (AF_INET/AF_INET6))
+ * af == AF_UNSPEC will result in trying to create IPv6, and
+ * if kernel doesn't support it, IPv4.
+ */
+int xsocket_type(len_and_sockaddr **lsap, USE_FEATURE_IPV6(int af,) int sock_type);
 int xsocket_stream(len_and_sockaddr **lsap);
 /* Create server socket bound to bindaddr:port. bindaddr can be NULL,
  * numeric IP ("N.N.N.N") or numeric IPv6 address,
  * and can have ":PORT" suffix (for IPv6 use "[X:X:...:X]:PORT").
  * Only if there is no suffix, port argument is used */
+/* NB: these set SO_REUSEADDR before bind */
 int create_and_bind_stream_or_die(const char *bindaddr, int port);
 int create_and_bind_dgram_or_die(const char *bindaddr, int port);
 /* Create client TCP socket connected to peer:port. Peer cannot be NULL.
@@ -339,21 +353,21 @@ len_and_sockaddr* xhost_and_af2sockaddr(const char *host, int port, sa_family_t 
 #define host_and_af2sockaddr(host, port, af) ((void)(af), host2sockaddr((host), (port)))
 #define xhost_and_af2sockaddr(host, port, af) ((void)(af), xhost2sockaddr((host), (port)))
 #endif
-/* Assign sin[6]_port member if the socket is of corresponding type,
+/* Assign sin[6]_port member if the socket is an AF_INET[6] one,
  * otherwise no-op. Useful for ftp.
  * NB: does NOT do htons() internally, just direct assignment. */
 void set_nport(len_and_sockaddr *lsa, unsigned port);
 /* Retrieve sin[6]_port or return -1 for non-INET[6] lsa's */
 int get_nport(const struct sockaddr *sa);
 /* Reverse DNS. Returns NULL on failure. */
-char* xmalloc_sockaddr2host(const struct sockaddr *sa, socklen_t salen);
+char* xmalloc_sockaddr2host(const struct sockaddr *sa);
 /* This one doesn't append :PORTNUM */
-char* xmalloc_sockaddr2host_noport(const struct sockaddr *sa, socklen_t salen);
+char* xmalloc_sockaddr2host_noport(const struct sockaddr *sa);
 /* This one also doesn't fall back to dotted IP (returns NULL) */
-char* xmalloc_sockaddr2hostonly_noport(const struct sockaddr *sa, socklen_t salen);
+char* xmalloc_sockaddr2hostonly_noport(const struct sockaddr *sa);
 /* inet_[ap]ton on steroids */
-char* xmalloc_sockaddr2dotted(const struct sockaddr *sa, socklen_t salen);
-char* xmalloc_sockaddr2dotted_noport(const struct sockaddr *sa, socklen_t salen);
+char* xmalloc_sockaddr2dotted(const struct sockaddr *sa);
+char* xmalloc_sockaddr2dotted_noport(const struct sockaddr *sa);
 // "old" (ipv4 only) API
 // users: traceroute.c hostname.c - use _list_ of all IPs
 struct hostent *xgethostbyname(const char *name);
@@ -376,9 +390,9 @@ extern char *safe_strncpy(char *dst, const char *src, size_t size);
 extern char *xasprintf(const char *format, ...) __attribute__ ((format (printf, 1, 2)));
 // gcc-4.1.1 still isn't good enough at optimizing it
 // (+200 bytes compared to macro)
-//static ATTRIBUTE_ALWAYS_INLINE
+//static ALWAYS_INLINE
 //int LONE_DASH(const char *s) { return s[0] == '-' && !s[1]; }
-//static ATTRIBUTE_ALWAYS_INLINE
+//static ALWAYS_INLINE
 //int NOT_LONE_DASH(const char *s) { return s[0] != '-' || s[1]; }
 #define LONE_DASH(s)     ((s)[0] == '-' && !(s)[1])
 #define NOT_LONE_DASH(s) ((s)[0] != '-' || (s)[1])
@@ -397,7 +411,11 @@ extern ssize_t safe_read(int fd, void *buf, size_t count);
 extern ssize_t full_read(int fd, void *buf, size_t count);
 extern void xread(int fd, void *buf, size_t count);
 extern unsigned char xread_char(int fd);
+// Read one line a-la fgets. Uses one read(), works only on seekable streams
 extern char *reads(int fd, char *buf, size_t count);
+// Read one line a-la fgets. Reads byte-by-byte.
+// Useful when it is important to not read ahead.
+extern char *xmalloc_reads(int fd, char *pfx);
 extern ssize_t read_close(int fd, void *buf, size_t count);
 extern ssize_t open_read_close(const char *filename, void *buf, size_t count);
 extern void *xmalloc_open_read_close(const char *filename, size_t *sizep);
@@ -440,8 +458,9 @@ const char *make_human_readable_str(unsigned long long size,
 /* Put a string of hex bytes ("1b2e66fe"...), return advanced pointer */
 char *bin2hex(char *buf, const char *cp, int count);
 
+/* Last element is marked by mult == 0 */
 struct suffix_mult {
-	const char *suffix;
+	char suffix[4];
 	unsigned mult;
 };
 #include "xatonum.h"
@@ -471,10 +490,14 @@ struct bb_uidgid_t {
 int get_uidgid(struct bb_uidgid_t*, const char*, int numeric_ok);
 /* chown-like handling of "user[:[group]" */
 void parse_chown_usergroup_or_die(struct bb_uidgid_t *u, char *user_group);
-/* what is this? */
-/*extern char *bb_getug(char *buffer, char *idname, long id, int bufsize, char prefix);*/
-char *bb_getpwuid(char *name, long uid, int bufsize);
-char *bb_getgrgid(char *group, long gid, int bufsize);
+/* bb_getpwuid, bb_getgrgid:
+ * bb_getXXXid(buf, bufsz, id) - copy user/group name or id
+ *              as a string to buf, return user/group name or NULL
+ * bb_getXXXid(NULL, 0, id) - return user/group name or NULL
+ * bb_getXXXid(NULL, -1, id) - return user/group name or exit
+*/
+char *bb_getpwuid(char *name, int bufsize, long uid);
+char *bb_getgrgid(char *group, int bufsize, long gid);
 /* versions which cache results (useful for ps, ls etc) */
 const char* get_cached_username(uid_t uid);
 const char* get_cached_groupname(gid_t gid);
@@ -558,16 +581,18 @@ int run_nofork_applet_prime(struct nofork_save_area *old, const struct bb_applet
  */
 enum {
 	DAEMON_CHDIR_ROOT = 1,
-	DAEMON_DEVNULL_STDIO = /* 2 */ 0, /* no users so far */
+	DAEMON_DEVNULL_STDIO = 2,
 	DAEMON_CLOSE_EXTRA_FDS = 4,
 	DAEMON_ONLY_SANITIZE = 8, /* internal use */
 };
 #if BB_MMU
   void forkexit_or_rexec(void);
+  enum { re_execed = 0 };
 # define forkexit_or_rexec(argv)            forkexit_or_rexec()
 # define bb_daemonize_or_rexec(flags, argv) bb_daemonize_or_rexec(flags)
 # define bb_daemonize(flags)                bb_daemonize_or_rexec(flags, bogus)
 #else
+  void re_exec(char **argv) ATTRIBUTE_NORETURN;
   void forkexit_or_rexec(char **argv);
   extern bool re_execed;
 # define fork()          BUG_fork_is_unavailable_on_nommu()
@@ -578,14 +603,15 @@ void bb_daemonize_or_rexec(int flags, char **argv);
 void bb_sanitize_stdio(void);
 
 
-// TODO: always error out?
-enum { BB_GETOPT_ERROR = 0x80000000 };
 extern const char *opt_complementary;
 #if ENABLE_GETOPT_LONG
-extern const struct option *applet_long_options;
+#define No_argument "\0"
+#define Required_argument "\001"
+#define Optional_argument "\002"
+extern const char *applet_long_options;
 #endif
 extern uint32_t option_mask32;
-extern uint32_t getopt32(int argc, char **argv, const char *applet_opts, ...);
+extern uint32_t getopt32(char **argv, const char *applet_opts, ...);
 
 
 typedef struct llist_t {
@@ -602,20 +628,23 @@ llist_t *llist_rev(llist_t *list);
  *   llist_t *llist_add_to(llist_t *old_head, void *data)
  * etc does not result in smaller code... */
 
-
-#if ENABLE_FEATURE_PIDFILE
-int write_pidfile(const char *path);
-#define remove_pidfile(f) ((void)unlink(f))
+/* start_stop_daemon and udhcpc are special - they want
+ * to create pidfiles regardless of FEATURE_PIDFILE */
+#if ENABLE_FEATURE_PIDFILE || defined(WANT_PIDFILE)
+/* True only if we created pidfile which is *file*, not /dev/null etc */
+extern smallint wrote_pidfile;
+void write_pidfile(const char *path);
+#define remove_pidfile(path) do { if (wrote_pidfile) unlink(path); } while (0)
 #else
-/* Why? #defining it to 1 gives "warning: statement with no effect"... */
-static ATTRIBUTE_ALWAYS_INLINE int write_pidfile(const char *path) { return 1; }
-#define remove_pidfile(f) ((void)0)
+enum { wrote_pidfile = 0 };
+#define write_pidfile(path)  ((void)0)
+#define remove_pidfile(path) ((void)0)
 #endif
 
 enum {
 	LOGMODE_NONE = 0,
-	LOGMODE_STDIO = 1<<0,
-	LOGMODE_SYSLOG = 1<<1,
+	LOGMODE_STDIO = (1 << 0),
+	LOGMODE_SYSLOG = (1 << 1) * ENABLE_FEATURE_SYSLOG,
 	LOGMODE_BOTH = LOGMODE_SYSLOG + LOGMODE_STDIO,
 };
 extern const char *msg_eol;
@@ -629,22 +658,18 @@ extern void bb_error_msg(const char *s, ...) __attribute__ ((format (printf, 1, 
 extern void bb_error_msg_and_die(const char *s, ...) __attribute__ ((noreturn, format (printf, 1, 2)));
 extern void bb_perror_msg(const char *s, ...) __attribute__ ((format (printf, 1, 2)));
 extern void bb_perror_msg_and_die(const char *s, ...) __attribute__ ((noreturn, format (printf, 1, 2)));
-extern void bb_vherror_msg(const char *s, va_list p);
 extern void bb_herror_msg(const char *s, ...) __attribute__ ((format (printf, 1, 2)));
 extern void bb_herror_msg_and_die(const char *s, ...) __attribute__ ((noreturn, format (printf, 1, 2)));
 extern void bb_perror_nomsg_and_die(void) ATTRIBUTE_NORETURN;
 extern void bb_perror_nomsg(void);
 extern void bb_info_msg(const char *s, ...) __attribute__ ((format (printf, 1, 2)));
-/* These are used internally -- you shouldn't need to use them */
 extern void bb_verror_msg(const char *s, va_list p, const char *strerr);
-extern void bb_vperror_msg(const char *s, va_list p);
-extern void bb_vinfo_msg(const char *s, va_list p);
 
 
 /* applets which are useful from another applets */
 int bb_cat(char** argv);
 int bb_echo(char** argv);
-int bb_test(int argc, char** argv);
+int test_main(int argc, char** argv);
 int kill_main(int argc, char **argv);
 #if ENABLE_ROUTE
 void bb_displayroutes(int noresolve, int netstatfmt);
@@ -690,7 +715,7 @@ struct hwtype {
 	int (*activate) (int fd);
 	int suppress_null_addr;
 };
-extern int interface_opt_a;
+extern smallint interface_opt_a;
 int display_interfaces(char *ifname);
 const struct aftype *get_aftype(const char *name);
 const struct hwtype *get_hwtype(const char *name);
@@ -715,7 +740,10 @@ extern int get_linux_version_code(void);
 
 extern char *query_loop(const char *device);
 extern int del_loop(const char *device);
-extern int set_loop(char **device, const char *file, unsigned long long offset);
+/* If *devname is not NULL, use that name, otherwise try to find free one,
+ * malloc and return it in *devname.
+ * return value: 1: read-only loopdev was setup, 0: rw, < 0: error */
+extern int set_loop(char **devname, const char *file, unsigned long long offset);
 
 
 //TODO: pass buf pointer or return allocated buf (avoid statics)?
@@ -727,6 +755,7 @@ extern int bb_parse_mode(const char* s, mode_t* theMode);
 
 char *concat_path_file(const char *path, const char *filename);
 char *concat_subpath_file(const char *path, const char *filename);
+const char *bb_basename(const char *name);
 /* NB: can violate const-ness (similarly to strchr) */
 char *last_char_is(const char *s, int c);
 
@@ -758,16 +787,45 @@ extern void selinux_or_die(void);
 extern int restricted_shell(const char *shell);
 extern void setup_environment(const char *shell, int loginshell, int changeenv, const struct passwd *pw);
 extern int correct_password(const struct passwd *pw);
+/* Returns a ptr to static storage */
 extern char *pw_encrypt(const char *clear, const char *salt);
 extern int obscure(const char *old, const char *newval, const struct passwd *pwdp);
-extern int index_in_str_array(const char * const string_array[], const char *key);
-extern int index_in_substr_array(const char * const string_array[], const char *key);
+extern int index_in_str_array(const char *const string_array[], const char *key);
+extern int index_in_strings(const char *strings, const char *key);
+extern int index_in_substr_array(const char *const string_array[], const char *key);
+extern int index_in_substrings(const char *strings, const char *key);
 extern void print_login_issue(const char *issue_file, const char *tty);
 extern void print_login_prompt(void);
 
-extern void crypt_make_salt(char *p, int cnt);
+/* rnd is additional random input. New one is returned.
+ * Useful if you call crypt_make_salt many times in a row:
+ * rnd = crypt_make_salt(buf1, 4, 0);
+ * rnd = crypt_make_salt(buf2, 4, rnd);
+ * rnd = crypt_make_salt(buf3, 4, rnd);
+ * (otherwise we risk having same salt generated)
+ */
+extern int crypt_make_salt(char *p, int cnt, int rnd);
 
-int get_terminal_width_height(const int fd, int *width, int *height);
+/* Returns number of lines changed, or -1 on error */
+extern int update_passwd(const char *filename, const char *username,
+			const char *new_pw);
+
+/* NB: typically you want to pass fd 0, not 1. Think 'applet | grep something' */
+int get_terminal_width_height(int fd, int *width, int *height);
+
+int ioctl_or_perror(int fd, int request, void *argp, const char *fmt,...) __attribute__ ((format (printf, 4, 5)));
+void ioctl_or_perror_and_die(int fd, int request, void *argp, const char *fmt,...) __attribute__ ((format (printf, 4, 5)));
+#if ENABLE_IOCTL_HEX2STR_ERROR
+int bb_ioctl_or_warn(int fd, int request, void *argp, const char *ioctl_name);
+void bb_xioctl(int fd, int request, void *argp, const char *ioctl_name);
+#define ioctl_or_warn(fd,request,argp) bb_ioctl_or_warn(fd,request,argp,#request)
+#define xioctl(fd,request,argp)        bb_xioctl(fd,request,argp,#request)
+#else
+int bb_ioctl_or_warn(int fd, int request, void *argp);
+void bb_xioctl(int fd, int request, void *argp);
+#define ioctl_or_warn(fd,request,argp) bb_ioctl_or_warn(fd,request,argp)
+#define xioctl(fd,request,argp)        bb_xioctl(fd,request,argp)
+#endif
 
 char *is_in_ino_dev_hashtable(const struct stat *statbuf);
 void add_to_ino_dev_hashtable(const struct stat *statbuf, const char *name);
@@ -826,7 +884,12 @@ enum { COMM_LEN = 16 };
 typedef struct {
 	DIR *dir;
 /* Fields are set to 0/NULL if failed to determine (or not requested) */
-	char *cmd;
+	/*char *cmd;*/
+	char *argv0;
+	/*char *exe;*/
+	USE_SELINUX(char *context;)
+	/* Everything below must contain no ptrs to malloc'ed data:
+	 * it is memset(0) for each process in procps_scan() */
 	unsigned vsz, rss; /* we round it to kbytes */
 	unsigned long stime, utime;
 	unsigned pid;
@@ -835,10 +898,11 @@ typedef struct {
 	unsigned sid;
 	unsigned uid;
 	unsigned gid;
+	unsigned tty_major,tty_minor;
 	char state[4];
-	char tty_str[8]; /* "maj,min" or "?" */
-	/* basename of executable in exec(2), read from /proc/N/stat, */
-	/* size from sizeof(task_struct.comm) in /usr/include/linux/sched.h */
+	/* basename of executable in exec(2), read from /proc/N/stat
+	 * (if executable is symlink or script, it is NOT replaced
+	 * by link target or interpreter name) */
 	char comm[COMM_LEN];
 	/* user/group? - use passwd/group parsing functions */
 } procps_status_t;
@@ -849,13 +913,16 @@ enum {
 	PSSCAN_SID      = 1 << 3,
 	PSSCAN_UIDGID   = 1 << 4,
 	PSSCAN_COMM     = 1 << 5,
-	PSSCAN_CMD      = 1 << 6,
-	PSSCAN_STATE    = 1 << 7,
-	PSSCAN_VSZ      = 1 << 8,
-	PSSCAN_RSS      = 1 << 9,
-	PSSCAN_STIME    = 1 << 10,
-	PSSCAN_UTIME    = 1 << 11,
-	PSSCAN_TTY      = 1 << 12,
+	/* PSSCAN_CMD      = 1 << 6, - use read_cmdline instead */
+	PSSCAN_ARGV0    = 1 << 7,
+	/* PSSCAN_EXE      = 1 << 8, - not implemented */
+	PSSCAN_STATE    = 1 << 9,
+	PSSCAN_VSZ      = 1 << 10,
+	PSSCAN_RSS      = 1 << 11,
+	PSSCAN_STIME    = 1 << 12,
+	PSSCAN_UTIME    = 1 << 13,
+	PSSCAN_TTY      = 1 << 14,
+	USE_SELINUX(PSSCAN_CONTEXT  = 1 << 15,)
 	/* These are all retrieved from proc/NN/stat in one go: */
 	PSSCAN_STAT     = PSSCAN_PPID | PSSCAN_PGID | PSSCAN_SID
 	                | PSSCAN_COMM | PSSCAN_STATE
@@ -866,13 +933,16 @@ enum {
 procps_status_t* alloc_procps_scan(int flags);
 void free_procps_scan(procps_status_t* sp);
 procps_status_t* procps_scan(procps_status_t* sp, int flags);
+/* Format cmdline (up to col chars) into char buf[col+1] */
+/* Puts [comm] if cmdline is empty (-> process is a kernel thread) */
+void read_cmdline(char *buf, int col, unsigned pid, const char *comm);
 pid_t *find_pid_by_name(const char* procName);
 pid_t *pidlist_reverse(pid_t *pidList);
 
 
 extern const char bb_uuenc_tbl_base64[];
 extern const char bb_uuenc_tbl_std[];
-void bb_uuencode(const unsigned char *s, char *store, const int length, const char *tbl);
+void bb_uuencode(char *store, const void *s, int length, const char *tbl);
 
 typedef struct sha1_ctx_t {
 	uint32_t count[2];
@@ -916,9 +986,8 @@ enum {	/* DO NOT CHANGE THESE VALUES!  cp.c, mv.c, install.c depend on them. */
 #define FILEUTILS_CP_OPTSTR "pdRfils" USE_SELINUX("c")
 extern const struct bb_applet *current_applet;
 extern const char *applet_name;
-extern const char BB_BANNER[];
-
-extern const char bb_msg_full_version[];
+/* "BusyBox vN.N.N (timestamp or extra_vestion)" */
+extern const char bb_banner[];
 extern const char bb_msg_memory_exhausted[];
 extern const char bb_msg_invalid_date[];
 extern const char bb_msg_read_error[];
@@ -936,15 +1005,19 @@ extern const char bb_str_default[];
 extern const char bb_hexdigits_upcase[];
 
 extern const char bb_path_mtab_file[];
-extern const char bb_path_nologin_file[];
 extern const char bb_path_passwd_file[];
 extern const char bb_path_shadow_file[];
 extern const char bb_path_gshadow_file[];
 extern const char bb_path_group_file[];
-extern const char bb_path_securetty_file[];
 extern const char bb_path_motd_file[];
 extern const char bb_path_wtmp_file[];
 extern const char bb_dev_null[];
+extern const char bb_busybox_exec_path[];
+/* util-linux manpage says /sbin:/bin:/usr/sbin:/usr/bin,
+ * but I want to save a few bytes here */
+extern const char bb_PATH_root_path[]; /* "PATH=/sbin:/usr/sbin:/bin:/usr/bin" */
+#define bb_default_root_path (bb_PATH_root_path + sizeof("PATH"))
+#define bb_default_path      (bb_PATH_root_path + sizeof("PATH=/sbin:/usr/sbin"))
 
 extern const int const_int_0;
 extern const int const_int_1;
@@ -954,12 +1027,13 @@ extern const int const_int_1;
 #define BUFSIZ 4096
 #endif
 /* Providing hard guarantee on minimum size (think of BUFSIZ == 128) */
-extern char bb_common_bufsiz1[(BUFSIZ > 256*sizeof(void*) ? BUFSIZ : 256*sizeof(void*)) + 1];
+enum { COMMON_BUFSIZE = (BUFSIZ >= 256*sizeof(void*) ? BUFSIZ+1 : 256*sizeof(void*)) };
+extern char bb_common_bufsiz1[COMMON_BUFSIZE];
 /* This struct is deliberately not defined. */
 /* See docs/keep_data_small.txt */
 struct globals;
 /* '*const' ptr makes gcc optimize code much better.
- * Magic prevents ptr_to_globals from going into rodata
+ * Magic prevents ptr_to_globals from going into rodata.
  * If you want to assign a value, use PTR_TO_GLOBALS = xxx */
 extern struct globals *const ptr_to_globals;
 #define PTR_TO_GLOBALS (*(struct globals**)&ptr_to_globals)
@@ -998,6 +1072,7 @@ extern const char bb_default_login_shell[];
 #endif
 # define VC_FORMAT "/dev/vc/%d"
 # define LOOP_FORMAT "/dev/loop/%d"
+# define LOOP_NAMESIZE (sizeof("/dev/loop/") + sizeof(int)*3 + 1)
 # define LOOP_NAME "/dev/loop/"
 # define FB_0 "/dev/fb/0"
 #else
@@ -1018,6 +1093,7 @@ extern const char bb_default_login_shell[];
 #endif
 # define VC_FORMAT "/dev/tty%d"
 # define LOOP_FORMAT "/dev/loop%d"
+# define LOOP_NAMESIZE (sizeof("/dev/loop") + sizeof(int)*3 + 1)
 # define LOOP_NAME "/dev/loop"
 # define FB_0 "/dev/fb0"
 #endif
@@ -1054,5 +1130,8 @@ extern const char bb_default_login_shell[];
 #ifdef DMALLOC
 #include <dmalloc.h>
 #endif
+
+
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 #endif /* __LIBBUSYBOX_H__ */

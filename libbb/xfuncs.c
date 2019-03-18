@@ -161,12 +161,18 @@ void xunlink(const char *pathname)
 // Turn on nonblocking I/O on a fd
 int ndelay_on(int fd)
 {
-	return fcntl(fd, F_SETFL, fcntl(fd,F_GETFL,0) | O_NONBLOCK);
+	return fcntl(fd, F_SETFL, fcntl(fd,F_GETFL) | O_NONBLOCK);
 }
 
 int ndelay_off(int fd)
 {
-	return fcntl(fd, F_SETFL, fcntl(fd,F_GETFL,0) & ~O_NONBLOCK);
+	return fcntl(fd, F_SETFL, fcntl(fd,F_GETFL) & ~O_NONBLOCK);
+}
+
+void xdup2(int from, int to)
+{
+	if (dup2(from, to) != to)
+		bb_perror_msg_and_die("can't duplicate file descriptor");
 }
 
 // "Renumber" opened fd
@@ -174,8 +180,7 @@ void xmove_fd(int from, int to)
 {
 	if (from == to)
 		return;
-	if (dup2(from, to) != to)
-		bb_perror_msg_and_die("can't duplicate file descriptor");
+	xdup2(from, to);
 	close(from);
 }
 
@@ -484,12 +489,14 @@ int fdprintf(int fd, const char *format, ...)
 #else
 	// Bloat for systems that haven't got the GNU extension.
 	va_start(p, format);
-	r = vsnprintf(NULL, 0, format, p);
+	r = vsnprintf(NULL, 0, format, p) + 1;
 	va_end(p);
-	string_ptr = xmalloc(r+1);
-	va_start(p, format);
-	r = vsnprintf(string_ptr, r+1, format, p);
-	va_end(p);
+	string_ptr = malloc(r);
+	if (string_ptr) {
+		va_start(p, format);
+		r = vsnprintf(string_ptr, r, format, p);
+		va_end(p);
+	}
 #endif
 
 	if (r >= 0) {
@@ -612,7 +619,7 @@ void selinux_or_die(void)
 
 /* It is perfectly ok to pass in a NULL for either width or for
  * height, in which case that value will not be set.  */
-int get_terminal_width_height(const int fd, int *width, int *height)
+int get_terminal_width_height(int fd, int *width, int *height)
 {
 	struct winsize win = { 0, 0, 0, 0 };
 	int ret = ioctl(fd, TIOCGWINSZ, &win);
@@ -639,3 +646,61 @@ int get_terminal_width_height(const int fd, int *width, int *height)
 
 	return ret;
 }
+
+void ioctl_or_perror_and_die(int fd, int request, void *argp, const char *fmt,...)
+{
+	va_list p;
+
+	if (ioctl(fd, request, argp) < 0) {
+		va_start(p, fmt);
+		bb_verror_msg(fmt, p, strerror(errno));
+		/* xfunc_die can actually longjmp, so be nice */
+		va_end(p);
+		xfunc_die();
+	}
+}
+
+int ioctl_or_perror(int fd, int request, void *argp, const char *fmt,...)
+{
+	va_list p;
+	int ret = ioctl(fd, request, argp);
+
+	if (ret < 0) {
+		va_start(p, fmt);
+		bb_verror_msg(fmt, p, strerror(errno));
+		va_end(p);
+	}
+	return ret;
+}
+
+#if ENABLE_IOCTL_HEX2STR_ERROR
+int bb_ioctl_or_warn(int fd, int request, void *argp, const char *ioctl_name)
+{
+	int ret;
+
+	ret = ioctl(fd, request, argp);
+	if (ret < 0)
+		bb_perror_msg("%s", ioctl_name);
+	return ret;
+}
+void bb_xioctl(int fd, int request, void *argp, const char *ioctl_name)
+{
+	if (ioctl(fd, request, argp) < 0)
+		bb_perror_msg_and_die("%s", ioctl_name);
+}
+#else
+int bb_ioctl_or_warn(int fd, int request, void *argp)
+{
+	int ret;
+
+	ret = ioctl(fd, request, argp);
+	if (ret < 0)
+		bb_perror_msg("ioctl %#x failed", request);
+	return ret;
+}
+void bb_xioctl(int fd, int request, void *argp)
+{
+	if (ioctl(fd, request, argp) < 0)
+		bb_perror_msg_and_die("ioctl %#x failed", request);
+}
+#endif

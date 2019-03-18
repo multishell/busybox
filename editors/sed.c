@@ -89,7 +89,7 @@ typedef struct sed_cmd_s {
 	char cmd;               /* The command char: abcdDgGhHilnNpPqrstwxy:={} */
 } sed_cmd_t;
 
-static const char semicolon_whitespace[] = "; \n\r\t\v";
+static const char semicolon_whitespace[] ALIGN1 = "; \n\r\t\v";
 
 struct globals {
 	/* options */
@@ -118,8 +118,14 @@ struct globals {
 		int len;	/* Space allocated */
 	} pipeline;
 };
-
 #define G (*(struct globals*)&bb_common_bufsiz1)
+void BUG_sed_globals_too_big(void);
+#define INIT_G() do { \
+	if (sizeof(struct globals) > COMMON_BUFSIZE) \
+		BUG_sed_globals_too_big(); \
+	G.sed_cmd_tail = &G.sed_cmd_head; \
+} while (0)
+
 
 #if ENABLE_FEATURE_CLEAN_UP
 static void sed_free_and_close_stuff(void)
@@ -830,6 +836,14 @@ static void puts_maybe_newline(char *s, FILE *file, char *last_puts_char, char l
 
 #define sed_puts(s, n) (puts_maybe_newline(s, G.nonstdout, &last_puts_char, n))
 
+static int beg_match(sed_cmd_t *sed_cmd, const char *pattern_space)
+{
+	int retval = sed_cmd->beg_match && !regexec(sed_cmd->beg_match, pattern_space, 0, NULL, 0);
+	if (retval)
+		G.previous_regex_ptr = sed_cmd->beg_match;
+	return retval;
+}
+
 /* Process all the lines in all the files */
 
 static void process_files(void)
@@ -874,8 +888,7 @@ restart:
 			/* Or did we match the start of a numerical range? */
 			|| (sed_cmd->beg_line > 0 && (sed_cmd->beg_line == linenum))
 			/* Or does this line match our begin address regex? */
-			|| (sed_cmd->beg_match &&
-			    !regexec(sed_cmd->beg_match, pattern_space, 0, NULL, 0))
+			|| (beg_match(sed_cmd, pattern_space))
 			/* Or did we match last line of input? */
 			|| (sed_cmd->beg_line == -1 && next_line == NULL);
 
@@ -1210,8 +1223,6 @@ static void add_cmd_block(char *cmdstr)
 	free(sv);
 }
 
-void BUG_sed_globals_too_big(void);
-
 int sed_main(int argc, char **argv);
 int sed_main(int argc, char **argv)
 {
@@ -1222,10 +1233,7 @@ int sed_main(int argc, char **argv)
 	llist_t *opt_e, *opt_f;
 	int status = EXIT_SUCCESS;
 
-	if (sizeof(struct globals) > sizeof(bb_common_bufsiz1))
-		BUG_sed_globals_too_big();
-
-	G.sed_cmd_tail = &G.sed_cmd_head;
+	INIT_G();
 
 	/* destroy command strings on exit */
 	if (ENABLE_FEATURE_CLEAN_UP) atexit(sed_free_and_close_stuff);
@@ -1240,7 +1248,7 @@ int sed_main(int argc, char **argv)
 	opt_e = opt_f = NULL;
 	opt_complementary = "e::f::" /* can occur multiple times */
 	                    "nn"; /* count -n */
-	opt = getopt32(argc, argv, "irne:f:", &opt_e, &opt_f,
+	opt = getopt32(argv, "irne:f:", &opt_e, &opt_f,
 			    &G.be_quiet); /* counter for -n */
 	argc -= optind;
 	argv += optind;

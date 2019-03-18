@@ -89,11 +89,11 @@ int logger_main(int argc, char **argv)
 	char name[80];
 
 	/* Fill out the name string early (may be overwritten later) */
-	bb_getpwuid(name, geteuid(), sizeof(name));
+	bb_getpwuid(name, sizeof(name), geteuid());
 	str_t = name;
 
 	/* Parse any options */
-	getopt32(argc, argv, "p:st:", &str_p, &str_t);
+	getopt32(argv, "p:st:", &str_p, &str_t);
 
 	if (option_mask32 & 0x2) /* -s */
 		i |= LOG_PERROR;
@@ -106,12 +106,13 @@ int logger_main(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 	if (!argc) {
-		while (fgets(bb_common_bufsiz1, BUFSIZ, stdin)) {
-			if (bb_common_bufsiz1[0]
-			 && NOT_LONE_CHAR(bb_common_bufsiz1, '\n')
+#define strbuf bb_common_bufsiz1
+		while (fgets(strbuf, BUFSIZ, stdin)) {
+			if (strbuf[0]
+			 && NOT_LONE_CHAR(strbuf, '\n')
 			) {
 				/* Neither "" nor "\n" */
-				syslog(i, "%s", bb_common_bufsiz1);
+				syslog(i, "%s", strbuf);
 			}
 		}
 	} else {

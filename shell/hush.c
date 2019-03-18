@@ -126,7 +126,8 @@ extern char **environ; /* This is in <unistd.h>, but protected with __USE_GNU */
 /* broken, of course, but OK for testing */
 static const char *indenter(int i)
 {
-	static const char blanks[] = "                                    ";
+	static const char blanks[] ALIGN1 =
+		"                                    ";
 	return &blanks[sizeof(blanks) - i - 1];
 }
 #define debug_printf_clean(...) fprintf(stderr, __VA_ARGS__)
@@ -942,21 +943,11 @@ static int builtin_pwd(char **argv ATTRIBUTE_UNUSED)
 /* built-in 'read VAR' handler */
 static int builtin_read(char **argv)
 {
-	char string[BUFSIZ];
-	char *p;
+	char *string;
 	const char *name = argv[1] ? argv[1] : "REPLY";
-	int name_len = strlen(name);
 
-	if (name_len >= sizeof(string) - 2)
-		return EXIT_FAILURE;
-	strcpy(string, name);
-	p = string + name_len;
-	*p++ = '=';
-	*p = '\0'; /* In case stdin has only EOF */
-	/* read string. name_len+1 chars are already used by 'name=' */
-	fgets(p, sizeof(string) - 1 - name_len, stdin);
-	chomp(p);
-	return set_local_var(xstrdup(string), 0);
+	string = xmalloc_reads(STDIN_FILENO, xasprintf("%s=", name));
+	return set_local_var(string, 0);
 }
 
 /* built-in 'set [VAR=value]' handler */
@@ -1392,7 +1383,7 @@ static void pseudo_exec_argv(char **argv)
 			}
 			/* re-exec ourselves with the new arguments */
 			debug_printf_exec("re-execing applet '%s'\n", argv[0]);
-			execvp(CONFIG_BUSYBOX_EXEC_PATH, argv);
+			execvp(bb_busybox_exec_path, argv);
 			/* If they called chroot or otherwise made the binary no longer
 			 * executable, fall through */
 		}
@@ -2899,10 +2890,10 @@ static int reserved_word(o_string *dest, struct p_context *ctx)
 		{ "done",  RES_DONE,  FLAG_END  }
 #endif
 	};
-	enum { NRES = sizeof(reserved_list)/sizeof(reserved_list[0]) };
+
 	const struct reserved_combo *r;
 
-	for (r = reserved_list;	r < reserved_list + NRES; r++) {
+	for (r = reserved_list;	r < reserved_list + ARRAY_SIZE(reserved_list); r++) {
 		if (strcmp(dest->data, r->literal) != 0)
 			continue;
 		debug_printf("found reserved word %s, code %d\n", r->literal, r->code);
@@ -3666,7 +3657,7 @@ static void setup_job_control(void)
 int hush_main(int argc, char **argv);
 int hush_main(int argc, char **argv)
 {
-	static const char version_str[] = "HUSH_VERSION="HUSH_VER_STR;
+	static const char version_str[] ALIGN1 = "HUSH_VERSION="HUSH_VER_STR;
 	static const struct variable const_shell_ver = {
 		.next = NULL,
 		.varstr = (char*)version_str,
@@ -3797,7 +3788,7 @@ int hush_main(int argc, char **argv)
 			hush_exit(xfunc_error_retval);
 		}
 #if !ENABLE_FEATURE_SH_EXTRA_QUIET
-		printf("\n\n%s hush - the humble shell v"HUSH_VER_STR"\n", BB_BANNER);
+		printf("\n\n%s hush - the humble shell v"HUSH_VER_STR"\n", bb_banner);
 		printf("Enter 'help' for a list of built-in commands.\n\n");
 #endif
 	}

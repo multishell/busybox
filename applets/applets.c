@@ -34,7 +34,7 @@
 
 #if ENABLE_SHOW_USAGE && !ENABLE_FEATURE_COMPRESS_USAGE
 /* Define usage_messages[] */
-static const char usage_messages[] = ""
+static const char usage_messages[] ALIGN1 = ""
 #define MAKE_USAGE
 #include "usage.h"
 #include "applets.h"
@@ -47,8 +47,10 @@ static const char usage_messages[] = ""
 /* Define struct bb_applet applets[] */
 #include "applets.h"
 /* The -1 arises because of the {0,NULL,0,-1} entry. */
-const unsigned short NUM_APPLETS = sizeof(applets) / sizeof(applets[0]) - 1;
 
+#if ENABLE_FEATURE_SH_STANDALONE
+const unsigned short NUM_APPLETS = ARRAY_SIZE(applets);
+#endif
 const struct bb_applet *current_applet;
 const char *applet_name ATTRIBUTE_EXTERNALLY_VISIBLE;
 #if !BB_MMU
@@ -109,12 +111,12 @@ static char *get_trimmed_slice(char *s, char *e)
 }
 
 /* Don't depend on the tools to combine strings. */
-static const char config_file[] = "/etc/busybox.conf";
+static const char config_file[] ALIGN1 = "/etc/busybox.conf";
 
 /* We don't supply a value for the nul, so an index adjustment is
  * necessary below.  Also, we use unsigned short here to save some
  * space even though these are really mode_t values. */
-static const unsigned short mode_mask[] = {
+static const unsigned short mode_mask[] ALIGN2 = {
 	/*  SST     sst                 xxx         --- */
 	S_ISUID,    S_ISUID|S_IXUSR,    S_IXUSR,    0,	/* user */
 	S_ISGID,    S_ISGID|S_IXGRP,    S_IXGRP,    0,	/* group */
@@ -256,7 +258,7 @@ static void parse_config_file(void)
 
 				for (i = 0; i < 3; i++) {
 					/* There are 4 chars + 1 nul for each of user/group/other. */
-					static const char mode_chars[] = "Ssx-\0" "Ssx-\0" "Ttx-";
+					static const char mode_chars[] ALIGN1 = "Ssx-\0" "Ssx-\0" "Ttx-";
 
 					const char *q;
 					q = strchrnul(mode_chars + 5*i, *e++);
@@ -467,11 +469,11 @@ void bb_show_usage(void)
 			i--;
 		}
 
-		format_string = "%s\n\nUsage: %s %s\n\n";
+		fprintf(stderr, "%s multi-call binary\n", bb_banner);
+		format_string = "\nUsage: %s %s\n\n";
 		if (*p == '\b')
-			format_string = "%s\n\nNo help available.\n\n";
-		fprintf(stderr, format_string, bb_msg_full_version,
-					applet_name, p);
+			format_string = "\nNo help available.\n\n";
+		fprintf(stderr, format_string, applet_name, p);
 		dealloc_usage_messages((char*)usage_string);
 	}
 	xfunc_die();
@@ -488,7 +490,7 @@ static int applet_name_compare(const void *name, const void *vapplet)
 const struct bb_applet *find_applet_by_name(const char *name)
 {
 	/* Do a binary search to find the applet entry given the name. */
-	return bsearch(name, applets, NUM_APPLETS, sizeof(applets[0]),
+	return bsearch(name, applets, ARRAY_SIZE(applets)-1, sizeof(applets[0]),
 				applet_name_compare);
 }
 
@@ -500,8 +502,8 @@ static void install_links(const char *busybox, int use_symbolic_links)
 	/* directory table
 	 * this should be consistent w/ the enum,
 	 * busybox.h::bb_install_loc_t, or else... */
-	static const char usr_bin [] = "/usr/bin";
-	static const char usr_sbin[] = "/usr/sbin";
+	static const char usr_bin [] ALIGN1 = "/usr/bin";
+	static const char usr_sbin[] ALIGN1 = "/usr/sbin";
 	static const char *const install_dir[] = {
 		&usr_bin [8], /* "", equivalent to "/" for concat_path_file() */
 		&usr_bin [4], /* "/bin" */
@@ -550,8 +552,8 @@ static int busybox_main(char **argv)
 		/* leading tab and room to wrap */
 		output_width -= sizeof("start-stop-daemon, ") + 8;
 
-		printf("%s\n"
-		       "Copyright (C) 1998-2006  Erik Andersen, Rob Landley, and others.\n"
+		printf("%s multi-call binary\n", bb_banner); /* reuse const string... */
+		printf("Copyright (C) 1998-2006  Erik Andersen, Rob Landley, and others.\n"
 		       "Licensed under GPLv2.  See source distribution for full notice.\n"
 		       "\n"
 		       "Usage: busybox [function] [arguments]...\n"
@@ -561,7 +563,7 @@ static int busybox_main(char **argv)
 		       "\tutilities into a single executable.  Most people will create a\n"
 		       "\tlink to busybox for each function they wish to use and BusyBox\n"
 		       "\twill act like whatever it was invoked as!\n"
-		       "\nCurrently defined functions:\n", bb_msg_full_version);
+		       "\nCurrently defined functions:\n");
 		col = 0;
 		a = applets;
 		while (a->name) {
@@ -577,21 +579,13 @@ static int busybox_main(char **argv)
 	}
 
 	if (ENABLE_FEATURE_INSTALLER && strcmp(argv[1], "--install") == 0) {
-		int use_symbolic_links = 0;
-		char *busybox;
-
-		/* to use symlinks, or not to use symlinks... */
-		if (argv[2])
-			if (strcmp(argv[2], "-s") == 0)
-				use_symbolic_links = 1;
-
-		/* link */
-		busybox = xmalloc_readlink_or_warn("/proc/self/exe");
+		const char *busybox;
+		busybox = xmalloc_readlink_or_warn(bb_busybox_exec_path);
 		if (!busybox)
-			return 1;
-		install_links(busybox, use_symbolic_links);
-		if (ENABLE_FEATURE_CLEAN_UP)
-			free(busybox);
+			busybox = bb_busybox_exec_path;
+		/* -s makes symlinks */
+		install_links(busybox,
+				 argv[2] && strcmp(argv[2], "-s") == 0);
 		return 0;
 	}
 
@@ -648,8 +642,6 @@ int *const bb_errno __attribute__ ((section (".data")));
 
 int main(int argc, char **argv)
 {
-	const char *s;
-
 #ifdef __GLIBC__
 	(*(int **)&bb_errno) = __errno_location();
 #endif
@@ -664,9 +656,7 @@ int main(int argc, char **argv)
 	applet_name = argv[0];
 	if (applet_name[0] == '-')
 		applet_name++;
-	s = strrchr(applet_name, '/');
-	if (s)
-		applet_name = s + 1;
+	applet_name = bb_basename(applet_name);
 
 	parse_config_file(); /* ...maybe, if FEATURE_SUID_CONFIG */
 

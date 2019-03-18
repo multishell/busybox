@@ -13,12 +13,12 @@
 /*      Documentation
 
 uint32_t
-getopt32(int argc, char **argv, const char *applet_opts, ...)
+getopt32(char **argv, const char *applet_opts, ...)
 
         The command line options must be declared in const char
         *applet_opts as a string of chars, for example:
 
-        flags = getopt32(argc, argv, "rnug");
+        flags = getopt32(argv, "rnug");
 
         If one of the given options is found, a flag value is added to
         the return value (an unsigned long).
@@ -26,7 +26,7 @@ getopt32(int argc, char **argv, const char *applet_opts, ...)
         The flag value is determined by the position of the char in
         applet_opts string.  For example, in the above case:
 
-        flags = getopt32(argc, argv, "rnug");
+        flags = getopt32(argv, "rnug");
 
         "r" will add 1    (bit 0)
         "n" will add 2    (bit 1)
@@ -52,9 +52,9 @@ getopt32(int argc, char **argv, const char *applet_opts, ...)
         char *pointer_to_arg_for_c;
         char *pointer_to_arg_for_d;
 
-        flags = getopt32(argc, argv, "a:b:c:d:",
-        		&pointer_to_arg_for_a, &pointer_to_arg_for_b,
-        		&pointer_to_arg_for_c, &pointer_to_arg_for_d);
+        flags = getopt32(argv, "a:b:c:d:",
+                        &pointer_to_arg_for_a, &pointer_to_arg_for_b,
+                        &pointer_to_arg_for_c, &pointer_to_arg_for_d);
 
         The type of the pointer (char* or llist_t*) may be controlled
         by the "::" special separator that is set in the external string
@@ -72,24 +72,21 @@ getopt32(int argc, char **argv, const char *applet_opts, ...)
         env -i ls -d /
         Here we want env to process just the '-i', not the '-d'.
 
-const struct option *applet_long_options
+const char *applet_long_options
 
-        This struct allows you to define long options.  The syntax for
-        declaring the array is just like that of getopt's longopts.
-        (see getopt(3))
+        This struct allows you to define long options:
 
-        static const struct option applet_long_options[] = {
-		//name,has_arg,flag,val
-		{ "verbose", 0, 0, 'v' },
-		{ 0, 0, 0, 0 }
-        };
-        applet_long_options = applet_long_options;
+        static const char applet_longopts[] ALIGN1 =
+		//"name\0" has_arg val
+		"verbose\0" No_argument "v"
+		;
+        applet_long_options = applet_longopts;
 
         The last member of struct option (val) typically is set to
         matching short option from applet_opts. If there is no matching
         char in applet_opts, then:
         - return bit have next position after short options
-        - if has_arg is not "no_argument", use ptr for arg also
+        - if has_arg is not "No_argument", use ptr for arg also
         - opt_complementary affects it too
 
         Note: a good applet will make long options configurable via the
@@ -108,7 +105,7 @@ const char *opt_complementary
         if they are not specifed on the command line.  For example:
 
         opt_complementary = "abc";
-        flags = getopt32(argc, argv, "abcd")
+        flags = getopt32(argv, "abcd")
 
         If getopt() finds "-a" on the command line, then
         getopt32's return value will be as if "-a -b -c" were
@@ -122,11 +119,11 @@ const char *opt_complementary
 
         int w_counter = 0;
         opt_complementary = "ww";
-        getopt32(argc, argv, "w", &w_counter);
+        getopt32(argv, "w", &w_counter);
         if (w_counter)
-        	width = (w_counter == 1) ? 132 : INT_MAX;
+                width = (w_counter == 1) ? 132 : INT_MAX;
         else
-        	get_terminal_width(...&width...);
+                get_terminal_width(...&width...);
 
         w_counter is a pointer to an integer. It has to be passed to
         getopt32() after all other option argument sinks.
@@ -138,11 +135,11 @@ const char *opt_complementary
         llist_t *my_b = NULL;
         int verbose_level = 0;
         opt_complementary = "vv:b::b-c:c-b";
-        f = getopt32(argc, argv, "vb:c", &my_b, &verbose_level);
+        f = getopt32(argv, "vb:c", &my_b, &verbose_level);
         if (f & 2)       // -c after -b unsets -b flag
-        	while (my_b) { dosomething_with(my_b->data); my_b = my_b->link; }
+                while (my_b) { dosomething_with(my_b->data); my_b = my_b->link; }
         if (my_b)        // but llist is stored if -b is specified
-        	free_llist(my_b);
+                free_llist(my_b);
         if (verbose_level) printf("verbose level is %d\n", verbose_level);
 
 Special characters:
@@ -153,7 +150,7 @@ Special characters:
         use ':' or end of line. For example:
 
         opt_complementary = "-:w-x:x-w";
-        getopt32(argc, argv, "wx");
+        getopt32(argv, "wx");
 
         Allows any arguments to be given without a dash (./program w x)
         as well as with a dash (./program -x).
@@ -200,12 +197,12 @@ Special characters:
         char *smax_print_depth;
 
         opt_complementary = "s-d:d-s:x-x";
-        opt = getopt32(argc, argv, "sd:x", &smax_print_depth);
+        opt = getopt32(argv, "sd:x", &smax_print_depth);
 
         if (opt & 2)
-        	max_print_depth = atoi(smax_print_depth);
+                max_print_depth = atoi(smax_print_depth);
         if (opt & 4)
-        	printf("Detected odd -x usage\n");
+                printf("Detected odd -x usage\n");
 
  "--"   A double dash between two options, or between an option and a group
         of options, means that they are mutually exclusive.  Unlike
@@ -214,22 +211,14 @@ Special characters:
 
         For example:
         The cut applet must have only one type of list specified, so
-        -b, -c and -f are mutally exclusive and should raise an error
+        -b, -c and -f are mutually exclusive and should raise an error
         if specified together.  In this case you must set
         opt_complementary = "b--cf:c--bf:f--bc".  If two of the
-        mutually exclusive options are found, getopt32's
-        return value will have the error flag set (BB_GETOPT_ERROR) so
-        that we can check for it:
-
-        if (flags & BB_GETOPT_ERROR)
-        	bb_show_usage();
+        mutually exclusive options are found, getopt32 will call
+	bb_show_usage() and die.
 
  "x--x" Variation of the above, it means that -x option should occur
         at most once.
-
- "?"    A "?" as the first char in a opt_complementary group means:
-        if BB_GETOPT_ERROR is detected, don't return, call bb_show_usage
-        and exit instead. Next char after '?' can't be a digit.
 
  "::"   A double colon after a char in opt_complementary means that the
         option can occur multiple times. Each occurrence will be saved as
@@ -246,7 +235,7 @@ Special characters:
 
         opt_complementary = "e::";
 
-        getopt32(argc, argv, "e:", &patterns);
+        getopt32(argv, "e:", &patterns);
         $ grep -e user -e root /etc/passwd
         root:x:0:0:root:/root:/bin/bash
         user:x:500:500::/home/user:/bin/bash
@@ -259,7 +248,7 @@ Special characters:
 
         // Don't allow -n -r -rn -ug -rug -nug -rnug
         opt_complementary = "r?ug:n?ug:?u--g:g--u";
-        flags = getopt32(argc, argv, "rnug");
+        flags = getopt32(argv, "rnug");
 
         This example allowed only:
         $ id; id -u; id -g; id -ru; id -nu; id -rg; id -ng; id -rnu; id -rng
@@ -271,7 +260,7 @@ Special characters:
 
         // Don't allow -KS -SK, but -S or -K is required
         opt_complementary = "K:S:?K--S:S--K";
-        flags = getopt32(argc, argv, "KS...);
+        flags = getopt32(argv, "KS...);
 
 
         Don't forget to use ':'. For example, "?322-22-23X-x-a"
@@ -298,19 +287,18 @@ typedef struct {
 
 /* You can set applet_long_options for parse called long options */
 #if ENABLE_GETOPT_LONG
-static const struct option bb_default_long_options[] = {
-/*      { "help", 0, NULL, '?' }, */
+static const struct option bb_null_long_options[1] = {
 	{ 0, 0, 0, 0 }
 };
-
-const struct option *applet_long_options = bb_default_long_options;
+const char *applet_long_options;
 #endif
 
 uint32_t option_mask32;
 
 uint32_t
-getopt32(int argc, char **argv, const char *applet_opts, ...)
+getopt32(char **argv, const char *applet_opts, ...)
 {
+	int argc;
 	unsigned flags = 0;
 	unsigned requires = 0;
 	t_complementary complementary[33];
@@ -320,6 +308,7 @@ getopt32(int argc, char **argv, const char *applet_opts, ...)
 	va_list p;
 #if ENABLE_GETOPT_LONG
 	const struct option *l_o;
+	struct option *long_options = (struct option *) &bb_null_long_options;
 #endif
 	unsigned trigger;
 	char **pargv = NULL;
@@ -331,6 +320,10 @@ getopt32(int argc, char **argv, const char *applet_opts, ...)
 #define FIRST_ARGV_IS_OPT       4
 #define FREE_FIRST_ARGV_IS_OPT  8
 	int spec_flgs = 0;
+
+	argc = 0;
+	while (argv[argc])
+		argc++;
 
 	va_start(p, applet_opts);
 
@@ -355,19 +348,43 @@ getopt32(int argc, char **argv, const char *applet_opts, ...)
 	}
 
 #if ENABLE_GETOPT_LONG
-	for (l_o = applet_long_options; l_o->name; l_o++) {
-		if (l_o->flag)
-			continue;
-		for (on_off = complementary; on_off->opt != 0; on_off++)
-			if (on_off->opt == l_o->val)
-				goto next_long;
-		if (c >= 32) break;
-		on_off->opt = l_o->val;
-		on_off->switch_on = (1 << c);
-		if (l_o->has_arg != no_argument)
-			on_off->optarg = va_arg(p, void **);
-		c++;
+	if (applet_long_options) {
+		const char *optstr;
+		unsigned i, count;
+
+		count = 1;
+		optstr = applet_long_options;
+		while (optstr[0]) {
+			optstr += strlen(optstr) + 3; /* skip NUL, has_arg, val */
+			count++;
+		}
+		/* count == no. of longopts + 1 */
+		long_options = alloca(count * sizeof(*long_options));
+		memset(long_options, 0, count * sizeof(*long_options));
+		i = 0;
+		optstr = applet_long_options;
+		while (--count) {
+			long_options[i].name = optstr;
+			optstr += strlen(optstr) + 1;
+			long_options[i].has_arg = (unsigned char)(*optstr++);
+			/* long_options[i].flag = NULL; */
+			long_options[i].val = (unsigned char)(*optstr++);
+			i++;
+		}
+		for (l_o = long_options; l_o->name; l_o++) {
+			if (l_o->flag)
+				continue;
+			for (on_off = complementary; on_off->opt != 0; on_off++)
+				if (on_off->opt == l_o->val)
+					goto next_long;
+			if (c >= 32) break;
+			on_off->opt = l_o->val;
+			on_off->switch_on = (1 << c);
+			if (l_o->has_arg != no_argument)
+				on_off->optarg = va_arg(p, void **);
+			c++;
  next_long: ;
+		}
 	}
 #endif /* ENABLE_GETOPT_LONG */
 	for (s = (const unsigned char *)opt_complementary; s && *s; s++) {
@@ -465,7 +482,7 @@ getopt32(int argc, char **argv, const char *applet_opts, ...)
 	 * (supposed to act as --header, but doesn't) */
 #if ENABLE_GETOPT_LONG
 	while ((c = getopt_long(argc, argv, applet_opts,
-				 applet_long_options, NULL)) != -1) {
+			long_options, NULL)) != -1) {
 #else
 	while ((c = getopt(argc, argv, applet_opts)) != -1) {
 #endif
@@ -476,11 +493,8 @@ getopt32(int argc, char **argv, const char *applet_opts, ...)
 			if (on_off->opt == 0 && c != 0)
 				bb_show_usage();
 		}
-		if (flags & on_off->incongruously) {
-			if ((spec_flgs & SHOW_USAGE_IF_ERROR))
-				bb_show_usage();
-			flags |= BB_GETOPT_ERROR;
-		}
+		if (flags & on_off->incongruously)
+			bb_show_usage();
 		trigger = on_off->switch_on & on_off->switch_off;
 		flags &= ~(on_off->switch_off ^ trigger);
 		flags |= on_off->switch_on ^ trigger;

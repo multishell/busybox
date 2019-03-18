@@ -20,7 +20,7 @@ static const struct suffix_mult split_suffices[] = {
 #if ENABLE_FEATURE_SPLIT_FANCY
 	{ "g", 1024*1024*1024 },
 #endif
-	{ NULL, 0 }
+	{ }
 };
 
 /* Increment the suffix part of the filename.
@@ -49,7 +49,7 @@ static char *next_file(char *old, unsigned suffix_len)
 }
 
 #define read_buffer bb_common_bufsiz1
-enum { READ_BUFFER_SIZE = sizeof(bb_common_bufsiz1) - 1 };
+enum { READ_BUFFER_SIZE = COMMON_BUFSIZE - 1 };
 
 #define SPLIT_OPT_l (1<<0)
 #define SPLIT_OPT_b (1<<1)
@@ -69,7 +69,7 @@ int split_main(int argc, char **argv)
 	char *src;
 
 	opt_complementary = "?2";
-	opt = getopt32(argc, argv, "l:b:a:", &count_p, &count_p, &sfx);
+	opt = getopt32(argv, "l:b:a:", &count_p, &count_p, &sfx);
 
 	if (opt & SPLIT_OPT_l)
 		cnt = xatoul(count_p);

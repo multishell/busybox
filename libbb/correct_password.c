@@ -40,27 +40,25 @@ int correct_password(const struct passwd *pw)
 {
 	char *unencrypted, *encrypted;
 	const char *correct;
-#if ENABLE_FEATURE_SHADOWPASSWDS
-	/* Using _r function to avoid pulling in static buffers */
-	struct spwd spw;
-	struct spwd *result;
-	char buffer[256];
-#endif
 
-	correct = "aa"; /* fake salt. crypt() can choke otherwise */
-	if (!pw)
-		goto fake_it; /* "aa" will never match */
+	/* fake salt. crypt() can choke otherwise. */
+	correct = "aa";
+	if (!pw) {
+		/* "aa" will never match */
+		goto fake_it;
+	}
 	correct = pw->pw_passwd;
 #if ENABLE_FEATURE_SHADOWPASSWDS
-	if (LONE_CHAR(pw->pw_passwd, 'x') || LONE_CHAR(pw->pw_passwd, '*')) {
-		if (getspnam_r(pw->pw_name, &spw, buffer, sizeof(buffer), &result))
-			bb_error_msg("no valid shadow password, checking ordinary one");
-		else
-			correct = spw.sp_pwdp;
+	if ((correct[0] == 'x' || correct[0] == '*') && !correct[1]) {
+		/* Using _r function to avoid pulling in static buffers */
+		struct spwd spw;
+		struct spwd *result;
+		char buffer[256];
+		correct = (getspnam_r(pw->pw_name, &spw, buffer, sizeof(buffer), &result)) ? "aa" : spw.sp_pwdp;
 	}
 #endif
 
-	if (!correct || correct[0] == '\0')
+	if (!correct[0]) /* empty password field? */
 		return 1;
 
  fake_it:

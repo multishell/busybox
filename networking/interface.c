@@ -84,15 +84,12 @@ struct in6_ifreq {
 /* Display an Internet socket address. */
 static const char *INET_sprint(struct sockaddr *sap, int numeric)
 {
-	static char buff[128];
+	static char *buff;
 
+	free(buff);
 	if (sap->sa_family == 0xFFFF || sap->sa_family == 0)
 		return "[NONE SET]";
-
-	if (INET_rresolve(buff, sizeof(buff), (struct sockaddr_in *) sap,
-					  numeric, 0xffffff00) != 0)
-		return NULL;
-
+	buff = INET_rresolve((struct sockaddr_in *) sap, numeric, 0xffffff00);
 	return buff;
 }
 
@@ -169,12 +166,12 @@ static const struct aftype inet_aftype = {
 /* dirty! struct sockaddr usually doesn't suffer for inet6 addresses, fst. */
 static const char *INET6_sprint(struct sockaddr *sap, int numeric)
 {
-	static char buff[128];
+	static char *buff;
 
+	free(buff);
 	if (sap->sa_family == 0xFFFF || sap->sa_family == 0)
 		return "[NONE SET]";
-	if (INET6_rresolve(buff, sizeof(buff), (struct sockaddr_in6 *) sap, numeric))
-		return "[UNKNOWN]";
+	buff = INET6_rresolve((struct sockaddr_in6 *) sap, numeric);
 	return buff;
 }
 
@@ -221,10 +218,13 @@ static const struct aftype inet6_aftype = {
 /* Display an UNSPEC address. */
 static char *UNSPEC_print(unsigned char *ptr)
 {
-	static char buff[sizeof(struct sockaddr) * 3 + 1];
+	static char *buff;
+
 	char *pos;
 	unsigned int i;
 
+	if (!buff);
+		buff = xmalloc(sizeof(struct sockaddr) * 3 + 1);
 	pos = buff;
 	for (i = 0; i < sizeof(struct sockaddr); i++) {
 		/* careful -- not every libc's sprintf returns # bytes written */
@@ -341,7 +341,7 @@ struct interface {
 };
 
 
-int interface_opt_a;	/* show all interfaces          */
+smallint interface_opt_a;	/* show all interfaces */
 
 static struct interface *int_list, *int_last;
 
@@ -521,8 +521,7 @@ static int if_readconf(void)
 		ifc.ifc_len = sizeof(struct ifreq) * numreqs;
 		ifc.ifc_buf = xrealloc(ifc.ifc_buf, ifc.ifc_len);
 
-		if (ioctl(skfd, SIOCGIFCONF, &ifc) < 0) {
-			perror("SIOCGIFCONF");
+		if (ioctl_or_warn(skfd, SIOCGIFCONF, &ifc) < 0) {
 			goto out;
 		}
 		if (ifc.ifc_len == sizeof(struct ifreq) * numreqs) {
@@ -548,7 +547,8 @@ static int if_readconf(void)
 
 static int if_readlist_proc(char *target)
 {
-	static int proc_read;
+	static smallint proc_read;
+
 	FILE *fh;
 	char buf[512];
 	struct interface *ife;
@@ -581,7 +581,7 @@ static int if_readlist_proc(char *target)
 			break;
 	}
 	if (ferror(fh)) {
-		perror(_PATH_PROCNET_DEV);
+		bb_perror_msg(_PATH_PROCNET_DEV);
 		err = -1;
 		proc_read = 0;
 	}
@@ -596,22 +596,6 @@ static int if_readlist(void)
 	if (!err)
 		err = if_readconf();
 	return err;
-}
-
-static int for_all_interfaces(int (*doit) (struct interface *, void *),
-							  void *cookie)
-{
-	struct interface *ife;
-
-	if (!int_list && (if_readlist() < 0))
-		return -1;
-	for (ife = int_list; ife; ife = ife->next) {
-		int err = doit(ife, cookie);
-
-		if (err)
-			return err;
-	}
-	return 0;
 }
 
 /* Fetch the interface configuration from the kernel. */
@@ -732,9 +716,10 @@ static const struct hwtype loop_hwtype = {
 /* Display an Ethernet address in readable format. */
 static char *pr_ether(unsigned char *ptr)
 {
-	static char buff[64];
+	static char *buff;
 
-	snprintf(buff, sizeof(buff), "%02X:%02X:%02X:%02X:%02X:%02X",
+	free(buff);
+	buff = xasprintf("%02X:%02X:%02X:%02X:%02X:%02X",
 			 (ptr[0] & 0377), (ptr[1] & 0377), (ptr[2] & 0377),
 			 (ptr[3] & 0377), (ptr[4] & 0377), (ptr[5] & 0377)
 		);
@@ -743,7 +728,7 @@ static char *pr_ether(unsigned char *ptr)
 
 static int in_ether(const char *bufp, struct sockaddr *sap);
 
-static struct hwtype ether_hwtype = {
+static const struct hwtype ether_hwtype = {
 	.name =		"ether",
 	.title =	"Ethernet",
 	.type =		ARPHRD_ETHER,
@@ -818,7 +803,7 @@ static const struct hwtype sit_hwtype = {
 	.type =			ARPHRD_SIT,
 	.print =		UNSPEC_print,
 	.suppress_null_addr =	1
-} ;
+};
 #endif
 
 static const struct hwtype *const hwtypes[] = {
@@ -886,7 +871,7 @@ static int hw_null_address(const struct hwtype *hw, void *ap)
 	return 1;
 }
 
-static const char TRext[] = "\0\0\0Ki\0Mi\0Gi\0Ti";
+static const char TRext[] ALIGN1 = "\0\0\0Ki\0Mi\0Gi\0Ti";
 
 static void print_bytes_scaled(unsigned long long ull, const char *end)
 {
@@ -910,45 +895,6 @@ static void print_bytes_scaled(unsigned long long ull, const char *end)
 
 	printf("X bytes:%llu (%llu.%u %sB)%s", ull, int_part, frac_part, ext, end);
 }
-
-static const char *const ife_print_flags_strs[] = {
-	"UP ",
-	"BROADCAST ",
-	"DEBUG ",
-	"LOOPBACK ",
-	"POINTOPOINT ",
-	"NOTRAILERS ",
-	"RUNNING ",
-	"NOARP ",
-	"PROMISC ",
-	"ALLMULTI ",
-	"SLAVE ",
-	"MASTER ",
-	"MULTICAST ",
-#ifdef HAVE_DYNAMIC
-	"DYNAMIC "
-#endif
-};
-
-static const unsigned short ife_print_flags_mask[] = {
-	IFF_UP,
-	IFF_BROADCAST,
-	IFF_DEBUG,
-	IFF_LOOPBACK,
-	IFF_POINTOPOINT,
-	IFF_NOTRAILERS,
-	IFF_RUNNING,
-	IFF_NOARP,
-	IFF_PROMISC,
-	IFF_ALLMULTI,
-	IFF_SLAVE,
-	IFF_MASTER,
-	IFF_MULTICAST,
-#ifdef HAVE_DYNAMIC
-	IFF_DYNAMIC
-#endif
-	0
-};
 
 static void ife_print(struct interface *ptr)
 {
@@ -1027,7 +973,7 @@ static void ife_print(struct interface *ptr)
 	f = fopen(_PATH_PROCNET_IFINET6, "r");
 	if (f != NULL) {
 		while (fscanf
-			   (f, "%4s%4s%4s%4s%4s%4s%4s%4s %02x %02x %02x %02x %20s\n",
+			   (f, "%4s%4s%4s%4s%4s%4s%4s%4s %08x %02x %02x %02x %20s\n",
 				addr6p[0], addr6p[1], addr6p[2], addr6p[3], addr6p[4],
 				addr6p[5], addr6p[6], addr6p[7], &if_idx, &plen, &scope,
 				&dad_status, devname) != EOF
@@ -1040,29 +986,28 @@ static void ife_print(struct interface *ptr)
 						  (struct sockaddr *) &sap.sin6_addr);
 				sap.sin6_family = AF_INET6;
 				printf("          inet6 addr: %s/%d",
-					   inet6_aftype.sprint((struct sockaddr *) &sap, 1),
+					   INET6_sprint((struct sockaddr *) &sap, 1),
 					   plen);
 				printf(" Scope:");
 				switch (scope & IPV6_ADDR_SCOPE_MASK) {
 				case 0:
-					printf("Global");
+					puts("Global");
 					break;
 				case IPV6_ADDR_LINKLOCAL:
-					printf("Link");
+					puts("Link");
 					break;
 				case IPV6_ADDR_SITELOCAL:
-					printf("Site");
+					puts("Site");
 					break;
 				case IPV6_ADDR_COMPATv4:
-					printf("Compat");
+					puts("Compat");
 					break;
 				case IPV6_ADDR_LOOPBACK:
-					printf("Host");
+					puts("Host");
 					break;
 				default:
-					printf("Unknown");
+					puts("Unknown");
 				}
-				puts("");
 			}
 		}
 		fclose(f);
@@ -1075,12 +1020,51 @@ static void ife_print(struct interface *ptr)
 	if (ptr->flags == 0) {
 		printf("[NO FLAGS] ");
 	} else {
-		int i = 0;
+		static const char ife_print_flags_strs[] ALIGN1 =
+			"UP\0"
+			"BROADCAST\0"
+			"DEBUG\0"
+			"LOOPBACK\0"
+			"POINTOPOINT\0"
+			"NOTRAILERS\0"
+			"RUNNING\0"
+			"NOARP\0"
+			"PROMISC\0"
+			"ALLMULTI\0"
+			"SLAVE\0"
+			"MASTER\0"
+			"MULTICAST\0"
+#ifdef HAVE_DYNAMIC
+			"DYNAMIC\0"
+#endif
+			;
+		static const unsigned short ife_print_flags_mask[] ALIGN2 = {
+			IFF_UP,
+			IFF_BROADCAST,
+			IFF_DEBUG,
+			IFF_LOOPBACK,
+			IFF_POINTOPOINT,
+			IFF_NOTRAILERS,
+			IFF_RUNNING,
+			IFF_NOARP,
+			IFF_PROMISC,
+			IFF_ALLMULTI,
+			IFF_SLAVE,
+			IFF_MASTER,
+			IFF_MULTICAST
+#ifdef HAVE_DYNAMIC
+			,IFF_DYNAMIC
+#endif
+		};
+		const unsigned short *mask = ife_print_flags_mask;
+		const char *str = ife_print_flags_strs;
 		do {
-			if (ptr->flags & ife_print_flags_mask[i]) {
-				printf(ife_print_flags_strs[i]);
+			if (ptr->flags & *mask) {
+				printf("%s ", str);
 			}
-		} while (ife_print_flags_mask[++i]);
+			mask++;
+			str += strlen(str) + 1;
+		} while (*str);
 	}
 
 	/* DONT FORGET TO ADD THE FLAGS IN ife_print_short */
@@ -1144,14 +1128,13 @@ static void ife_print(struct interface *ptr)
 }
 
 
-static int do_if_print(struct interface *ife, void *cookie)
+static int do_if_print(struct interface *ife) /*, int *opt_a)*/
 {
-	int *opt_a = (int *) cookie;
 	int res;
 
 	res = do_if_fetch(ife);
 	if (res >= 0) {
-		if ((ife->flags & IFF_UP) || *opt_a)
+		if ((ife->flags & IFF_UP) || interface_opt_a)
 			ife_print(ife);
 	}
 	return res;
@@ -1167,21 +1150,45 @@ static struct interface *lookup_interface(char *name)
 	return ife;
 }
 
+#ifdef UNUSED
+static int for_all_interfaces(int (*doit) (struct interface *, void *),
+							  void *cookie)
+{
+	struct interface *ife;
+
+	if (!int_list && (if_readlist() < 0))
+		return -1;
+	for (ife = int_list; ife; ife = ife->next) {
+		int err = doit(ife, cookie);
+
+		if (err)
+			return err;
+	}
+	return 0;
+}
+#endif
+
 /* for ipv4 add/del modes */
 static int if_print(char *ifname)
 {
+	struct interface *ife;
 	int res;
 
 	if (!ifname) {
-		res = for_all_interfaces(do_if_print, &interface_opt_a);
-	} else {
-		struct interface *ife;
-
-		ife = lookup_interface(ifname);
-		res = do_if_fetch(ife);
-		if (res >= 0)
-			ife_print(ife);
+		/*res = for_all_interfaces(do_if_print, &interface_opt_a);*/
+		if (!int_list && (if_readlist() < 0))
+			return -1;
+		for (ife = int_list; ife; ife = ife->next) {
+			int err = do_if_print(ife); /*, &interface_opt_a);*/
+			if (err)
+				return err;
+		}
+		return 0;
 	}
+	ife = lookup_interface(ifname);
+	res = do_if_fetch(ife);
+	if (res >= 0)
+		ife_print(ife);
 	return res;
 }
 
