@@ -1181,12 +1181,6 @@ static int pseudo_exec(struct child_prog *child)
 {
 	struct built_in_command *x;
 
-	/* Check if the command sets an environment variable. */
-	if( strchr(child->argv[0], '=') != NULL ) {
-		child->argv[1] = child->argv[0];
-		_exit(builtin_export(child));
-	}
-
 	/* Check if the command matches any of the non-forking builtins.
 	 * Depending on context, this might be redundant.  But it's
 	 * easier to waste a few CPU cycles than it is to figure out
@@ -1310,6 +1304,12 @@ static int run_command(struct job *newjob, int inbg, int outpipe[2])
 		 * is doomed to failure, and doesn't work on bash, either.
 		 */
 		if (newjob->num_progs == 1) {
+			/* Check if the command sets an environment variable. */
+			if (strchr(child->argv[0], '=') != NULL) {
+				child->argv[1] = child->argv[0];
+				return builtin_export(child);
+			}
+
 			for (x = bltins; x->cmd; x++) {
 				if (strcmp(child->argv[0], x->cmd) == 0 ) {
 					int rcode;
@@ -1508,6 +1508,8 @@ static void free_memory(void)
 		remove_job(&job_list, job_list.fg);
 	}
 }
+#else
+void free_memory(void);
 #endif
 
 #ifdef CONFIG_LASH_JOB_CONTROL
@@ -1538,7 +1540,7 @@ static void setup_job_control(void)
 	/* Put ourselves in our own process group.  */
 	setsid();
 	shell_pgrp = getpid ();
-	setpgid (shell_pgrp, shell_pgrp);
+	setpgid(shell_pgrp, shell_pgrp);
 
 	/* Grab control of the terminal.  */
 	tcsetpgrp(shell_terminal, shell_pgrp);
@@ -1587,7 +1589,7 @@ int lash_main(int argc_l, char **argv_l)
 				argv = argv+optind;
 				break;
 			case 'i':
-				interactive = TRUE;
+				interactive++;
 				break;
 			default:
 				bb_show_usage();
@@ -1601,18 +1603,18 @@ int lash_main(int argc_l, char **argv_l)
 	 *    standard output is a terminal
 	 *    Refer to Posix.2, the description of the `sh' utility. */
 	if (argv[optind]==NULL && input==stdin &&
-			isatty(STDIN_FILENO) && isatty(STDOUT_FILENO)) {
-		interactive=TRUE;
+			isatty(STDIN_FILENO) && isatty(STDOUT_FILENO))
+	{
+		interactive++;
 	}
 	setup_job_control();
-	if (interactive==TRUE) {
-		//printf( "optind=%d  argv[optind]='%s'\n", optind, argv[optind]);
+	if (interactive) {
 		/* Looks like they want an interactive shell */
-#ifndef CONFIG_FEATURE_SH_EXTRA_QUIET
-		printf( "\n\n%s Built-in shell (lash)\n", BB_BANNER);
-		printf( "Enter 'help' for a list of built-in commands.\n\n");
-#endif
-	} else if (local_pending_command==NULL) {
+		if (!ENABLE_FEATURE_SH_EXTRA_QUIET) {
+			printf( "\n\n%s Built-in shell (lash)\n", BB_BANNER);
+			printf( "Enter 'help' for a list of built-in commands.\n\n");
+		}
+	} else if (!local_pending_command && argv[optind]) {
 		//printf( "optind=%d  argv[optind]='%s'\n", optind, argv[optind]);
 		input = bb_xfopen(argv[optind], "r");
 		/* be lazy, never mark this closed */
@@ -1624,15 +1626,10 @@ int lash_main(int argc_l, char **argv_l)
 	if (!cwd)
 		cwd = bb_msg_unknown;
 
-#ifdef CONFIG_FEATURE_CLEAN_UP
-	atexit(free_memory);
-#endif
+	if (ENABLE_FEATURE_CLEAN_UP) atexit(free_memory);
 
-#ifdef CONFIG_FEATURE_COMMAND_EDITING
-	cmdedit_set_initial_prompt();
-#else
-	PS1 = NULL;
-#endif
+	if (ENABLE_FEATURE_COMMAND_EDITING) cmdedit_set_initial_prompt();
+	else PS1 = NULL;
 
 	return (busy_loop(input));
 }

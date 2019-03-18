@@ -3474,6 +3474,7 @@ evalbltin(const struct builtincmd *cmd, int argc, char **argv) {
 	flushall();
 cmddone:
 	exitstatus |= ferror(stdout);
+	clearerr(stdout);
 	commandname = savecmdname;
 	exsig = 0;
 	handler = savehandler;
