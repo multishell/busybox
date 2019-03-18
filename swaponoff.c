@@ -22,7 +22,7 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 #include <sys/mount.h>
 #include <mntent.h>
@@ -34,26 +34,6 @@ _syscall1(int, swapoff, const char *, path);
 
 
 static int whichApp;
-static const char *appName;
-
-static const char swapoff_usage[] =
-	"swapoff [OPTION] [device]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nStop swapping virtual memory pages on the given device.\n\n"
-	"Options:\n"
-	"\t-a\tStop swapping on all swap devices\n"
-#endif
-	;
-
-static const char swapon_usage[] =
-	"swapon [OPTION] [device]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nStart swapping virtual memory pages on the given device.\n\n"
-	"Options:\n"
-	"\t-a\tStart swapping on all swap devices\n"
-#endif
-	;
-
 
 #define SWAPON_APP   1
 #define SWAPOFF_APP  2
@@ -69,7 +49,7 @@ static void swap_enable_disable(char *device)
 		status = swapoff(device);
 
 	if (status != 0) {
-		perror(appName);
+		perror(applet_name);
 		exit(FALSE);
 	}
 }
@@ -95,12 +75,9 @@ static void do_em_all()
 
 extern int swap_on_off_main(int argc, char **argv)
 {
-	if (strcmp(*argv, "swapon") == 0) {
-		appName = *argv;
+	if (strcmp(applet_name, "swapon") == 0) {
 		whichApp = SWAPON_APP;
-
 	} else {
-		appName = *argv;
 		whichApp = SWAPOFF_APP;
 	}
 

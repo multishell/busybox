@@ -22,22 +22,12 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <sys/types.h>
 #include <fcntl.h>
 #include <dirent.h>
 #include <stdio.h>
 #include <errno.h>
-
-static const char sort_usage[] = "sort [-n]"
-#ifdef BB_FEATURE_SORT_REVERSE
-" [-r]"
-#endif
-" [FILE]...\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-"\nSorts lines of text in the specified files\n"
-#endif
-;
 
 #ifdef BB_FEATURE_SORT_REVERSE
 #define APPLY_REVERSE(x) (reverse ? -(x) : (x))
@@ -74,7 +64,7 @@ static const int max = 1024;
 static Line *line_alloc()
 {
 	Line *self;
-	self = malloc(1 * sizeof(Line));
+	self = xmalloc(1 * sizeof(Line));
 	return self;
 }
 
@@ -86,9 +76,6 @@ static Line *line_newFromFile(FILE * src)
 
 	if ((cstring = get_line_from_file(src))) {
 		self = line_alloc();
-		if (self == NULL) {
-			return NULL;
-		}
 		self->data = cstring;
 		self->next = NULL;
 		return self;
@@ -183,10 +170,7 @@ static List *list_sort(List * self, Compare * compare)
 	Line *line;
 
 	/* mallocate array of Line*s */
-	self->sorted = (Line **) malloc(self->len * sizeof(Line *));
-	if (self->sorted == NULL) {
-		return NULL;
-	}
+	self->sorted = (Line **) xmalloc(self->len * sizeof(Line *));
 
 	/* fill array w/ List's contents */
 	i = 0;
@@ -263,7 +247,7 @@ int sort_main(int argc, char **argv)
 				break;
 #endif
 			default:
-				fprintf(stderr, "sort: invalid option -- %c\n", opt);
+				errorMsg("invalid option -- %c\n", opt);
 				usage(sort_usage);
 			}
 		} else {
@@ -304,4 +288,4 @@ int sort_main(int argc, char **argv)
 	return(0);
 }
 
-/* $Id: sort.c,v 1.18 2000/06/28 22:15:26 markw Exp $ */
+/* $Id: sort.c,v 1.22 2000/09/25 21:45:58 andersen Exp $ */

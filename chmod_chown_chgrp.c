@@ -22,7 +22,7 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #define BB_DECLARE_EXTERN
 #define bb_need_invalid_option
 #define bb_need_too_few_args
@@ -33,39 +33,15 @@
 #include <pwd.h>
 
 
-static unsigned long uid = -1;
-static unsigned long gid = -1;
+static long uid = -1;
+static long gid = -1;
 static int whichApp;
-static char *invocationName = NULL;
 static char *theMode = NULL;
 
 
 #define CHGRP_APP   1
 #define CHOWN_APP   2
 #define CHMOD_APP   3
-
-static const char chgrp_usage[] = "chgrp [OPTION]... GROUP FILE...\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nChange the group membership of each FILE to GROUP.\n"
-	"\nOptions:\n\t-R\tChanges files and directories recursively.\n"
-#endif
-	;
-static const char chown_usage[] =
-	"chown [OPTION]...  OWNER[<.|:>[GROUP] FILE...\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nChange the owner and/or group of each FILE to OWNER and/or GROUP.\n"
-	"\nOptions:\n\t-R\tChanges files and directories recursively.\n"
-#endif
-	;
-static const char chmod_usage[] =
-	"chmod [-R] MODE[,MODE]... FILE...\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nEach MODE is one or more of the letters ugoa, one of the symbols +-= and\n"
-	"one or more of the letters rwxst.\n\n"
-	"\nOptions:\n\t-R\tChanges files and directories recursively.\n"
-#endif
-	;
-
 
 static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
 {
@@ -88,7 +64,7 @@ static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
 	case CHMOD_APP:
 		/* Parse the specified modes */
 		if (parse_mode(theMode, &(statbuf->st_mode)) == FALSE) {
-			fatalError( "%s: unknown mode: %s\n", invocationName, theMode);
+			fatalError( "unknown mode: %s\n", theMode);
 		}
 		if (chmod(fileName, statbuf->st_mode) == 0)
 			return (TRUE);
@@ -100,13 +76,14 @@ static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
 
 int chmod_chown_chgrp_main(int argc, char **argv)
 {
+	int stopIt = FALSE;
 	int recursiveFlag = FALSE;
 	char *groupName=NULL;
 	char *p=NULL;
 	const char *appUsage;
 
-	whichApp = (strcmp(*argv, "chown") == 0)? 
-			CHOWN_APP : (strcmp(*argv, "chmod") == 0)? 
+	whichApp = (strcmp(applet_name, "chown") == 0)? 
+			CHOWN_APP : (strcmp(applet_name, "chmod") == 0)? 
 				CHMOD_APP : CHGRP_APP;
 
 	appUsage = (whichApp == CHOWN_APP)? 
@@ -114,31 +91,32 @@ int chmod_chown_chgrp_main(int argc, char **argv)
 
 	if (argc < 2)
 		usage(appUsage);
-	invocationName = *argv;
 	argv++;
 
 	/* Parse options */
 	while (--argc >= 0 && *argv && (**argv == '-')) {
-		while (*++(*argv)) {
+		while (stopIt==FALSE && *++(*argv)) {
 			switch (**argv) {
 				case 'R':
 					recursiveFlag = TRUE;
 					break;
 				default:
-					fprintf(stderr, invalid_option, invocationName, **argv);
-					usage(appUsage);
+					theMode=*argv-1;
+					stopIt = TRUE;
 			}
 		}
+		if (stopIt==TRUE)
+			break;
 		argv++;
 	}
 
 	if (argc == 0 || *argv == NULL) {
-		fprintf(stderr, too_few_args, invocationName);
-		usage(appUsage);
+		errorMsg(too_few_args);
 	}
 
 	if (whichApp == CHMOD_APP) {
-		theMode = *argv;
+		if (theMode==NULL)
+			theMode = *argv;
 	} else {
 
 		/* Find the selected group */
@@ -171,15 +149,14 @@ int chmod_chown_chgrp_main(int argc, char **argv)
 			if (*argv == p)
 				uid = my_getpwnam(*argv);
 			if (uid == -1) {
-				fatalError( "%s: unknown user name: %s\n", 
-						invocationName, *argv);
+				fatalError( "unknown user name: %s\n", *argv);
 			}
 		}
 	}
 
 	/* Ok, ready to do the deed now */
-	if (argc <= 1) {
-		fatalError( "%s: too few arguments\n", invocationName);
+	if (argc < 1) {
+		fatalError(too_few_args);
 	}
 	while (argc-- > 1) {
 		if (recursiveAction (*(++argv), recursiveFlag, FALSE, FALSE, 
@@ -189,7 +166,7 @@ int chmod_chown_chgrp_main(int argc, char **argv)
 	exit(TRUE);
 
   bad_group:
-	fatalError( "%s: unknown group name: %s\n", invocationName, groupName);
+	fatalError( "unknown group name: %s\n", groupName);
 }
 
 /*

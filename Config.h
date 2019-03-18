@@ -23,16 +23,19 @@
 #define BB_DF
 #define BB_DIRNAME
 #define BB_DMESG
+#define BB_DOS2UNIX
 #define BB_DUTMP
 #define BB_DU
 #define BB_DUMPKMAP
 #define BB_ECHO
+#define BB_EXPR
 #define BB_FBSET
 #define BB_FDFLUSH
 #define BB_FIND
 #define BB_FREE
 #define BB_FREERAMDISK
 #define BB_FSCK_MINIX
+#define BB_GETOPT
 #define BB_GREP
 #define BB_GUNZIP
 #define BB_GZIP
@@ -72,7 +75,10 @@
 #define BB_PRINTF
 #define BB_PS
 #define BB_PWD
+#define BB_RDATE
 #define BB_REBOOT
+#define BB_RENICE
+#define BB_RESET
 #define BB_RM
 #define BB_RMDIR
 #define BB_RMMOD
@@ -93,9 +99,11 @@
 #define BB_TR
 #define BB_TRUE_FALSE
 #define BB_TTY
+#define BB_UNRPM
 #define BB_UPTIME
 #define BB_USLEEP
 #define BB_WC
+#define BB_WGET
 #define BB_WHICH
 #define BB_WHOAMI
 #define BB_UUENCODE
@@ -103,7 +111,9 @@
 #define BB_UMOUNT
 #define BB_UNIQ
 #define BB_UNAME
+#define BB_UNIX2DOS
 #define BB_UPDATE
+#define BB_XARGS
 #define BB_YES
 // End of Applications List
 //
@@ -116,14 +126,13 @@
 //
 //
 //
-// Turn this on to use Erik's very cool devps, devmtab, etc kernel drivers,
+// Turn this on to use Erik's very cool devps, and devmtab kernel drivers,
 // thereby eliminating the need for the /proc filesystem and thereby saving
 // lots and lots memory for more important things.  You can not use this and
 // USE_PROCFS at the same time...  NOTE:  If you enable this feature, you
 // _must_ have patched the kernel to include the devps patch that is included
 // in the busybox/kernel-patches directory.  You will also need to create some
-// device special files /dev on your embedded system:
-//        mknod /dev/modules c 10 23
+// device special files in /dev on your embedded system:
 //        mknod /dev/mtab c 10 22
 //        mknod /dev/ps c 10 21
 // I emailed Linus and this patch will not be going into the stock kernel.
@@ -134,12 +143,6 @@
 // You can't use this and BB_FEATURE_USE_DEVPS_PATCH 
 // at the same time...
 #define BB_FEATURE_USE_PROCFS
-//
-// Enable full regular expressions.  This adds about 
-// 4k.  When this is off, things that would normally
-// use regualr expressions (like grep) will just use
-// normal strings.
-#define BB_FEATURE_FULL_REGULAR_EXPRESSIONS
 //
 // This compiles out everything but the most 
 // trivial --help usage information (i.e. reduces binary size)
@@ -160,8 +163,14 @@
 // enable ls -p and -F
 #define BB_FEATURE_LS_FILETYPES
 //
+// sort the file names (still a bit buggy)
+#define BB_FEATURE_LS_SORTFILES
+//
 // enable ls -R
 #define BB_FEATURE_LS_RECURSIVE
+//
+// enable ls -L
+#define BB_FEATURE_LS_FOLLOWLINKS
 //
 // Change ping implementation -- simplified, featureless, but really small.
 //#define BB_FEATURE_SIMPLE_PING
@@ -170,7 +179,7 @@
 #define BB_FEATURE_USE_INITTAB
 //
 //Enable init being called as /linuxrc
-//#define BB_FEATURE_LINUXRC
+#define BB_FEATURE_LINUXRC
 //
 //Have init enable core dumping for child processes (for debugging only) 
 //#define BB_FEATURE_INIT_COREDUMPS
@@ -186,8 +195,11 @@
 //Should syslogd also provide klogd support?
 #define BB_FEATURE_KLOGD
 //
-//Simple tail implementation (2k vs 6k for the full one).  Still
-//provides 'tail -f' support -- but for only one file at a time.
+// enable syslogd -R remotehost
+#define BB_FEATURE_REMOTE_LOG
+//
+//Simple tail implementation (2.34k vs 3k for the full one).
+//Both provide 'tail -f' support (only one file at a time.)
 #define BB_FEATURE_SIMPLE_TAIL
 //
 // Enable support for loop devices in mount
@@ -197,7 +209,6 @@
 //#define BB_FEATURE_MOUNT_MTAB_SUPPORT
 //
 // Enable support for mounting remote NFS volumes
-// (This does not yet work with Linux 2.[34].x kernels)
 #define BB_FEATURE_NFSMOUNT
 //
 // Enable support forced filesystem unmounting 
@@ -210,6 +221,9 @@
 // Enable support for "--exclude" for excluding files
 #define BB_FEATURE_TAR_EXCLUDE
 //
+// Enable support for s///p pattern matching
+#define BB_FEATURE_SED_PATTERN_SPACE
+//
 //// Enable reverse sort
 #define BB_FEATURE_SORT_REVERSE
 //
@@ -218,7 +232,7 @@
 //
 //Allow the shell to invoke all the compiled in BusyBox commands as if they
 //were shell builtins.  Nice for staticly linking an emergency rescue shell
-//amoung other thing.
+//among other thing.
 #define BB_FEATURE_SH_STANDALONE_SHELL
 //
 // Enable tab completion in the shell (not yet 
@@ -240,11 +254,19 @@
 // Support module version checking
 //#define BB_FEATURE_INSMOD_VERSION_CHECKING
 //
+// Support for Minix filesystem, version 2
+//#define BB_FEATURE_MINIX2
+//
 //
 // Enable busybox --install [-s]
 // to create links (or symlinks) for all the commands that are 
 // compiled into the binary.  (needs /proc filesystem)
 // #define BB_FEATURE_INSTALLER
+//
+// Clean up all memory before exiting -- usually not needed
+// as the OS can clean up...  Don't enable this unless you
+// have a really good reason for cleaning things up manually.
+//#define BB_FEATURE_CLEAN_UP
 //
 // End of Features List
 //
@@ -261,10 +283,6 @@
 #define BB_MTAB
 #endif
 //
-#if defined BB_FEATURE_FULL_REGULAR_EXPRESSIONS && (defined BB_SED || defined BB_GREP )
-#define BB_REGEXP
-#endif
-//
 #if defined BB_FEATURE_SH_COMMAND_EDITING && defined BB_SH
 #define BB_CMDEDIT
 #endif
@@ -278,8 +296,8 @@
 #ifdef BB_FEATURE_LINUXRC
 #ifndef BB_INIT
 #define BB_INIT
-#define BB_LINUXRC
 #endif
+#define BB_LINUXRC
 #endif
 //
 #ifdef BB_GZIP

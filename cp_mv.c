@@ -25,7 +25,7 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #define BB_DECLARE_EXTERN
 #define bb_need_name_too_long
 #define bb_need_omitting_directory
@@ -41,30 +41,16 @@
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <getopt.h>
 
 #define is_cp 0
 #define is_mv 1
 static int         dz_i;		/* index into cp_mv_usage */
-static const char *dz;			/* dollar zero, .bss */
+
 static const char *cp_mv_usage[] =	/* .rodata */
 {
-	"cp [OPTION]... SOURCE DEST\n"
-		"   or: cp [OPTION]... SOURCE... DIRECTORY\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-		"\nCopies SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.\n"
-		"\n"
-		"\t-a\tSame as -dpR\n"
-		"\t-d\tPreserves links\n"
-		"\t-p\tPreserves file attributes if possible\n"
-		"\t-f\tforce (implied; ignored) - always set\n"
-		"\t-R\tCopies directories recursively\n"
-#endif
-		,
-	"mv SOURCE DEST\n"
-		"   or: mv SOURCE... DIRECTORY\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-		"\nRename SOURCE to DEST, or move SOURCE(s) to DIRECTORY.\n"
-#endif
+	cp_usage,
+	mv_usage
 };
 
 static int recursiveFlag;
@@ -89,8 +75,7 @@ static void name_too_long__exit (void) __attribute__((noreturn));
 static
 void name_too_long__exit (void)
 {
-	fprintf(stderr, name_too_long, dz);
-	exit(FALSE);
+	fatalError(name_too_long);
 }
 
 static void
@@ -124,14 +109,14 @@ cp_mv_Action(const char *fileName, struct stat *statbuf, void* junk)
 
 	if (srcDirFlag == TRUE) {
 		if (recursiveFlag == FALSE) {
-			fprintf(stderr, omitting_directory, dz, baseSrcName);
+			errorMsg(omitting_directory, baseSrcName);
 			return TRUE;
 		}
 		srcBasename = (strstr(fileName, baseSrcName)
 					   + strlen(baseSrcName));
 
 		if (destLen + strlen(srcBasename) > BUFSIZ) {
-			fprintf(stderr, name_too_long, dz);
+			errorMsg(name_too_long);
 			return FALSE;
 		}
 		strcat(destName, srcBasename);
@@ -145,8 +130,8 @@ cp_mv_Action(const char *fileName, struct stat *statbuf, void* junk)
 	if (mv_Action_first_time && (dz_i == is_mv)) {
 		mv_Action_first_time = errno = 0;
 		if (rename(fileName, destName) < 0 && errno != EXDEV) {
-			fprintf(stderr, "%s: rename(%s, %s): %s\n",
-					dz, fileName, destName, strerror(errno));
+			errorMsg("rename(%s, %s): %s\n", fileName, destName, 
+					strerror(errno));
 			goto do_copyFile;	/* Try anyway... */
 		}
 		else if (errno == EXDEV)
@@ -158,8 +143,7 @@ cp_mv_Action(const char *fileName, struct stat *statbuf, void* junk)
 	if (preserveFlag == TRUE && statbuf->st_nlink > 1) {
 		if (is_in_ino_dev_hashtable(statbuf, &name)) {
 			if (link(name, destName) < 0) {
-				fprintf(stderr, "%s: link(%s, %s): %s\n",
-						dz, name, destName, strerror(errno));
+				errorMsg("link(%s, %s): %s\n", name, destName, strerror(errno));
 				return FALSE;
 			}
 			return TRUE;
@@ -178,11 +162,11 @@ rm_Action(const char *fileName, struct stat *statbuf, void* junk)
 
 	if (S_ISDIR(statbuf->st_mode)) {
 		if (rmdir(fileName) < 0) {
-			fprintf(stderr, "%s: rmdir(%s): %s\n", dz, fileName, strerror(errno));
+			errorMsg("rmdir(%s): %s\n", fileName, strerror(errno));
 			status = FALSE;
 		}
 	} else if (unlink(fileName) < 0) {
-		fprintf(stderr, "%s: unlink(%s): %s\n", dz, fileName, strerror(errno));
+		errorMsg("unlink(%s): %s\n", fileName, strerror(errno));
 		status = FALSE;
 	}
 	return status;
@@ -190,22 +174,21 @@ rm_Action(const char *fileName, struct stat *statbuf, void* junk)
 
 extern int cp_mv_main(int argc, char **argv)
 {
-	dz = *argv;					/* already basename'd by busybox.c:main */
-	if (*dz == 'c' && *(dz + 1) == 'p')
+	volatile int i;
+	int c;
+
+	if (*applet_name == 'c' && *(applet_name + 1) == 'p')
 		dz_i = is_cp;
 	else
 		dz_i = is_mv;
 	if (argc < 3)
 		usage(cp_mv_usage[dz_i]);
-	argc--;
-	argv++;
 
 	if (dz_i == is_cp) {
 		recursiveFlag = preserveFlag = forceFlag = FALSE;
 		followLinks = TRUE;
-		while (*argv && **argv == '-') {
-			while (*++(*argv)) {
-				switch (**argv) {
+		while ((c = getopt(argc, argv, "adpRf")) != EOF) {
+				switch (c) {
 				case 'a':
 					followLinks = FALSE;
 					preserveFlag = TRUE;
@@ -226,21 +209,22 @@ extern int cp_mv_main(int argc, char **argv)
 				default:
 					usage(cp_mv_usage[is_cp]);
 				}
-			}
-			argc--;
-			argv++;
 		}
-		if (argc < 2) {
+		if ((argc - optind) < 2) {
 			usage(cp_mv_usage[dz_i]);
 		}
 	} else {					/* (dz_i == is_mv) */
+		/* Initialize optind to 1, since in libc5 optind
+		 * is not initialized until getopt() is called
+		 * (or until sneaky programmers force it...). */
+		optind = 1;
 		recursiveFlag = preserveFlag = TRUE;
 		followLinks = FALSE;
 	}
 	
 
 	if (strlen(argv[argc - 1]) > BUFSIZ) {
-		fprintf(stderr, name_too_long, "cp");
+		errorMsg(name_too_long);
 		goto exit_false;
 	}
 	strcpy(baseDestName, argv[argc - 1]);
@@ -249,17 +233,17 @@ extern int cp_mv_main(int argc, char **argv)
 		goto exit_false;
 
 	destDirFlag = isDirectory(baseDestName, TRUE, &destStatBuf);
-	if ((argc > 3) && destDirFlag == FALSE) {
-		fprintf(stderr, not_a_directory, "cp", baseDestName);
+	if (argc - optind > 2 && destDirFlag == FALSE) {
+		errorMsg(not_a_directory, baseDestName);
 		goto exit_false;
 	}
 
-	while (argc-- > 1) {
+	for (i = optind; i < (argc-1); i++) {
 		size_t srcLen;
 		volatile int flags_memo;
 		int	   status;
 
-		baseSrcName = *(argv++);
+		baseSrcName=argv[i];
 
 		if ((srcLen = strlen(baseSrcName)) > BUFSIZ)
 			name_too_long__exit();
@@ -276,29 +260,28 @@ extern int cp_mv_main(int argc, char **argv)
 			char		*pushd, *d, *p;
 
 			if ((pushd = getcwd(NULL, BUFSIZ + 1)) == NULL) {
-				fprintf(stderr, "%s: getcwd(): %s\n", dz, strerror(errno));
+				errorMsg("getcwd(): %s\n", strerror(errno));
 				continue;
 			}
 			if (chdir(baseDestName) < 0) {
-				fprintf(stderr, "%s: chdir(%s): %s\n", dz, baseSrcName, strerror(errno));
+				errorMsg("chdir(%s): %s\n", baseSrcName, strerror(errno));
 				continue;
 			}
 			if ((d = getcwd(NULL, BUFSIZ + 1)) == NULL) {
-				fprintf(stderr, "%s: getcwd(): %s\n", dz, strerror(errno));
+				errorMsg("getcwd(): %s\n", strerror(errno));
 				continue;
 			}
 			while (!state && *d != '\0') {
 				if (stat(d, &sb) < 0) {	/* stat not lstat - always dereference targets */
-					fprintf(stderr, "%s: stat(%s) :%s\n", dz, d, strerror(errno));
+					errorMsg("stat(%s): %s\n", d, strerror(errno));
 					state = -1;
 					continue;
 				}
 				if ((sb.st_ino == srcStatBuf.st_ino) &&
 					(sb.st_dev == srcStatBuf.st_dev)) {
-					fprintf(stderr,
-							"%s: Cannot %s `%s' "
-							"into a subdirectory of itself, `%s/%s'\n",
-							dz, dz, baseSrcName, baseDestName, baseSrcName);
+					errorMsg("Cannot %s `%s' into a subdirectory of itself, "
+							"`%s/%s'\n", applet_name, baseSrcName,
+							baseDestName, baseSrcName);
 					state = -1;
 					continue;
 				}
@@ -307,7 +290,7 @@ extern int cp_mv_main(int argc, char **argv)
 				}
 			}
 			if (chdir(pushd) < 0) {
-				fprintf(stderr, "%s: chdir(%s): %s\n", dz, pushd, strerror(errno));
+				errorMsg("chdir(%s): %s\n", pushd, strerror(errno));
 				free(pushd);
 				free(d);
 				continue;

@@ -22,17 +22,10 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 #include <mntent.h>
-#include <sys/stat.h>
 #include <sys/vfs.h>
-
-static const char df_usage[] = "df [filesystem ...]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nPrint the filesystem space used and space available.\n"
-#endif
-	;
 
 extern const char mtab_file[];	/* Defined in utility.c */
 
@@ -82,7 +75,7 @@ extern int df_main(int argc, char **argv)
 		}
 		while (argc > 1) {
 			if ((mountEntry = findMountPoint(argv[1], mtab_file)) == 0) {
-				fprintf(stderr, "%s: can't find mount point.\n", argv[1]);
+				errorMsg("%s: can't find mount point.\n", argv[1]);
 				exit(FALSE);
 			}
 			status = df(mountEntry->mnt_fsname, mountEntry->mnt_dir);

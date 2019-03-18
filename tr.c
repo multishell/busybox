@@ -24,7 +24,7 @@
  * Original copyright notice is retained at the end of this file.
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -33,19 +33,6 @@
 #define BB_DECLARE_EXTERN
 #define bb_need_write_error
 #include "messages.c"
-
-const char *tr_usage="tr [-cds] STRING1 [STRING2]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nTranslate, squeeze, and/or delete characters from\n"
-	"standard input, writing to standard output.\n\n"
-	"Options:\n"
-	"\t-c\ttake complement of STRING1\n"
-	"\t-d\tdelete input characters coded STRING1\n"
-	"\t-s\tsqueeze multiple output characters of STRING2 into one character\n"
-#endif
-;
-
-
 
 #ifdef TRUE
 #undef TRUE
@@ -98,21 +85,23 @@ static void convert()
 	/* NOTREACHED */
 }
 
-static void map(register unsigned char *string1, register unsigned char *string2)
+static void map(register unsigned char *string1, unsigned int string1_len,
+		register unsigned char *string2, unsigned int string2_len)
 {
 	unsigned char last = '0';
+	unsigned int i, j;
 
-	while (*string1) {
-		if (*string2 == '\0')
-			vector[*string1] = last;
+	for (j = 0, i = 0; i < string1_len; i++) {
+		if (string2_len <= j)
+			vector[string1[i]] = last;
 		else
-			vector[*string1] = last = *string2++;
-		string1++;
+			vector[string1[i]] = last = string2[j++];
 	}
 }
 
-static void expand(char *arg, register unsigned char *buffer)
+static unsigned int expand(char *arg, register unsigned char *buffer)
 {
+	unsigned char *buffer_start = buffer;
 	int i, ac;
 
 	while (*arg) {
@@ -134,31 +123,33 @@ static void expand(char *arg, register unsigned char *buffer)
 		} else
 			*buffer++ = *arg++;
 	}
+
+	return (buffer - buffer_start);
 }
 
-static void complement(unsigned char *buffer)
+static int complement(unsigned char *buffer, int buffer_len)
 {
-	register unsigned char *ptr;
-	register short i, index;
-	unsigned char conv[ASCII + 2];
+	register short i, j, index;
+	char conv[ASCII + 2];
 
 	index = 0;
-	for (i = 1; i <= ASCII; i++) {
-		for (ptr = buffer; *ptr; ptr++)
-			if (*ptr == i)
+	for (i = 0; i <= ASCII; i++) {
+		for (j = 0; j < buffer_len; j++)
+			if (buffer[j] == i)
 				break;
-		if (*ptr == '\0')
+		if (j == buffer_len)
 			conv[index++] = i & ASCII;
 	}
-	conv[index] = '\0';
-	strcpy((char *) buffer, (char *) conv);
+	memcpy(buffer, conv, index);
+	return index;
 }
 
 extern int tr_main(int argc, char **argv)
 {
 	register unsigned char *ptr;
+	int output_length=0, input_length;
 	int index = 1;
-	short i;
+	int i;
 
 	if (argc > 1 && argv[index][0] == '-') {
 		for (ptr = (unsigned char *) &argv[index][1]; *ptr; ptr++) {
@@ -184,19 +175,19 @@ extern int tr_main(int argc, char **argv)
 	}
 
 	if (argv[index] != NULL) {
-		expand(argv[index++], input);
+		input_length = expand(argv[index++], input);
 		if (com_fl)
-			complement(input);
+			input_length = complement(input, input_length);
 		if (argv[index] != NULL) {
 			if (*argv[index] == '\0')
-				fatalError("tr: STRING2 cannot be empty\n");
-			expand(argv[index], output);
-			map(input, output);
+				fatalError("STRING2 cannot be empty\n");
+			output_length = expand(argv[index], output);
+			map(input, input_length, output, output_length);
 		}
-		for (ptr = input; *ptr; ptr++)
-			invec[*ptr] = TRUE;
-		for (ptr = output; *ptr; ptr++)
-			outvec[*ptr] = TRUE;
+		for (i = 0; i < input_length; i++)
+			invec[input[i]] = TRUE;
+		for (i = 0; i < output_length; i++)
+			outvec[output[i]] = TRUE;
 	}
 	convert();
 	return (0);

@@ -28,7 +28,7 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <dirent.h>
@@ -97,23 +97,22 @@ static void parse_proc_status(char *S, proc_t * P)
 	if (tmp)
 		sscanf(tmp, "Pid:\t%d\n" "PPid:\t%d\n", &P->pid, &P->ppid);
 	else
-		fprintf(stderr, "Internal error!\n");
+		errorMsg("Internal error!\n");
 
 	/* For busybox, ignoring effective, saved, etc */
 	tmp = strstr(S, "Uid:");
 	if (tmp)
 		sscanf(tmp, "Uid:\t%d", &P->ruid);
 	else
-		fprintf(stderr, "Internal error!\n");
+		errorMsg("Internal error!\n");
 
 	tmp = strstr(S, "Gid:");
 	if (tmp)
 		sscanf(tmp, "Gid:\t%d", &P->rgid);
 	else
-		fprintf(stderr, "Internal error!\n");
+		errorMsg("Internal error!\n");
 
 }
-
 
 extern int ps_main(int argc, char **argv)
 {
@@ -126,22 +125,13 @@ extern int ps_main(int argc, char **argv)
 	char groupName[10] = "";
 	int len, i, c;
 #ifdef BB_FEATURE_AUTOWIDTH
-	struct winsize win = { 0, 0 };
+	struct winsize win = { 0, 0, 0, 0 };
 	int terminal_width = TERMINAL_WIDTH;
 #else
 #define terminal_width  TERMINAL_WIDTH
 #endif
 
 
-
-	if (argc > 1 && strcmp(argv[1], dash_dash_help) == 0) {
-		usage ("ps\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-				"\nReport process status\n"
-				"\nThis version of ps accepts no options.\n"
-#endif
-				);
-	}
 
 	dir = opendir("/proc");
 	if (!dir)
@@ -187,6 +177,7 @@ extern int ps_main(int argc, char **argv)
 				c = ' ';
 			putc(c, stdout);
 		}
+		fclose(file);
 		if (i == 0)
 			fprintf(stdout, "[%s]", p.cmd);
 		fprintf(stdout, "\n");
@@ -216,14 +207,14 @@ extern int ps_main(int argc, char **argv)
 	char uidName[10] = "";
 	char groupName[10] = "";
 #ifdef BB_FEATURE_AUTOWIDTH
-	struct winsize win = { 0, 0 };
+	struct winsize win = { 0, 0, 0, 0 };
 	int terminal_width = TERMINAL_WIDTH;
 #else
 #define terminal_width  TERMINAL_WIDTH
 #endif
 
 	if (argc > 1 && **(argv + 1) == '-') 
-		usage("ps-devps\n\nReport process status\n\nThis version of ps accepts no options.\n\n");
+		usage(ps_usage);
 
 	/* open device */ 
 	fd = open(device, O_RDONLY);
@@ -238,7 +229,7 @@ extern int ps_main(int argc, char **argv)
 	 * some new processes start up while we wait. The kernel will
 	 * just ignore any extras if we give it too many, and will trunc.
 	 * the list if we give it too few.  */
-	pid_array = (pid_t*) calloc( num_pids+10, sizeof(pid_t));
+	pid_array = (pid_t*) xcalloc( num_pids+10, sizeof(pid_t));
 	pid_array[0] = num_pids+10;
 
 	/* Now grab the pid list */

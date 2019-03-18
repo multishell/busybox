@@ -27,22 +27,10 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <getopt.h>
 
-static const char gunzip_usage[] =
-	"gunzip [OPTION]... FILE\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nUncompress FILE (or standard input if FILE is '-').\n\n"
-	"Options:\n"
-
-	"\t-c\tWrite output to standard output\n"
-	"\t-t\tTest compressed file integrity\n"
-#endif
-	;
-
-	
-	/* These defines are very important for BusyBox.  Without these,
+/* These defines are very important for BusyBox.  Without these,
  * huge chunks of ram are pre-allocated making the BusyBox bss 
  * size Freaking Huge(tm), which is a bad thing.*/
 #define SMALL_MEM
@@ -106,7 +94,6 @@ static char *license_msg[] = {
 #include <ctype.h>
 #include <sys/types.h>
 #include <signal.h>
-#include <sys/stat.h>
 #include <errno.h>
 
 /* #include "tailor.h" */
@@ -212,7 +199,7 @@ extern int method;				/* compression method */
 #  define DECLARE(type, array, size)  type * array
 #  define ALLOC(type, array, size) { \
       array = (type*)calloc((size_t)(((size)+1L)/2), 2*sizeof(type)); \
-      if (array == NULL) errorMsg(memory_exhausted, "gunzip"); \
+      if (array == NULL) errorMsg(memory_exhausted); \
    }
 #  define FREE(array) {if (array != NULL) free(array), array=NULL;}
 #else
@@ -377,9 +364,6 @@ extern void flush_outbuf (void);
 static void flush_window (void);
 extern void write_buf (int fd, void * buf, unsigned cnt);
 
-#ifndef __linux__
-static char *basename (char *fname);
-#endif							/* not __linux__ */
 void read_error_msg (void);
 void write_error_msg (void);
 
@@ -581,44 +565,55 @@ local int get_method (int in);
 int gunzip_main(int argc, char **argv)
 {
 	int file_count;				/* number of files to precess */
-	int to_stdout = 0;
+	int tostdout = 0;
 	int fromstdin = 0;
 	int result;
 	int inFileNum;
 	int outFileNum;
 	int delInputFile = 0;
+	int force = 0;
 	struct stat statBuf;
 	char *delFileName;
 	char ifname[MAX_PATH_LEN + 1];	/* input file name */
 	char ofname[MAX_PATH_LEN + 1];	/* output file name */
 
-	if (strcmp(*argv, "zcat") == 0) {
-		to_stdout = 1;
-		if (argc == 1) {
-			fromstdin = 1;
-		}
+	if (strcmp(applet_name, "zcat") == 0) {
+		force = 1;
+		tostdout = 1;
 	}
 
 	/* Parse any options */
 	while (--argc > 0 && **(++argv) == '-') {
 		if (*((*argv) + 1) == '\0') {
-			fromstdin = 1;
-			to_stdout = 1;
+			tostdout = 1;
 		}
 		while (*(++(*argv))) {
 			switch (**argv) {
 			case 'c':
-				to_stdout = 1;
+				tostdout = 1;
 				break;
 			case 't':
 				test_mode = 1;
 				break;
-
+			case 'f':
+				force = 1;
+				break;
 			default:
 				usage(gunzip_usage);
 			}
 		}
 	}
+
+	if (argc <= 0) {
+		tostdout = 1;
+		fromstdin = 1;
+	}
+
+	if (isatty(fileno(stdin)) && fromstdin==1 && force==0)
+		fatalError( "data not read from terminal. Use -f to force it.\n");
+	if (isatty(fileno(stdout)) && tostdout==1 && force==0)
+		fatalError( "data not written to terminal. Use -f to force it.\n");
+
 
 	foreground = signal(SIGINT, SIG_IGN) != SIG_IGN;
 	if (foreground) {
@@ -656,10 +651,10 @@ int gunzip_main(int argc, char **argv)
 		ifile_size = -1L;		/* convention for unknown size */
 	} else {
 		/* Open up the input file */
-		if (*argv == '\0')
+		if (argc <= 0)
 			usage(gunzip_usage);
 		if (strlen(*argv) > MAX_PATH_LEN) {
-			fprintf(stderr, name_too_long, "gunzip");
+			errorMsg(name_too_long);
 			exit(WARNING);
 		}
 		strcpy(ifname, *argv);
@@ -679,7 +674,7 @@ int gunzip_main(int argc, char **argv)
 		ifile_size = statBuf.st_size;
 	}
 
-	if (to_stdout == 1) {
+	if (tostdout == 1) {
 		/* And get to work */
 		strcpy(ofname, "stdout");
 		outFileNum = fileno(stdout);
@@ -698,7 +693,7 @@ int gunzip_main(int argc, char **argv)
 
 		/* And get to work */
 		if (strlen(ifname) > MAX_PATH_LEN - 4) {
-			fprintf(stderr, name_too_long, "gunzip");
+			errorMsg(name_too_long);
 			exit(WARNING);
 		}
 		strcpy(ofname, ifname);
@@ -753,7 +748,7 @@ int gunzip_main(int argc, char **argv)
 
 /* ========================================================================
  * Check the magic number of the input file and update ofname if an
- * original name was given and to_stdout is not set.
+ * original name was given and tostdout is not set.
  * Return the compression method, -1 for error, -2 for warning.
  * Set inptr to the offset of the next byte to be processed.
  * Updates time_stamp if there is one and --no-time is not used.
@@ -780,8 +775,7 @@ int in;							/* input file descriptor */
 
 		method = (int) get_byte();
 		if (method != DEFLATED) {
-			fprintf(stderr,
-					"unknown method %d -- get newer version of gzip\n",
+			errorMsg("unknown method %d -- get newer version of gzip\n",
 					method);
 			exit_code = ERROR;
 			return -1;
@@ -930,7 +924,7 @@ int in, out;					/* input and output file descriptors */
 		int res = inflate();
 
 		if (res == 3) {
-			errorMsg(memory_exhausted, "gunzip");
+			errorMsg(memory_exhausted);
 		} else if (res != 0) {
 			errorMsg("invalid compressed data--format violated");
 		}

@@ -20,7 +20,7 @@
  *
 */
 
-#include "internal.h"
+#include "busybox.h"
 #define BB_DECLARE_EXTERN
 #define bb_need_invalid_date
 #define bb_need_memory_exhausted
@@ -31,6 +31,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <stdio.h>
+#include <getopt.h>
 
 
 /* This 'date' command supports only 2 time setting formats, 
@@ -38,17 +39,6 @@
    setting time using UTC and displaying int, as well as
    an RFC 822 complient date output for shell scripting
    mail commands */
-
-static const char date_usage[] = "date [OPTION]... [+FORMAT]\n"
-	"  or:  date [OPTION] [MMDDhhmm[[CC]YY][.ss]]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nDisplays the current time in the given FORMAT, or sets the system date.\n"
-	"\nOptions:\n\t-R\tOutputs RFC-822 compliant date string\n"
-	"\t-s\tSets time described by STRING\n"
-	"\t-u\tPrints or sets Coordinated Universal Time\n"
-#endif
-	;
-
 
 /* Input parsing code is always bulky - used heavy duty libc stuff as
    much as possible, missed out a lot of bounds checking */
@@ -66,7 +56,7 @@ struct tm *date_conv_time(struct tm *tm_time, const char *t_string)
 				&(tm_time->tm_min), &(tm_time->tm_year));
 
 	if (nr < 4 || nr > 5) {
-		fatalError(invalid_date, "date", t_string); 
+		fatalError(invalid_date, t_string); 
 	}
 
 	/* correct for century  - minor Y2K problem here? */
@@ -150,7 +140,7 @@ struct tm *date_conv_ftime(struct tm *tm_time, const char *t_string)
 
 	}
 
-	fatalError(invalid_date, "date", t_string); 
+	fatalError(invalid_date, t_string); 
 }
 
 
@@ -159,7 +149,7 @@ int date_main(int argc, char **argv)
 	char *date_str = NULL;
 	char *date_fmt = NULL;
 	char *t_buff;
-	int i;
+	int c;
 	int set_time = 0;
 	int rfc822 = 0;
 	int utc = 0;
@@ -168,49 +158,39 @@ int date_main(int argc, char **argv)
 	struct tm tm_time;
 
 	/* Interpret command line args */
-	i = --argc;
-	argv++;
-	while (i > 0 && **argv) {
-		if (**argv == '-') {
-			while (i > 0 && *++(*argv))
-				switch (**argv) {
-				case 'R':
-					rfc822 = 1;
-					break;
-				case 's':
-					set_time = 1;
-					if (date_str != NULL)
-						usage(date_usage);
-					date_str = *argv;
-					break;
-				case 'u':
-					utc = 1;
-					if (putenv("TZ=UTC0") != 0) 
-						fatalError(memory_exhausted, "date");
-					break;
-				case 'd':
-					use_arg = 1;
-					if (date_str != NULL)
-						usage(date_usage);
-					date_str = *argv;
-					break;
-				case '-':
-					usage(date_usage);
-				}
-		} else {
-			if ((date_fmt == NULL) && (**argv == '+'))
-				date_fmt = *argv + 1;   /* Skip over the '+' */
-			else if (date_str == NULL) {
-				set_time = 1;
-				date_str = *argv;
-			} else {
+	while ((c = getopt(argc, argv, "Rs:ud:")) != EOF) {
+		switch (c) {
+		case 'R':
+			rfc822 = 1;
+			break;
+		case 's':
+			set_time = 1;
+			if ((date_str != NULL) || ((date_str = optarg) == NULL))
 				usage(date_usage);
-			}
+			break;
+		case 'u':
+			utc = 1;
+			if (putenv("TZ=UTC0") != 0) 
+				fatalError(memory_exhausted);
+			break;
+		case 'd':
+			use_arg = 1;
+			if ((date_str != NULL) || ((date_str = optarg) == NULL))
+				usage(date_usage);
+			break;
+		default:
+			usage(date_usage);
 		}
-		i--;
-		argv++;
 	}
 
+	if ((date_fmt == NULL) && (optind < argc) && (argv[optind][0] == '+'))
+		date_fmt = &argv[optind][1];   /* Skip over the '+' */
+	else if (date_str == NULL) {
+		set_time = 1;
+		date_str = argv[optind];
+	} else {
+		usage(date_usage);
+	}
 
 	/* Now we have parsed all the information except the date format
 	   which depends on whether the clock is being set or read */
@@ -236,12 +216,12 @@ int date_main(int argc, char **argv)
 		/* Correct any day of week and day of year etc fields */
 		tm = mktime(&tm_time);
 		if (tm < 0)
-			fatalError(invalid_date, "date", date_str); 
+			fatalError(invalid_date, date_str); 
 
 		/* if setting time, set it */
 		if (set_time) {
 			if (stime(&tm) < 0) {
-				fatalError("date: can't set date.\n");
+				fatalError("can't set date.\n");
 			}
 		}
 	}

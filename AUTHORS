@@ -12,6 +12,9 @@ Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
     Tons of new stuff, major rewrite of most of the
     core apps, tons of new apps as noted in header files.
 
+Edward Betts <edward@debian.org>
+    expr, hostid, logname, tty, wc, whoami, yes
+ 
 John Beppu <beppu@lineo.com>
     du, head, nslookup, sort, tee, uniq
 
@@ -43,11 +46,20 @@ Glenn McGrath <bug1@netconnect.com.au>
 Bruce Perens <bruce@pixar.com>
     Original author of BusyBox. His code is still in many apps.
 
+Chip Rosenthal <chip@unicom.com>, <crosenth@covad.com>
+    wget - Contributed by permission of Covad Communications
+
 Pavel Roskin <proski@gnu.org>
     Lots of bugs fixes and patches.
 
+Gyepi Sam <gyepi@praxis-sw.com>
+    Remote logging feature for syslogd
+
 Linus Torvalds <torvalds@transmeta.com>
     mkswap, fsck.minix, mkfs.minix
+
+Mark Whitley <markw@lineo.com>
+    sed remix, bug fixes, style-guide, etc.
 
 Charles P. Wright <cpwright@villagenet.com>
     gzip, mini-netcat(nc)

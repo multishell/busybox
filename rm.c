@@ -22,23 +22,12 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 #include <time.h>
 #include <utime.h>
 #include <dirent.h>
 #include <errno.h>
-
-static const char *rm_usage = "rm [OPTION]... FILE...\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nRemove (unlink) the FILE(s).  You may use '--' to\n"
-	"indicate that all following arguments are non-options.\n\n"
-	"Options:\n"
-	"\t-f\t\tremove existing destinations, never prompt\n"
-	"\t-r or -R\tremove the contents of directories recursively\n"
-#endif
-	;
-
 
 static int recursiveFlag = FALSE;
 static int forceFlag = FALSE;
@@ -56,6 +45,11 @@ static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
 
 static int dirAction(const char *fileName, struct stat *statbuf, void* junk)
 {
+	if (recursiveFlag == FALSE) {
+		errno = EISDIR;
+		perror(fileName);
+		return (FALSE);
+	} 
 	if (rmdir(fileName) < 0) {
 		perror(fileName);
 		return (FALSE);

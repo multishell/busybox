@@ -31,7 +31,7 @@
    terminal width. (more then one line.) However, history will.
  */
 
-#include "internal.h"
+#include "busybox.h"
 #ifdef BB_FEATURE_SH_COMMAND_EDITING
 
 #include <stdio.h>
@@ -84,6 +84,7 @@ static int cmdedit_termw = 80;  /* actual terminal width */
 static int cmdedit_scroll = 27; /* width of EOL scrolling region */
 static int history_counter = 0;	/* Number of commands in history list */
 static int reset_term = 0;		/* Set to true if the terminal needs to be reset upon exit */
+static int exithandler_set = 0;	/* Set to true when atexit() has been called */
 
 struct history {
 	char *s;
@@ -93,6 +94,11 @@ struct history {
 
 #define xwrite write
 
+/*
+ * TODO: Someday we want to implement 'horizontal scrolling' of the
+ * command-line when the user has typed more than the current width. This
+ * would allow the user to see a 'window' of what he has typed.
+ */
 void
 cmdedit_setwidth(int w)
 {
@@ -110,6 +116,18 @@ void cmdedit_reset_term(void)
 	if (reset_term)
 		/* sparc and other have broken termios support: use old termio handling. */
 		setTermSettings(fileno(stdin), (void*) &initial_settings);
+#ifdef BB_FEATURE_CLEAN_UP
+	if (his_front) {
+		struct history *n;
+		//while(his_front!=his_end) {
+		while(his_front!=his_end) {
+			n = his_front->n;
+			free(his_front->s);
+			free(his_front);
+			his_front=n;
+		}
+	}
+#endif
 }
 
 void clean_up_and_die(int sig)
@@ -228,11 +246,11 @@ char** username_tab_completion(char* command, int *num_matches)
 char** exe_n_cwd_tab_completion(char* command, int *num_matches)
 {
 	char *dirName;
-	char **matches = (char **) NULL;
+	char **matches;
 	DIR *dir;
 	struct dirent *next;
 			
-	matches = malloc( sizeof(char*)*50);
+	matches = xmalloc( sizeof(char*)*50);
 
 	/* Stick a wildcard onto the command, for later use */
 	strcat( command, "*");
@@ -255,7 +273,7 @@ char** exe_n_cwd_tab_completion(char* command, int *num_matches)
 		/* See if this matches */
 		if (check_wildcard_match(next->d_name, command) == TRUE) {
 			/* Cool, found a match.  Add it to the list */
-			matches[*num_matches] = malloc(strlen(next->d_name)+1);
+			matches[*num_matches] = xmalloc(strlen(next->d_name)+1);
 			strcpy( matches[*num_matches], next->d_name);
 			++*num_matches;
 			//matches = realloc( matches, sizeof(char*)*(*num_matches));
@@ -284,7 +302,7 @@ void input_tab(char* command, char* prompt, int outputFd, int *cursor, int *len)
 
 		/* Make a local copy of the string -- up 
 		 * to the position of the cursor */
-		matchBuf = (char *) calloc(BUFSIZ, sizeof(char));
+		matchBuf = (char *) xcalloc(BUFSIZ, sizeof(char));
 		strncpy(matchBuf, command, cursor);
 		tmp=matchBuf;
 
@@ -365,14 +383,16 @@ void input_tab(char* command, char* prompt, int outputFd, int *cursor, int *len)
 
 void get_previous_history(struct history **hp, char* command)
 {
-	free((*hp)->s);
+	if ((*hp)->s)
+		free((*hp)->s);
 	(*hp)->s = strdup(command);
 	*hp = (*hp)->p;
 }
 
 void get_next_history(struct history **hp, char* command)
 {
-	free((*hp)->s);
+	if ((*hp)->s)
+		free((*hp)->s);
 	(*hp)->s = strdup(command);
 	*hp = (*hp)->n;
 }
@@ -409,7 +429,6 @@ extern void cmdedit_read_input(char* prompt, char command[BUFSIZ])
 	char c = 0;
 	struct history *hp = his_end;
 
-	memset(command, 0, sizeof(command));
 	if (!reset_term) {
 		
 		getTermSettings(inputFd, (void*) &initial_settings);
@@ -457,7 +476,7 @@ extern void cmdedit_read_input(char* prompt, char command[BUFSIZ])
 			xwrite(outputFd, prompt, strlen(prompt));
 
 			/* Reset the command string */
-			memset(command, 0, sizeof(command));
+			memset(command, 0, BUFSIZ);
 			len = cursor = 0;
 
 			break;
@@ -650,9 +669,9 @@ extern void cmdedit_read_input(char* prompt, char command[BUFSIZ])
 		struct history *h = his_end;
 
 		if (!h) {
-			/* No previous history */
-			h = his_front = malloc(sizeof(struct history));
-			h->n = malloc(sizeof(struct history));
+			/* No previous history -- this memory is never freed */
+			h = his_front = xmalloc(sizeof(struct history));
+			h->n = xmalloc(sizeof(struct history));
 
 			h->p = NULL;
 			h->s = strdup(command);
@@ -662,8 +681,8 @@ extern void cmdedit_read_input(char* prompt, char command[BUFSIZ])
 			his_end = h->n;
 			history_counter++;
 		} else {
-			/* Add a new history command */
-			h->n = malloc(sizeof(struct history));
+			/* Add a new history command -- this memory is never freed */
+			h->n = xmalloc(sizeof(struct history));
 
 			h->n->p = h;
 			h->n->n = NULL;
@@ -691,10 +710,32 @@ extern void cmdedit_read_input(char* prompt, char command[BUFSIZ])
 
 extern void cmdedit_init(void)
 {
-	atexit(cmdedit_reset_term);
+	if(exithandler_set == 0) {
+		atexit(cmdedit_reset_term);	/* be sure to do this only once */
+		exithandler_set = 1;
+	}
 	signal(SIGKILL, clean_up_and_die);
 	signal(SIGINT, clean_up_and_die);
 	signal(SIGQUIT, clean_up_and_die);
 	signal(SIGTERM, clean_up_and_die);
 }
+
+/*
+** Undo the effects of cmdedit_init() as good as we can:
+** I am not aware of a way to revoke an atexit() handler,
+** but, fortunately, our particular handler can be made
+** a no-op by setting reset_term = 0.
+*/
+extern void cmdedit_terminate(void)
+{
+	cmdedit_reset_term();
+	reset_term = 0;
+	signal(SIGKILL, SIG_DFL);
+	signal(SIGINT, SIG_DFL);
+	signal(SIGQUIT, SIG_DFL);
+	signal(SIGTERM, SIG_DFL);
+}
+
+
+
 #endif							/* BB_FEATURE_SH_COMMAND_EDITING */

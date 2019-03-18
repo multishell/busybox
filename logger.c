@@ -21,11 +21,10 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 #include <ctype.h>
 
@@ -46,20 +45,6 @@ typedef struct _code {
 extern CODE prioritynames[];
 extern CODE facilitynames[];
 #endif
-
-static const char logger_usage[] =
-	"logger [OPTION]... [MESSAGE]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nWrite MESSAGE to the system log.  If MESSAGE is '-', log stdin.\n\n"
-	"Options:\n"
-	"\t-s\tLog to stderr as well as the system log.\n"
-	"\t-t\tLog using the specified tag (defaults to user name).\n"
-
-	"\t-p\tEnter the message with the specified priority.\n"
-	"\t\tThis may be numerical or a ``facility.level'' pair.\n"
-#endif
-	;
-
 
 /* Decode a symbolic name to a numeric value 
  * this function is based on code
@@ -96,7 +81,7 @@ static int pencode(char *s)
 		*s = '\0';
 		fac = decode(save, facilitynames);
 		if (fac < 0) {
-			fprintf(stderr, "unknown facility name: %s\n", save);
+			errorMsg("unknown facility name: %s\n", save);
 			exit(FALSE);
 		}
 		*s++ = '.';
@@ -105,7 +90,7 @@ static int pencode(char *s)
 	}
 	lev = decode(s, prioritynames);
 	if (lev < 0) {
-		fprintf(stderr, "unknown priority name: %s\n", save);
+		errorMsg("unknown priority name: %s\n", save);
 		exit(FALSE);
 	}
 	return ((lev & LOG_PRIMASK) | (fac & LOG_FACMASK));
@@ -156,7 +141,8 @@ extern int logger_main(int argc, char **argv)
 
 	if (fromStdinFlag == TRUE) {
 		/* read from stdin */
-		int c, i = 0;
+		int c;
+		unsigned int i = 0;
 
 		while ((c = getc(stdin)) != EOF && i < sizeof(buf)) {
 			buf[i++] = c;
@@ -166,7 +152,7 @@ extern int logger_main(int argc, char **argv)
 		if (argc >= 1) {
 			message = *argv;
 		} else {
-			fprintf(stderr, "No message\n");
+			errorMsg("No message\n");
 			exit(FALSE);
 		}
 	}

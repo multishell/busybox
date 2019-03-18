@@ -21,45 +21,23 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
-
-
-static void print_file(FILE * file)
-{
-	int c;
-
-	while ((c = getc(file)) != EOF)
-		putc(c, stdout);
-	fclose(file);
-	fflush(stdout);
-}
 
 extern int cat_main(int argc, char **argv)
 {
-	FILE *file;
-
 	if (argc == 1) {
 		print_file(stdin);
 		exit(TRUE);
 	}
 
-	if (**(argv + 1) == '-') {
-		usage("cat [FILE ...]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-				"\nConcatenates FILE(s) and prints them to the standard output.\n"
-#endif
-				);
-	}
-	argc--;
-
-	while (argc-- > 0 && *(argv++) != '\0' && strlen(*argv)) {
-		file = fopen(*argv, "r");
-		if (file == NULL) {
+	while (--argc > 0) {
+		if(!(strcmp(*++argv, "-"))) {
+			print_file(stdin);
+		} else if (print_file_by_name(*argv) == FALSE) {
 			perror(*argv);
 			exit(FALSE);
 		}
-		print_file(file);
 	}
 	return(TRUE);
 }

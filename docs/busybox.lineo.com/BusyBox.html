@@ -102,15 +102,16 @@ Currently defined functions include:
 
 <P>
 ar, basename, cat, chgrp, chmod, chown, chroot, chvt, clear, cp, cut, date,
-dc, dd, deallocvt, df, dirname, dmesg, du, dumpkmap, dutmp, echo, false,
-fbset, fdflush, find, free, freeramdisk, fsck.minix, grep, gunzip, gzip,
-halt, head, hostid, hostname, id, init, insmod, kill, killall, length, ln,
-loadacm, loadfont, loadkmap, logger, logname, ls, lsmod, makedevs, mkdir,
-mkfifo, mkfs.minix, mknod, mkswap, mktemp, more, mount, mt, mv, nc,
-nslookup, ping, poweroff, printf, ps, pwd, reboot, rm, rmdir, rmmod, sed,
-setkeycodes, sh, sleep, sort, swapoff, swapon, sync, syslogd, tail, tar,
-tee, telnet, test, touch, tr, true, tty, umount, uname, uniq, update,
-uptime, usleep, uudecode, uuencode, wc, which, whoami, yes, zcat, [
+dc, dd, deallocvt, df, dirname, dmesg, dos2unix, du, dumpkmap, dutmp, echo,
+false, fbset, fdflush, find, free, freeramdisk, fsck.minix, getopt, grep,
+gunzip, gzip, halt, head, hostid, hostname, id, init, insmod, kill,
+killall, length, ln, loadacm, loadfont, loadkmap, logger, logname, ls,
+lsmod, makedevs, mkdir, mkfifo, mkfs.minix, mknod, mkswap, mktemp, more,
+mount, mt, mv, nc, nslookup, ping, poweroff, printf, ps, pwd, rdate,
+reboot, renice, reset, rm, rmdir, rmmod, sed, setkeycodes, sh, sleep, sort,
+swapoff, swapon, sync, syslogd, tail, tar, tee, telnet, test, touch, tr,
+true, tty, umount, uname, uniq, unix2dos, unrpm, update, uptime, usleep,
+uudecode, uuencode, wc, which, whoami, xargs, yes, zcat, [
 
 <P>
 -------------------------------
@@ -380,7 +381,7 @@ Options:
 <PRE>                -b LIST Output only bytes from LIST
                 -c LIST Output only characters from LIST
                 -d CHAR Use CHAR instead of tab as the field delimiter
-                -s      Only output Lines if the include DELIM
+                -s      Output only the lines containing delimiter
                 -f N    Print only these fields
                 -n      Ignored
 </PRE>
@@ -545,6 +546,16 @@ Print or controls the kernel ring buffer.
 <P>
 -------------------------------
 
+<DT><STRONG><A NAME="item_dos2unix">dos2unix</A></STRONG><DD>
+<P>
+Usage: dos2unix &lt; dosfile &gt; unixfile
+
+<P>
+Converts a text file from dos format to unix format.
+
+<P>
+-------------------------------
+
 <DT><STRONG><A NAME="item_du">du</A></STRONG><DD>
 <P>
 Usage: du [OPTION]... [FILE]...
@@ -586,6 +597,12 @@ Usage: dumpkmap
 <P>
 Prints out a binary keyboard translation table to standard input.
 
+<P>
+Example:
+
+<P>
+<PRE>        $ dumpkmap &gt; keymap
+</PRE>
 <P>
 -------------------------------
 
@@ -640,6 +657,48 @@ Example:
         $ echo &quot;Erik\nis\ncool&quot;
         Erik\nis\ncool
 </PRE>
+<P>
+-------------------------------
+
+<DT><STRONG>echo</STRONG><DD>
+<P>
+Usage: expr EXPRESSION
+
+<P>
+Prints the value of EXPRESSION to standard output.
+
+<P>
+EXPRESSION may be:
+
+<P>
+<PRE>        ARG1 |  ARG2    ARG1 if it is neither null nor 0, otherwise ARG2
+        ARG1 &amp;  ARG2    ARG1 if neither argument is null or 0, otherwise 0
+        ARG1 &lt;  ARG2    ARG1 is less than ARG2
+        ARG1 &lt;= ARG2    ARG1 is less than or equal to ARG2
+        ARG1 =  ARG2    ARG1 is equal to ARG2
+        ARG1 != ARG2    ARG1 is unequal to ARG2
+        ARG1 &gt;= ARG2    ARG1 is greater than or equal to ARG2
+        ARG1 &gt;  ARG2    ARG1 is greater than ARG2
+        ARG1 +  ARG2    arithmetic sum of ARG1 and ARG2
+        ARG1 -  ARG2    arithmetic difference of ARG1 and ARG2
+        ARG1 *  ARG2    arithmetic product of ARG1 and ARG2
+        ARG1 /  ARG2    arithmetic quotient of ARG1 divided by ARG2
+        ARG1 %  ARG2    arithmetic remainder of ARG1 divided by ARG2
+        STRING : REGEXP             anchored pattern match of REGEXP in STRING
+        match STRING REGEXP         same as STRING : REGEXP
+        substr STRING POS LENGTH    substring of STRING, POS counted from 1
+        index STRING CHARS          index in STRING where any CHARS is found, or 0
+        length STRING               length of STRING
+        quote TOKEN                 interpret TOKEN as a string, even if it is a
+                                                                        keyword like `match' or an operator like `/'
+        ( EXPRESSION )              value of EXPRESSION
+</PRE>
+<P>
+Beware that many operators need to be escaped or quoted for shells.
+Comparisons are arithmetic if both ARGs are numbers, else lexicographical.
+Pattern matches return the string matched between \( and \) or null; if \(
+and \) are not used, they return the number of characters matched or 0.
+
 <P>
 -------------------------------
 
@@ -788,6 +847,54 @@ Options:
         -s      Outputs super-block information
         -m      Activates MINIX-like &quot;mode not cleared&quot; warnings
         -f      Force file system check.
+</PRE>
+<P>
+-------------------------------
+
+<DT><STRONG><A NAME="item_getopt">getopt</A></STRONG><DD>
+<P>
+Usage: getopt [OPTIONS]...
+
+<P>
+Parse command options
+
+<P>
+Options:
+
+<P>
+<PRE>       -a, --alternative            Allow long options starting with single -\n&quot;
+       -l, --longoptions=longopts   Long options to be recognized\n&quot;
+       -n, --name=progname          The name under which errors are reported\n&quot;
+       -o, --options=optstring      Short options to be recognized\n&quot;
+       -q, --quiet                  Disable error reporting by getopt(3)\n&quot;
+       -Q, --quiet-output           No normal output\n&quot;
+       -s, --shell=shell            Set shell quoting conventions\n&quot;
+       -T, --test                   Test for getopt(1) version\n&quot;
+       -u, --unqote                 Do not quote the output\n&quot;
+</PRE>
+<P>
+Example:
+
+<P>
+<PRE>        $ cat getopt.test
+        #!/bin/sh
+        GETOPT=`getopt -o ab:c:: --long a-long,b-long:,c-long:: \
+                -n 'example.busybox' -- &quot;$@&quot;`
+        if [ $? != 0 ] ; then  exit 1 ; fi
+        eval set -- &quot;$GETOPT&quot;
+        while true ; do
+          case $1 in
+            -a|--a-long) echo &quot;Option a&quot; ; shift ;;
+            -b|--b-long) echo &quot;Option b, argument \`$2'&quot; ; shift 2 ;;
+            -c|--c-long)
+              case &quot;$2&quot; in
+                &quot;&quot;) echo &quot;Option c, no argument&quot;; shift 2 ;;
+                *)  echo &quot;Option c, argument \`$2'&quot; ; shift 2 ;;
+              esac ;;
+            --) shift ; break ;;
+            *) echo &quot;Internal error!&quot; ; exit 1 ;;
+          esac
+        done
 </PRE>
 <P>
 -------------------------------
@@ -1066,15 +1173,17 @@ Example /etc/inittab file:
 <PRE>        # /bin/sh invocations on selected ttys
         #
         # Start an &quot;askfirst&quot; shell on the console (whatever that may be)
-        ::askfirst:/bin/sh
-        # Start an &quot;askfirst&quot; shell on /dev/tty2
-        tty2::askfirst:/bin/sh
+        ::askfirst:-/bin/sh
+        # Start an &quot;askfirst&quot; shell on /dev/tty2-4
+        tty2::askfirst:-/bin/sh
+        tty3::askfirst:-/bin/sh
+        tty4::askfirst:-/bin/sh
 </PRE>
 <P>
 <PRE>        # /sbin/getty invocations for selected ttys
         #
-        tty4::respawn:/sbin/getty 38400 tty4
-        tty5::respawn:/sbin/getty 38400 tty5
+        tty4::respawn:/sbin/getty 38400 tty5
+        tty5::respawn:/sbin/getty 38400 tty6
 </PRE>
 <P>
 <PRE>        # Example of how to put a getty on a serial line (for a terminal)
@@ -1087,8 +1196,8 @@ Example /etc/inittab file:
 </PRE>
 <P>
 <PRE>        # Stuff to do before rebooting
-        ::ctrlaltdel:/bin/umount -a -r &gt; /dev/null 2&gt;&amp;1
-        ::ctrlaltdel:/sbin/swapoff -a &gt; /dev/null 2&gt;&amp;1
+        ::ctrlaltdel:/bin/umount -a -r
+        ::ctrlaltdel:/sbin/swapoff -a
 </PRE>
 <P>
 -------------------------------
@@ -1300,7 +1409,7 @@ Example:
 
 <DT><STRONG><A NAME="item_ls">ls</A></STRONG><DD>
 <P>
-Usage: ls [<STRONG>-1acdelnpuxACFR</STRONG>] [filenames...]
+Usage: ls [<STRONG>-1acdelnpuxACFLR</STRONG>] [filenames...]
 
 <P>
 Options:
@@ -1321,6 +1430,7 @@ Options:
         -C      list entries by columns
         -F      append indicator (one of */=@|) to entries
         -R  list subdirectories recursively
+        -L  list entries pointed to by symbolic links
 </PRE>
 <P>
 -------------------------------
@@ -1767,9 +1877,48 @@ Example:
 <P>
 -------------------------------
 
+<DT><STRONG><A NAME="item_rdate">rdate</A></STRONG><DD>
+<P>
+Usage: rdate [OPTION] HOST
+
+<P>
+Get and possibly set the system date and time from a remote HOST.
+
+<P>
+Options:
+
+<P>
+<PRE>        -s      Set the system date and time (default).
+        -p      Print the date and time.
+</PRE>
+<P>
+-------------------------------
+
 <DT><STRONG><A NAME="item_reboot">reboot</A></STRONG><DD>
 <P>
 Instructs the kernel to reboot the system.
+
+<P>
+-------------------------------
+
+<DT><STRONG><A NAME="item_renice">renice</A></STRONG><DD>
+<P>
+Usage: renice priority pid [pid ...]
+
+<P>
+Changes priority of running processes. Allowed priorities range from 20
+(the process runs only when nothing else is running) to 0 (default
+priority) to -20 (almost nothing else ever gets to run).
+
+<P>
+-------------------------------
+
+<DT><STRONG><A NAME="item_reset">reset</A></STRONG><DD>
+<P>
+Usage: reset
+
+<P>
+Resets the screen.
 
 <P>
 -------------------------------
@@ -2022,6 +2171,14 @@ Options:
         -n              Run as a foreground process
         -K              Do not start up the klogd process
         -O FILE         Use an alternate log file (default=/var/log/messages)
+        -R HOST[:PORT]  Log messages to HOST on PORT (default=514) over UDP.
+</PRE>
+<P>
+Example:
+
+<P>
+<PRE>        $ syslogd -R masterlog:514
+        $ syslogd -R 192.168.1.1:601
 </PRE>
 <P>
 -------------------------------
@@ -2075,7 +2232,7 @@ File selection:
 <P>
 <PRE>        f               name of tarfile or &quot;-&quot; for stdin
         O               extract to stdout
-        --exclude       file to exclude
+        exclude         file to exclude
 </PRE>
 <P>
 Informative output:
@@ -2311,6 +2468,26 @@ Example:
 <P>
 -------------------------------
 
+<DT><STRONG><A NAME="item_unix2dos">unix2dos</A></STRONG><DD>
+<P>
+Usage: unix2dos &lt; unixfile &gt; dosfile
+
+<P>
+Converts a text file from unix format to dos format.
+
+<P>
+-------------------------------
+
+<DT><STRONG><A NAME="item_unrpm">unrpm</A></STRONG><DD>
+<P>
+Usage: unrpm &lt; package.rpm | gzip <STRONG>-d</STRONG> | cpio -idmuv
+
+<P>
+Extracts an rpm archive.
+
+<P>
+-------------------------------
+
 <DT><STRONG><A NAME="item_update">update</A></STRONG><DD>
 <P>
 Usage: update [options]
@@ -2475,6 +2652,28 @@ Example:
 <P>
 -------------------------------
 
+<DT><STRONG><A NAME="item_xargs">xargs</A></STRONG><DD>
+<P>
+Usage: xargs [OPTIONS] [COMMAND] [ARGS...]
+
+<P>
+Executes COMMAND on every item given by standard input.
+
+<P>
+Options:
+
+<P>
+<PRE>                -t      Print the command just before it is run
+ 
+Example:
+</PRE>
+<P>
+<PRE>        $ ls | xargs gzip
+        $ find . -name '*.c' -print | xargs rm
+</PRE>
+<P>
+-------------------------------
+
 <DT><STRONG><A NAME="item_yes">yes</A></STRONG><DD>
 <P>
 Usage: yes [OPTION]... [STRING]...
@@ -2535,81 +2734,178 @@ HREF="mailto:andersen@lineo.com">andersen@lineo.com</A>&gt;
 The following people have contributed code to BusyBox whether they know it
 or not.
 
-<P>
-Erik Andersen &lt;<A
-HREF="mailto:andersee@debian.org">andersee@debian.org</A>&gt;
-
 <br>
 
 <P>
+Erik Andersen &lt;<A
+HREF="mailto:andersen@lineo.com">andersen@lineo.com</A>&gt;, &lt;<A
+HREF="mailto:andersee@debian.org">andersee@debian.org</A>&gt;
+
+<P>
+<PRE>    Tons of new stuff, major rewrite of most of the
+    core apps, tons of new apps as noted in header files.
+</PRE>
+<br>
+
+<P>
+Edward Betts &lt;<A
+HREF="mailto:edward@debian.org">edward@debian.org</A>&gt;
+
+<P>
+<PRE>    expr, hostid, logname, tty, wc, whoami, yes
+ 
+=for html &lt;br&gt;
+</PRE>
+<P>
 John Beppu &lt;<A HREF="mailto:beppu@lineo.com">beppu@lineo.com</A>&gt;
 
+<P>
+<PRE>    du, head, nslookup, sort, tee, uniq
+</PRE>
 <br>
 
 <P>
 Brian Candler &lt;<A
 HREF="mailto:B.Candler@pobox.com">B.Candler@pobox.com</A>&gt;
 
+<P>
+<PRE>    tiny-ls(ls)
+</PRE>
 <br>
 
 <P>
 Randolph Chung &lt;<A
 HREF="mailto:tausq@debian.org">tausq@debian.org</A>&gt;
 
+<P>
+<PRE>    fbset, ping, hostname, and mkfifo
+</PRE>
 <br>
 
 <P>
 Dave Cinege &lt;<A
 HREF="mailto:dcinege@psychosis.com">dcinege@psychosis.com</A>&gt;	
 
+<P>
+<PRE>    more(v2), makedevs, dutmp, modularization, auto links file, 
+    various fixes, Linux Router Project maintenance
+</PRE>
 <br>
 
 <P>
 Karl M. Hegbloom &lt;<A
 HREF="mailto:karlheg@debian.org">karlheg@debian.org</A>&gt;
 
+<P>
+<PRE>    cp_mv.c, the test suite, various fixes to utility.c, &amp;c.
+</PRE>
+<br>
+
+<P>
+Daniel Jacobowitz &lt;<A
+HREF="mailto:dan@debian.org">dan@debian.org</A>&gt;
+
+<P>
+<PRE>    mktemp.c
+</PRE>
+<br>
+
+<P>
+Matt Kraai &lt;<A
+HREF="mailto:kraai@alumni.carnegiemellon.edu">kraai@alumni.carnegiemellon.edu</A>&gt;
+
+
+<P>
+<PRE>    documentation, bugfixes
+</PRE>
 <br>
 
 <P>
 John Lombardo &lt;<A
 HREF="mailto:john@deltanet.com">john@deltanet.com</A>&gt;	
 
+<P>
+<PRE>    dirname, tr
+</PRE>
 <br>
 
 <P>
 Glenn McGrath &lt;<A
 HREF="mailto:bug1@netconnect.com.au">bug1@netconnect.com.au</A>&gt;
 
+<P>
+<PRE>    ar.c
+</PRE>
 <br>
 
 <P>
-Bruce Perens &lt;<A HREF="mailto:bruce@perens.com">bruce@perens.com</A>&gt;
+Bruce Perens &lt;<A HREF="mailto:bruce@pixar.com">bruce@pixar.com</A>&gt;
 
+<P>
+<PRE>    Original author of BusyBox. His code is still in many apps.
+</PRE>
+<br>
+
+<P>
+Chip Rosenthal &lt;<A
+HREF="mailto:chip@unicom.com">chip@unicom.com</A>&gt;, &lt;<A
+HREF="mailto:crosenth@covad.com">crosenth@covad.com</A>&gt;
+
+<P>
+<PRE>    wget - Contributed by permission of Covad Communications
+</PRE>
 <br>
 
 <P>
 Pavel Roskin &lt;<A HREF="mailto:proski@gnu.org">proski@gnu.org</A>&gt;
 
+<P>
+<PRE>    Lots of bugs fixes and patches.
+</PRE>
+<br>
+
+<P>
+Gyepi Sam &lt;<A
+HREF="mailto:gyepi@praxis-sw.com">gyepi@praxis-sw.com</A>&gt;
+
+<P>
+<PRE>    Remote logging feature for syslogd
+</PRE>
 <br>
 
 <P>
 Linus Torvalds &lt;<A
 HREF="mailto:torvalds@transmeta.com">torvalds@transmeta.com</A>&gt;
 
+<P>
+<PRE>    mkswap, fsck.minix, mkfs.minix
+</PRE>
+<br>
+
+<P>
+Mark Whitley &lt;<A HREF="mailto:markw@lineo.com">markw@lineo.com</A>&gt;
+
+<P>
+<PRE>    sed remix, bug fixes, style-guide, etc.
+</PRE>
 <br>
 
 <P>
 Charles P. Wright &lt;<A
 HREF="mailto:cpwright@villagenet.com">cpwright@villagenet.com</A>&gt;
 
+<P>
+<PRE>    gzip, mini-netcat(nc)
+</PRE>
 <br>
 
 <P>
 Enrique Zanardi &lt;<A
 HREF="mailto:ezanardi@ull.es">ezanardi@ull.es</A>&gt;
 
-<br>
-
+<P>
+<PRE>    tarcat (since removed), loadkmap, various fixes, Debian maintenance
+</PRE>
 </BODY>
 
 </HTML>

@@ -22,19 +22,10 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
-
-
-static const char chroot_usage[] = "chroot NEWROOT [COMMAND...]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nRun COMMAND with root directory set to NEWROOT.\n"
-#endif
-	;
-
-
 
 int chroot_main(int argc, char **argv)
 {
@@ -47,8 +38,7 @@ int chroot_main(int argc, char **argv)
 	argv++;
 
 	if (chroot(*argv) || (chdir("/"))) {
-		fatalError("chroot: cannot change root directory to %s: %s\n", 
-				*argv, strerror(errno));
+		fatalError("cannot change root directory to %s: %s\n", *argv, strerror(errno));
 	}
 
 	argc--;
@@ -57,13 +47,17 @@ int chroot_main(int argc, char **argv)
 		prog = *argv;
 		execvp(*argv, argv);
 	} else {
+#ifndef BB_SH
 		prog = getenv("SHELL");
 		if (!prog)
 			prog = "/bin/sh";
 		execlp(prog, prog, NULL);
+#else
+		shell_main(argc, argv);
+		exit (0);
+#endif
 	}
-	fatalError("chroot: cannot execute %s: %s\n", 
-			prog, strerror(errno));
+	fatalError("cannot execute %s: %s\n", prog, strerror(errno));
 
 }
 

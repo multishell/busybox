@@ -21,7 +21,7 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
@@ -40,13 +40,6 @@
  |  + find out how to use non-default name servers
  |  + find out how the real nslookup gets the default name server
  */
-
-static const char nslookup_usage[] = "nslookup [HOST]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nQueries the nameserver for the IP address of the given HOST\n"
-#endif
-;
-
 
 /* I have to see how the real nslookup does this.
  * I could dig through /etc/resolv.conf, but is there a
@@ -177,4 +170,4 @@ int nslookup_main(int argc, char **argv)
 	return( TRUE);
 }
 
-/* $Id: nslookup.c,v 1.10 2000/06/19 17:25:40 andersen Exp $ */
+/* $Id: nslookup.c,v 1.12 2000/09/25 21:45:58 andersen Exp $ */

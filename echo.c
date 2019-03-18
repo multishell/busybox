@@ -22,46 +22,36 @@
  * Original copyright notice is retained at the end of this file.
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
-
-static const char uname_usage[] =
-	"echo [-neE] [ARG ...]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nPrints the specified ARGs to stdout\n\n"
-	"Options:\n"
-	"\t-n\tsuppress trailing newline\n"
-	"\t-e\tinterpret backslash-escaped characters (i.e. \\t=tab etc)\n"
-	"\t-E\tdisable interpretation of backslash-escaped characters\n"
-#endif
-	;
 
 extern int 
 echo_main(int argc, char** argv)
 {
 	register char **ap;
 	char *p;
-	register char c;
+	int c;
 	int nflag = 0;
 	int eflag = 0;
 
-	ap = argv;
-	if (argc)
-		ap++;
-	while ((p = *ap) != NULL && *p == '-') {
-		if (strcmp(p, "-n")==0) {
+
+	while ((c = getopt(argc, argv, "neE")) != EOF) {
+		switch (c) {
+		case 'n': 
 			nflag = 1;
-		} else if (strcmp(p, "-e")==0) {
+			break;
+		case 'e':
 			eflag = 1;
-		} else if (strcmp(p, "-E")==0) {
+			break;
+		case 'E':
 			eflag = 0;
+			break;
+		default: 
+			usage(echo_usage);
 		}
-		else if (strncmp(p, "--", 2)==0) {
-			usage( uname_usage);
-		} 
-		else break;
-		ap++;
 	}
+
+	ap = &argv[optind];
 	while ((p = *ap++) != NULL) {
 		while ((c = *p++) != '\0') {
 			if (c == '\\' && eflag) {

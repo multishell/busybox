@@ -52,7 +52,7 @@
 /* Reworked to GNU style by Ian Lance Taylor, ian@airs.com, August 93.  */
 /* Hacked to work with BusyBox by Alfred M. Szmidt */
 
-#include "internal.h"
+#include "busybox.h"
 
 #include <stdio.h>
 #include <errno.h>
@@ -180,15 +180,6 @@ static void encode()
   }
 }
 
-static const char uuencode_usage[] =
-    "uuencode [OPTION] [INFILE] REMOTEFILE\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-    "\nUuencode a file.\n\n"
-    "Options:\n"
-    "\t-m\tuse base64 encoding as of RFC1521\n"
-#endif
-;
-
 int uuencode_main (int argc,
                    char **argv)
 {
@@ -217,7 +208,7 @@ int uuencode_main (int argc,
    case 2:
     /* Optional first argument is input file.  */
     if (!freopen (argv[optind], "r", stdin) || fstat (fileno (stdin), &sb)) {
-      errorMsg("uuencode: %s: %s\n", argv[optind], strerror(errno));
+      errorMsg("%s: %s\n", argv[optind], strerror(errno));
       exit FALSE;
     }
     mode = sb.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO);

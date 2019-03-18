@@ -22,23 +22,12 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 #include <utime.h>
 #include <errno.h>
-
-
-static const char touch_usage[] = "touch [-c] file [file ...]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nUpdate the last-modified date on the given file[s].\n\n"
-	"Options:\n"
-	"\t-c\tDo not create any files\n"
-#endif
-	;
-
 
 extern int touch_main(int argc, char **argv)
 {
@@ -70,12 +59,12 @@ extern int touch_main(int argc, char **argv)
 			if (create == FALSE && errno == ENOENT)
 				exit(TRUE);
 			else {
-				fatalError("touch: %s", strerror(errno));
+				fatalError("%s", strerror(errno));
 			}
 		}
 		close(fd);
 		if (utime(*argv, NULL)) {
-			fatalError("touch: %s", strerror(errno));
+			fatalError("%s", strerror(errno));
 		}
 		argc--;
 		argv++;

@@ -31,9 +31,8 @@
  * 	"This program is in the Public Domain."
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <unistd.h>
 #include <ctype.h>
 #include <errno.h>
@@ -183,21 +182,11 @@ test_main(int argc, char** argv)
 {
 	int	res;
 
-	if (strcmp(argv[0], "[") == 0) {
+	if (strcmp(applet_name, "[") == 0) {
 		if (strcmp(argv[--argc], "]"))
 			fatalError("missing ]\n");
 		argv[argc] = NULL;
 	}
-	if (strcmp(argv[1], dash_dash_help) == 0) {
-		usage("test EXPRESSION\n"
-			  "or   [ EXPRESSION ]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-				"\nChecks file types and compares values returning an exit\n"
-				"code determined by the value of EXPRESSION.\n"
-#endif
-				);
-	}
-
 	/* Implement special cases from POSIX.2, section 4.62.4 */
 	switch (argc) {
 	case 1:
@@ -372,7 +361,7 @@ filstat(nm, mode)
 	enum token mode;
 {
 	struct stat s;
-	int i;
+	unsigned int i;
 
 	if (mode == FILSYM) {
 #ifdef S_IFLNK
@@ -535,7 +524,7 @@ char *path;
 int mode;
 {
 	struct stat st;
-	int euid = geteuid();
+	unsigned int euid = geteuid();
 
 	if (stat (path, &st) < 0)
 		return (-1);
@@ -566,9 +555,7 @@ static void
 initialize_group_array ()
 {
 	ngroups = getgroups(0, NULL);
-	if ((group_array = realloc(group_array, ngroups * sizeof(gid_t))) == NULL)
-		fatalError("Out of space\n");
-
+	group_array = xrealloc(group_array, ngroups * sizeof(gid_t));
 	getgroups(ngroups, group_array);
 }
 

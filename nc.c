@@ -25,7 +25,7 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 
 */
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -39,12 +39,6 @@
 #include <sys/ioctl.h>
 
 #define BUFSIZE 100
-
-static const char nc_usage[] = "nc [IP] [port]\n" 
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nNetcat opens a pipe to IP:port\n"
-#endif
-	;
 
 int nc_main(int argc, char **argv)
 {
@@ -69,7 +63,7 @@ int nc_main(int argc, char **argv)
 	hostinfo = (struct hostent *) gethostbyname(*argv);
 
 	if (!hostinfo) {
-		fatalError("nc: cannot resolve %s\n", *argv);
+		fatalError("cannot resolve %s\n", *argv);
 	}
 
 	address.sin_family = AF_INET;

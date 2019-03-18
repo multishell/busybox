@@ -22,18 +22,10 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-
-static const char uniq_usage[] =
-	"uniq [OPTION]... [INPUT [OUTPUT]]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nDiscard all but one of successive identical lines from INPUT\n"
-	"(or standard input), writing to OUTPUT (or standard output).\n"
-#endif
-	;
 
 /* max chars in line */
 #define UNIQ_MAX 4096
@@ -127,11 +119,11 @@ set_file_pointers(int schema, FILE ** in, FILE ** out, char **argv)
 		break;
 	}
 	if (*in == NULL) {
-		fprintf(stderr, "uniq: %s: %s\n", argv[0], strerror(errno));
+		errorMsg("%s: %s\n", argv[0], strerror(errno));
 		return errno;
 	}
 	if (*out == NULL) {
-		fprintf(stderr, "uniq: %s: %s\n", argv[1], strerror(errno));
+		errorMsg("%s: %s\n", argv[1], strerror(errno));
 		return errno;
 	}
 	return 0;
@@ -187,4 +179,4 @@ int uniq_main(int argc, char **argv)
 	return(0);
 }
 
-/* $Id: uniq.c,v 1.11 2000/06/19 17:25:40 andersen Exp $ */
+/* $Id: uniq.c,v 1.14 2000/09/25 21:45:58 andersen Exp $ */

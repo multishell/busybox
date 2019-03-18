@@ -21,25 +21,13 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #define bb_need_name_too_long
 #define BB_DECLARE_EXTERN
 #include "messages.c"
 
 #include <stdio.h>
 #include <errno.h>
-
-static const char mkdir_usage[] =
-	"mkdir [OPTION] DIRECTORY...\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nCreate the DIRECTORY(ies), if they do not already exist\n\n"
-	"Options:\n"
-
-	"\t-m\tset permission mode (as in chmod), not rwxrwxrwx - umask\n"
-	"\t-p\tno error if existing, make parent directories as needed\n"
-#endif
-	;
-
 
 static int parentFlag = FALSE;
 static mode_t mode = 0777;
@@ -62,7 +50,7 @@ extern int mkdir_main(int argc, char **argv)
 				/* Find the specified modes */
 				mode = 0;
 				if (parse_mode(*(++argv), &mode) == FALSE) {
-					fprintf(stderr, "Unknown mode: %s\n", *argv);
+					errorMsg("Unknown mode: %s\n", *argv);
 					exit FALSE;
 				}
 				/* Set the umask for this process so it doesn't 
@@ -91,13 +79,13 @@ extern int mkdir_main(int argc, char **argv)
 		char buf[BUFSIZ + 1];
 
 		if (strlen(*argv) > BUFSIZ - 1) {
-			fprintf(stderr, name_too_long, "mkdir");
+			errorMsg(name_too_long);
 			exit FALSE;
 		}
 		strcpy(buf, *argv);
 		status = stat(buf, &statBuf);
 		if (parentFlag == FALSE && status != -1 && errno != ENOENT) {
-			fprintf(stderr, "%s: File exists\n", buf);
+			errorMsg("%s: File exists\n", buf);
 			exit FALSE;
 		}
 		if (parentFlag == TRUE) {

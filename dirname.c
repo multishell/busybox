@@ -20,20 +20,15 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  *
  */
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 
 extern int dirname_main(int argc, char **argv)
 {
 	char* s;
 
-	if ((argc < 2) || (**(argv + 1) == '-')) {
-		usage("dirname [FILENAME ...]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-				"\nStrips non-directory suffix from FILENAME\n"
-#endif
-				);
-	}
+	if ((argc < 2) || (**(argv + 1) == '-'))
+		usage(dirname_usage);
 	argv++;
 
 	s=*argv+strlen(*argv)-1;

@@ -35,7 +35,7 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
@@ -43,23 +43,8 @@
 #include <stdlib.h>
 #include <sys/ioctl.h>			/* for _IO */
 #include <sys/utsname.h>
-#include <sys/stat.h>
 #include <asm/page.h>			/* for PAGE_SIZE and PAGE_SHIFT */
 				/* we also get PAGE_SIZE via getpagesize() */
-
-
-static const char mkswap_usage[] =
-	"mkswap [-c] [-v0|-v1] device [block-count]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nPrepare a disk partition to be used as a swap partition.\n\n"
-	"Options:\n" "\t-c\t\tCheck for read-ability.\n"
-	"\t-v0\t\tMake version 0 swap [max 128 Megs].\n"
-	"\t-v1\t\tMake version 1 swap [big!] (default for kernels > 2.1.117).\n"
-
-	"\tblock-count\tNumber of block to use (default is entire partition).\n"
-#endif
-	;
-
 
 #ifndef _IO
 /* pre-1.3.45 */
@@ -69,7 +54,6 @@ static const char mkswap_usage[] =
 #define BLKGETSIZE _IO(0x12,96)
 #endif
 
-static char *program_name = "mkswap";
 static char *device_name = NULL;
 static int DEV = -1;
 static long PAGES = 0;
@@ -117,7 +101,7 @@ static void init_signature_page()
 
 #ifdef PAGE_SIZE
 	if (pagesize != PAGE_SIZE)
-		fprintf(stderr, "Assuming pages of size %d\n", pagesize);
+		errorMsg("Assuming pages of size %d\n", pagesize);
 #endif
 	signature_page = (int *) xmalloc(pagesize);
 	memset(signature_page, 0, pagesize);
@@ -205,7 +189,7 @@ static int bit_test_and_clear(unsigned int *addr, unsigned int nr)
 
 void die(const char *str)
 {
-	fprintf(stderr, "%s: %s\n", program_name, str);
+	errorMsg("%s\n", str);
 	exit(FALSE);
 }
 
@@ -316,9 +300,6 @@ int mkswap_main(int argc, char **argv)
 	int offset;
 	int force = 0;
 
-	if (argc && *argv)
-		program_name = *argv;
-
 	init_signature_page();		/* get pagesize */
 
 	while (argc-- > 1) {
@@ -349,18 +330,14 @@ int mkswap_main(int argc, char **argv)
 		}
 	}
 	if (!device_name) {
-		fprintf(stderr,
-				"%s: error: Nowhere to set up swap on?\n", program_name);
+		errorMsg("error: Nowhere to set up swap on?\n");
 		usage(mkswap_usage);
 	}
 	sz = get_size(device_name);
 	if (!PAGES) {
 		PAGES = sz;
 	} else if (PAGES > sz && !force) {
-		fprintf(stderr,
-				"%s: error: "
-				"size %ld is larger than device size %d\n",
-				program_name,
+		errorMsg("error: size %ld is larger than device size %d\n",
 				PAGES * (pagesize / 1024), sz * (pagesize / 1024));
 		exit(FALSE);
 	}
@@ -376,14 +353,12 @@ int mkswap_main(int argc, char **argv)
 			version = 1;
 	}
 	if (version != 0 && version != 1) {
-		fprintf(stderr, "%s: error: unknown version %d\n",
-				program_name, version);
+		errorMsg("error: unknown version %d\n", version);
 		usage(mkswap_usage);
 	}
 	if (PAGES < 10) {
-		fprintf(stderr,
-				"%s: error: swap area needs to be at least %ldkB\n",
-				program_name, (long) (10 * pagesize / 1024));
+		errorMsg("error: swap area needs to be at least %ldkB\n",
+				(long) (10 * pagesize / 1024));
 		usage(mkswap_usage);
 	}
 #if 0
@@ -401,8 +376,8 @@ int mkswap_main(int argc, char **argv)
 #endif
 	if (PAGES > maxpages) {
 		PAGES = maxpages;
-		fprintf(stderr, "%s: warning: truncating swap area to %ldkB\n",
-				program_name, PAGES * pagesize / 1024);
+		errorMsg("warning: truncating swap area to %ldkB\n",
+				PAGES * pagesize / 1024);
 	}
 
 	DEV = open(device_name, O_RDWR);
@@ -428,11 +403,10 @@ int mkswap_main(int argc, char **argv)
 			for (sum = 0; q >= (unsigned short *) buffer;)
 				sum ^= *q--;
 			if (!sum) {
-				fprintf(stderr, "\
-%s: Device '%s' contains a valid Sun disklabel.\n\
-This probably means creating v0 swap would destroy your partition table\n\
-No swap created. If you really want to create swap v0 on that device, use\n\
-the -f option to force it.\n", program_name, device_name);
+				errorMsg("Device '%s' contains a valid Sun disklabel.\n"
+"This probably means creating v0 swap would destroy your partition table\n"
+"No swap created. If you really want to create swap v0 on that device, use\n"
+"the -f option to force it.\n", device_name);
 				exit(FALSE);
 			}
 		}

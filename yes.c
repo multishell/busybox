@@ -20,26 +20,21 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 
 extern int yes_main(int argc, char **argv)
 {
 	int i;
 
-	if (argc >= 2 && *argv[1] == '-') {
-		usage("yes [OPTION]... [STRING]...\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-				"\nRepeatedly outputs a line with all specified STRING(s), or `y'.\n"
-#endif
-				);
-	}
+	if (argc >= 2 && *argv[1] == '-')
+		usage(yes_usage);
 
 	if (argc == 1) {
 		while (1)
 			if (puts("y") == EOF) {
 				perror("yes");
-				exit(FALSE);
+				return EXIT_FAILURE;
 			}
 	}
 
@@ -48,7 +43,8 @@ extern int yes_main(int argc, char **argv)
 			if (fputs(argv[i], stdout) == EOF
 				|| putchar(i == argc - 1 ? '\n' : ' ') == EOF) {
 				perror("yes");
-				exit(FALSE);
+				return EXIT_FAILURE;
 			}
-	exit(TRUE);
+
+	return EXIT_SUCCESS;
 }

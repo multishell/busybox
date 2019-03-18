@@ -21,28 +21,14 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #define BB_DECLARE_EXTERN
-#define bb_need_name_too_long
 #define bb_need_not_a_directory
 #include "messages.c"
 
 #include <stdio.h>
 #include <dirent.h>
 #include <errno.h>
-
-static const char ln_usage[] =
-	"ln [OPTION] TARGET... LINK_NAME|DIRECTORY\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nCreate a link named LINK_NAME or DIRECTORY to the specified TARGET\n"
-	"\nYou may use '--' to indicate that all following arguments are non-options.\n\n"
-	"Options:\n"
-	"\t-s\tmake symbolic links instead of hard links\n"
-
-	"\t-f\tremove existing destination files\n"
-	"\t-n\tno dereference symlinks - treat like normal file\n"
-#endif
-	;
 
 static int symlinkFlag = FALSE;
 static int removeoldFlag = FALSE;
@@ -92,7 +78,7 @@ extern int ln_main(int argc, char **argv)
 
 	linkIntoDirFlag = isDirectory(linkName, followLinks, NULL);
 	if ((argc >= 3) && linkIntoDirFlag == FALSE) {
-		fprintf(stderr, not_a_directory, "ln", linkName);
+		errorMsg(not_a_directory, linkName);
 		exit FALSE;
 	}
 
@@ -104,7 +90,7 @@ extern int ln_main(int argc, char **argv)
 
 		if (linkIntoDirFlag == TRUE) {
 			char *baseName = get_last_path_component(*argv);
-			linkName = (char *)malloc(strlen(dirName)+strlen(baseName)+2);
+			linkName = (char *)xmalloc(strlen(dirName)+strlen(baseName)+2);
 			strcpy(linkName, dirName);
 			if(dirName[strlen(dirName)-1] != '/')
 				strcat(linkName, "/");

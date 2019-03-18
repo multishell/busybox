@@ -2,7 +2,7 @@
 /*
  * Mini wc implementation for busybox
  *
- * by Edward Betts <edward@debian.org>
+ * Copyright (C) 2000  Edward Betts <edward@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,21 +20,9 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
-
-static const char wc_usage[] = "wc [OPTION]... [FILE]...\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nPrint line, word, and byte counts for each FILE, and a total line if\n"
-	"more than one FILE is specified.  With no FILE, read standard input.\n\n"
-	"Options:\n"
-	"\t-c\tprint the byte counts\n"
-	"\t-l\tprint the newline counts\n"
-
-	"\t-L\tprint the length of the longest line\n"
-	"\t-w\tprint the word counts\n"
-#endif
-	;
+#include <getopt.h>
 
 static int total_lines, total_words, total_chars, max_length;
 static int print_lines, print_words, print_chars, print_length;
@@ -116,13 +104,14 @@ static void wc_file(FILE * file, const char *name)
 int wc_main(int argc, char **argv)
 {
 	FILE *file;
+	unsigned int num_files_counted = 0;
+	int opt;
 
 	total_lines = total_words = total_chars = max_length = 0;
 	print_lines = print_words = print_chars = print_length = 0;
 
-	while (--argc && **(++argv) == '-') {
-		while (*++(*argv))
-			switch (**argv) {
+	while ((opt = getopt(argc, argv, "clLw")) > 0) {
+			switch (opt) {
 			case 'c':
 				print_chars = 1;
 				break;
@@ -143,28 +132,24 @@ int wc_main(int argc, char **argv)
 	if (!print_lines && !print_words && !print_chars && !print_length)
 		print_lines = print_words = print_chars = 1;
 
-	if (argc == 0) {
+	if (argv[optind] == NULL || strcmp(argv[optind], "-") == 0) {
 		wc_file(stdin, "");
 		exit(TRUE);
-	} else if (argc == 1) {
-		file = fopen(*argv, "r");
-		if (file == NULL) {
-			perror(*argv);
-			exit(FALSE);
-		}
-		wc_file(file, *argv);
 	} else {
-		while (argc-- > 0 && *argv != '\0' && strlen(*argv)) {
-			file = fopen(*argv, "r");
+		while (optind < argc) {
+			file = fopen(argv[optind], "r");
 			if (file == NULL) {
-				perror(*argv);
-				exit(FALSE);
+				fatalError(argv[optind]);
 			}
-			wc_file(file, *argv);
-			argv++;
+			wc_file(file, argv[optind]);
+			num_files_counted++;
+			optind++;
 		}
+	}
+
+	if (num_files_counted > 1)
 		print_counts(total_lines, total_words, total_chars,
 					 max_length, "total");
-	}
-	return(TRUE);
+
+	return 0 ;
 }

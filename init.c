@@ -27,7 +27,7 @@
 #define DEBUG_INIT
 */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -45,6 +45,10 @@
 #ifdef BB_SYSLOGD
 # include <sys/syslog.h>
 #endif
+
+#define bb_need_full_version
+#define BB_DECLARE_EXTERN
+#include "messages.c"
 
 /* From <linux/vt.h> */
 struct vt_stat {
@@ -116,10 +120,12 @@ static _syscall2(int, bdflush, int, func, int, data);
 
 #define VT_PRIMARY   "/dev/tty1"     /* Primary virtual console */
 #define VT_SECONDARY "/dev/tty2"     /* Virtual console */
-#define VT_LOG       "/dev/tty3"     /* Virtual console */
+#define VT_THIRD     "/dev/tty3"     /* Virtual console */
+#define VT_FOURTH    "/dev/tty4"     /* Virtual console */
+#define VT_LOG       "/dev/tty5"     /* Virtual console */
 #define SERIAL_CON0  "/dev/ttyS0"    /* Primary serial console */
 #define SERIAL_CON1  "/dev/ttyS1"    /* Serial console */
-#define SHELL        "/bin/sh"	     /* Default shell */
+#define SHELL        "-/bin/sh"	     /* Default shell */
 #define INITTAB      "/etc/inittab"  /* inittab file location */
 #ifndef INIT_SCRIPT
 #define INIT_SCRIPT  "/etc/init.d/rcS"   /* Default sysinit script. */
@@ -151,7 +157,7 @@ static const struct initActionType actions[] = {
 	{"wait", WAIT},
 	{"once", ONCE},
 	{"ctrlaltdel", CTRLALTDEL},
-	{0}
+	{0, 0}
 };
 
 /* Set up a linked list of initActions, to be read from inittab */
@@ -167,6 +173,8 @@ initAction *initActionList = NULL;
 
 
 static char *secondConsole = VT_SECONDARY;
+static char *thirdConsole  = VT_THIRD;
+static char *fourthConsole = VT_FOURTH;
 static char *log           = VT_LOG;
 static int  kernelVersion  = 0;
 static char termType[32]   = "TERM=linux";
@@ -292,20 +300,17 @@ static int check_free_memory()
 		printf("Error checking free memory: %s\n", strerror(errno));
 		return -1;
 	}
+	/* Kernels prior to 2.4.x will return info.mem_unit==0, so cope... */
 	if (info.mem_unit==0) {
-		/* Looks like we have a kernel prior to Linux 2.4.x */
-		info.mem_unit=1024;
-		info.totalram/=info.mem_unit;
-		info.totalswap/=info.mem_unit;
-	} else {
-		/* Bah. Linux 2.4.x completely changed sysinfo. This can in theory
-		overflow a 32 bit unsigned long, but who puts more then 4GiB ram+swap
-		on an embedded system? */
-		info.mem_unit/=1024;
-		info.totalram*=info.mem_unit;
-		info.totalswap*=info.mem_unit;
+		info.mem_unit=1;
 	}
-
+	info.mem_unit*=1024;
+	
+	/* Note:  These values can in theory overflow a 32 bit unsigned long (i.e.
+	 * mem >=  Gib), but who puts more then 4GiB ram+swap on an embedded
+	 * system? */
+	info.totalram/=info.mem_unit; 
+	info.totalswap/=info.mem_unit;
 	return(info.totalram+info.totalswap);
 }
 
@@ -370,11 +375,13 @@ static void console_init()
 		/* Perhaps we should panic here? */
 		snprintf(console, sizeof(console) - 1, "/dev/null");
 	} else {
-		/* check for serial console and disable logging to tty3 & running a
-		   * shell to tty2 */
+		/* check for serial console and disable logging to tty5 & running a
+		   * shell to tty2-4 */
 		if (ioctl(0, TIOCGSERIAL, &sr) == 0) {
 			log = NULL;
 			secondConsole = NULL;
+			thirdConsole = NULL;
+			fourthConsole = NULL;
 			/* Force the TERM setting to vt102 for serial console --
 			 * iff TERM is set to linux (the default) */
 			if (strcmp( termType, "TERM=linux" ) == 0)
@@ -392,7 +399,7 @@ static pid_t run(char *command, char *terminal, int get_enter)
 	int i, fd;
 	pid_t pid;
 	char *tmpCmd;
-	char *cmd[255];
+        char *cmd[255], *cmdpath;
 	char buf[255];
 	static const char press_enter[] =
 
@@ -406,9 +413,9 @@ static pid_t run(char *command, char *terminal, int get_enter)
 		0
 	};
 
-
 	if ((pid = fork()) == 0) {
 		/* Clean up */
+		ioctl(0, TIOCNOTTY, 0);
 		close(0);
 		close(1);
 		close(2);
@@ -428,7 +435,7 @@ static pid_t run(char *command, char *terminal, int get_enter)
 		dup2(fd, 0);
 		dup2(fd, 1);
 		dup2(fd, 2);
-		ioctl(0, TIOCSCTTY, 0);
+		ioctl(0, TIOCSCTTY, 1);
 		tcsetpgrp(0, getpgrp());
 		set_term(0);
 
@@ -441,14 +448,13 @@ static pid_t run(char *command, char *terminal, int get_enter)
 			 * be allowed to start a shell or whatever an init script 
 			 * specifies.
 			 */
-			char c;
 #ifdef DEBUG_INIT
 			pid_t shell_pgid = getpid();
 			message(LOG, "Waiting for enter to start '%s' (pid %d, console %s)\r\n",
 					command, shell_pgid, terminal);
 #endif
 			write(fileno(stdout), press_enter, sizeof(press_enter) - 1);
-			read(fileno(stdin), &c, 1);
+			getc(stdin);
 		}
 
 #ifdef DEBUG_INIT
@@ -478,6 +484,34 @@ static pid_t run(char *command, char *terminal, int get_enter)
 			cmd[i] = NULL;
 		}
 
+               cmdpath = cmd[0];
+
+               /*
+                   Interactive shells want to see a dash in argv[0].  This
+                   typically is handled by login, argv will be setup this 
+                   way if a dash appears at the front of the command path 
+		   (like "-/bin/sh").
+               */
+
+               if (*cmdpath == '-') {
+                       char *s;
+
+                       /* skip over the dash */
+                         ++cmdpath;
+
+                       /* find the last component in the command pathname */
+						 s = get_last_path_component(cmdpath);
+
+                       /* make a new argv[0] */
+                       if ((cmd[0] = malloc(strlen(s)+2)) == NULL) {
+                               message(LOG | CONSOLE, "malloc failed");
+                               cmd[0] = cmdpath;
+                       } else {
+                               cmd[0][0] = '-';
+                               strcpy(cmd[0]+1, s);
+                       }
+               }
+
 #if defined BB_FEATURE_INIT_COREDUMPS
 		{
 			struct stat sb;
@@ -492,11 +526,11 @@ static pid_t run(char *command, char *terminal, int get_enter)
 
 		/* Now run it.  The new program will take over this PID, 
 		 * so nothing further in init.c should be run. */
-		execve(cmd[0], cmd, environment);
+                execve(cmdpath, cmd, environment);
 
-		/* We're still here?  Some error happened. */
-		message(LOG | CONSOLE, "Bummer, could not run '%s': %s\n", cmd[0],
-				strerror(errno));
+                /* We're still here?  Some error happened. */
+                message(LOG | CONSOLE, "Bummer, could not run '%s': %s\n", cmdpath,
+                                strerror(errno));
 		exit(-1);
 	}
 	return pid;
@@ -784,14 +818,20 @@ void parse_inittab(void)
 		/* No inittab file -- set up some default behavior */
 #endif
 		/* Swapoff on halt/reboot */
-		new_initAction(CTRLALTDEL, "/sbin/swapoff -a > /dev/null 2>&1", console);
+		new_initAction(CTRLALTDEL, "/sbin/swapoff -a", console);
 		/* Umount all filesystems on halt/reboot */
-		new_initAction(CTRLALTDEL, "/bin/umount -a -r > /dev/null 2>&1", console);
+		new_initAction(CTRLALTDEL, "/bin/umount -a -r", console);
 		/* Askfirst shell on tty1 */
 		new_initAction(ASKFIRST, SHELL, console);
 		/* Askfirst shell on tty2 */
 		if (secondConsole != NULL)
 			new_initAction(ASKFIRST, SHELL, secondConsole);
+		/* Askfirst shell on tty3 */
+		if (thirdConsole != NULL)
+			new_initAction(ASKFIRST, SHELL, thirdConsole);
+		/* Askfirst shell on tty4 */
+		if (fourthConsole != NULL)
+			new_initAction(ASKFIRST, SHELL, fourthConsole);
 		/* sysinit */
 		new_initAction(SYSINIT, INIT_SCRIPT, console);
 
@@ -891,7 +931,7 @@ extern int init_main(int argc, char **argv)
 	/* Expect to be invoked as init with PID=1 or be invoked as linuxrc */
 	if (getpid() != 1
 #ifdef BB_FEATURE_LINUXRC
-			&& strstr(argv[0], "linuxrc") == NULL
+			&& strstr(applet_name, "linuxrc") == NULL
 #endif
 	                  )
 	{
@@ -938,16 +978,14 @@ extern int init_main(int argc, char **argv)
 			CONSOLE|
 #endif
 			LOG,
-			"init started:  BusyBox v%s (%s) multi-call binary\r\n",
-			BB_VER, BB_BT);
+			"init started:  %s\r\n", full_version);
 #else
 	message(
 #if ! defined BB_FEATURE_EXTRA_QUIET
 			CONSOLE|
 #endif
 			LOG,
-			"init(%d) started:  BusyBox v%s (%s) multi-call binary\r\n",
-			getpid(), BB_VER, BB_BT);
+			"init(%d) started:  %s\r\n", getpid(), full_version);
 #endif
 
 
@@ -957,9 +995,13 @@ extern int init_main(int argc, char **argv)
 	/* Check if we are supposed to be in single user mode */
 	if (argc > 1 && (!strcmp(argv[1], "single") ||
 					 !strcmp(argv[1], "-s") || !strcmp(argv[1], "1"))) {
-		/* Ask first then start a shell on tty2 */
+		/* Ask first then start a shell on tty2-4 */
 		if (secondConsole != NULL)
 			new_initAction(ASKFIRST, SHELL, secondConsole);
+		if (thirdConsole != NULL)
+			new_initAction(ASKFIRST, SHELL, thirdConsole);
+		if (fourthConsole != NULL)
+			new_initAction(ASKFIRST, SHELL, fourthConsole);
 		/* Start a shell on tty1 */
 		new_initAction(RESPAWN, SHELL, console);
 	} else {
@@ -973,7 +1015,8 @@ extern int init_main(int argc, char **argv)
 	}
 
 	/* Fix up argv[0] to be certain we claim to be init */
-	strncpy(argv[0], "init", strlen(argv[0])+1);
+	argv[0]="init";
+
 	if (argc > 1)
 		strncpy(argv[1], "\0", strlen(argv[1])+1);
 

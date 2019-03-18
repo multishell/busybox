@@ -1,3 +1,47 @@
+0.47
+
+	* A bug in syslogd was fixed that allowed it to potentially fork-bomb
+	    your system.  Anyone using 0.46 syslogd should upgrade.
+	* Renamed busybox.defs.h to the more sensible "Config.h"
+	* Improved portability between different libcs.
+	* Many apps ported to use getopt()
+	* Common handling of '--help'
+	* All usage messages centralized.
+	* Added a bunch of new commands:
+	    * 'rdate' contributed by Sterling Huxley <sterling@europa.com>
+	    * 'wget' contributed by Chip Rosenthal <chip@unicom.com>, 
+		    <crosenth@covad.com> and Covad Communications
+	    * 'getopt' from "Alfred M. Szmidt" <ams@trillian.itslinux.org>
+	    * dos2unix, unix2dos, reset, and unrpm.c (and lots of help
+		debugging) thanks to Kent Robotti <robotti@metconnect.com>.
+	    * 'renice' command, thanks to Dave Cinege <dcinege@psychosis.com>
+	    * 'xargs' (written by me)
+	    * 'expr' contributed by Edward Betts <edward@debian.org>, based
+		on GNY expr
+	* lsmod now uses the query_module syscall, rather then /proc (me)
+	* syslogd can now log messages to remote hosts -- patch thanks
+	    to Gyepi Sam <gyepi@praxis-sw.com>
+	* chroot can now call the builtin shell - Pavel Roskin <proski@gnu.org>
+	* 'make install' now creates relative symlinks, and added a new
+	    'make install-hardlinks' target to (tada) install hardlinks.
+	* Rewrite of 'tail' to make it simpler, smaller, and more robust.  
+	    It now weighs only 2.25k (3k when full featured).  The code is
+	    cleaner too, thanks to Allen Soard <esp-software@mail.hypermart.net>
+	* Add optional ls file sorting, thanks to a patch from 
+	    Sterling Huxley <sterling@europa.com>
+	* Fixed chmod option parsing so things like 'chmod -r /tmp/file'
+	    now work (previously it thought -r was an option).  Doh!
+	* Fixed tar handling of stdin and stdout
+	* Renamed "internal.h" to the more sensible "busybox.h"
+	* Preliminary support for GNU HURD.
+	* Updated my devps and devmtab kernel patches for the latest 2.2.x
+	    kernel, for those wanting to go proc-less.
+	* Tons of other bugfixes.
+
+
+	 -Erik Andersen, 25 September 2000
+
+
 0.46
 
 	* Better portability.  Now should compile cleanly with libc5, 
@@ -58,7 +102,7 @@
 	    Matt Kraai as well.
 
 
-	 -Erik Andersen
+	 -Erik Andersen, 11 July 2000
 
 
 0.45

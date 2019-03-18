@@ -24,7 +24,7 @@
  *     Geert Uytterhoeven (Geert.Uytterhoeven@cs.kuleuven.ac.be)
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -32,14 +32,8 @@
 #include <errno.h>
 #include <ctype.h>
 #include <sys/ioctl.h>
-#include <linux/fb.h>
-#include <linux/version.h>
 
 #define PERROR(ctx)   do { perror(ctx); exit(1); } while(0)
-
-#ifndef KERNEL_VERSION
-#define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))
-#endif
 
 #define DEFAULTFBDEV  "/dev/fb0"
 #define DEFAULTFBMODE "/etc/fb.modes"
@@ -87,6 +81,55 @@
 #endif
 
 static unsigned int g_options = 0;
+
+/* Stuff stolen from the kernel's fb.h */
+#define FBIOGET_VSCREENINFO     0x4600
+#define FBIOPUT_VSCREENINFO     0x4601
+#define __u32			unsigned int
+struct fb_bitfield {
+	__u32 offset;			/* beginning of bitfield	*/
+	__u32 length;			/* length of bitfield		*/
+	__u32 msb_right;		/* != 0 : Most significant bit is */ 
+					/* right */ 
+};
+struct fb_var_screeninfo {
+	__u32 xres;			/* visible resolution		*/
+	__u32 yres;
+	__u32 xres_virtual;		/* virtual resolution		*/
+	__u32 yres_virtual;
+	__u32 xoffset;			/* offset from virtual to visible */
+	__u32 yoffset;			/* resolution			*/
+
+	__u32 bits_per_pixel;		/* guess what			*/
+	__u32 grayscale;		/* != 0 Graylevels instead of colors */
+
+	struct fb_bitfield red;		/* bitfield in fb mem if true color, */
+	struct fb_bitfield green;	/* else only length is significant */
+	struct fb_bitfield blue;
+	struct fb_bitfield transp;	/* transparency			*/	
+
+	__u32 nonstd;			/* != 0 Non standard pixel format */
+
+	__u32 activate;			/* see FB_ACTIVATE_*		*/
+
+	__u32 height;			/* height of picture in mm    */
+	__u32 width;			/* width of picture in mm     */
+
+	__u32 accel_flags;		/* acceleration flags (hints)	*/
+
+	/* Timing: All values in pixclocks, except pixclock (of course) */
+	__u32 pixclock;			/* pixel clock in ps (pico seconds) */
+	__u32 left_margin;		/* time from sync to picture	*/
+	__u32 right_margin;		/* time from picture to sync	*/
+	__u32 upper_margin;		/* time from sync to picture	*/
+	__u32 lower_margin;
+	__u32 hsync_len;		/* length of horizontal sync	*/
+	__u32 vsync_len;		/* length of vertical sync	*/
+	__u32 sync;			/* see FB_SYNC_*		*/
+	__u32 vmode;			/* see FB_VMODE_*		*/
+	__u32 reserved[6];		/* Reserved for future compatibility */
+};
+
 
 struct cmdoptions_t {
 	char *name;
@@ -158,7 +201,73 @@ static int readmode(struct fb_var_screeninfo *base, const char *fn,
 					continue;	/* almost, but not quite */
 				while (!feof(f)) {
 					fgets(buf, sizeof(buf), f);
-					if (!strstr(buf, "endmode"))
+
+                    if ((p = strstr(buf, "geometry "))) {
+                        p += 9;
+
+                        sscanf(p, "%d %d %d %d %d", 
+                                &(base->xres), &(base->yres), 
+                                &(base->xres_virtual), &(base->yres_virtual), 
+                                &(base->bits_per_pixel));
+                    } else if ((p = strstr(buf, "timings "))) {
+                        p += 8;
+                        
+                        sscanf(p, "%d %d %d %d %d %d %d",
+                                &(base->pixclock),
+                                &(base->left_margin), &(base->right_margin),
+                                &(base->upper_margin), &(base->lower_margin),
+                                &(base->hsync_len), &(base->vsync_len));
+                    } else if ((p = strstr(buf, "laced "))) {
+                        p += 6;
+
+                        if (strstr(buf, "false")) {
+                            base->vmode &= ~FB_VMODE_INTERLACED;
+                        } else {
+                            base->vmode |= FB_VMODE_INTERLACED;
+                        }
+                    } else if ((p = strstr(buf, "double "))) {
+                        p += 7;
+
+                        if (strstr(buf, "false")) {
+                            base->vmode &= ~FB_VMODE_DOUBLE;
+                        } else {
+                            base->vmode |= FB_VMODE_DOUBLE;
+                        }
+                    } else if ((p = strstr(buf, "vsync "))) {
+                        p += 6;
+
+                        if (strstr(buf, "low")) {
+                            base->sync &= ~FB_SYNC_VERT_HIGH_ACT;
+                        } else {
+                            base->sync |= FB_SYNC_VERT_HIGH_ACT;
+                        }
+                    } else if ((p = strstr(buf, "hsync "))) {
+                        p += 6;
+
+                        if (strstr(buf, "low")) {
+                            base->sync &= ~FB_SYNC_HOR_HIGH_ACT;
+                        } else {
+                            base->sync |= FB_SYNC_HOR_HIGH_ACT;
+                        }
+                    } else if ((p = strstr(buf, "csync "))) {
+                        p += 6;
+
+                        if (strstr(buf, "low")) {
+                            base->sync &= ~FB_SYNC_COMP_HIGH_ACT;
+                        } else {
+                            base->sync |= FB_SYNC_COMP_HIGH_ACT;
+                        }
+                    } else if ((p = strstr(buf, "extsync "))) {
+                        p += 8;
+
+                        if (strstr(buf, "false")) {
+                            base->sync &= ~FB_SYNC_EXT;
+                        } else {
+                            base->sync |= FB_SYNC_EXT;
+                        }
+                    }
+                    
+					if (strstr(buf, "endmode"))
 						return 1;
 				}
 			}
@@ -205,16 +314,10 @@ static void showmode(struct fb_var_screeninfo *v)
 #endif
 	printf("\tgeometry %u %u %u %u %u\n", v->xres, v->yres,
 		   v->xres_virtual, v->yres_virtual, v->bits_per_pixel);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,2,0)
 	printf("\ttimings %u %u %u %u %u %u %u\n", v->pixclock, v->left_margin,
 		   v->right_margin, v->upper_margin, v->lower_margin, v->hsync_len,
 		   v->vsync_len);
 	printf("\taccel %s\n", (v->accel_flags > 0 ? "true" : "false"));
-#else
-	printf("\ttimings %lu %lu %lu %lu %lu %lu %lu\n", v->pixclock,
-		   v->left_margin, v->right_margin, v->upper_margin,
-		   v->lower_margin, v->hsync_len, v->vsync_len);
-#endif
 	printf("\trgba %u/%u,%u/%u,%u/%u,%u/%u\n", v->red.length,
 		   v->red.offset, v->green.length, v->green.offset, v->blue.length,
 		   v->blue.offset, v->transp.length, v->transp.offset);
@@ -321,7 +424,7 @@ extern int fbset_main(int argc, char **argv)
 		PERROR("fbset(ioctl)");
 	if (g_options & OPT_READMODE) {
 		if (!readmode(&var, modefile, mode)) {
-			fprintf(stderr, "Unknown video mode `%s'\n", mode);
+			errorMsg("Unknown video mode `%s'\n", mode);
 			exit(1);
 		}
 	}

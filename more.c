@@ -25,7 +25,7 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -33,12 +33,6 @@
 #define BB_DECLARE_EXTERN
 #define bb_need_help
 #include "messages.c"
-
-static const char more_usage[] = "more [FILE ...]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nMore is a filter for viewing FILE one screenful at a time.\n"
-#endif
-	;
 
 /* ED: sparc termios is broken: revert back to old termio handling. */
 #ifdef BB_FEATURE_USE_TERMIOS
@@ -78,16 +72,12 @@ extern int more_main(int argc, char **argv)
 	FILE *file;
 
 #if defined BB_FEATURE_AUTOWIDTH && defined BB_FEATURE_USE_TERMIOS
-	struct winsize win = { 0, 0 };
+	struct winsize win = { 0, 0, 0, 0 };
 #endif
 
 	argc--;
 	argv++;
 
-	if (argc > 0
-		&& (strcmp(*argv, dash_dash_help) == 0 || strcmp(*argv, "-h") == 0)) {
-		usage(more_usage);
-	}
 	do {
 		if (argc == 0) {
 			file = stdin;
@@ -133,7 +123,11 @@ extern int more_main(int argc, char **argv)
 				lines = 0;
 				len = fprintf(stdout, "--More-- ");
 				if (file != stdin) {
+#if _FILE_OFFSET_BITS == 64
+					len += fprintf(stdout, "(%d%% of %lld bytes)",
+#else
 					len += fprintf(stdout, "(%d%% of %ld bytes)",
+#endif
 								   (int) (100 *
 										  ((double) ftell(file) /
 										   (double) st.st_size)),

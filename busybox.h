@@ -24,7 +24,11 @@
 #ifndef	_BB_INTERNAL_H_
 #define	_BB_INTERNAL_H_    1
 
-#include "busybox.def.h"
+#include "Config.h"
+
+#ifdef DMALLOC
+#include "dmalloc.h"
+#endif
 
 #include <stdlib.h>
 #include <stdarg.h>
@@ -99,12 +103,14 @@ struct BB_applet {
 	const	char*	name;
 	int	(*main)(int argc, char** argv);
 	enum	Location	location;
+	const	char*	usage;
 };
 /* From busybox.c */
 extern const struct BB_applet applets[];
 
 extern int ar_main(int argc, char **argv);
 extern int basename_main(int argc, char **argv);
+extern int bogomips_main(int argc, char **argv);
 extern int busybox_main(int argc, char** argv);
 extern int cat_main(int argc, char** argv);
 extern int chmod_chown_chgrp_main(int argc, char** argv);
@@ -120,10 +126,12 @@ extern int dirname_main(int argc, char** argv);
 extern int deallocvt_main(int argc, char** argv);
 extern int df_main(int argc, char** argv);
 extern int dmesg_main(int argc, char** argv);
+extern int dos2unix_main(int argc, char** argv);
 extern int du_main(int argc, char** argv);
 extern int dumpkmap_main(int argc, char** argv);
 extern int dutmp_main(int argc, char** argv);
 extern int echo_main(int argc, char** argv);
+extern int expr_main(int argc, char** argv);
 extern int false_main(int argc, char** argv);
 extern int fbset_main(int argc, char** argv);
 extern int fdisk_main(int argc, char** argv);
@@ -132,6 +140,7 @@ extern int fsck_minix_main(int argc, char **argv);
 extern int find_main(int argc, char** argv);
 extern int free_main(int argc, char** argv);
 extern int freeramdisk_main(int argc, char** argv);
+extern int getopt_main(int argc, char** argv);
 extern int grep_main(int argc, char** argv);
 extern int gunzip_main (int argc, char** argv);
 extern int gzip_main(int argc, char** argv);
@@ -171,7 +180,10 @@ extern int poweroff_main(int argc, char **argv);
 extern int printf_main(int argc, char** argv);
 extern int ps_main(int argc, char** argv);
 extern int pwd_main(int argc, char** argv);
+extern int rdate_main(int argc, char** argv);
 extern int reboot_main(int argc, char** argv);
+extern int renice_main(int argc, char** argv);
+extern int reset_main(int argc, char** argv);
 extern int rm_main(int argc, char** argv);
 extern int rmdir_main(int argc, char **argv);
 extern int rmmod_main(int argc, char** argv);
@@ -195,19 +207,135 @@ extern int true_main(int argc, char** argv);
 extern int tput_main(int argc, char** argv);
 extern int tryopen_main(int argc, char** argv);
 extern int tty_main(int argc, char** argv);
-extern int uuencode_main(int argc, char** argv);
-extern int uudecode_main(int argc, char** argv);
 extern int umount_main(int argc, char** argv);
 extern int uname_main(int argc, char** argv);
-extern int uptime_main(int argc, char** argv);
 extern int uniq_main(int argc, char** argv);
+extern int unix2dos_main(int argc, char** argv);
+extern int unrpm_main(int argc, char** argv);
 extern int update_main(int argc, char** argv);
+extern int uptime_main(int argc, char** argv);
 extern int usleep_main(int argc, char** argv);
+extern int uuencode_main(int argc, char** argv);
+extern int uudecode_main(int argc, char** argv);
 extern int wc_main(int argc, char** argv);
+extern int wget_main(int argc, char** argv);
 extern int which_main(int argc, char** argv);
 extern int whoami_main(int argc, char** argv);
+extern int xargs_main(int argc, char** argv);
 extern int yes_main(int argc, char** argv);
 
+extern const char ar_usage[];
+extern const char basename_usage[];
+extern const char cat_usage[];
+extern const char chgrp_usage[];
+extern const char chmod_usage[];
+extern const char chown_usage[];
+extern const char chroot_usage[];
+extern const char chvt_usage[];
+extern const char clear_usage[];
+extern const char cp_usage[];
+extern const char cut_usage[];
+extern const char date_usage[];
+extern const char dc_usage[];
+extern const char dd_usage[];
+extern const char deallocvt_usage[];
+extern const char df_usage[];
+extern const char dirname_usage[];
+extern const char dmesg_usage[];
+extern const char dos2unix_usage[];
+extern const char du_usage[];
+extern const char dumpkmap_usage[];
+extern const char dutmp_usage[];
+extern const char echo_usage[];
+extern const char expr_usage[];
+extern const char false_usage[];
+extern const char fdflush_usage[];
+extern const char find_usage[];
+extern const char free_usage[];
+extern const char freeramdisk_usage[];
+extern const char fsck_minix_usage[];
+extern const char grep_usage[];
+extern const char gunzip_usage[];
+extern const char gzip_usage[];
+extern const char halt_usage[];
+extern const char head_usage[];
+extern const char hostid_usage[];
+extern const char hostname_usage[];
+extern const char id_usage[];
+extern const char insmod_usage[];
+extern const char kill_usage[];
+extern const char killall_usage[];
+extern const char length_usage[];
+extern const char ln_usage[];
+extern const char loadacm_usage[];
+extern const char loadfont_usage[];
+extern const char loadkmap_usage[];
+extern const char logger_usage[];
+extern const char logname_usage[];
+extern const char ls_usage[];
+extern const char lsmod_usage[];
+extern const char makedevs_usage[];
+extern const char md5sum_usage[];
+extern const char mkdir_usage[];
+extern const char mkfifo_usage[];
+extern const char mkfs_minix_usage[];
+extern const char mknod_usage[];
+extern const char mkswap_usage[];
+extern const char mktemp_usage[];
+extern const char more_usage[];
+extern const char mount_usage[]; 
+extern const char mt_usage[];
+extern const char mv_usage[];
+extern const char nc_usage[];
+extern const char nslookup_usage[];
+extern const char ping_usage[];
+extern const char poweroff_usage[];
+extern const char printf_usage[];
+extern const char ps_usage[];
+extern const char pwd_usage[];
+extern const char rdate_usage[];
+extern const char reboot_usage[];
+extern const char renice_usage[];
+extern const char reset_usage[];
+extern const char rm_usage[];
+extern const char rmdir_usage[];
+extern const char rmmod_usage[];
+extern const char sed_usage[];
+extern const char setkeycodes_usage[];
+extern const char shell_usage[];
+extern const char sleep_usage[];
+extern const char sort_usage[];
+extern const char swapoff_usage[];
+extern const char swapon_usage[];
+extern const char sync_usage[];
+extern const char syslogd_usage[];
+extern const char tail_usage[];
+extern const char tar_usage[];
+extern const char tee_usage[];
+extern const char telnet_usage[];
+extern const char test_usage[];
+extern const char touch_usage[];
+extern const char tr_usage[];
+extern const char true_usage[];
+extern const char tty_usage[];
+extern const char umount_usage[];
+extern const char uname_usage[];
+extern const char uniq_usage[];
+extern const char unix2dos_usage[];
+extern const char unrpm_usage[];
+extern const char update_usage[];
+extern const char uptime_usage[];
+extern const char usleep_usage[];
+extern const char uudecode_usage[];
+extern const char uuencode_usage[];
+extern const char wc_usage[];
+extern const char wget_usage[];
+extern const char which_usage[];
+extern const char whoami_usage[];
+extern const char xargs_usage[];
+extern const char yes_usage[];
+
+extern const char *applet_name;
 
 extern void usage(const char *usage) __attribute__ ((noreturn));
 extern void errorMsg(const char *s, ...) __attribute__ ((format (printf, 1, 2)));
@@ -230,6 +358,7 @@ void reset_ino_dev_hashtable(void);
 
 int copyFile(const char *srcName, const char *destName,
 		 int setModes, int followLinks, int forceFlag);
+int copySubFile(int srcFd, int dstFd, size_t remaining);
 char *buildName(const char *dirName, const char *fileName);
 int makeString(int argc, const char **argv, char *buf, int bufLen);
 char *getChunk(int size);
@@ -241,7 +370,6 @@ int recursiveAction(const char *fileName, int recurse, int followLinks, int dept
 	  int (*fileAction) (const char *fileName, struct stat* statbuf, void* userData),
 	  int (*dirAction) (const char *fileName, struct stat* statbuf, void* userData),
 	  void* userData);
-const char* timeString(time_t timeVal);
 
 extern int createPath (const char *name, int mode);
 extern int parse_mode( const char* s, mode_t* theMode);
@@ -262,28 +390,32 @@ extern long getNum (const char *cp);
 extern pid_t* findPidByName( char* pidName);
 extern int find_real_root_device_name(char* name);
 extern char *get_line_from_file(FILE *file);
+extern void print_file(FILE *file);
+extern int print_file_by_name(char *filename);
 extern char process_escape_sequence(char **ptr);
 extern char *get_last_path_component(char *path);
-extern int bb_regcomp(regex_t *preg, const char *regex, int cflags);
+extern void xregcomp(regex_t *preg, const char *regex, int cflags);
 
+#ifndef DMALLOC 
 extern void *xmalloc (size_t size);
+extern void *xrealloc(void *old, size_t size);
+extern void *xcalloc(size_t nmemb, size_t size);
 extern char *xstrdup (const char *s);
+#endif
 extern char *xstrndup (const char *s, int n);
 
 
 /* These parse entries in /etc/passwd and /etc/group.  This is desirable
  * for BusyBox since we want to avoid using the glibc NSS stuff, which
  * increases target size and is often not needed embedded systems.  */
-extern unsigned long my_getpwnam(char *name);
-extern unsigned long my_getgrnam(char *name);
-extern void my_getpwuid(char *name, unsigned long uid);
-extern void my_getgrgid(char *group, unsigned long gid);
-extern unsigned long my_getpwnamegid(char *name);
+extern long my_getpwnam(char *name);
+extern long my_getgrnam(char *name);
+extern void my_getpwuid(char *name, long uid);
+extern void my_getgrgid(char *group, long gid);
+extern long my_getpwnamegid(char *name);
 
-
-#if defined BB_INIT || defined BB_SYSLOGD
 extern int device_open(char *device, int mode);
-#endif
+
 #if defined BB_FEATURE_MOUNT_LOOP
 extern int del_loop(const char *device);
 extern int set_loop(const char *device, const char *file, int offset, int *loopro);
@@ -296,8 +428,8 @@ extern int vdprintf(int d, const char *format, va_list ap);
 #endif
 
 #if defined BB_NFSMOUNT
-int nfsmount(const char *spec, const char *node, unsigned long *flags,
-	char **extra_opts, char **mount_opts, int running_bg);
+int nfsmount(const char *spec, const char *node, int *flags,
+	     char **extra_opts, char **mount_opts, int running_bg);
 #endif
 
 #ifndef RB_POWER_OFF

@@ -20,7 +20,7 @@
 /* Written by Ulrich Drepper <drepper@gnu.ai.mit.edu> */
 /* Hacked to work with BusyBox by Alfred M. Szmidt <ams@trillian.itslinux.org> */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 #include <errno.h>
 #include <ctype.h>
@@ -66,7 +66,7 @@ extern _IO_ssize_t getline __P ((char **, size_t *, FILE *));
 #include <string.h>
 #include <endian.h>
 
-#include "internal.h"
+#include "busybox.h"
 //----------------------------------------------------------------------------
 //--------md5.h
 //----------------------------------------------------------------------------
@@ -96,7 +96,7 @@ extern _IO_ssize_t getline __P ((char **, size_t *, FILE *));
 
 #include <stdio.h>
 
-#if defined HAVE_LIMITS_H || _LIBC
+#if defined HAVE_LIMITS_H || defined _LIBC
 # include <limits.h>
 #endif
 
@@ -582,23 +582,6 @@ static int status_only = 0; /* With -c, don't generate any output.
 static int warn = 0; /* With -w, print a message to standard error warning
                         about each improperly formatted MD5 checksum line */
 
-static const char md5sum_usage[] =
-    "md5sum [OPTION] [FILE]...\n"
-    "or:    md5sum [OPTION] -c [FILE]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-    "\nPrint or check MD5 checksums.\n\n"
-    "Options:\n"
-    "With no FILE, or when FILE is -, read standard input.\n\n"
-    "\t-b\tread files in binary mode\n"
-    "\t-c\tcheck MD5 sums against given list\n"
-    "\t-t\tread files in text mode (default)\n"
-    "\t-g\tread a string\n"
-    "\nThe following two options are useful only when verifying checksums:\n"
-    "\t-s,\tdon't output anything, status code shows success\n"
-    "\t-w,\twarn about improperly formated MD5 checksum lines\n"
-#endif
-;
-
 static int split_3(char *s,
                    size_t s_len,
                    unsigned char **u,
@@ -708,13 +691,13 @@ static int md5_file(const char *filename,
   } else {
     fp = fopen(filename, OPENOPTS(binary));
     if (fp == NULL) {
-      errorMsg("md5sum: %s: %s\n", filename, strerror(errno));
+      errorMsg("%s: %s\n", filename, strerror(errno));
       return FALSE;
     }
   }
 
   if (md5_stream(fp, md5_result)) {
-    errorMsg("md5sum: %s: %s\n", filename, strerror(errno));
+    errorMsg("%s: %s\n", filename, strerror(errno));
 
     if (fp != stdin)
       fclose(fp);
@@ -722,7 +705,7 @@ static int md5_file(const char *filename,
   }
 
   if (fp != stdin && fclose(fp) == EOF) {
-    errorMsg("md5sum: %s: %s\n", filename, strerror(errno));
+    errorMsg("%s: %s\n", filename, strerror(errno));
     return FALSE;
   }
 
@@ -746,7 +729,7 @@ static int md5_check(const char *checkfile_name)
   } else {
     checkfile_stream = fopen(checkfile_name, "r");
     if (checkfile_stream == NULL) {
-      errorMsg("md5sum: %s: %s\n", checkfile_name, strerror(errno));
+      errorMsg("%s: %s\n", checkfile_name, strerror(errno));
       return FALSE;
     }
   }

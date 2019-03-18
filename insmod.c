@@ -6,6 +6,13 @@
  * Written by Erik Andersen <andersen@lineo.com>
  * and Ron Alder <alder@lineo.com>
  *
+ * Modified by Bryan Rittmeyer <bryan@ixiacom.com> to support SH4
+ * and (theoretically) SH3. Note that there is still no true
+ * multiple architecture support. You just get SH3|SH4|i386, despite
+ * the mention of ARM and m68k--which may or may not work (but
+ * almost certainly do not, due to at least MATCH_MACHINE). I have
+ * only tested SH4 in little endian mode.
+ *
  * Based almost entirely on the Linux modutils-2.3.11 implementation.
  *   Copyright 1996, 1997 Linux International.
  *   New implementation contributed by Richard Henderson <rth@tamu.edu>
@@ -29,7 +36,7 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
@@ -70,7 +77,7 @@
 #ifndef MODUTILS_MODULE_H
 #define MODUTILS_MODULE_H 1
 
-#ident "$Id: insmod.c,v 1.15 2000/07/11 17:52:22 andersen Exp $"
+#ident "$Id: insmod.c,v 1.25 2000/09/25 21:45:58 andersen Exp $"
 
 /* This file contains the structures used by the 2.0 and 2.1 kernels.
    We do not use the kernel headers directly because we do not wish
@@ -276,7 +283,7 @@ int delete_module(const char *);
 #ifndef MODUTILS_OBJ_H
 #define MODUTILS_OBJ_H 1
 
-#ident "$Id: insmod.c,v 1.15 2000/07/11 17:52:22 andersen Exp $"
+#ident "$Id: insmod.c,v 1.25 2000/09/25 21:45:58 andersen Exp $"
 
 /* The relocatable object is manipulated using elfin types.  */
 
@@ -286,14 +293,41 @@ int delete_module(const char *);
 
 /* Machine-specific elf macros for i386 et al.  */
 
+/* the SH changes have only been tested on the SH4 in =little endian= mode */
+/* I'm not sure about big endian, so let's warn: */
+
+#if (defined(__SH4__) || defined(__SH3__)) && defined(__BIG_ENDIAN__)
+#error insmod.c may require changes for use on big endian SH4/SH3
+#endif
+
+/* it may or may not work on the SH1/SH2... So let's error on those
+   also */
+#if (defined(__sh__) && (!(defined(__SH3__) || defined(__SH4__))))
+#error insmod.c may require changes for non-SH3/SH4 use
+#endif
+
 #define ELFCLASSM	ELFCLASS32
 #define ELFDATAM	ELFDATA2LSB
 
-#define MATCH_MACHINE(x)  (x == EM_386 || x == EM_486)
 
+
+#if defined(__sh__)
+
+#define MATCH_MACHINE(x) (x == EM_SH)
+#define SHT_RELM	SHT_RELA
+#define Elf32_RelM	Elf32_Rela
+
+#else
+
+/* presumably we can use these for anything but the SH */
+/* this is the previous behavior, but it does result in
+   insmod.c being broken on anything except i386 */
+
+#define MATCH_MACHINE(x)  (x == EM_386 || x == EM_486)
 #define SHT_RELM	SHT_REL
 #define Elf32_RelM	Elf32_Rel
 
+#endif
 
 #ifndef ElfW
 # if ELFCLASSM == ELFCLASS32
@@ -486,22 +520,27 @@ int flag_export = 1;
 
 /*======================================================================*/
 
-struct i386_got_entry {
+/* previously, these were named i386_* but since we could be
+   compiling for the sh, I've renamed them to the more general
+   arch_* These structures are the same between the x86 and SH, 
+   and we can't support anything else right now anyway. In the
+   future maybe they should be #if defined'd */
+
+struct arch_got_entry {
 	int offset;
 	unsigned offset_done:1;
 	unsigned reloc_done:1;
 };
 
-struct i386_file {
+struct arch_file {
 	struct obj_file root;
 	struct obj_section *got;
 };
 
-struct i386_symbol {
+struct arch_symbol {
 	struct obj_symbol root;
-	struct i386_got_entry gotent;
+	struct arch_got_entry gotent;
 };
-
 
 
 struct external_module {
@@ -529,16 +568,22 @@ _syscall2(int, new_sys_init_module, const char *, name,
 _syscall5(int, old_sys_init_module, const char *, name, char *, code,
 		  unsigned, codesize, struct old_mod_routines *, routines,
 		  struct old_symbol_table *, symtab)
-#ifndef __NR_query_module
-#define __NR_query_module     167
-#endif
-_syscall5(int, query_module, const char *, name, int, which,
-		void *, buf, size_t, bufsize, size_t*, ret);
 #ifndef BB_RMMOD
 _syscall1(int, delete_module, const char *, name)
 #else
 extern int delete_module(const char *);
 #endif
+
+/* This is kind of troublesome. See, we don't actually support
+   the m68k or the arm the same way we support i386 and (now)
+   sh. In doing my SH patch, I just assumed that whatever works
+   for i386 also works for m68k and arm since currently insmod.c
+   does nothing special for them. If this isn't true, the below
+   line is rather misleading IMHO, and someone should either
+   change it or add more proper architecture-dependent support
+   for these boys.
+
+   -- Bryan Rittmeyer <bryan@ixiacom.com>                    */
 
 #if defined(__i386__) || defined(__m68k__) || defined(__arm__)
 /* Jump through hoops to fixup error return codes */
@@ -560,28 +605,8 @@ _syscall2(unsigned long, create_module, const char *, name, size_t, size)
 #endif
 static char m_filename[BUFSIZ + 1] = "\0";
 static char m_fullName[BUFSIZ + 1] = "\0";
-static const char insmod_usage[] =
-	"insmod [OPTION]... MODULE [symbol=value]...\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nLoads the specified kernel modules into the kernel.\n\n"
-	"Options:\n"
-	"\t-f\tForce module to load into the wrong kernel version.\n"
-	"\t-k\tMake module autoclean-able.\n"
-	"\t-v\tverbose output\n" "\t-x\tdo not export externs\n"
-#endif
-;
 
 /*======================================================================*/
-
-void *xrealloc(void *old, size_t size)
-{
-	void *ptr = realloc(old, size);
-	if (!ptr) {
-		perror("Out of memory");
-		exit(1);
-	}
-	return ptr;
-}
 
 
 static int findNamedModule(const char *fileName, struct stat *statbuf,
@@ -601,7 +626,7 @@ static int findNamedModule(const char *fileName, struct stat *statbuf,
 			tmp++;
 		if (check_wildcard_match(tmp, fullName) == TRUE) {
 			/* Stop searching if we find a match */
-			memcpy(m_filename, fileName, strlen(fileName));
+			memcpy(m_filename, fileName, strlen(fileName)+1);
 			return (FALSE);
 		}
 	}
@@ -613,7 +638,7 @@ static int findNamedModule(const char *fileName, struct stat *statbuf,
 
 struct obj_file *arch_new_file(void)
 {
-	struct i386_file *f;
+	struct arch_file *f;
 	f = xmalloc(sizeof(*f));
 	f->got = NULL;
 	return &f->root;
@@ -626,20 +651,25 @@ struct obj_section *arch_new_section(void)
 
 struct obj_symbol *arch_new_symbol(void)
 {
-	struct i386_symbol *sym;
+	struct arch_symbol *sym;
 	sym = xmalloc(sizeof(*sym));
 	memset(&sym->gotent, 0, sizeof(sym->gotent));
 	return &sym->root;
 }
+
 enum obj_reloc
 arch_apply_relocation(struct obj_file *f,
 					  struct obj_section *targsec,
 					  struct obj_section *symsec,
 					  struct obj_symbol *sym,
+#if defined(__sh__)
+		                          Elf32_Rela * rel, Elf32_Addr v)
+#else
 					  Elf32_Rel * rel, Elf32_Addr v)
+#endif
 {
-	struct i386_file *ifile = (struct i386_file *) f;
-	struct i386_symbol *isym = (struct i386_symbol *) sym;
+	struct arch_file *ifile = (struct arch_file *) f;
+	struct arch_symbol *isym = (struct arch_symbol *) sym;
 
 	Elf32_Addr *loc = (Elf32_Addr *) (targsec->contents + rel->r_offset);
 	Elf32_Addr dot = targsec->header.sh_addr + rel->r_offset;
@@ -648,32 +678,86 @@ arch_apply_relocation(struct obj_file *f,
 	enum obj_reloc ret = obj_reloc_ok;
 
 	switch (ELF32_R_TYPE(rel->r_info)) {
+
+/* even though these constants seem to be the same for
+   the i386 and the sh, we "#if define" them for clarity
+   and in case that ever changes */
+#if defined(__sh__)
+	case R_SH_NONE:
+#else
 	case R_386_NONE:
+#endif
 		break;
 
+#if defined(__sh__)
+	case R_SH_DIR32:
+#else
 	case R_386_32:
+#endif
 		*loc += v;
 		break;
 
+#if defined(__sh__)
+        case R_SH_REL32:
+#else
 	case R_386_PLT32:
 	case R_386_PC32:
+#endif
 		*loc += v - dot;
 		break;
 
+#if defined(__sh__)
+        case R_SH_PLT32:
+                *loc = v - dot;
+                break;
+#endif
+
+
+#if defined(__sh__)
+        case R_SH_GLOB_DAT:
+        case R_SH_JMP_SLOT:
+               	*loc = v;
+                break;
+#else
 	case R_386_GLOB_DAT:
 	case R_386_JMP_SLOT:
 		*loc = v;
 		break;
+#endif
 
-	case R_386_RELATIVE:
+#if defined(__sh__)
+        case R_SH_RELATIVE:
+	        *loc += f->baseaddr + rel->r_addend;
+                break;
+#else
+        case R_386_RELATIVE:
 		*loc += f->baseaddr;
 		break;
+#endif
 
+#if defined(__sh__)
+        case R_SH_GOTPC:
+		assert(got != 0);
+		*loc += got - dot + rel->r_addend;;
+		break;
+#else
 	case R_386_GOTPC:
 		assert(got != 0);
 		*loc += got - dot;
 		break;
+#endif
 
+#if defined(__sh__)
+	case R_SH_GOT32:
+ 		assert(isym != NULL);
+ 		if (!isym->gotent.reloc_done) {
+ 			isym->gotent.reloc_done = 1;
+ 			*(Elf32_Addr *) (ifile->got->contents + isym->gotent.offset) =
+ 				v;
+ 		}
+		*loc += isym->gotent.offset + rel->r_addend;
+ 		break;
+#else
 	case R_386_GOT32:
 		assert(isym != NULL);
 		if (!isym->gotent.reloc_done) {
@@ -683,8 +767,13 @@ arch_apply_relocation(struct obj_file *f,
 		}
 		*loc += isym->gotent.offset;
 		break;
+#endif
 
+#if defined(__sh__)
+	case R_SH_GOTOFF:
+#else
 	case R_386_GOTOFF:
+#endif
 		assert(got != 0);
 		*loc += v - got;
 		break;
@@ -699,13 +788,17 @@ arch_apply_relocation(struct obj_file *f,
 
 int arch_create_got(struct obj_file *f)
 {
-	struct i386_file *ifile = (struct i386_file *) f;
+	struct arch_file *ifile = (struct arch_file *) f;
 	int i, n, offset = 0, gotneeded = 0;
 
 	n = ifile->root.header.e_shnum;
 	for (i = 0; i < n; ++i) {
 		struct obj_section *relsec, *symsec, *strsec;
+#if defined(__sh__)
+		Elf32_Rela *rel, *relend;
+#else
 		Elf32_Rel *rel, *relend;
+#endif
 		Elf32_Sym *symtab;
 		const char *strtab;
 
@@ -716,24 +809,39 @@ int arch_create_got(struct obj_file *f)
 		symsec = ifile->root.sections[relsec->header.sh_link];
 		strsec = ifile->root.sections[symsec->header.sh_link];
 
+
+#if defined(__sh__)
+		rel = (Elf32_Rela *) relsec->contents;
+		relend = rel + (relsec->header.sh_size / sizeof(Elf32_Rela));
+#else
 		rel = (Elf32_Rel *) relsec->contents;
 		relend = rel + (relsec->header.sh_size / sizeof(Elf32_Rel));
+#endif
 		symtab = (Elf32_Sym *) symsec->contents;
 		strtab = (const char *) strsec->contents;
 
 		for (; rel < relend; ++rel) {
 			Elf32_Sym *extsym;
-			struct i386_symbol *intsym;
+			struct arch_symbol *intsym;
 			const char *name;
 
 			switch (ELF32_R_TYPE(rel->r_info)) {
+#if defined(__sh__)
+			case R_SH_GOTPC:
+			case R_SH_GOTOFF:
+#else
 			case R_386_GOTPC:
 			case R_386_GOTOFF:
+#endif
 				gotneeded = 1;
 			default:
 				continue;
 
+#if defined(__sh__)
+			case R_SH_GOT32:
+#else
 			case R_386_GOT32:
+#endif
 				break;
 			}
 
@@ -743,7 +851,7 @@ int arch_create_got(struct obj_file *f)
 			else
 				name = f->sections[extsym->st_shndx]->name;
 			intsym =
-				(struct i386_symbol *) obj_find_symbol(&ifile->root, name);
+				(struct arch_symbol *) obj_find_symbol(&ifile->root, name);
 
 			if (!intsym->gotent.offset_done) {
 				intsym->gotent.offset_done = 1;
@@ -938,7 +1046,7 @@ struct obj_symbol *obj_add_symbol(struct obj_file *f, const char *name,
 				/* Don't report an error if the symbol is coming from
 				   the kernel or some external module.  */
 				if (secidx <= SHN_HIRESERVE)
-					fprintf(stderr, "%s multiply defined\n", name);
+					errorMsg("%s multiply defined\n", name);
 				return sym;
 			}
 		}
@@ -1134,7 +1242,7 @@ add_symbols_from(
 static void add_kernel_symbols(struct obj_file *f)
 {
 	struct external_module *m;
-	size_t i, nused = 0;
+	int i, nused = 0;
 
 	/* Add module symbols first.  */
 
@@ -1166,10 +1274,10 @@ static char *get_modinfo_value(struct obj_file *f, const char *key)
 		v = strchr(p, '=');
 		n = strchr(p, '\0');
 		if (v) {
-			if (v - p == klen && strncmp(p, key, klen) == 0)
+			if (p + klen == v && strncmp(p, key, klen) == 0)
 				return v + 1;
 		} else {
-			if (n - p == klen && strcmp(p, key) == 0)
+			if (p + klen == n && strcmp(p, key) == 0)
 				return n;
 		}
 		p = n + 1;
@@ -1201,7 +1309,7 @@ old_process_module_arguments(struct obj_file *f, int argc, char **argv)
 
 		/* Also check that the parameter was not resolved from the kernel.  */
 		if (sym == NULL || sym->secidx > SHN_HIRESERVE) {
-			fprintf(stderr, "symbol for parameter %s not found\n", p);
+			errorMsg("symbol for parameter %s not found\n", p);
 			return 0;
 		}
 
@@ -1214,7 +1322,7 @@ old_process_module_arguments(struct obj_file *f, int argc, char **argv)
 			str = alloca(strlen(q));
 			for (r = str, q++; *q != '"'; ++q, ++r) {
 				if (*q == '\0') {
-					fprintf(stderr, "improperly terminated string argument for %s\n", p);
+					errorMsg("improperly terminated string argument for %s\n", p);
 					return 0;
 				} else if (*q == '\\')
 					switch (*++q) {
@@ -1334,7 +1442,7 @@ old_get_module_version(struct obj_file *f, char str[STRVERSIONLEN])
 
 /* Fetch all the symbols and divvy them up as appropriate for the modules.  */
 
-static int old_get_kernel_symbols(void)
+static int old_get_kernel_symbols(const char *m_name)
 {
 	struct old_kernel_sym *ks, *k;
 	struct new_module_symbol *s;
@@ -1567,7 +1675,7 @@ new_process_module_arguments(struct obj_file *f, int argc, char **argv)
 		p = get_modinfo_value(f, key);
 		key += 5;
 		if (p == NULL) {
-			fprintf(stderr, "invalid parameter %s\n", key);
+			errorMsg("invalid parameter %s\n", key);
 			return 0;
 		}
 
@@ -1575,7 +1683,7 @@ new_process_module_arguments(struct obj_file *f, int argc, char **argv)
 
 		/* Also check that the parameter was not resolved from the kernel.  */
 		if (sym == NULL || sym->secidx > SHN_HIRESERVE) {
-			fprintf(stderr, "symbol for parameter %s not found\n", key);
+			errorMsg("symbol for parameter %s not found\n", key);
 			return 0;
 		}
 
@@ -1603,8 +1711,7 @@ new_process_module_arguments(struct obj_file *f, int argc, char **argv)
 					str = alloca(strlen(q));
 					for (r = str, q++; *q != '"'; ++q, ++r) {
 						if (*q == '\0') {
-							fprintf(stderr,
-									"improperly terminated string argument for %s\n",
+							errorMsg("improperly terminated string argument for %s\n",
 									key);
 							return 0;
 						} else if (*q == '\\')
@@ -1693,13 +1800,12 @@ new_process_module_arguments(struct obj_file *f, int argc, char **argv)
 					loc += tgt_sizeof_char_p;
 				} else {
 					/* Array of chars (in fact, matrix !) */
-					long charssize;	/* size of each member */
+					unsigned long charssize;	/* size of each member */
 
 					/* Get the size of each member */
 					/* Probably we should do that outside the loop ? */
 					if (!isdigit(*(p + 1))) {
-						fprintf(stderr,
-								"parameter type 'c' for %s must be followed by"
+						errorMsg("parameter type 'c' for %s must be followed by"
 								" the maximum size\n", key);
 						return 0;
 					}
@@ -1707,8 +1813,7 @@ new_process_module_arguments(struct obj_file *f, int argc, char **argv)
 
 					/* Check length */
 					if (strlen(str) >= charssize) {
-						fprintf(stderr,
-								"string too long for %s (max %ld)\n", key,
+						errorMsg("string too long for %s (max %ld)\n", key,
 								charssize - 1);
 						return 0;
 					}
@@ -1737,8 +1842,7 @@ new_process_module_arguments(struct obj_file *f, int argc, char **argv)
 					break;
 
 				default:
-					fprintf(stderr, "unknown parameter type '%c' for %s\n",
-							*p, key);
+					errorMsg("unknown parameter type '%c' for %s\n", *p, key);
 					return 0;
 				}
 			}
@@ -1757,22 +1861,21 @@ new_process_module_arguments(struct obj_file *f, int argc, char **argv)
 
 			case ',':
 				if (++n > max) {
-					fprintf(stderr, "too many values for %s (max %d)\n",
-							key, max);
+					errorMsg("too many values for %s (max %d)\n", key, max);
 					return 0;
 				}
 				++q;
 				break;
 
 			default:
-				fprintf(stderr, "invalid argument syntax for %s\n", key);
+				errorMsg("invalid argument syntax for %s\n", key);
 				return 0;
 			}
 		}
 
 	  end_of_arg:
 		if (n < min) {
-			fprintf(stderr, "too few values for %s (min %d)\n", key, min);
+			errorMsg("too few values for %s (min %d)\n", key, min);
 			return 0;
 		}
 
@@ -2157,7 +2260,7 @@ int obj_check_undefineds(struct obj_file *f)
 					sym->secidx = SHN_ABS;
 					sym->value = 0;
 				} else {
-					fprintf(stderr, "unresolved symbol %s\n", sym->name);
+					errorMsg("unresolved symbol %s\n", sym->name);
 					ret = 0;
 				}
 			}
@@ -2380,11 +2483,11 @@ int obj_relocate(struct obj_file *f, ElfW(Addr) base)
 				errmsg = "Unhandled relocation";
 			  bad_reloc:
 				if (extsym) {
-					fprintf(stderr, "%s of type %ld for %s\n", errmsg,
+					errorMsg("%s of type %ld for %s\n", errmsg,
 							(long) ELFW(R_TYPE) (rel->r_info),
 							strtab + extsym->st_name);
 				} else {
-					fprintf(stderr, "%s of type %ld\n", errmsg,
+					errorMsg("%s of type %ld\n", errmsg,
 							(long) ELFW(R_TYPE) (rel->r_info));
 				}
 				ret = 0;
@@ -2469,25 +2572,25 @@ struct obj_file *obj_load(FILE * fp)
 		|| f->header.e_ident[EI_MAG1] != ELFMAG1
 		|| f->header.e_ident[EI_MAG2] != ELFMAG2
 		|| f->header.e_ident[EI_MAG3] != ELFMAG3) {
-		fprintf(stderr, "not an ELF file\n");
+		errorMsg("not an ELF file\n");
 		return NULL;
 	}
 	if (f->header.e_ident[EI_CLASS] != ELFCLASSM
 		|| f->header.e_ident[EI_DATA] != ELFDATAM
 		|| f->header.e_ident[EI_VERSION] != EV_CURRENT
 		|| !MATCH_MACHINE(f->header.e_machine)) {
-		fprintf(stderr, "ELF file not for this architecture\n");
+		errorMsg("ELF file not for this architecture\n");
 		return NULL;
 	}
 	if (f->header.e_type != ET_REL) {
-		fprintf(stderr, "ELF file not a relocatable object\n");
+		errorMsg("ELF file not a relocatable object\n");
 		return NULL;
 	}
 
 	/* Read the section headers.  */
 
 	if (f->header.e_shentsize != sizeof(ElfW(Shdr))) {
-		fprintf(stderr, "section header size mismatch: %lu != %lu\n",
+		errorMsg("section header size mismatch: %lu != %lu\n",
 				(unsigned long) f->header.e_shentsize,
 				(unsigned long) sizeof(ElfW(Shdr)));
 		return NULL;
@@ -2540,13 +2643,11 @@ struct obj_file *obj_load(FILE * fp)
 
 #if SHT_RELM == SHT_REL
 		case SHT_RELA:
-			fprintf(stderr,
-					"RELA relocations not supported on this architecture\n");
+			errorMsg("RELA relocations not supported on this architecture\n");
 			return NULL;
 #else
 		case SHT_REL:
-			fprintf(stderr,
-					"REL relocations not supported on this architecture\n");
+			errorMsg("REL relocations not supported on this architecture\n");
 			return NULL;
 #endif
 
@@ -2559,7 +2660,7 @@ struct obj_file *obj_load(FILE * fp)
 				break;
 			}
 
-			fprintf(stderr, "can't handle sections of type %ld\n",
+			errorMsg("can't handle sections of type %ld\n",
 					(long) sec->header.sh_type);
 			return NULL;
 		}
@@ -2588,7 +2689,7 @@ struct obj_file *obj_load(FILE * fp)
 				ElfW(Sym) * sym;
 
 				if (sec->header.sh_entsize != sizeof(ElfW(Sym))) {
-					fprintf(stderr, "symbol size mismatch: %lu != %lu\n",
+					errorMsg("symbol size mismatch: %lu != %lu\n",
 							(unsigned long) sec->header.sh_entsize,
 							(unsigned long) sizeof(ElfW(Sym)));
 					return NULL;
@@ -2620,8 +2721,7 @@ struct obj_file *obj_load(FILE * fp)
 
 		case SHT_RELM:
 			if (sec->header.sh_entsize != sizeof(ElfW(RelM))) {
-				fprintf(stderr,
-						"relocation entry size mismatch: %lu != %lu\n",
+				errorMsg("relocation entry size mismatch: %lu != %lu\n",
 						(unsigned long) sec->header.sh_entsize,
 						(unsigned long) sizeof(ElfW(RelM)));
 				return NULL;
@@ -2722,7 +2822,7 @@ extern int insmod_main( int argc, char **argv)
 	if ((fp = fopen(*argv, "r")) == NULL) {
 		/* Hmpf.  Could not open it. Search through _PATH_MODULES to find a module named m_name */
 		if (recursiveAction(_PATH_MODULES, TRUE, FALSE, FALSE,
-							findNamedModule, 0, m_fullName) == TRUE) 
+							findNamedModule, 0, m_fullName) == FALSE) 
 		{
 			if (m_filename[0] == '\0'
 				|| ((fp = fopen(m_filename, "r")) == NULL)) 
@@ -2730,7 +2830,8 @@ extern int insmod_main( int argc, char **argv)
 				errorMsg("No module named '%s' found in '%s'\n", m_fullName, _PATH_MODULES);
 				exit(FALSE);
 			}
-		}
+		} else
+			fatalError("No module named '%s' found in '%s'\n", m_fullName, _PATH_MODULES);
 	} else
 		memcpy(m_filename, *argv, strlen(*argv));
 
@@ -2754,20 +2855,20 @@ extern int insmod_main( int argc, char **argv)
 	} else {
 		m_version = old_get_module_version(f, m_strversion);
 		if (m_version == -1) {
-			fprintf(stderr,
-					"couldn't find the kernel version the module was compiled for\n");
+			errorMsg("couldn't find the kernel version the module was "
+					"compiled for\n");
 			goto out;
 		}
 	}
 
 	if (strncmp(k_strversion, m_strversion, STRVERSIONLEN) != 0) {
 		if (flag_force_load) {
-			fprintf(stderr, "Warning: kernel-module version mismatch\n"
+			errorMsg("Warning: kernel-module version mismatch\n"
 					"\t%s was compiled for kernel version %s\n"
 					"\twhile this kernel is version %s\n",
 					m_filename, m_strversion, k_strversion);
 		} else {
-			fprintf(stderr, "kernel-module version mismatch\n"
+			errorMsg("kernel-module version mismatch\n"
 					"\t%s was compiled for kernel version %s\n"
 					"\twhile this kernel is version %s.\n",
 					m_filename, m_strversion, k_strversion);
@@ -2785,16 +2886,16 @@ extern int insmod_main( int argc, char **argv)
 			goto out;
 		k_crcs = new_is_kernel_checksummed();
 #else
-		fprintf(stderr, "Not configured to support new kernels\n");
+		errorMsg("Not configured to support new kernels\n");
 		goto out;
 #endif
 	} else {
 #ifdef BB_FEATURE_INSMOD_OLD_KERNEL
-		if (!old_get_kernel_symbols())
+		if (!old_get_kernel_symbols(m_name))
 			goto out;
 		k_crcs = old_is_kernel_checksummed();
 #else
-		fprintf(stderr, "Not configured to support old kernels\n");
+		errorMsg("Not configured to support old kernels\n");
 		goto out;
 #endif
 	}
@@ -2851,11 +2952,10 @@ extern int insmod_main( int argc, char **argv)
 	case 0:
 		break;
 	case EEXIST:
-		fprintf(stderr, "A module named %s already exists\n", m_name);
+		errorMsg("A module named %s already exists\n", m_name);
 		goto out;
 	case ENOMEM:
-		fprintf(stderr,
-				"Can't allocate kernel memory for module; needed %lu bytes\n",
+		errorMsg("Can't allocate kernel memory for module; needed %lu bytes\n",
 				m_size);
 		goto out;
 	default:

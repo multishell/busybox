@@ -55,16 +55,17 @@ terse runtime description of their behavior.
 
 Currently defined functions include:
 
-ar, basename, cat, chgrp, chmod, chown, chroot, chvt, clear, cp, cut, date,
-dc, dd, deallocvt, df, dirname, dmesg, du, dumpkmap, dutmp, echo, false, fbset,
-fdflush, find, free, freeramdisk, fsck.minix, grep, gunzip, gzip, halt,
-head, hostid, hostname, id, init, insmod, kill, killall, length, ln,
-loadacm, loadfont, loadkmap, logger, logname, ls, lsmod, makedevs, mkdir,
-mkfifo, mkfs.minix, mknod, mkswap, mktemp, more, mount, mt, mv, nc,
-nslookup, ping, poweroff, printf, ps, pwd, reboot, rm, rmdir, rmmod, sed,
-setkeycodes, sh, sleep, sort, swapoff, swapon, sync, syslogd, tail,
-tar, tee, telnet, test, touch, tr, true, tty, umount, uname, uniq, update,
-uptime, usleep, uudecode, uuencode, wc, which, whoami, yes, zcat, [
+ar, basename, cat, chgrp, chmod, chown, chroot, chvt, clear, cp, cut, date, dc,
+dd, deallocvt, df, dirname, dmesg, dos2unix, du, dumpkmap, dutmp, echo, false,
+fbset, fdflush, find, free, freeramdisk, fsck.minix, getopt, grep, gunzip,
+gzip, halt, head, hostid, hostname, id, init, insmod, kill, killall, length,
+ln, loadacm, loadfont, loadkmap, logger, logname, ls, lsmod, makedevs, mkdir,
+mkfifo, mkfs.minix, mknod, mkswap, mktemp, more, mount, mt, mv, nc, nslookup,
+ping, poweroff, printf, ps, pwd, rdate, reboot, renice, reset, rm, rmdir,
+rmmod, sed, setkeycodes, sh, sleep, sort, swapoff, swapon, sync, syslogd, tail,
+tar, tee, telnet, test, touch, tr, true, tty, umount, uname, uniq, unix2dos,
+unrpm, update, uptime, usleep, uudecode, uuencode, wc, which, whoami, xargs,
+yes, zcat, [
 
 -------------------------------
 
@@ -279,7 +280,7 @@ Options:
 		-b LIST Output only bytes from LIST
 		-c LIST Output only characters from LIST
 		-d CHAR Use CHAR instead of tab as the field delimiter
-		-s      Only output Lines if the include DELIM
+		-s      Output only the lines containing delimiter
 		-f N    Print only these fields
 		-n      Ignored
 
@@ -412,6 +413,14 @@ Print or controls the kernel ring buffer.
 
 -------------------------------
 
+=item dos2unix
+
+Usage: dos2unix < dosfile > unixfile
+
+Converts a text file from dos format to unix format.
+
+-------------------------------
+
 =item du
 
 Usage: du [OPTION]... [FILE]...
@@ -445,6 +454,10 @@ Example:
 Usage: dumpkmap
 
 Prints out a binary keyboard translation table to standard input.
+
+Example:
+
+	$ dumpkmap > keymap
 
 -------------------------------
 
@@ -490,6 +503,45 @@ Example:
 	cool
 	$ echo "Erik\nis\ncool"
 	Erik\nis\ncool
+
+-------------------------------
+
+=item echo
+
+
+Usage: expr EXPRESSION
+
+Prints the value of EXPRESSION to standard output.
+
+EXPRESSION may be:
+
+	ARG1 |  ARG2    ARG1 if it is neither null nor 0, otherwise ARG2
+	ARG1 &  ARG2    ARG1 if neither argument is null or 0, otherwise 0
+	ARG1 <  ARG2    ARG1 is less than ARG2
+	ARG1 <= ARG2    ARG1 is less than or equal to ARG2
+	ARG1 =  ARG2    ARG1 is equal to ARG2
+	ARG1 != ARG2    ARG1 is unequal to ARG2
+	ARG1 >= ARG2    ARG1 is greater than or equal to ARG2
+	ARG1 >  ARG2    ARG1 is greater than ARG2
+	ARG1 +  ARG2    arithmetic sum of ARG1 and ARG2
+	ARG1 -  ARG2    arithmetic difference of ARG1 and ARG2
+	ARG1 *  ARG2    arithmetic product of ARG1 and ARG2
+	ARG1 /  ARG2    arithmetic quotient of ARG1 divided by ARG2
+	ARG1 %  ARG2    arithmetic remainder of ARG1 divided by ARG2
+	STRING : REGEXP             anchored pattern match of REGEXP in STRING
+	match STRING REGEXP         same as STRING : REGEXP
+	substr STRING POS LENGTH    substring of STRING, POS counted from 1
+	index STRING CHARS          index in STRING where any CHARS is found, or 0
+	length STRING               length of STRING
+	quote TOKEN                 interpret TOKEN as a string, even if it is a
+									keyword like `match' or an operator like `/'
+	( EXPRESSION )              value of EXPRESSION
+
+Beware that many operators need to be escaped or quoted for shells.
+Comparisons are arithmetic if both ARGs are numbers, else
+lexicographical.  Pattern matches return the string matched between
+\( and \) or null; if \( and \) are not used, they return the number
+of characters matched or 0.
 
 -------------------------------
 
@@ -611,6 +663,49 @@ Options:
 	-s      Outputs super-block information
 	-m      Activates MINIX-like "mode not cleared" warnings
 	-f      Force file system check.
+
+-------------------------------
+
+=item getopt
+
+Usage: getopt [OPTIONS]...
+
+Parse command options
+
+Options:
+
+       -a, --alternative            Allow long options starting with single -\n"
+       -l, --longoptions=longopts   Long options to be recognized\n"
+       -n, --name=progname          The name under which errors are reported\n"
+       -o, --options=optstring      Short options to be recognized\n"
+       -q, --quiet                  Disable error reporting by getopt(3)\n"
+       -Q, --quiet-output           No normal output\n"
+       -s, --shell=shell            Set shell quoting conventions\n"
+       -T, --test                   Test for getopt(1) version\n"
+       -u, --unqote                 Do not quote the output\n"
+
+Example:
+
+        $ cat getopt.test
+        #!/bin/sh
+        GETOPT=`getopt -o ab:c:: --long a-long,b-long:,c-long:: \
+                -n 'example.busybox' -- "$@"`
+        if [ $? != 0 ] ; then  exit 1 ; fi
+        eval set -- "$GETOPT"
+        while true ; do
+          case $1 in
+            -a|--a-long) echo "Option a" ; shift ;;
+            -b|--b-long) echo "Option b, argument \`$2'" ; shift 2 ;;
+            -c|--c-long)
+              case "$2" in
+                "") echo "Option c, no argument"; shift 2 ;;
+                *)  echo "Option c, argument \`$2'" ; shift 2 ;;
+              esac ;;
+            --) shift ; break ;;
+            *) echo "Internal error!" ; exit 1 ;;
+          esac
+        done
+
 
 -------------------------------
 
@@ -827,14 +922,16 @@ Example /etc/inittab file:
 	# /bin/sh invocations on selected ttys
 	#
 	# Start an "askfirst" shell on the console (whatever that may be)
-	::askfirst:/bin/sh
-	# Start an "askfirst" shell on /dev/tty2
-	tty2::askfirst:/bin/sh
+	::askfirst:-/bin/sh
+	# Start an "askfirst" shell on /dev/tty2-4
+	tty2::askfirst:-/bin/sh
+	tty3::askfirst:-/bin/sh
+	tty4::askfirst:-/bin/sh
 
 	# /sbin/getty invocations for selected ttys
 	#
-	tty4::respawn:/sbin/getty 38400 tty4
-	tty5::respawn:/sbin/getty 38400 tty5
+	tty4::respawn:/sbin/getty 38400 tty5
+	tty5::respawn:/sbin/getty 38400 tty6
 
 
 	# Example of how to put a getty on a serial line (for a terminal)
@@ -846,8 +943,8 @@ Example /etc/inittab file:
 	#ttyS2::respawn:/sbin/getty -x0 -s 57600 ttyS2
 
 	# Stuff to do before rebooting
-	::ctrlaltdel:/bin/umount -a -r > /dev/null 2>&1
-	::ctrlaltdel:/sbin/swapoff -a > /dev/null 2>&1
+	::ctrlaltdel:/bin/umount -a -r
+	::ctrlaltdel:/sbin/swapoff -a
 
 -------------------------------
 
@@ -1008,7 +1105,7 @@ Example:
 
 =item ls
 
-Usage: ls [B<-1acdelnpuxACFR>] [filenames...]
+Usage: ls [B<-1acdelnpuxACFLR>] [filenames...]
 
 Options:
 
@@ -1027,6 +1124,7 @@ Options:
 	-C	list entries by columns
 	-F	append indicator (one of */=@|) to entries
 	-R  list subdirectories recursively
+	-L  list entries pointed to by symbolic links
 
 -------------------------------
 
@@ -1380,9 +1478,40 @@ Example:
 
 -------------------------------
 
+=item rdate
+
+Usage: rdate [OPTION] HOST
+
+Get and possibly set the system date and time from a remote HOST.
+
+Options:
+
+	-s      Set the system date and time (default).
+	-p      Print the date and time.
+
+-------------------------------
+
 =item reboot
 
 Instructs the kernel to reboot the system.
+
+-------------------------------
+
+=item renice
+
+Usage: renice priority pid [pid ...]
+
+Changes priority of running processes. Allowed priorities range
+from 20 (the process runs only when nothing else is running) to 0
+(default priority) to -20 (almost nothing else ever gets to run).
+
+-------------------------------
+
+=item reset
+
+Usage: reset
+
+Resets the screen.
 
 -------------------------------
 
@@ -1577,6 +1706,12 @@ Options:
 	-n		Run as a foreground process
 	-K		Do not start up the klogd process
 	-O FILE		Use an alternate log file (default=/var/log/messages)
+	-R HOST[:PORT]  Log messages to HOST on PORT (default=514) over UDP.
+
+Example:
+
+	$ syslogd -R masterlog:514
+	$ syslogd -R 192.168.1.1:601
 
 -------------------------------
 
@@ -1618,7 +1753,7 @@ File selection:
 
         f               name of tarfile or "-" for stdin
         O               extract to stdout
-        --exclude       file to exclude
+        exclude         file to exclude
 
 Informative output:
 
@@ -1804,6 +1939,22 @@ Example:
 
 -------------------------------
 
+=item unix2dos
+
+Usage: unix2dos < unixfile > dosfile
+
+Converts a text file from unix format to dos format.
+
+-------------------------------
+
+=item unrpm
+
+Usage: unrpm < package.rpm | gzip B<-d> | cpio -idmuv
+
+Extracts an rpm archive.
+
+-------------------------------
+
 =item update
 
 Usage: update [options]
@@ -1930,6 +2081,23 @@ Example:
 
 -------------------------------
 
+=item xargs
+
+Usage: xargs [OPTIONS] [COMMAND] [ARGS...]
+
+Executes COMMAND on every item given by standard input.
+
+Options:
+
+		-t      Print the command just before it is run
+ 
+Example:
+
+	$ ls | xargs gzip
+	$ find . -name '*.c' -print | xargs rm
+
+-------------------------------
+
 =item yes
 
 Usage: yes [OPTION]... [STRING]...
@@ -1974,58 +2142,123 @@ Erik Andersen <andersee@debian.org> <andersen@lineo.com>
 The following people have contributed code to BusyBox whether
 they know it or not.
 
-Erik Andersen <andersee@debian.org>
 
 =for html <br>
 
+Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
+
+    Tons of new stuff, major rewrite of most of the
+    core apps, tons of new apps as noted in header files.
+
+=for html <br>
+
+Edward Betts <edward@debian.org>
+
+    expr, hostid, logname, tty, wc, whoami, yes
+ 
+=for html <br>
+
 John Beppu <beppu@lineo.com>
+
+    du, head, nslookup, sort, tee, uniq
 
 =for html <br>
 
 Brian Candler <B.Candler@pobox.com>
 
+    tiny-ls(ls)
+
 =for html <br>
 
 Randolph Chung <tausq@debian.org>
+
+    fbset, ping, hostname, and mkfifo
 
 =for html <br>
 
 Dave Cinege <dcinege@psychosis.com>	
 
+    more(v2), makedevs, dutmp, modularization, auto links file, 
+    various fixes, Linux Router Project maintenance
+
 =for html <br>
 
 Karl M. Hegbloom <karlheg@debian.org>
+
+    cp_mv.c, the test suite, various fixes to utility.c, &c.
+
+=for html <br>
+
+Daniel Jacobowitz <dan@debian.org>
+
+    mktemp.c
+
+=for html <br>
+
+Matt Kraai <kraai@alumni.carnegiemellon.edu>
+
+    documentation, bugfixes
 
 =for html <br>
 
 John Lombardo <john@deltanet.com>	
 
+    dirname, tr
+
 =for html <br>
 
 Glenn McGrath <bug1@netconnect.com.au>
 
+    ar.c
+
 =for html <br>
 
-Bruce Perens <bruce@perens.com>
+Bruce Perens <bruce@pixar.com>
+
+    Original author of BusyBox. His code is still in many apps.
+
+=for html <br>
+
+Chip Rosenthal <chip@unicom.com>, <crosenth@covad.com>
+
+    wget - Contributed by permission of Covad Communications
 
 =for html <br>
 
 Pavel Roskin <proski@gnu.org>
 
+    Lots of bugs fixes and patches.
+
+=for html <br>
+
+Gyepi Sam <gyepi@praxis-sw.com>
+
+    Remote logging feature for syslogd
+
 =for html <br>
 
 Linus Torvalds <torvalds@transmeta.com>
+
+    mkswap, fsck.minix, mkfs.minix
+
+=for html <br>
+
+Mark Whitley <markw@lineo.com>
+
+    sed remix, bug fixes, style-guide, etc.
 
 =for html <br>
 
 Charles P. Wright <cpwright@villagenet.com>
 
+    gzip, mini-netcat(nc)
+
 =for html <br>
 
 Enrique Zanardi <ezanardi@ull.es>
 
-=for html <br>
+    tarcat (since removed), loadkmap, various fixes, Debian maintenance
 
 =cut
 
-# $Id: busybox.pod,v 1.56 2000/07/11 17:29:36 andersen Exp $
+# $Id: busybox.pod,v 1.73 2000/09/24 02:41:44 andersen Exp $

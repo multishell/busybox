@@ -24,23 +24,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <errno.h>
-#include "internal.h"
+#include "busybox.h"
 
 
 /* From linux/fs.h */
 #define BLKFLSBUF  _IO(0x12,97)	/* flush buffer cache */
-
-
-static const char freeramdisk_usage[] =
-	"freeramdisk DEVICE\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nFrees all memory used by the specified ramdisk.\n"
-#endif
-	;
 
 extern int
 freeramdisk_main(int argc, char **argv)
@@ -52,10 +43,10 @@ freeramdisk_main(int argc, char **argv)
 	}
 
 	if ((f = open(argv[1], O_RDWR)) == -1) {
-		fatalError( "freeramdisk: cannot open %s: %s\n", argv[1], strerror(errno));
+		fatalError( "cannot open %s: %s\n", argv[1], strerror(errno));
 	}
 	if (ioctl(f, BLKFLSBUF) < 0) {
-		fatalError( "freeramdisk: failed ioctl on %s: %s\n", argv[1], strerror(errno));
+		fatalError( "failed ioctl on %s: %s\n", argv[1], strerror(errno));
 	}
 	/* Don't bother closing.  Exit does
 	 * that, so we can save a few bytes */

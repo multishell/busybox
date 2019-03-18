@@ -2,7 +2,6 @@
 /*
  * Mini id implementation for busybox
  *
- *
  * Copyright (C) 2000 by Randolph Chung <tausq@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -21,54 +20,48 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <pwd.h>
 #include <grp.h>
+#include <getopt.h>
 #include <sys/types.h>
-
-static const char id_usage[] =
-	"id [OPTIONS]... [USERNAME]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nPrint information for USERNAME or the current user\n\n"
-	"Options:\n"
-	"\t-g\tprints only the group ID\n"
-	"\t-u\tprints only the user ID\n"
-	"\t-r\tprints the real user ID instead of the effective ID (with -ug)\n\n"
-#endif
-	;
 
 extern int id_main(int argc, char **argv)
 {
 	int no_user = 0, no_group = 0, print_real = 0;
 	char *cp, *user, *group;
-	unsigned long gid;
+	long gid;
+	long pwnam, grnam;
+	int opt;
 	
 	cp = user = group = NULL;
+	gid = 0;
 
-	argc--; argv++;
-
-	while (argc > 0) {
-		cp = *argv;
-		if (*cp == '-') {
-			switch (*++cp) {
-			case 'u': no_group = 1; break;
-			case 'g': no_user = 1; break;
-			case 'r': print_real = 1; break;
-			default: usage(id_usage);
-			}
-		} else {
-			user = cp;			
+	while ((opt = getopt(argc, argv, "ugr")) > 0) {
+		switch (opt) {
+			case 'u':
+				no_group++;
+				break;
+			case 'g':
+				no_user++;
+				break;
+			case 'r':
+				print_real++;
+				break;
+			default:
+				usage(id_usage);
 		}
-		argc--; argv++;
 	}
 
 	if (no_user && no_group) usage(id_usage);
 
+	user = argv[optind];
+
 	if (user == NULL) {
-		user = xmalloc(9);
-		group = xmalloc(9);
+		user = xcalloc(9, sizeof(char));
+		group = xcalloc(9, sizeof(char));
 		if (print_real) {
 			my_getpwuid(user, getuid());
 			my_getgrgid(group, getgid());
@@ -77,18 +70,22 @@ extern int id_main(int argc, char **argv)
 			my_getgrgid(group, getegid());
 		}
 	} else {
-		group = xmalloc(9);
+		group = xcalloc(9, sizeof(char));
 	    gid = my_getpwnamegid(user);
 		my_getgrgid(group, gid);
 	}
 
-	if (no_group) printf("%lu\n", my_getpwnam(user));
-	else if (no_user) printf("%lu\n", my_getgrnam(group));
+	pwnam=my_getpwnam(user);
+	grnam=my_getgrnam(group);
+	if (gid == -1 || pwnam==-1 || grnam==-1) {
+		fatalError("%s: No such user\n", user);
+	}
+	if (no_group)
+		printf("%ld\n", pwnam);
+	else if (no_user)
+		printf("%ld\n", grnam);
 	else
-		printf("uid=%lu(%s) gid=%lu(%s)\n",
-			   my_getpwnam(user), user, my_getgrnam(group), group);
-	
-
+		printf("uid=%ld(%s) gid=%ld(%s)\n", pwnam, user, grnam, group);
 	return(0);
 }
 

@@ -22,7 +22,7 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #define BB_DECLARE_EXTERN
 #define bb_need_name_too_long
 #include "messages.c"
@@ -34,17 +34,6 @@
 #include <errno.h>
 
 typedef void (Display) (long, char *);
-
-static const char du_usage[] =
-	"du [OPTION]... [FILE]...\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nSummarizes disk space used for each FILE and/or directory.\n"
-	"Disk space is printed in units of 1024 bytes.\n\n"
-	"Options:\n"
-	"\t-l\tcount sizes many times if hard linked\n"
-	"\t-s\tdisplay only a total for each argument\n"
-#endif
-	;
 
 static int du_depth = 0;
 static int count_hardlinks = 0;
@@ -108,7 +97,7 @@ static long du(char *filename)
 			}
 
 			if (len + strlen(name) + 1 > BUFSIZ) {
-				fprintf(stderr, name_too_long, "du");
+				errorMsg(name_too_long);
 				du_depth--;
 				return 0;
 			}
@@ -137,42 +126,32 @@ static long du(char *filename)
 int du_main(int argc, char **argv)
 {
 	int i;
-	char opt;
+	int c;
 
 	/* default behaviour */
 	print = print_normal;
 
 	/* parse argv[] */
-	for (i = 1; i < argc; i++) {
-		if (argv[i][0] == '-') {
-			opt = argv[i][1];
-			switch (opt) {
+	while ((c = getopt(argc, argv, "sl")) != EOF) {
+			switch (c) {
 			case 's':
-				print = print_summary;
-				break;
+					print = print_summary;
+					break;
 			case 'l':
-				count_hardlinks = 1;
-				break;
-			case 'h':
-			case '-':
-				usage(du_usage);
-				break;
+					count_hardlinks = 1;
+					break;
 			default:
-				fprintf(stderr, "du: invalid option -- %c\n", opt);
-				usage(du_usage);
+					usage(du_usage);
 			}
-		} else {
-			break;
-		}
 	}
 
 	/* go through remaining args (if any) */
-	if (i >= argc) {
+	if (optind >= argc) {
 		du(".");
 	} else {
 		long sum;
 
-		for (; i < argc; i++) {
+		for (i=optind; i < argc; i++) {
 			sum = du(argv[i]);
 			if (sum && isDirectory(argv[i], FALSE, NULL)) {
 				print_normal(sum, argv[i]);
@@ -184,7 +163,7 @@ int du_main(int argc, char **argv)
 	return(0);
 }
 
-/* $Id: du.c,v 1.20 2000/06/19 17:25:39 andersen Exp $ */
+/* $Id: du.c,v 1.25 2000/09/25 21:45:57 andersen Exp $ */
 /*
 Local Variables:
 c-file-style: "linux"

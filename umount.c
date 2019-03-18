@@ -22,7 +22,7 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 #include <mntent.h>
 #include <errno.h>
@@ -38,28 +38,6 @@ extern int mount (__const char *__special_file, __const char *__dir,
 			__const void *__data);
 extern int umount (__const char *__special_file);
 extern int umount2 (__const char *__special_file, int __flags);
-
-
-
-static const char umount_usage[] =
-	"umount [flags] filesystem|directory\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"Unmount file systems\n"
-	"\nFlags:\n" "\t-a:\tUnmount all file systems"
-#ifdef BB_MTAB
-	" in /etc/mtab\n\t-n:\tDon't erase /etc/mtab entries\n"
-#else
-	"\n"
-#endif
-	"\t-r:\tTry to remount devices as read-only if mount is busy\n"
-#if defined BB_FEATURE_MOUNT_FORCE
-	"\t-f:\tForce filesystem umount (i.e. unreachable NFS server)\n"
-#endif
-#if defined BB_FEATURE_MOUNT_LOOP
-	"\t-l:\tDo not free loop device (if a loop device has been used)\n"
-#endif
-#endif
-;
 
 struct _mtab_entry_t {
 	char *device;
@@ -101,7 +79,7 @@ void mtab_read(void)
 		return;
 
 	if ((fp = setmntent(mtab_file, "r")) == NULL) {
-		fprintf(stderr, "Cannot open %s\n", mtab_file);
+		errorMsg("Cannot open %s\n", mtab_file);
 		return;
 	}
 	while ((e = getmntent(fp))) {
@@ -164,7 +142,7 @@ char *mtab_next(void **iter)
 
 /* Don't bother to clean up, since exit() does that 
  * automagically, so we can save a few bytes */
-#if 0
+#ifdef BB_FEATURE_CLEAN_UP
 void mtab_free(void)
 {
 	struct _mtab_entry_t *this, *next;
@@ -201,7 +179,7 @@ static int do_umount(const char *name, int useMtab)
 	if (status != 0 && doForce == TRUE) {
 		status = umount2(blockDevice, MNT_FORCE);
 		if (status != 0) {
-			fatalError("umount: forced umount of %s failed!\n", blockDevice);
+			fatalError("forced umount of %s failed!\n", blockDevice);
 		}
 	}
 #endif
@@ -209,11 +187,9 @@ static int do_umount(const char *name, int useMtab)
 		status = mount(blockDevice, name, NULL,
 					   MS_MGC_VAL | MS_REMOUNT | MS_RDONLY, NULL);
 		if (status == 0) {
-			fprintf(stderr, "umount: %s busy - remounted read-only\n",
-					blockDevice);
+			errorMsg("%s busy - remounted read-only\n", blockDevice);
 		} else {
-			fprintf(stderr, "umount: Cannot remount %s read-only\n",
-					blockDevice);
+			errorMsg("Cannot remount %s read-only\n", blockDevice);
 		}
 	}
 	if (status == 0) {
@@ -259,6 +235,9 @@ extern int umount_main(int argc, char **argv)
 	if (argc < 2) {
 		usage(umount_usage);
 	}
+#ifdef BB_FEATURE_CLEAN_UP
+	atexit(mtab_free);
+#endif
 
 	/* Parse any options */
 	while (--argc > 0 && **(++argv) == '-') {

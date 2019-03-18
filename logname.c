@@ -20,14 +20,8 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
-
-static const char logname_usage[] = "logname\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nPrint the name of the current user.\n"
-#endif
-	;
 
 extern int logname_main(int argc, char **argv)
 {
@@ -41,6 +35,6 @@ extern int logname_main(int argc, char **argv)
 		puts(user);
 		exit(TRUE);
 	}
-	fprintf(stderr, "no login name\n");
+	errorMsg("no login name\n");
 	return(FALSE);
 }

@@ -21,14 +21,8 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
-
-const char sleep_usage[] = "sleep N\n" 
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nPause for N seconds.\n"
-#endif
-	;
 
 extern int sleep_main(int argc, char **argv)
 {

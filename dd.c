@@ -29,7 +29,7 @@
  */
 
 
-#include "internal.h"
+#include "busybox.h"
 #include <features.h>
 #include <stdio.h>
 #include <fcntl.h>
@@ -40,39 +40,25 @@
 typedef unsigned long long int uintmax_t;
 #endif
 
-static const char dd_usage[] =
-	"dd [if=FILE] [of=FILE] [bs=N] [count=N] [skip=N] [seek=N]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nCopy a file, converting and formatting according to options\n\n"
-	"\tif=FILE\tread from FILE instead of stdin\n"
-	"\tof=FILE\twrite to FILE instead of stdout\n"
-	"\tbs=N\tread and write N bytes at a time\n"
-	"\tcount=N\tcopy only N input blocks\n"
-	"\tskip=N\tskip N input blocks\n"
-	"\tseek=N\tskip N output blocks\n"
-	"\n"
-	"Numbers may be suffixed by w (x2), k (x1024), b (x512), or M (x1024^2)\n"
-#endif
-	;
-
-
-
 extern int dd_main(int argc, char **argv)
 {
 	char *inFile = NULL;
 	char *outFile = NULL;
-	char *cp;
 	int inFd;
 	int outFd;
 	int inCc = 0;
 	int outCc;
+	int trunc=TRUE;
 	long blockSize = 512;
 	uintmax_t skipBlocks = 0;
 	uintmax_t seekBlocks = 0;
 	uintmax_t count = (uintmax_t) - 1;
-	uintmax_t intotal;
-	uintmax_t outTotal;
-	unsigned char *buf;
+	uintmax_t inTotal = 0;
+	uintmax_t outTotal = 0;
+	uintmax_t totalSize;
+	uintmax_t readSize;
+	unsigned char buf[BUFSIZ];
+	char *keyword = NULL;
 
 	argc--;
 	argv++;
@@ -85,41 +71,39 @@ extern int dd_main(int argc, char **argv)
 			outFile = ((strchr(*argv, '=')) + 1);
 		else if (strncmp("count", *argv, 5) == 0) {
 			count = getNum((strchr(*argv, '=')) + 1);
-			if (count <= 0) {
-				fprintf(stderr, "Bad count value %s\n", *argv);
+			if (count < 0) {
+				errorMsg("Bad count value %s\n", *argv);
 				goto usage;
 			}
 		} else if (strncmp(*argv, "bs", 2) == 0) {
 			blockSize = getNum((strchr(*argv, '=')) + 1);
 			if (blockSize <= 0) {
-				fprintf(stderr, "Bad block size value %s\n", *argv);
+				errorMsg("Bad block size value %s\n", *argv);
 				goto usage;
 			}
 		} else if (strncmp(*argv, "skip", 4) == 0) {
 			skipBlocks = getNum((strchr(*argv, '=')) + 1);
 			if (skipBlocks <= 0) {
-				fprintf(stderr, "Bad skip value %s\n", *argv);
+				errorMsg("Bad skip value %s\n", *argv);
 				goto usage;
 			}
 
 		} else if (strncmp(*argv, "seek", 4) == 0) {
 			seekBlocks = getNum((strchr(*argv, '=')) + 1);
 			if (seekBlocks <= 0) {
-				fprintf(stderr, "Bad seek value %s\n", *argv);
+				errorMsg("Bad seek value %s\n", *argv);
 				goto usage;
 			}
-
+		} else if (strncmp(*argv, "conv", 4) == 0) {
+			keyword = (strchr(*argv, '=') + 1);
+                	if (strcmp(keyword, "notrunc") == 0) 
+				trunc=FALSE;
 		} else {
 			goto usage;
 		}
 		argc--;
 		argv++;
 	}
-
-	buf = xmalloc(blockSize);
-
-	intotal = 0;
-	outTotal = 0;
 
 	if (inFile == NULL)
 		inFd = fileno(stdin);
@@ -138,7 +122,7 @@ extern int dd_main(int argc, char **argv)
 	if (outFile == NULL)
 		outFd = fileno(stdout);
 	else
-		outFd = open(outFile, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+		outFd = open(outFile, O_WRONLY | O_CREAT, 0666);
 
 	if (outFd < 0) {
 		/* Note that we are not freeing buf or closing
@@ -150,54 +134,30 @@ extern int dd_main(int argc, char **argv)
 		fatalError( outFile);
 	}
 
-	lseek(inFd, skipBlocks * blockSize, SEEK_SET);
-	lseek(outFd, seekBlocks * blockSize, SEEK_SET);
-	//
-	//TODO: Convert to using fullRead & fullWrite
-	// from utility.c
-	//  -Erik
-	while (outTotal < count * blockSize) {
-		inCc = read(inFd, buf, blockSize);
-		if (inCc < 0) {
-			perror(inFile);
-			goto cleanup;
-		} else if (inCc == 0) {
-			goto cleanup;
-		}
-		intotal += inCc;
-		cp = buf;
-
-		while (intotal > outTotal) {
-			if (outTotal + inCc > count * blockSize)
-				inCc = count * blockSize - outTotal;
-			outCc = write(outFd, cp, inCc);
-			if (outCc < 0) {
-				perror(outFile);
-				goto cleanup;
-			} else if (outCc == 0) {
-				goto cleanup;
-			}
-
-			inCc -= outCc;
-			cp += outCc;
-			outTotal += outCc;
-		}
+	lseek(inFd, (off_t) (skipBlocks * blockSize), SEEK_SET);
+	lseek(outFd, (off_t) (seekBlocks * blockSize), SEEK_SET);
+	totalSize=count*blockSize;
+	while ((readSize = totalSize - inTotal) > 0) {
+		if (readSize > BUFSIZ)
+			readSize=BUFSIZ;
+		inCc = fullRead(inFd, buf, readSize);
+		inTotal += inCc;
+		if ((outCc = fullWrite(outFd, buf, inCc)) < 1)
+			break;
+		outTotal += outCc;
+        }
+	if (trunc == TRUE) {
+		ftruncate(outFd, lseek(outFd, 0, SEEK_CUR));
 	}
-
-	if (inCc < 0)
-		perror(inFile);
-
-  cleanup:
 	/* Note that we are not freeing memory or closing
 	 * files here, to save a few bytes. */
-#if 0
+#ifdef BB_FEATURE_CLEAN_UP
 	close(inFd);
 	close(outFd);
-	free(buf);
 #endif
 
-	printf("%ld+%d records in\n", (long) (intotal / blockSize),
-		   (intotal % blockSize) != 0);
+	printf("%ld+%d records in\n", (long) (inTotal / blockSize),
+		   (inTotal % blockSize) != 0);
 	printf("%ld+%d records out\n", (long) (outTotal / blockSize),
 		   (outTotal % blockSize) != 0);
 	exit(TRUE);

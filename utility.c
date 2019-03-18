@@ -25,16 +25,19 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #if defined (BB_CHMOD_CHOWN_CHGRP) \
  || defined (BB_CP_MV)		   \
  || defined (BB_FIND)		   \
+ || defined (BB_INSMOD)		   \
  || defined (BB_LS)		   \
- || defined (BB_INSMOD)
+ || defined (BB_RM)		   \
+ || defined (BB_TAR)
 /* same conditions as recursiveAction */
 #define bb_need_name_too_long
 #endif
 #define bb_need_memory_exhausted
+#define bb_need_full_version
 #define BB_DECLARE_EXTERN
 #include "messages.c"
 
@@ -47,14 +50,8 @@
 #include <utime.h>
 #include <unistd.h>
 #include <ctype.h>
-#include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/utsname.h>		/* for uname(2) */
-
-#if defined BB_FEATURE_MOUNT_LOOP
-#include <fcntl.h>
-#include <linux/loop.h> /* Pull in loop device support */
-#endif
 
 /* Busybox mount uses either /proc/filesystems or /dev/mtab to get the 
  * list of available filesystems used for the -t auto option */ 
@@ -65,11 +62,11 @@
 
 
 #if defined BB_MOUNT || defined BB_UMOUNT || defined BB_DF
-#  if defined BB_FEATURE_USE_PROCFS
-const char mtab_file[] = "/proc/mounts";
-#  else
-#    if defined BB_MTAB
+#  if defined BB_MTAB
 const char mtab_file[] = "/etc/mtab";
+#  else
+#    if defined BB_FEATURE_USE_PROCFS
+const char mtab_file[] = "/proc/mounts";
 #    else
 #      if defined BB_FEATURE_USE_DEVPS_PATCH
 const char mtab_file[] = "/dev/mtab";
@@ -82,8 +79,7 @@ const char mtab_file[] = "/dev/mtab";
 
 extern void usage(const char *usage)
 {
-	fprintf(stderr, "BusyBox v%s (%s) multi-call binary -- GPL2\n\n",
-			BB_VER, BB_BT);
+	fprintf(stderr, "%s\n\n", full_version);
 	fprintf(stderr, "Usage: %s\n", usage);
 	exit FALSE;
 }
@@ -94,6 +90,7 @@ extern void errorMsg(const char *s, ...)
 
 	va_start(p, s);
 	fflush(stdout);
+	fprintf(stderr, "%s: ", applet_name);
 	vfprintf(stderr, s, p);
 	va_end(p);
 	fflush(stderr);
@@ -105,6 +102,7 @@ extern void fatalError(const char *s, ...)
 
 	va_start(p, s);
 	fflush(stdout);
+	fprintf(stderr, "%s: ", applet_name);
 	vfprintf(stderr, s, p);
 	va_end(p);
 	fflush(stderr);
@@ -150,6 +148,13 @@ extern _syscall5(int, mount, const char *, special_file, const char *, dir,
 		const char *, fstype, unsigned long int, rwflag, const void *, data);
 #endif
 
+#if defined BB_INSMOD || defined BB_LSMOD
+#ifndef __NR_query_module
+#define __NR_query_module     167
+#endif
+_syscall5(int, query_module, const char *, name, int, which,
+		void *, buf, size_t, bufsize, size_t*, ret);
+#endif
 
 
 #if defined (BB_CP_MV) || defined (BB_DU)
@@ -221,7 +226,7 @@ void reset_ino_dev_hashtable(void)
 
 #endif /* BB_CP_MV || BB_DU */
 
-#if defined (BB_CP_MV) || defined (BB_DU) || defined (BB_LN)
+#if defined (BB_CP_MV) || defined (BB_DU) || defined (BB_LN) || defined (BB_AR)
 /*
  * Return TRUE if a fileName is a directory.
  * Nonexistant files return FALSE.
@@ -254,6 +259,29 @@ int isDirectory(const char *fileName, const int followLinks, struct stat *statBu
 }
 #endif
 
+#if defined (BB_AR) || defined BB_CP_MV
+/*
+ * Copy readSize bytes between two file descriptors
+ */
+int copySubFile(int srcFd, int dstFd, size_t remaining)
+{
+        size_t size;
+        char buffer[BUFSIZ];
+
+        while (remaining > 0) {
+                if (remaining > BUFSIZ)
+                        size = BUFSIZ;
+                else
+                        size = remaining;
+                if (fullWrite(dstFd, buffer, fullRead(srcFd, buffer, size)) < size)
+                        return(FALSE);
+                remaining -= size;
+        }
+        return (TRUE);
+}
+#endif
+
+
 #if defined (BB_CP_MV)
 /*
  * Copy one file to another, while possibly preserving its modes, times, and
@@ -267,9 +295,7 @@ copyFile(const char *srcName, const char *destName,
 {
 	int rfd;
 	int wfd;
-	int rcc;
 	int status;
-	char buf[BUF_SIZE];
 	struct stat srcStatBuf;
 	struct stat dstStatBuf;
 	struct utimbuf times;
@@ -297,7 +323,7 @@ copyFile(const char *srcName, const char *destName,
 
 	if ((srcStatBuf.st_dev == dstStatBuf.st_dev) &&
 		(srcStatBuf.st_ino == dstStatBuf.st_ino)) {
-		fprintf(stderr, "Copying file \"%s\" to itself\n", srcName);
+		errorMsg("Copying file \"%s\" to itself\n", srcName);
 		return FALSE;
 	}
 
@@ -354,8 +380,7 @@ copyFile(const char *srcName, const char *destName,
 			return FALSE;
 		}
 
-		wfd =
-			open(destName, O_WRONLY | O_CREAT | O_TRUNC,
+	 	wfd = open(destName, O_WRONLY | O_CREAT | O_TRUNC,
 				 srcStatBuf.st_mode);
 		if (wfd < 0) {
 			perror(destName);
@@ -363,14 +388,9 @@ copyFile(const char *srcName, const char *destName,
 			return FALSE;
 		}
 
-		while ((rcc = read(rfd, buf, sizeof(buf))) > 0) {
-			if (fullWrite(wfd, buf, rcc) < 0)
-				goto error_exit;
-		}
-		if (rcc < 0) {
-			goto error_exit;
-		}
-
+		if (copySubFile(rfd, wfd, srcStatBuf.st_size)==FALSE)
+			goto error_exit;	
+		
 		close(rfd);
 		if (close(wfd) < 0) {
 			return FALSE;
@@ -408,7 +428,7 @@ copyFile(const char *srcName, const char *destName,
 
 
 
-#if defined BB_TAR || defined BB_LS
+#if defined BB_TAR || defined BB_LS ||defined BB_AR
 
 #define TYPEINDEX(mode) (((mode) >> 12) & 0x0f)
 #define TYPECHAR(mode)  ("0pcCd?bB-?l?s???" [TYPEINDEX(mode)])
@@ -454,7 +474,7 @@ const char *modeString(int mode)
 #endif							/* BB_TAR || BB_LS */
 
 
-#if defined BB_TAR
+#if defined BB_TAR || defined BB_AR
 /*
  * Return the standard ls-like time string from a time_t
  * This is static and so is overwritten on each call.
@@ -479,9 +499,9 @@ const char *timeString(time_t timeVal)
 
 	return buf;
 }
-#endif							/* BB_TAR */
+#endif /* BB_TAR || BB_AR */
 
-#if defined BB_TAR || defined BB_CP_MV
+#if defined BB_TAR || defined BB_CP_MV || defined BB_AR
 /*
  * Write all of the supplied buffer out to a file.
  * This does multiple writes as necessary.
@@ -507,10 +527,10 @@ int fullWrite(int fd, const char *buf, int len)
 
 	return total;
 }
-#endif							/* BB_TAR || BB_CP_MV */
+#endif /* BB_TAR || BB_CP_MV || BB_AR */
 
 
-#if defined BB_TAR || defined BB_TAIL
+#if defined BB_TAR || defined BB_TAIL || defined BB_AR || defined BB_SH || defined BB_CP_MV
 /*
  * Read all of the supplied buffer from a file.
  * This does multiple reads as necessary.
@@ -540,13 +560,14 @@ int fullRead(int fd, char *buf, int len)
 
 	return total;
 }
-#endif							/* BB_TAR || BB_TAIL */
+#endif /* BB_TAR || BB_TAIL || BB_AR || BB_SH */
 
 
 #if defined (BB_CHMOD_CHOWN_CHGRP) \
  || defined (BB_CP_MV)			\
  || defined (BB_FIND)			\
  || defined (BB_INSMOD)			\
+ || defined (BB_LS)				\
  || defined (BB_RM)				\
  || defined (BB_TAR)
 
@@ -628,7 +649,7 @@ int recursiveAction(const char *fileName,
 				continue;
 			}
 			if (strlen(fileName) + strlen(next->d_name) + 1 > BUFSIZ) {
-				fprintf(stderr, name_too_long, "ftw");
+				errorMsg(name_too_long);
 				return FALSE;
 			}
 			memset(nextFile, 0, sizeof(nextFile));
@@ -636,7 +657,7 @@ int recursiveAction(const char *fileName,
 			status =
 				recursiveAction(nextFile, TRUE, followLinks, depthFirst,
 								fileAction, dirAction, userData);
-			if (status < 0) {
+			if (status == FALSE) {
 				closedir(dir);
 				return FALSE;
 			}
@@ -666,7 +687,7 @@ int recursiveAction(const char *fileName,
 
 
 
-#if defined (BB_TAR) || defined (BB_MKDIR)
+#if defined (BB_TAR) || defined (BB_MKDIR) || defined (BB_AR)
 /*
  * Attempt to create the directories along the specified path, except for
  * the final component.  The mode is given for the final directory only,
@@ -700,7 +721,8 @@ extern int createPath(const char *name, int mode)
 
 
 
-#if defined (BB_CHMOD_CHOWN_CHGRP) || defined (BB_MKDIR)
+#if defined (BB_CHMOD_CHOWN_CHGRP) || defined (BB_MKDIR) \
+ || defined (BB_MKFIFO) || defined (BB_MKNOD) || defined (BB_AR)
 /* [ugoa]{+|-|=}[rwxst] */
 
 
@@ -715,6 +737,9 @@ extern int parse_mode(const char *s, mode_t * theMode)
 	mode_t groups = 0;
 	char type;
 	char c;
+
+	if (s==NULL)
+		return (FALSE);
 
 	do {
 		for (;;) {
@@ -797,13 +822,16 @@ extern int parse_mode(const char *s, mode_t * theMode)
 }
 
 
-#endif							/* BB_CHMOD_CHOWN_CHGRP || BB_MKDIR */
+#endif
+/* BB_CHMOD_CHOWN_CHGRP || BB_MKDIR || BB_MKFIFO || BB_MKNOD */
 
 
 
 
 
-#if defined BB_CHMOD_CHOWN_CHGRP || defined BB_PS || defined BB_LS || defined BB_TAR || defined BB_ID 
+#if defined BB_CHMOD_CHOWN_CHGRP || defined BB_PS || defined BB_LS \
+ || defined BB_TAR || defined BB_ID || defined BB_LOGGER \
+ || defined BB_LOGNAME || defined BB_WHOAMI
 
 /* This parses entries in /etc/passwd and /etc/group.  This is desirable
  * for BusyBox, since we want to avoid using the glibc NSS stuff, which
@@ -818,12 +846,12 @@ extern int parse_mode(const char *s, mode_t * theMode)
  * This uses buf as storage to hold things.
  * 
  */
-unsigned long my_getid(const char *filename, char *name, unsigned long id, unsigned long *gid)
+unsigned long my_getid(const char *filename, char *name, long id, long *gid)
 {
 	FILE *file;
 	char *rname, *start, *end, buf[128];
-	unsigned long rid;
-	unsigned long rgid = 0;
+	long rid;
+	long rgid = 0;
 
 	file = fopen(filename, "r");
 	if (file == NULL) {
@@ -879,38 +907,40 @@ unsigned long my_getid(const char *filename, char *name, unsigned long id, unsig
 }
 
 /* returns a uid given a username */
-unsigned long my_getpwnam(char *name)
+long my_getpwnam(char *name)
 {
 	return my_getid("/etc/passwd", name, -1, NULL);
 }
 
 /* returns a gid given a group name */
-unsigned long my_getgrnam(char *name)
+long my_getgrnam(char *name)
 {
 	return my_getid("/etc/group", name, -1, NULL);
 }
 
 /* gets a username given a uid */
-void my_getpwuid(char *name, unsigned long uid)
+void my_getpwuid(char *name, long uid)
 {
 	my_getid("/etc/passwd", name, uid, NULL);
 }
 
 /* gets a groupname given a gid */
-void my_getgrgid(char *group, unsigned long gid)
+void my_getgrgid(char *group, long gid)
 {
 	my_getid("/etc/group", group, gid, NULL);
 }
 
 /* gets a gid given a user name */
-unsigned long my_getpwnamegid(char *name)
+long my_getpwnamegid(char *name)
 {
-	unsigned long gid;
+	long gid;
 	my_getid("/etc/passwd", name, -1, &gid);
 	return gid;
 }
 
-#endif /* BB_CHMOD_CHOWN_CHGRP || BB_PS || BB_LS || BB_TAR || BB_ID */ 
+#endif
+ /* BB_CHMOD_CHOWN_CHGRP || BB_PS || BB_LS || BB_TAR \
+ || BB_ID || BB_LOGGER || BB_LOGNAME || BB_WHOAMI */
 
 
 #if (defined BB_CHVT) || (defined BB_DEALLOCVT) || (defined BB_SETKEYCODES)
@@ -993,89 +1023,12 @@ int get_console_fd(char *tty_name)
 		if (is_a_console(fd))
 			return fd;
 
-	fprintf(stderr,
-			"Couldnt get a file descriptor referring to the console\n");
+	errorMsg("Couldnt get a file descriptor referring to the console\n");
 	return -1;					/* total failure */
 }
 
 
 #endif							/* BB_CHVT || BB_DEALLOCVT || BB_SETKEYCODES */
-
-
-#if !defined BB_REGEXP && (defined BB_GREP || defined BB_SED)
-
-/* Do a case insensitive strstr() */
-char *stristr(char *haystack, const char *needle)
-{
-	int len = strlen(needle);
-
-	while (*haystack) {
-		if (!strncasecmp(haystack, needle, len))
-			break;
-		haystack++;
-	}
-
-	if (!(*haystack))
-		haystack = NULL;
-
-	return haystack;
-}
-
-/* This tries to find a needle in a haystack, but does so by
- * only trying to match literal strings (look 'ma, no regexps!)
- * This is short, sweet, and carries _very_ little baggage,
- * unlike its beefier cousin in regexp.c
- *  -Erik Andersen
- */
-extern int find_match(char *haystack, char *needle, int ignoreCase)
-{
-
-	if (ignoreCase == FALSE)
-		haystack = strstr(haystack, needle);
-	else
-		haystack = stristr(haystack, needle);
-	if (haystack == NULL)
-		return FALSE;
-	return TRUE;
-}
-
-
-/* This performs substitutions after a string match has been found.  */
-extern int replace_match(char *haystack, char *needle, char *newNeedle,
-						 int ignoreCase)
-{
-	int foundOne = 0;
-	char *where, *slider, *slider1, *oldhayStack;
-
-	if (ignoreCase == FALSE)
-		where = strstr(haystack, needle);
-	else
-		where = stristr(haystack, needle);
-
-	if (strcmp(needle, newNeedle) == 0)
-		return FALSE;
-
-	oldhayStack = (char *) xmalloc((unsigned) (strlen(haystack)));
-	while (where != NULL) {
-		foundOne++;
-		strcpy(oldhayStack, haystack);
-		for (slider = haystack, slider1 = oldhayStack; slider != where;
-			 slider++, slider1++);
-		*slider = 0;
-		haystack = strcat(haystack, newNeedle);
-		slider1 += strlen(needle);
-		haystack = strcat(haystack, slider1);
-		where = strstr(slider, needle);
-	}
-	free(oldhayStack);
-
-	if (foundOne > 0)
-		return TRUE;
-	else
-		return FALSE;
-}
-
-#endif							/* ! BB_REGEXP && (BB_GREP || BB_SED) */
 
 
 #if defined BB_FIND || defined BB_INSMOD
@@ -1276,7 +1229,7 @@ extern long getNum(const char *cp)
 #endif							/* BB_DD || BB_TAIL */
 
 
-#if defined BB_INIT || defined BB_SYSLOGD
+#if defined BB_INIT || defined BB_SYSLOGD 
 /* try to open up the specified device */
 extern int device_open(char *device, int mode)
 {
@@ -1332,7 +1285,7 @@ extern pid_t* findPidByName( char* pidName)
 	 * some new processes start up while we wait. The kernel will
 	 * just ignore any extras if we give it too many, and will trunc.
 	 * the list if we give it too few.  */
-	pid_array = (pid_t*) calloc( num_pids+10, sizeof(pid_t));
+	pid_array = (pid_t*) xcalloc( num_pids+10, sizeof(pid_t));
 	pid_array[0] = num_pids+10;
 
 	/* Now grab the pid list */
@@ -1358,9 +1311,7 @@ extern pid_t* findPidByName( char* pidName)
 
 		if ((strstr(info.command_line, pidName) != NULL)
 				&& (strlen(pidName) == strlen(info.command_line))) {
-			pidList=realloc( pidList, sizeof(pid_t) * (j+2));
-			if (pidList==NULL)
-				fatalError(memory_exhausted, "");
+			pidList=xrealloc( pidList, sizeof(pid_t) * (j+2));
 			pidList[j++]=info.pid;
 		}
 	}
@@ -1404,14 +1355,12 @@ extern pid_t* findPidByName( char* pidName)
 		FILE *status;
 		char filename[256];
 		char buffer[256];
-		char* p;
 
 		/* If it isn't a number, we don't want it */
 		if (!isdigit(*next->d_name))
 			continue;
 
-		/* Now open the status file */
-		sprintf(filename, "/proc/%s/status", next->d_name);
+		sprintf(filename, "/proc/%s/cmdline", next->d_name);
 		status = fopen(filename, "r");
 		if (!status) {
 			continue;
@@ -1419,24 +1368,12 @@ extern pid_t* findPidByName( char* pidName)
 		fgets(buffer, 256, status);
 		fclose(status);
 
-		/* Make sure we only match on the process name */
-		p=buffer+5; /* Skip the name */
-		while ((p)++) {
-			if (*p==0 || *p=='\n') {
-				*p='\0';
-				break;
-			}
-		}
-		p=buffer+6; /* Skip the "Name:\t" */
-
-		if ((strstr(p, pidName) != NULL)
-				&& (strlen(pidName) == strlen(p))) {
-			pidList=realloc( pidList, sizeof(pid_t) * (i+2));
-			if (pidList==NULL)
-				fatalError(memory_exhausted, "");
+		if (strstr(get_last_path_component(buffer), pidName) != NULL) {
+			pidList=xrealloc( pidList, sizeof(pid_t) * (i+2));
 			pidList[i++]=strtol(next->d_name, NULL, 0);
 		}
 	}
+
 	if (pidList)
 		pidList[i]=0;
 	return pidList;
@@ -1444,17 +1381,36 @@ extern pid_t* findPidByName( char* pidName)
 #endif							/* BB_FEATURE_USE_DEVPS_PATCH */
 #endif							/* BB_KILLALL || ( BB_FEATURE_LINUXRC && ( BB_HALT || BB_REBOOT || BB_POWEROFF )) */
 
+#ifndef DMALLOC
 /* this should really be farmed out to libbusybox.a */
 extern void *xmalloc(size_t size)
 {
-	void *cp = malloc(size);
+	void *ptr = malloc(size);
 
-	if (cp == NULL)
-		fatalError(memory_exhausted, "");
-	return cp;
+	if (!ptr)
+		fatalError(memory_exhausted);
+	return ptr;
 }
 
-#if defined BB_FEATURE_NFSMOUNT
+extern void *xrealloc(void *old, size_t size)
+{
+	void *ptr = realloc(old, size);
+	if (!ptr)
+		fatalError(memory_exhausted);
+	return ptr;
+}
+
+extern void *xcalloc(size_t nmemb, size_t size)
+{
+	void *ptr = calloc(nmemb, size);
+	if (!ptr)
+		fatalError(memory_exhausted);
+	return ptr;
+}
+#endif
+
+#if defined BB_FEATURE_NFSMOUNT || defined BB_SH || defined BB_LS
+# ifndef DMALLOC
 extern char * xstrdup (const char *s) {
 	char *t;
 
@@ -1464,11 +1420,14 @@ extern char * xstrdup (const char *s) {
 	t = strdup (s);
 
 	if (t == NULL)
-		fatalError(memory_exhausted, "");
+		fatalError(memory_exhausted);
 
 	return t;
 }
+# endif
+#endif
 
+#if defined BB_FEATURE_NFSMOUNT
 extern char * xstrndup (const char *s, int n) {
 	char *t;
 
@@ -1495,7 +1454,11 @@ extern int vdprintf(int d, const char *format, va_list ap)
 }
 #endif							/* BB_SYSLOGD */
 
+
 #if defined BB_FEATURE_MOUNT_LOOP
+#include <fcntl.h>
+#include "loop.h" /* Pull in loop device support */
+
 extern int del_loop(const char *device)
 {
 	int fd;
@@ -1607,7 +1570,7 @@ extern int find_real_root_device_name(char* name)
 		if (strcmp(entry->d_name, "..") == 0)
 			continue;
 
-		sprintf( fileName, "/dev/%s", entry->d_name);
+		snprintf( fileName, strlen(name)+1, "/dev/%s", entry->d_name);
 
 		if (stat(fileName, &statBuf) != 0)
 			continue;
@@ -1643,8 +1606,8 @@ extern char *get_line_from_file(FILE *file)
 		if (ch == EOF)
 			break;
 		/* grow the line buffer as necessary */
-		if (idx > linebufsz-2)
-			linebuf = realloc(linebuf, linebufsz += GROWBY);
+		while (idx > linebufsz-2)
+			linebuf = xrealloc(linebuf, linebufsz += GROWBY);
 		linebuf[idx++] = (char)ch;
 		if ((char)ch == '\n')
 			break;
@@ -1656,6 +1619,29 @@ extern char *get_line_from_file(FILE *file)
 	linebuf[idx] = 0;
 	return linebuf;
 }
+
+#if defined BB_CAT
+extern void print_file(FILE *file)
+{
+	int c;
+
+	while ((c = getc(file)) != EOF)
+		putc(c, stdout);
+	fclose(file);
+	fflush(stdout);
+}
+
+extern int print_file_by_name(char *filename)
+{
+	FILE *file;
+	file = fopen(filename, "r");
+	if (file == NULL) {
+		return FALSE;
+	}
+	print_file(file);
+	return TRUE;
+}
+#endif /* BB_CAT || BB_LSMOD */
 
 #if defined BB_ECHO || defined BB_TR
 char process_escape_sequence(char **ptr)
@@ -1702,7 +1688,7 @@ char process_escape_sequence(char **ptr)
 }
 #endif
 
-#if defined BB_BASENAME || defined BB_LN
+#if defined BB_BASENAME || defined BB_LN || defined BB_SH
 char *get_last_path_component(char *path)
 {
 	char *s=path+strlen(path)-1;
@@ -1720,18 +1706,15 @@ char *get_last_path_component(char *path)
 #endif
 
 #if defined BB_GREP || defined BB_SED
-int bb_regcomp(regex_t *preg, const char *regex, int cflags)
+void xregcomp(regex_t *preg, const char *regex, int cflags)
 {
 	int ret;
 	if ((ret = regcomp(preg, regex, cflags)) != 0) {
 		int errmsgsz = regerror(ret, preg, NULL, 0);
 		char *errmsg = xmalloc(errmsgsz);
 		regerror(ret, preg, errmsg, errmsgsz);
-		errorMsg("bb_regcomp: %s\n", errmsg);
-		free(errmsg);
-		regfree(preg);
+		fatalError("bb_regcomp: %s\n", errmsg);
 	}
-	return ret;
 }
 #endif
 

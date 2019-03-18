@@ -21,17 +21,12 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 
 extern int sync_main(int argc, char **argv)
 {
-	if (argc > 1 && **(argv + 1) == '-') {
-		usage("sync\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-				"\nWrite all buffered filesystem blocks to disk.\n"
-#endif
-				);
-	}
+	if (argc > 1 && **(argv + 1) == '-')
+		usage(sync_usage);
 	return(sync());
 }

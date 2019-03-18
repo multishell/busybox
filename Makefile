@@ -19,73 +19,107 @@
 #
 
 PROG      := busybox
-VERSION   := 0.46
+VERSION   := 0.47
 BUILDTIME := $(shell TZ=UTC date --utc "+%Y.%m.%d-%H:%M%z")
 export VERSION
-
-# Set the following to `true' to make a debuggable build.
-# Leave this set to `false' for production use.
-# eg: `make DODEBUG=true tests'
-DODEBUG = false
 
 # If you want a static binary, turn this on.
 DOSTATIC = false
 
+# Set the following to `true' to make a debuggable build.
+# Leave this set to `false' for production use.
+# eg: `make DODEBUG=true tests'
+# Do not enable this for production builds...
+DODEBUG = false
+
+# This enables compiling with dmalloc ( http://dmalloc.com/ )
+# which is an excellent public domain mem leak and malloc problem
+# detector.  To enable dmalloc, before running busybox you will
+# want to first set up your environment.
+# eg: `export DMALLOC_OPTIONS=debug=0x14f47d83,inter=100,log=logfile`
+# Do not enable this for production builds...
+DODMALLOC = false
+
+# If you want large file summit support, turn this on.
+# This has no effect if you don't have a kernel with lfs
+# support, and a system with libc-2.1.3 or later.
+# Some of the programs that can benefit from lfs support
+# are dd, gzip, mount, tar, and mkfs_minix.
+# LFS allows you to use the above programs for files
+# larger than 2GB!
+DOLFS = false
+
+
+# If you are running a cross compiler, you may want to set this
+# to something more interesting...
+CROSS = #powerpc-linux-
+CC = $(CROSS)gcc
+STRIPTOOL = $(CROSS)strip
+
 # To compile vs an alternative libc, you may need to use/adjust
-# the following lines to meet your needs.  This is how I did it...
+# the following lines to meet your needs.  This is how I make
+# busybox compile with uC-Libc...
+#LIBCDIR=/home/andersen/CVS/uC-libc
 #GCCINCDIR = $(shell gcc -print-search-dirs | sed -ne "s/install: \(.*\)/\1include/gp")
-#CFLAGS+=-nostdinc -fno-builtin -I/home/andersen/CVS/uC-libc/include -I$(GCCINCDIR)
+#CFLAGS+=-nostdinc -fno-builtin -I$(LIBCDIR)/include -I$(GCCINCDIR)
 #LDFLAGS+=-nostdlib
-#LIBRARIES = /home/andersen/CVS/uC-libc/libc.a
+#LIBRARIES = $(LIBCDIR)/libc.a
 
-
-CC = gcc
+#--------------------------------------------------------
 
 # use '-Os' optimization if available, else use -O2
 OPTIMIZATION = $(shell if $(CC) -Os -S -o /dev/null -xc /dev/null >/dev/null 2>&1; \
     then echo "-Os"; else echo "-O2" ; fi)
 
+WARNINGS = -Wall
 
-# Allow alternative stripping tools to be used...
-ifndef $(STRIPTOOL)
-    STRIPTOOL = strip
+ifeq ($(DOLFS),true)
+    # For large file summit support
+    CFLAGS+=-D_FILE_OFFSET_BITS=64
 endif
-
+ifeq ($(DODMALLOC),true)
+    # For testing mem leaks with dmalloc
+    CFLAGS+=-DDMALLOC
+    LIBRARIES = -ldmalloc
+    # Force debug=true, since this is useless when not debugging...
+    DODEBUG = true
+endif
 # -D_GNU_SOURCE is needed because environ is used in init.c
 ifeq ($(DODEBUG),true)
-    CFLAGS += -Wall -g -D_GNU_SOURCE
+    CFLAGS += $(WARNINGS) -g -D_GNU_SOURCE
     LDFLAGS += 
     STRIP   =
 else
-    CFLAGS  += -Wall $(OPTIMIZATION) -fomit-frame-pointer -D_GNU_SOURCE
+    CFLAGS  += $(WARNINGS) $(OPTIMIZATION) -fomit-frame-pointer -D_GNU_SOURCE
     LDFLAGS  += -s
     STRIP    = $(STRIPTOOL) --remove-section=.note --remove-section=.comment $(PROG)
-    #Only staticly link when _not_ debugging 
-    ifeq ($(DOSTATIC),true)
-	LDFLAGS += --static
-	#
-	#use '-ffunction-sections -fdata-sections' and '--gc-sections' if they work
-	#to try and strip out any unused junk.  Doesn't do much for me, but you may
-	#want to give it a shot...
-	#
-	#ifeq ($(shell $(CC) -ffunction-sections -fdata-sections -S \
-	#	-o /dev/null -xc /dev/null 2>/dev/null && $(LD) --gc-sections -v >/dev/null && echo 1),1)
-	#	CFLAGS += -ffunction-sections -fdata-sections
-	#	LDFLAGS += --gc-sections
-	#endif
-    endif
+endif
+ifeq ($(DOSTATIC),true)
+    LDFLAGS += --static
+    #
+    #use '-ffunction-sections -fdata-sections' and '--gc-sections' (if they 
+    # work) to try and strip out any unused junk.  Doesn't do much for me, 
+    # but you may want to give it a shot...
+    #
+    #ifeq ($(shell $(CC) -ffunction-sections -fdata-sections -S \
+    #	-o /dev/null -xc /dev/null 2>/dev/null && $(LD) \
+    #			--gc-sections -v >/dev/null && echo 1),1)
+    #	CFLAGS += -ffunction-sections -fdata-sections
+    #	LDFLAGS += --gc-sections
+    #endif
 endif
 
 ifndef $(PREFIX)
     PREFIX = `pwd`/_install
 endif
 
-OBJECTS   = $(shell ./busybox.sh) busybox.o messages.o utility.o
+OBJECTS   = $(shell ./busybox.sh) busybox.o messages.o usage.o utility.o
 CFLAGS    += -DBB_VER='"$(VERSION)"'
 CFLAGS    += -DBB_BT='"$(BUILDTIME)"'
 ifdef BB_INIT_SCRIPT
     CFLAGS += -DINIT_SCRIPT='"$(BB_INIT_SCRIPT)"'
 endif
+
 
 all: busybox busybox.links doc
 
@@ -113,7 +147,7 @@ docs/busybox.lineo.com/BusyBox.html: docs/busybox.pod
 
 
 # New docs based on DOCBOOK SGML
-newdoc: docs/busybox.txt docs/busybox.pdf docs/busybox/busybox.html
+newdoc: docs/busybox.txt docs/busybox.pdf docs/busybox/busyboxdocumentation.html
 
 docs/busybox.txt: docs/busybox.sgml
 	@echo
@@ -130,33 +164,37 @@ docs/busybox.ps: docs/busybox.sgml
 docs/busybox.pdf: docs/busybox.ps
 	(cd docs; ps2pdf busybox.ps)
 
-docs/busybox/busybox.html: docs/busybox.sgml
+docs/busybox/busyboxdocumentation.html: docs/busybox.sgml
 	(cd docs/busybox.lineo.com; sgmltools -b html ../busybox.sgml)
 
 
 
-busybox: $(OBJECTS)
+busybox: $(OBJECTS) 
 	$(CC) $(LDFLAGS) -o $@ $^ $(LIBRARIES)
 	$(STRIP)
 
-busybox.links: busybox.def.h
+busybox.links: Config.h
 	- ./busybox.mkll | sort >$@
 
 nfsmount.o cmdedit.o: %.o: %.h
-$(OBJECTS): %.o: busybox.def.h internal.h  %.c Makefile
+$(OBJECTS): %.o: Config.h busybox.h  %.c Makefile
+
+utility.o: loop.h
+
+loop.h:
+	@./mk_loop_h.sh
 
 test tests:
 	cd tests && $(MAKE) all
 
 clean:
-	- rm -f busybox.links *~ *.o core
-	- rm -rf _install
-	- cd tests && $(MAKE) clean
+	cd tests && $(MAKE) clean
 	- rm -f docs/BusyBox.txt docs/BusyBox.1 docs/BusyBox.html \
 	    docs/busybox.lineo.com/BusyBox.html
 	- rm -f docs/busybox.txt docs/busybox.dvi docs/busybox.ps \
 	    docs/busybox.pdf docs/busybox.lineo.com/busybox.html
-	- rm -rf docs/busybox
+	- rm -rf docs/busybox _install
+	- rm -f busybox.links *~ *.o core
 
 distclean: clean
 	- rm -f busybox
@@ -164,6 +202,9 @@ distclean: clean
 
 install: busybox busybox.links
 	./install.sh $(PREFIX)
+
+install-hardlinks: busybox busybox.links
+	./install.sh $(PREFIX) --hardlinks
 
 dist release: distclean doc
 	cd ..;					\

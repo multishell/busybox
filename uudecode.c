@@ -51,7 +51,7 @@
 
 /* Reworked to GNU style by Ian Lance Taylor, ian@airs.com, August 93.  */
 
-#include "internal.h"
+#include "busybox.h"
 
 #include <stdio.h>
 #include <errno.h>
@@ -286,7 +286,7 @@ static int decode (const char *inname,
       && (freopen (outname, "w", stdout) == NULL
 	  || chmod (outname, mode & (S_IRWXU | S_IRWXG | S_IRWXO))
          )) {
-    errorMsg("uudeoce %s: %s %s\n", outname, inname, strerror(errno)); /* */
+    errorMsg("%s: %s %s\n", outname, inname, strerror(errno)); /* */
     return FALSE;
   }
 
@@ -299,15 +299,6 @@ static int decode (const char *inname,
   else
     return read_stduu (inname);
 }
-
-static const char uudecode_usage[] =
-    "uudecode [FILE]...\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-    "\nUudecode a file that is uuencoded.\n\n"
-    "Options:\n"
-    "\t-o FILE\tdirect output to FILE\n"
-#endif
-;
 
 int uudecode_main (int argc,
                    char **argv)
@@ -340,7 +331,7 @@ int uudecode_main (int argc,
         if (decode (argv[optind], outname) != 0)
           exit_status = FALSE;
       } else {
-        errorMsg("uudecode: %s: %s\n", argv[optind], strerror(errno));
+        errorMsg("%s: %s\n", argv[optind], strerror(errno));
         exit_status = FALSE;
       }
       optind++;

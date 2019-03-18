@@ -21,16 +21,8 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
-
-const char *basename_usage="basename FILE [SUFFIX]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nStrips directory path and suffixes from FILE.\n"
-	"If specified, also removes any trailing SUFFIX.\n"
-#endif
-;
-
 
 extern int basename_main(int argc, char **argv)
 {

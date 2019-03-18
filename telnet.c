@@ -31,7 +31,7 @@
  */
 
 
-#include "internal.h"
+#include "busybox.h"
 #include <termios.h>
 #include <unistd.h>
 #include <errno.h>
@@ -49,7 +49,7 @@
 #define DOTRACE 1
 #endif
 
-#if DOTRACE
+#ifdef DOTRACE
 #include <arpa/inet.h> /* for inet_ntoa()... */
 #define TRACE(x, y) do { if (x) printf y; } while (0)
 #else
@@ -134,14 +134,6 @@ static int local_bind(int port);
 
 /* Some globals */
 static int one = 1;
-static const char telnet_usage[] =
-	"telnet host [port]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nTelnet is used to establish interactive communication with another\n"
-	"computer over a network using the TELNET protocol.\n"
-#endif
-	;
-
 
 static void doexit(int ev)
 {
@@ -603,7 +595,7 @@ static struct in_addr getserver(char * host)
 	struct hostent * he;
 	if ((he = gethostbyname(host)) == NULL)
 	{
-		fatalError("%s: Unkonwn host\n", host);
+		fatalError("%s: Unknown host\n", host);
 	}
 	memcpy(&addr, he->h_addr, sizeof addr);
 

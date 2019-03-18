@@ -36,9 +36,10 @@
  */
 
 
-#include "internal.h"
+#include "busybox.h"
 #define BB_DECLARE_EXTERN
 #define bb_need_io_error
+#define bb_need_name_longer_then_foo
 #include "messages.c"
 #include <stdio.h>
 #include <dirent.h>
@@ -49,37 +50,7 @@
 #include <utime.h>
 #include <sys/types.h>
 #include <sys/sysmacros.h>
-
-
-static const char tar_usage[] =
-#ifdef BB_FEATURE_TAR_CREATE
-	"tar -[cxtvO] "
-#else
-	"tar -[xtvO] "
-#endif
-#if defined BB_FEATURE_TAR_EXCLUDE
-	"[--exclude File] "
-#endif
-	"[-f tarFile] [FILE] ...\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nCreate, extract, or list files from a tar file.  Note that\n"
-	"this version of tar treats hard links as separate files.\n\n"
-	"Main operation mode:\n"
-#ifdef BB_FEATURE_TAR_CREATE
-	"\tc\t\tcreate\n"
-#endif
-	"\tx\t\textract\n"
-	"\tt\t\tlist\n"
-	"\nFile selection:\n"
-	"\tf\t\tname of tarfile or \"-\" for stdin\n"
-	"\tO\t\textract to stdout\n"
-#if defined BB_FEATURE_TAR_EXCLUDE
-	"\t--exclude\tfile to exclude\n"
-#endif
-	"\nInformative output:\n"
-	"\tv\t\tverbosely list files processed\n"
-#endif
-	;
+#include <getopt.h>
 
 /* Tar file constants  */
 #ifndef MAJOR
@@ -87,12 +58,13 @@ static const char tar_usage[] =
 #define MINOR(dev) ((dev)&0xff)
 #endif
 
+#define NAME_SIZE	100
 
 /* POSIX tar Header Block, from POSIX 1003.1-1990  */
 struct TarHeader
 {
                                 /* byte offset */
-	char name[100];               /*   0-99 */
+	char name[NAME_SIZE];         /*   0-99 */
 	char mode[8];                 /* 100-107 */
 	char uid[8];                  /* 108-115 */
 	char gid[8];                  /* 116-123 */
@@ -100,7 +72,7 @@ struct TarHeader
 	char mtime[12];               /* 136-147 */
 	char chksum[8];               /* 148-155 */
 	char typeflag;                /* 156-156 */
-	char linkname[100];           /* 157-256 */
+	char linkname[NAME_SIZE];     /* 157-256 */
 	char magic[6];                /* 257-262 */
 	char version[2];              /* 263-264 */
 	char uname[32];               /* 265-296 */
@@ -132,6 +104,8 @@ enum TarFileType
 	DIRTYPE  = '5',            /* directory */
 	FIFOTYPE = '6',            /* FIFO special */
 	CONTTYPE = '7',            /* reserved */
+	GNULONGLINK = 'K',         /* GNU long (>100 chars) link name */
+	GNULONGNAME = 'L',         /* GNU long (>100 chars) file name */
 };
 typedef enum TarFileType TarFileType;
 
@@ -156,7 +130,8 @@ typedef struct TarInfo TarInfo;
 
 /* Local procedures to restore files from a tar file.  */
 static int readTarFile(const char* tarName, int extractFlag, int listFlag, 
-		int tostdoutFlag, int verboseFlag, char** excludeList);
+		int tostdoutFlag, int verboseFlag, char** extractList,
+		char** excludeList);
 
 
 
@@ -165,7 +140,6 @@ static int readTarFile(const char* tarName, int extractFlag, int listFlag,
 static int writeTarFile(const char* tarName, int tostdoutFlag, 
 		int verboseFlag, int argc, char **argv, char** excludeList);
 #endif
-
 
 extern int tar_main(int argc, char **argv)
 {
@@ -179,16 +153,42 @@ extern int tar_main(int argc, char **argv)
 	int createFlag   = FALSE;
 	int verboseFlag  = FALSE;
 	int tostdoutFlag = FALSE;
+	int firstOpt = TRUE;
 	int stopIt;
+																		   
 
 	if (argc <= 1)
 		usage(tar_usage);
 
-	/* Parse any options */
-	while (--argc > 0 && strspn(*(++argv), "-cxt") >0 ) {
+	/* do normal option parsing */
+	while (--argc > 0 && ((*argv && **(++argv) == '-') || 
+				(firstOpt==TRUE && strspn(*argv, "-cxt") ))) {
+		firstOpt=FALSE;
 		stopIt=FALSE;
 		while (stopIt==FALSE && *argv && **argv) {
 			switch (**argv) {
+				case 'c':
+					if (extractFlag == TRUE || listFlag == TRUE)
+						goto flagError;
+					createFlag = TRUE;
+					break;
+				case 'x':
+					if (listFlag == TRUE || createFlag == TRUE)
+						goto flagError;
+					extractFlag = TRUE;
+					break;
+				case 't':
+					if (extractFlag == TRUE || createFlag == TRUE)
+						goto flagError;
+					listFlag = TRUE;
+					break;
+				case 'v':
+					verboseFlag = TRUE;
+					break;
+				case 'O':
+					tostdoutFlag = TRUE;
+					tarName = "-";
+					break;					
 				case 'f':
 					if (--argc == 0) {
 						fatalError( "Option requires an argument: No file specified\n");
@@ -198,64 +198,31 @@ extern int tar_main(int argc, char **argv)
 					tarName = *(++argv);
 					if (tarName == NULL)
 						fatalError( "Option requires an argument: No file specified\n");
-					if (!strcmp(tarName, "-"))
+					if (!strcmp(tarName, "-") && createFlag == TRUE)
 						tostdoutFlag = TRUE;
 					stopIt=TRUE;
 					break;
-
-				case 't':
-					if (extractFlag == TRUE || createFlag == TRUE)
-						goto flagError;
-					listFlag = TRUE;
-					break;
-
-				case 'x':
-					if (listFlag == TRUE || createFlag == TRUE)
-						goto flagError;
-					extractFlag = TRUE;
-					break;
-				case 'c':
-					if (extractFlag == TRUE || listFlag == TRUE)
-						goto flagError;
-					createFlag = TRUE;
-					break;
-
-				case 'v':
-					verboseFlag = TRUE;
-					break;
-
-				case 'O':
-					tostdoutFlag = TRUE;
-					tarName = "-";
-					break;
-				case '-':
 #if defined BB_FEATURE_TAR_EXCLUDE
+				case 'e':
 					if (strcmp(*argv, "-exclude")==0) {
 						if (--argc == 0) {
 							fatalError( "Option requires an argument: No file specified\n");
 						}
-						excludeList=realloc( excludeList, sizeof(char**) * (excludeListSize+2));
+						excludeList=xrealloc( excludeList, sizeof(char**) * (excludeListSize+2));
 						excludeList[excludeListSize] = *(++argv);
 						/* Remove leading "/"s */
-						if (*excludeList[excludeListSize] =='/') {
+						if (*excludeList[excludeListSize] =='/')
 							excludeList[excludeListSize] = (excludeList[excludeListSize])+1;
-						}
-						if (excludeList[excludeListSize++] == NULL)
-							fatalError( "Option requires an argument: No file specified\n");
 						/* Tack a NULL onto the end of the list */
-						excludeList[excludeListSize] = NULL;
+						excludeList[++excludeListSize] = NULL;
 						stopIt=TRUE;
 						break;
 					}
 #endif
-					if (strcmp(*argv, "-help")==0) {
-						usage(tar_usage);
-					}
-					break;
-
+				case '-':
+						break;
 				default:
-					fatalError( "Unknown tar flag '%c'\n" 
-							"Try `tar --help' for more information\n", **argv);
+					usage(tar_usage);
 			}
 			++(*argv);
 		}
@@ -273,7 +240,7 @@ extern int tar_main(int argc, char **argv)
 #endif
 	}
 	if (listFlag == TRUE || extractFlag == TRUE) {
-		exit(readTarFile(tarName, extractFlag, listFlag, tostdoutFlag, verboseFlag, excludeList));
+		exit(readTarFile(tarName, extractFlag, listFlag, tostdoutFlag, verboseFlag, &argv[optind], excludeList));
 	}
 
   flagError:
@@ -330,7 +297,7 @@ tarExtractRegularFile(TarInfo *header, int extractFlag, int tostdoutFlag)
 		}
 		if ( (readSize = fullRead(header->tarFd, buffer, readSize)) <= 0 ) {
 			/* Tarball seems to have a problem */
-			errorMsg("tar: Unexpected EOF in archive\n"); 
+			errorMsg("Unexpected EOF in archive\n"); 
 			return( FALSE);
 		}
 		if ( readSize < writeSize )
@@ -368,7 +335,7 @@ tarExtractDirectory(TarInfo *header, int extractFlag, int tostdoutFlag)
 		return( TRUE);
 
 	if (createPath(header->name, header->mode) != TRUE) {
-		errorMsg("tar: %s: Cannot mkdir: %s\n", 
+		errorMsg("%s: Cannot mkdir: %s\n", 
 				header->name, strerror(errno)); 
 		return( FALSE);
 	}
@@ -388,7 +355,7 @@ tarExtractHardLink(TarInfo *header, int extractFlag, int tostdoutFlag)
 		return( TRUE);
 
 	if (link(header->linkname, header->name) < 0) {
-		errorMsg("tar: %s: Cannot create hard link to '%s': %s\n", 
+		errorMsg("%s: Cannot create hard link to '%s': %s\n", 
 				header->name, header->linkname, strerror(errno)); 
 		return( FALSE);
 	}
@@ -406,7 +373,7 @@ tarExtractSymLink(TarInfo *header, int extractFlag, int tostdoutFlag)
 
 #ifdef	S_ISLNK
 	if (symlink(header->linkname, header->name) < 0) {
-		errorMsg("tar: %s: Cannot create symlink to '%s': %s\n", 
+		errorMsg("%s: Cannot create symlink to '%s': %s\n", 
 				header->name, header->linkname, strerror(errno)); 
 		return( FALSE);
 	}
@@ -421,7 +388,7 @@ tarExtractSymLink(TarInfo *header, int extractFlag, int tostdoutFlag)
 	/* Do not change permissions or date on symlink,
 	 * since it changes the pointed to file instead.  duh. */
 #else
-	errorMsg("tar: %s: Cannot create symlink to '%s': %s\n", 
+	errorMsg("%s: Cannot create symlink to '%s': %s\n", 
 			header->name, header->linkname, 
 			"symlinks not supported"); 
 #endif
@@ -436,13 +403,13 @@ tarExtractSpecial(TarInfo *header, int extractFlag, int tostdoutFlag)
 
 	if (S_ISCHR(header->mode) || S_ISBLK(header->mode) || S_ISSOCK(header->mode)) {
 		if (mknod(header->name, header->mode, makedev(header->devmajor, header->devminor)) < 0) {
-			errorMsg("tar: %s: Cannot mknod: %s\n",
+			errorMsg("%s: Cannot mknod: %s\n",
 				header->name, strerror(errno)); 
 			return( FALSE);
 		}
 	} else if (S_ISFIFO(header->mode)) {
 		if (mkfifo(header->name, header->mode) < 0) {
-			errorMsg("tar: %s: Cannot mkfifo: %s\n",
+			errorMsg("%s: Cannot mkfifo: %s\n",
 				header->name, strerror(errno)); 
 			return( FALSE);
 		}
@@ -490,7 +457,7 @@ readTarHeader(struct TarHeader *rawHeader, struct TarInfo *header)
 			++*(header->name);
 
 		if (alreadyWarned == FALSE) {
-			errorMsg("tar: Removing leading '/' from member names\n");
+			errorMsg("Removing leading '/' from member names\n");
 			alreadyWarned = TRUE;
 		}
 	}
@@ -528,15 +495,15 @@ readTarHeader(struct TarHeader *rawHeader, struct TarInfo *header)
  * If the list is empty than all files are extracted or listed.
  */
 static int readTarFile(const char* tarName, int extractFlag, int listFlag, 
-		int tostdoutFlag, int verboseFlag, char** excludeList)
+		int tostdoutFlag, int verboseFlag, char** extractList,
+		char** excludeList)
 {
 	int status, tarFd=-1;
 	int errorFlag=FALSE;
+	int skipNextHeaderFlag=FALSE;
 	TarHeader rawHeader;
 	TarInfo header;
-#if defined BB_FEATURE_TAR_EXCLUDE
 	char** tmpList;
-#endif
 
 	/* Open the tar file for reading.  */
 	if (!strcmp(tarName, "-"))
@@ -555,7 +522,7 @@ static int readTarFile(const char* tarName, int extractFlag, int listFlag,
 	/* Read the tar file, and iterate over it one file at a time */
 	while ( (status = fullRead(tarFd, (char*)&rawHeader, TAR_BLOCK_SIZE)) == TAR_BLOCK_SIZE ) {
 
-		/* First, try to read the header */
+		/* Try to read the header */
 		if ( readTarHeader(&rawHeader, &header) == FALSE ) {
 			if ( *(header.name) == '\0' ) {
 				goto endgame;
@@ -568,6 +535,19 @@ static int readTarFile(const char* tarName, int extractFlag, int listFlag,
 		if ( *(header.name) == '\0' )
 				goto endgame;
 		header.tarFd = tarFd;
+
+		/* Skip funky extra GNU headers that precede long files */
+		if ( (header.type == GNULONGNAME) || (header.type == GNULONGLINK) ) {
+			skipNextHeaderFlag=TRUE;
+			tarExtractRegularFile(&header, FALSE, FALSE);
+			continue;
+		}
+		if ( skipNextHeaderFlag == TRUE ) { 
+			skipNextHeaderFlag=FALSE;
+			errorMsg(name_longer_then_foo, NAME_SIZE); 
+			tarExtractRegularFile(&header, FALSE, FALSE);
+			continue;
+		}
 
 #if defined BB_FEATURE_TAR_EXCLUDE
 		{
@@ -595,63 +575,89 @@ static int readTarFile(const char* tarName, int extractFlag, int listFlag,
 				continue;
 		}
 #endif
-		/* Special treatment if the list (-t) flag is on */
-		if (verboseFlag == TRUE && extractFlag == FALSE) {
-			int len, len1;
-			char buf[35];
-			struct tm *tm = localtime (&(header.mtime));
-
-			len=printf("%s ", modeString(header.mode));
-			memset(buf, 0, 8*sizeof(char));
-			my_getpwuid(buf, header.uid);
-			if (! *buf)
-				len+=printf("%d", header.uid);
-			else
-				len+=printf("%s", buf);
-			memset(buf, 0, 8*sizeof(char));
-			my_getgrgid(buf, header.gid);
-			if (! *buf)
-				len+=printf("/%-d ", header.gid);
-			else
-				len+=printf("/%-s ", buf);
-
-			if (header.type==CHRTYPE || header.type==BLKTYPE) {
-				len1=snprintf(buf, sizeof(buf), "%ld,%-ld ", 
-						header.devmajor, header.devminor);
-			} else {
-				len1=snprintf(buf, sizeof(buf), "%lu ", (long)header.size);
+		if (*extractList != NULL) {
+			int skipFlag = TRUE;
+			for (tmpList = extractList; *tmpList != NULL; tmpList++) {
+				if (strncmp( *tmpList, header.name, strlen(*tmpList))==0 || (
+							header.name[strlen(header.name)-1]=='/'
+							&& strncmp( *tmpList, header.name, 
+								MIN(strlen(header.name)-1, strlen(*tmpList)))==0)) {
+					/* If it is a regular file, pretend to extract it with
+					 * the extractFlag set to FALSE, so the junk in the tarball
+					 * is properly skipped over */
+					skipFlag = FALSE;
+					break;
+				}
 			}
-			/* Jump through some hoops to make the columns match up */
-			for(;(len+len1)<31;len++)
-				printf(" ");
-			printf(buf);
-
-			/* Use ISO 8610 time format */
-			if (tm) { 
-				printf ("%04d-%02d-%02d %02d:%02d:%02d ", 
-						tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, 
-						tm->tm_hour, tm->tm_min, tm->tm_sec);
+			/* There are not the droids you're looking for, move along */
+			if (skipFlag == TRUE) {
+				if ( header.type==REGTYPE || header.type==REGTYPE0 )
+						tarExtractRegularFile(&header, FALSE, FALSE);
+				continue;
 			}
 		}
-		/* List contents if we are supposed to do that */
-		if (verboseFlag == TRUE || listFlag == TRUE) {
-			/* Now the normal listing */
+
+		if (listFlag == TRUE) {
+			/* Special treatment if the list (-t) flag is on */
+			if (verboseFlag == TRUE) {
+				int len, len1;
+				char buf[35];
+				struct tm *tm = localtime (&(header.mtime));
+
+				len=printf("%s ", modeString(header.mode));
+				memset(buf, 0, 8*sizeof(char));
+				my_getpwuid(buf, header.uid);
+				if (! *buf)
+					len+=printf("%d", header.uid);
+				else
+					len+=printf("%s", buf);
+				memset(buf, 0, 8*sizeof(char));
+				my_getgrgid(buf, header.gid);
+				if (! *buf)
+					len+=printf("/%-d ", header.gid);
+				else
+					len+=printf("/%-s ", buf);
+
+				if (header.type==CHRTYPE || header.type==BLKTYPE) {
+					len1=snprintf(buf, sizeof(buf), "%ld,%-ld ", 
+							header.devmajor, header.devminor);
+				} else {
+					len1=snprintf(buf, sizeof(buf), "%lu ", (long)header.size);
+				}
+				/* Jump through some hoops to make the columns match up */
+				for(;(len+len1)<31;len++)
+					printf(" ");
+				printf(buf);
+
+				/* Use ISO 8610 time format */
+				if (tm) { 
+					printf ("%04d-%02d-%02d %02d:%02d:%02d ", 
+							tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, 
+							tm->tm_hour, tm->tm_min, tm->tm_sec);
+				}
+			}
 			printf("%s", header.name);
-		}
-		if (verboseFlag == TRUE && listFlag == TRUE) {
-			/* If this is a link, say so */
-			if (header.type==LNKTYPE)
-				printf(" link to %s", header.linkname);
-			else if (header.type==SYMTYPE)
-				printf(" -> %s", header.linkname);
-		}
-		if (verboseFlag == TRUE || listFlag == TRUE) {
+			if (verboseFlag == TRUE) {
+				if (header.type==LNKTYPE)	/* If this is a link, say so */
+					printf(" link to %s", header.linkname);
+				else if (header.type==SYMTYPE)
+					printf(" -> %s", header.linkname);
+			}
 			printf("\n");
 		}
 
-		/* Remove any clutter lying in our way */
-		if (extractFlag == TRUE)	/* .. but only if we are extracting (as */
-			unlink( header.name);	/* opposed to listing) (rob@sysgo.de)   */
+		/* List contents if we are supposed to do that */
+		if (verboseFlag == TRUE && extractFlag == TRUE) {
+			/* Now the normal listing */
+			FILE *vbFd = stdout;
+			if (tostdoutFlag == TRUE)	// If the archive goes to stdout, verbose to stderr
+				vbFd = stderr;
+			fprintf(vbFd, "%s\n", header.name);
+		}
+			
+		/* Remove files if we would overwrite them */
+		if (extractFlag == TRUE && tostdoutFlag == FALSE)
+			unlink(header.name);
 
 		/* If we got here, we can be certain we have a legitimate 
 		 * header to work with.  So work with it.  */
@@ -683,7 +689,15 @@ static int readTarFile(const char* tarName, int extractFlag, int listFlag,
 				if (tarExtractSpecial( &header, extractFlag, tostdoutFlag)==FALSE)
 					errorFlag=TRUE;
 				break;
+#if 0
+			/* Handled earlier */
+			case GNULONGNAME:
+			case GNULONGLINK:
+				skipNextHeaderFlag=TRUE;
+				break;
+#endif
 			default:
+				errorMsg("Unknown file type '%c' in tar file\n", header.type);
 				close( tarFd);
 				return( FALSE);
 		}
@@ -695,7 +709,7 @@ static int readTarFile(const char* tarName, int extractFlag, int listFlag,
 		return ( FALSE);
 	}
 	else if (errorFlag==TRUE) {
-		errorMsg( "tar: Error exit delayed from previous errors\n");
+		errorMsg( "Error exit delayed from previous errors\n");
 		return( FALSE);
 	} else 
 		return( status);
@@ -705,7 +719,7 @@ endgame:
 	close( tarFd);
 	if ( *(header.name) == '\0' ) {
 		if (errorFlag==TRUE)
-			errorMsg( "tar: Error exit delayed from previous errors\n");
+			errorMsg( "Error exit delayed from previous errors\n");
 		else
 			return( TRUE);
 	} 
@@ -776,13 +790,13 @@ writeTarHeader(struct TarBallInfo *tbInfo, const char *fileName, struct stat *st
 #endif
 	const unsigned char *cp = (const unsigned char *) &header;
 	ssize_t size = sizeof(struct TarHeader);
-
+		
 	memset( &header, 0, size);
 
 	if (*fileName=='/') {
 		static int alreadyWarned=FALSE;
 		if (alreadyWarned==FALSE) {
-			errorMsg("tar: Removing leading '/' from member names\n");
+			errorMsg("Removing leading '/' from member names\n");
 			alreadyWarned=TRUE;
 		}
 		strncpy(header.name, fileName+1, sizeof(header.name)); 
@@ -854,7 +868,7 @@ writeTarHeader(struct TarBallInfo *tbInfo, const char *fileName, struct stat *st
 		header.typeflag  = REGTYPE;
 		putOctal(header.size, sizeof(header.size), statbuf->st_size);
 	} else {
-		errorMsg("tar: %s: Unknown file type\n", fileName);
+		errorMsg("%s: Unknown file type\n", fileName);
 		return ( FALSE);
 	}
 
@@ -879,8 +893,12 @@ writeTarHeader(struct TarBallInfo *tbInfo, const char *fileName, struct stat *st
 		write(tbInfo->tarFd, "\0", 1);
 	}
 	/* Now do the verbose thing (or not) */
-	if (tbInfo->verboseFlag==TRUE)
-		fprintf(stdout, "%s\n", header.name);
+	if (tbInfo->verboseFlag==TRUE) {
+		FILE *vbFd = stdout;
+		if (tbInfo->tarFd == fileno(stdout))	// If the archive goes to stdout, verbose to stderr
+			vbFd = stderr;
+		fprintf(vbFd, "%s\n", header.name);
+	}
 
 	return ( TRUE);
 }
@@ -892,7 +910,7 @@ static int writeFileToTarball(const char *fileName, struct stat *statbuf, void* 
 
 	/* It is against the rules to archive a socket */
 	if (S_ISSOCK(statbuf->st_mode)) {
-		errorMsg("tar: %s: socket ignored\n", fileName);
+		errorMsg("%s: socket ignored\n", fileName);
 		return( TRUE);
 	}
 
@@ -901,8 +919,13 @@ static int writeFileToTarball(const char *fileName, struct stat *statbuf, void* 
 	 * the new tarball */
 	if (tbInfo->statBuf.st_dev == statbuf->st_dev &&
 			tbInfo->statBuf.st_ino == statbuf->st_ino) {
-		errorMsg("tar: %s: file is the archive; skipping\n", fileName);
+		errorMsg("%s: file is the archive; skipping\n", fileName);
 		return( TRUE);
+	}
+
+	if (strlen(fileName) >= NAME_SIZE) {
+		errorMsg(name_longer_then_foo, NAME_SIZE);
+		return ( TRUE);
 	}
 
 	if (writeTarHeader(tbInfo, fileName, statbuf)==FALSE) {
@@ -917,7 +940,7 @@ static int writeFileToTarball(const char *fileName, struct stat *statbuf, void* 
 
 		/* open the file we want to archive, and make sure all is well */
 		if ((inputFileFd = open(fileName, O_RDONLY)) < 0) {
-			errorMsg("tar: %s: Cannot open: %s\n", fileName, strerror(errno));
+			errorMsg("%s: Cannot open: %s\n", fileName, strerror(errno));
 			return( FALSE);
 		}
 		
@@ -955,7 +978,7 @@ static int writeTarFile(const char* tarName, int tostdoutFlag,
 
 	/* Make sure there is at least one file to tar up.  */
 	if (argc <= 0)
-		fatalError("tar: Cowardly refusing to create an empty archive\n");
+		fatalError("Cowardly refusing to create an empty archive\n");
 
 	/* Open the tar file for writing.  */
 	if (tostdoutFlag == TRUE)
@@ -963,7 +986,7 @@ static int writeTarFile(const char* tarName, int tostdoutFlag,
 	else
 		tbInfo.tarFd = open (tarName, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (tbInfo.tarFd < 0) {
-		errorMsg( "tar: Error opening '%s': %s\n", tarName, strerror(errno));
+		errorMsg( "Error opening '%s': %s\n", tarName, strerror(errno));
 		return ( FALSE);
 	}
 	tbInfo.excludeList=excludeList;
@@ -997,7 +1020,7 @@ static int writeTarFile(const char* tarName, int tostdoutFlag,
 	/* Hang up the tools, close up shop, head home */
 	close(tarFd);
 	if (errorFlag == TRUE) {
-		errorMsg("tar: Error exit delayed from previous errors\n");
+		errorMsg("Error exit delayed from previous errors\n");
 		return(FALSE);
 	}
 	return( TRUE);

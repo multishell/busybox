@@ -22,7 +22,7 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <dirent.h>
@@ -31,18 +31,6 @@
 static char *pattern = NULL;
 static char *directory = ".";
 static int dereferenceFlag = FALSE;
-
-static const char find_usage[] = "find [PATH...] [EXPRESSION]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nSearch for files in a directory hierarchy.  The default PATH is\n"
-	"the current directory; default EXPRESSION is '-print'\n\n"
-	"\nEXPRESSION may consist of:\n"
-	"\t-follow\t\tDereference symbolic links.\n"
-	"\t-name PATTERN\tFile name (leading directories removed) matches PATTERN.\n"
-	"\t-print\t\tprint the full file name followed by a newline to stdout.\n"
-#endif
-	;
-
 
 static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
 {

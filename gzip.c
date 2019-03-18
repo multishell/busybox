@@ -29,7 +29,7 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #define BB_DECLARE_EXTERN
 #define bb_need_memory_exhausted
 #include "messages.c"
@@ -39,19 +39,6 @@
  * size Freaking Huge(tm), which is a bad thing.*/
 #define SMALL_MEM
 #define DYN_ALLOC
-
-
-static const char gzip_usage[] =
-	"gzip [OPTION]... FILE\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nCompress FILE with maximum compression.\n"
-	"When FILE is '-', reads standard input.  Implies -c.\n\n"
-
-	"Options:\n"
-	"\t-c\tWrite output to standard output instead of FILE.gz\n"
-#endif
-	;
-
 
 /* I don't like nested includes, but the string and io functions are used
  * too often
@@ -127,7 +114,7 @@ extern int method;				/* compression method */
 #  define DECLARE(type, array, size)  type * array
 #  define ALLOC(type, array, size) { \
       array = (type*)calloc((size_t)(((size)+1L)/2), 2*sizeof(type)); \
-      if (array == NULL) errorMsg(memory_exhausted, "gzip"); \
+      if (array == NULL) errorMsg(memory_exhausted); \
    }
 #  define FREE(array) {if (array != NULL) free(array), array=NULL;}
 #else
@@ -1622,7 +1609,6 @@ ulg deflate()
 #include <ctype.h>
 #include <sys/types.h>
 #include <signal.h>
-#include <sys/stat.h>
 #include <errno.h>
 
 		/* configuration */
@@ -1814,14 +1800,11 @@ int gzip_main(int argc, char **argv)
 	char *delFileName;
 	int tostdout = 0;
 	int fromstdin = 0;
-
-	if (argc == 1)
-		usage(gzip_usage);
+	int force = 0;
 
 	/* Parse any options */
 	while (--argc > 0 && **(++argv) == '-') {
 		if (*((*argv) + 1) == '\0') {
-			fromstdin = 1;
 			tostdout = 1;
 		}
 		while (*(++(*argv))) {
@@ -1829,11 +1812,27 @@ int gzip_main(int argc, char **argv)
 			case 'c':
 				tostdout = 1;
 				break;
+			case 'f':
+				force = 1;
+				break;
+			/* Ignore 1-9 (compression level) options */
+			case '1': case '2': case '3': case '4': case '5':
+			case '6': case '7': case '8': case '9':
+				break;
 			default:
 				usage(gzip_usage);
 			}
 		}
 	}
+	if (argc <= 0 ) {
+		fromstdin = 1;
+		tostdout = 1;
+	}
+
+	if (isatty(fileno(stdin)) && fromstdin==1 && force==0)
+		fatalError( "data not read from terminal. Use -f to force it.\n");
+	if (isatty(fileno(stdout)) && tostdout==1 && force==0)
+		fatalError( "data not written to terminal. Use -f to force it.\n");
 
 	foreground = signal(SIGINT, SIG_IGN) != SIG_IGN;
 	if (foreground) {
@@ -1873,7 +1872,7 @@ int gzip_main(int argc, char **argv)
 		ifile_size = -1L;		/* convention for unknown size */
 	} else {
 		/* Open up the input file */
-		if (*argv == '\0')
+		if (argc <= 0)
 			usage(gzip_usage);
 		strncpy(ifname, *argv, MAX_PATH_LEN);
 
@@ -3251,7 +3250,7 @@ char *env;						/* name of environment variable */
 	nargv = (char **) calloc(*argcp + 1, sizeof(char *));
 
 	if (nargv == NULL)
-		errorMsg(memory_exhausted, "gzip");
+		errorMsg(memory_exhausted);
 	oargv = *argvp;
 	*argvp = nargv;
 

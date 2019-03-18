@@ -34,9 +34,16 @@
  *
  * 2000-01-12   Ben Collins <bcollins@debian.org>, Borrowed utils-linux's
  *              mount to add loop support.
+ *
+ * 2000-04-30	Dave Cinege <dcinege@psychosis.com>
+ *		Rewrote fstab while loop and lower mount section. Can now do
+ *		single mounts from fstab. Can override fstab options for single
+ *		mount. Common mount_one call for single mounts and 'all'. Fixed
+ *		mtab updating and stale entries. Removed 'remount' default. 
+ *	
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
@@ -80,38 +87,6 @@ extern int umount2 (__const char *__special_file, int __flags);
 
 extern const char mtab_file[];	/* Defined in utility.c */
 
-static const char mount_usage[] = 
-	"mount [flags] device directory [-o options,more-options]\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nMount a filesystem\n\n"
-	"Flags:\n" 
-	"\t-a:\t\tMount all filesystems in fstab.\n"
-#ifdef BB_MTAB
-	"\t-f:\t\t\"Fake\" mount. Add entry to mount table but don't mount it.\n"
-	"\t-n:\t\tDon't write a mount table entry.\n"
-#endif
-	"\t-o option:\tOne of many filesystem options, listed below.\n"
-	"\t-r:\t\tMount the filesystem read-only.\n"
-	"\t-t fs-type:\tSpecify the filesystem type.\n"
-	"\t-w:\t\tMount for reading and writing (default).\n"
-	"\n"
-	"Options for use with the \"-o\" flag:\n"
-	"\tasync/sync:\tWrites are asynchronous / synchronous.\n"
-	"\tatime/noatime:\tEnable / disable updates to inode access times.\n"
-	"\tdev/nodev:\tAllow use of special device files / disallow them.\n"
-	"\texec/noexec:\tAllow use of executable files / disallow them.\n"
-#if defined BB_FEATURE_MOUNT_LOOP
-	"\tloop:\t\tMounts a file via loop device.\n"
-#endif
-	"\tsuid/nosuid:\tAllow set-user-id-root programs / disallow them.\n"
-	"\tremount:\tRe-mount a currently-mounted filesystem, changing its flags.\n"
-	"\tro/rw:\t\tMount for read-only / read-write.\n"
-	"\nThere are EVEN MORE flags that are specific to each filesystem.\n"
-	"You'll have to see the written documentation for those.\n"
-#endif
-	;
-
-
 struct mount_options {
 	const char *name;
 	unsigned long and;
@@ -144,11 +119,11 @@ do_mount(char *specialfile, char *dir, char *filesystemtype,
 		 char *mtab_opts)
 {
 	int status = 0;
+#if defined BB_FEATURE_MOUNT_LOOP
 	char *lofile = NULL;
-
-#if defined BB_MTAB
-	if (fakeIt == FALSE)
 #endif
+
+	if (fakeIt == FALSE)
 	{
 #if defined BB_FEATURE_MOUNT_LOOP
 		if (use_loop==TRUE) {
@@ -157,28 +132,33 @@ do_mount(char *specialfile, char *dir, char *filesystemtype,
 
 			specialfile = find_unused_loop_device();
 			if (specialfile == NULL) {
-				fprintf(stderr, "Could not find a spare loop device\n");
+				errorMsg("Could not find a spare loop device\n");
 				return (FALSE);
 			}
 			if (set_loop(specialfile, lofile, 0, &loro)) {
-				fprintf(stderr, "Could not setup loop device\n");
+				errorMsg("Could not setup loop device\n");
 				return (FALSE);
 			}
 			if (!(flags & MS_RDONLY) && loro) {	/* loop is ro, but wanted rw */
-				fprintf(stderr, "WARNING: loop device is read-only\n");
+				errorMsg("WARNING: loop device is read-only\n");
 				flags &= ~MS_RDONLY;
 			}
 		}
 #endif
 		status = mount(specialfile, dir, filesystemtype, flags, string_flags);
+		if (errno == EROFS) {
+			errorMsg("%s is write-protected, mounting read-only\n", specialfile);
+			status = mount(specialfile, dir, filesystemtype, flags |= MS_RDONLY, string_flags);
+		}
 	}
 
 
 	/* If the mount was sucessful, do anything needed, then return TRUE */
-	if (status == 0) {
+	if (status == 0 || fakeIt==TRUE) {
 
 #if defined BB_MTAB
 		if (useMtab == TRUE) {
+			erase_mtab(specialfile);	// Clean any stale entries
 			write_mtab(specialfile, dir, filesystemtype, flags, mtab_opts);
 		}
 #endif
@@ -193,7 +173,7 @@ do_mount(char *specialfile, char *dir, char *filesystemtype,
 #endif
 
 	if (errno == EPERM) {
-		fatalError("mount: permission denied. Are you root?\n");
+		fatalError("permission denied. Are you root?\n");
 	}
 
 	return (FALSE);
@@ -203,7 +183,7 @@ do_mount(char *specialfile, char *dir, char *filesystemtype,
 
 /* Seperate standard mount options from the nonstandard string options */
 static void
-parse_mount_options(char *options, unsigned long *flags, char *strflags)
+parse_mount_options(char *options, int *flags, char *strflags)
 {
 	while (options) {
 		int gotone = FALSE;
@@ -299,7 +279,7 @@ mount_one(char *blockDevice, char *directory, char *filesystemType,
 		numfilesystems = ioctl (fd, DEVMTAB_COUNT_FILESYSTEMS);
 		if (numfilesystems<0)
 			fatalError("\nDEVMTAB_COUNT_FILESYSTEMS: %s\n", strerror (errno));
-		fslist = (struct k_fstype *) calloc ( numfilesystems, sizeof(struct k_fstype));
+		fslist = (struct k_fstype *) xcalloc ( numfilesystems, sizeof(struct k_fstype));
 
 		/* Grab the list of available filesystems */
 		status = ioctl (fd, DEVMTAB_GET_FILESYSTEMS, fslist);
@@ -329,7 +309,7 @@ mount_one(char *blockDevice, char *directory, char *filesystemType,
 
 	if (status == FALSE) {
 		if (whineOnErrors == TRUE) {
-			fprintf(stderr, "Mounting %s on %s failed: %s\n",
+			errorMsg("Mounting %s on %s failed: %s\n",
 					blockDevice, directory, strerror(errno));
 		}
 		return (FALSE);
@@ -342,7 +322,7 @@ extern int mount_main(int argc, char **argv)
 	char string_flags_buf[1024] = "";
 	char *string_flags = string_flags_buf;
 	char *extra_opts = string_flags_buf;
-	unsigned long flags = 0;
+	int flags = 0;
 	char *filesystemType = "auto";
 	char *device = NULL;
 	char *directory = NULL;
@@ -350,6 +330,8 @@ extern int mount_main(int argc, char **argv)
 	int fakeIt = FALSE;
 	int useMtab = TRUE;
 	int i;
+	int rc = FALSE;
+	int fstabmount = FALSE;	
 
 #if defined BB_FEATURE_USE_DEVPS_PATCH
 	if (argc == 1) {
@@ -367,7 +349,7 @@ extern int mount_main(int argc, char **argv)
 		numfilesystems = ioctl (fd, DEVMTAB_COUNT_MOUNTS);
 		if (numfilesystems<0)
 			fatalError( "\nDEVMTAB_COUNT_MOUNTS: %s\n", strerror (errno));
-		mntentlist = (struct k_mntent *) calloc ( numfilesystems, sizeof(struct k_mntent));
+		mntentlist = (struct k_mntent *) xcalloc ( numfilesystems, sizeof(struct k_mntent));
 		
 		/* Grab the list of mounted filesystems */
 		if (ioctl (fd, DEVMTAB_GET_MOUNTS, mntentlist)<0)
@@ -379,9 +361,9 @@ extern int mount_main(int argc, char **argv)
 					mntentlist[i].mnt_opts, mntentlist[i].mnt_freq, 
 					mntentlist[i].mnt_passno);
 		}
+#ifdef BB_FEATURE_CLEAN_UP
 		/* Don't bother to close files or free memory.  Exit 
 		 * does that automagically, so we can save a few bytes */
-#if 0
 		free( mntentlist);
 		close(fd);
 #endif
@@ -467,56 +449,71 @@ extern int mount_main(int argc, char **argv)
 		argv++;
 	}
 
-	if (all == TRUE) {
+	if (all == TRUE || directory == NULL) {
 		struct mntent *m;
 		FILE *f = setmntent("/etc/fstab", "r");
+		fstabmount = TRUE;
 
 		if (f == NULL)
 			fatalError( "\nCannot read /etc/fstab: %s\n", strerror (errno));
 
 		while ((m = getmntent(f)) != NULL) {
-			// If the filesystem isn't noauto, 
-			// and isn't swap or nfs, then mount it
-			if ((!strstr(m->mnt_opts, "noauto")) &&
-					(!strstr(m->mnt_type, "swap")) &&
-					(!strstr(m->mnt_type, "nfs"))) {
+			if (all == FALSE && directory == NULL && (
+				(strcmp(device, m->mnt_fsname) != 0) &&
+				(strcmp(device, m->mnt_dir) != 0) ) ) {
+				continue;
+			}
+			
+			if (all == TRUE && (				// If we're mounting 'all'
+				(strstr(m->mnt_opts, "noauto")) ||	// and the file system isn't noauto,
+				(strstr(m->mnt_type, "swap")) ||	// and isn't swap or nfs, then mount it
+				(strstr(m->mnt_type, "nfs")) ) ) {
+				continue;
+			}
+			
+			if (all == TRUE || flags == 0) {	// Allow single mount to override fstab flags
 				flags = 0;
 				*string_flags = '\0';
 				parse_mount_options(m->mnt_opts, &flags, string_flags);
-				if (mount_one(m->mnt_fsname, m->mnt_dir, m->mnt_type,
-							flags, string_flags, useMtab, fakeIt,
-							extra_opts, FALSE)==FALSE) 
-				{
-					/* Try again, but this time try a remount */
-					mount_one(m->mnt_fsname, m->mnt_dir, m->mnt_type,
-							flags|MS_REMOUNT, string_flags, useMtab, fakeIt,
-							extra_opts, TRUE);
-				}
 			}
-		}
-		endmntent(f);
-	} else {
-		if (device && directory) {
+			
+			device = strdup(m->mnt_fsname);
+			directory = strdup(m->mnt_dir);
+			filesystemType = strdup(m->mnt_type);
+singlemount:			
 #ifdef BB_NFSMOUNT
 			if (strchr(device, ':') != NULL)
 				filesystemType = "nfs";
 			if (strcmp(filesystemType, "nfs") == 0) {
-				int ret;
-				ret = nfsmount (device, directory, &flags,
-						&extra_opts, &string_flags, 1);
-				if (ret != 0)
-					fatalError("nfsmount failed: %s\n", strerror(errno));
+				rc = nfsmount (device, directory, &flags,
+					&extra_opts, &string_flags, 1);
+				if ( rc != 0) {
+					fatalError("nfsmount failed: %s\n", strerror(errno));	
+					rc = FALSE;
+				}
 			}
 #endif
-			exit(mount_one(device, directory, filesystemType,
-						   flags, string_flags, useMtab, fakeIt,
-						   extra_opts, TRUE));
-		} else {
-			goto goodbye;
-		}
-	}
-	exit(TRUE);
+			rc = mount_one(device, directory, filesystemType, flags,
+				string_flags, useMtab, fakeIt, extra_opts, TRUE);
+				
+			if (all == FALSE)
+				break;
 
-  goodbye:
+			rc = TRUE;	// Always return 0 for 'all'
+		}
+		if (fstabmount == TRUE)
+			endmntent(f);
+			
+		if (all == FALSE && fstabmount == TRUE && directory == NULL)
+			fprintf(stderr, "Can't find %s in /etc/fstab\n", device);
+	
+		exit(rc);
+	}
+	
+	goto singlemount;
+	
+	exit(FALSE);
+
+goodbye:
 	usage(mount_usage);
 }

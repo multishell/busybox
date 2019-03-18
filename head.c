@@ -22,20 +22,9 @@
  *
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <errno.h>
 #include <stdio.h>
-
-const char head_usage[] =
-	"head [OPTION] [FILE]...\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nPrint first 10 lines of each FILE to standard output.\n"
-	"With more than one FILE, precede each with a header giving the\n"
-	"file name. With no FILE, or when FILE is -, read standard input.\n\n"
-
-	"Options:\n" "\t-n NUM\t\tPrint first NUM lines instead of first 10\n"
-#endif
-	;
 
 int head(int len, FILE * src)
 {
@@ -75,7 +64,7 @@ int head_main(int argc, char **argv)
 			case 'h':
 				usage(head_usage);
 			default:
-				fprintf(stderr, "head: invalid option -- %c\n", opt);
+				errorMsg("invalid option -- %c\n", opt);
 				usage(head_usage);
 			}
 		} else {
@@ -95,8 +84,7 @@ int head_main(int argc, char **argv)
 
 			src = fopen(argv[i], "r");
 			if (!src) {
-				fprintf(stderr, "head: %s: %s\n", argv[i],
-						strerror(errno));
+				errorMsg("%s: %s\n", argv[i], strerror(errno));
 			} else {
 				/* emulating GNU behaviour */
 				if (need_headers) {
@@ -112,4 +100,4 @@ int head_main(int argc, char **argv)
 	return(0);
 }
 
-/* $Id: head.c,v 1.11 2000/06/19 17:25:39 andersen Exp $ */
+/* $Id: head.c,v 1.14 2000/09/25 21:45:57 andersen Exp $ */

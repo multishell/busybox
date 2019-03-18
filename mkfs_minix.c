@@ -62,7 +62,7 @@
  *	removed getopt based parser and added a hand rolled one.
  */
 
-#include "internal.h"
+#include "busybox.h"
 #include <stdio.h>
 #include <time.h>
 #include <unistd.h>
@@ -72,7 +72,6 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <termios.h>
-#include <sys/stat.h>
 #include <sys/ioctl.h>
 #include <sys/param.h>
 #include <mntent.h>
@@ -175,10 +174,6 @@ struct minix_dir_entry {
 #endif
 
 
-#ifdef MINIX2_SUPER_MAGIC2
-#define HAVE_MINIX2 1
-#endif
-
 #ifndef __linux__
 #define volatile
 #endif
@@ -191,7 +186,7 @@ struct minix_dir_entry {
 
 #define UPPER(size,n) (((size)+((n)-1))/(n))
 #define INODE_SIZE (sizeof(struct minix_inode))
-#ifdef HAVE_MINIX2
+#ifdef BB_FEATURE_MINIX2
 #define INODE_SIZE2 (sizeof(struct minix2_inode))
 #define INODE_BLOCKS UPPER(INODES, (version2 ? MINIX2_INODES_PER_BLOCK \
 				    : MINIX_INODES_PER_BLOCK))
@@ -202,7 +197,6 @@ struct minix_dir_entry {
 
 #define BITS_PER_BLOCK (BLOCK_SIZE<<3)
 
-static char *program_name = "mkfs";
 static char *device_name = NULL;
 static int DEV = -1;
 static long BLOCKS = 0;
@@ -220,7 +214,7 @@ static char root_block[BLOCK_SIZE] = "\0";
 static char *inode_buffer = NULL;
 
 #define Inode (((struct minix_inode *) inode_buffer)-1)
-#ifdef HAVE_MINIX2
+#ifdef BB_FEATURE_MINIX2
 #define Inode2 (((struct minix2_inode *) inode_buffer)-1)
 #endif
 static char super_block_buffer[BLOCK_SIZE];
@@ -228,7 +222,7 @@ static char boot_block_buffer[512];
 
 #define Super (*(struct minix_super_block *)super_block_buffer)
 #define INODES ((unsigned long)Super.s_ninodes)
-#ifdef HAVE_MINIX2
+#ifdef BB_FEATURE_MINIX2
 #define ZONES ((unsigned long)(version2 ? Super.s_zones : Super.s_nzones))
 #else
 #define ZONES ((unsigned long)(Super.s_nzones))
@@ -248,8 +242,12 @@ static unsigned short good_blocks_table[MAX_GOOD_BLOCKS];
 static int used_good_blocks = 0;
 static unsigned long req_nr_inodes = 0;
 
-#define inode_in_use(x) (isset(inode_map,(x)))
-#define zone_in_use(x) (isset(zone_map,(x)-FIRSTZONE+1))
+static inline int bit(char * a,unsigned int i)
+{
+	  return (a[i >> 3] & (1<<(i & 7))) != 0;
+}
+#define inode_in_use(x) (bit(inode_map,(x)))
+#define zone_in_use(x) (bit(zone_map,(x)-FIRSTZONE+1))
 
 #define mark_inode(x) (setbit(inode_map,(x)))
 #define unmark_inode(x) (clrbit(inode_map,(x)))
@@ -264,31 +262,14 @@ static unsigned long req_nr_inodes = 0;
  */
 static volatile void die(char *str)
 {
-	fprintf(stderr, "%s: %s\n", program_name, str);
+	errorMsg("%s\n", str);
 	exit(8);
 }
 
 static volatile void show_usage() __attribute__ ((noreturn));
 static volatile void show_usage()
 {
-	fprintf(stderr, "BusyBox v%s (%s) multi-call binary -- GPL2\n\n",
-			BB_VER, BB_BT);
-	fprintf(stderr,
-			"Usage: %s [-c | -l filename] [-nXX] [-iXX] /dev/name [blocks]\n",
-			program_name);
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	fprintf(stderr, "\nMake a MINIX filesystem.\n\n");
-	fprintf(stderr, "Options:\n");
-	fprintf(stderr, "\t-c\t\tCheck the device for bad blocks\n");
-	fprintf(stderr,
-			"\t-n [14|30]\tSpecify the maximum length of filenames\n");
-	fprintf(stderr,
-			"\t-i INODES\tSpecify the number of inodes for the filesystem\n");
-	fprintf(stderr,
-			"\t-l FILENAME\tRead the bad blocks list from FILENAME\n");
-	fprintf(stderr, "\t-v\t\tMake a Minix version 2 filesystem\n\n");
-#endif
-	exit(16);
+	usage(mkfs_minix_usage);
 }
 
 /*
@@ -481,7 +462,7 @@ static void make_bad_inode(void)
 		write_block(dind, (char *) dind_block);
 }
 
-#ifdef HAVE_MINIX2
+#ifdef BB_FEATURE_MINIX2
 static void make_bad_inode2(void)
 {
 	struct minix2_inode *inode = &Inode2[MINIX_BAD_INO];
@@ -554,7 +535,7 @@ static void make_root_inode(void)
 	write_block(inode->i_zone[0], root_block);
 }
 
-#ifdef HAVE_MINIX2
+#ifdef BB_FEATURE_MINIX2
 static void make_root_inode2(void)
 {
 	struct minix2_inode *inode = &Inode2[MINIX_ROOT_INO];
@@ -595,7 +576,7 @@ static void setup_tables(void)
 	else
 		inodes = req_nr_inodes;
 	/* Round up inode count to fill block size */
-#ifdef HAVE_MINIX2
+#ifdef BB_FEATURE_MINIX2
 	if (version2)
 		inodes = ((inodes + MINIX2_INODES_PER_BLOCK - 1) &
 				  ~(MINIX2_INODES_PER_BLOCK - 1));
@@ -745,11 +726,9 @@ extern int mkfs_minix_main(int argc, char **argv)
 	char *listfile = NULL;
 	int stopIt=FALSE;
 
-	if (argc && *argv)
-		program_name = *argv;
 	if (INODE_SIZE * MINIX_INODES_PER_BLOCK != BLOCK_SIZE)
 		die("bad inode size");
-#ifdef HAVE_MINIX2
+#ifdef BB_FEATURE_MINIX2
 	if (INODE_SIZE2 * MINIX2_INODES_PER_BLOCK != BLOCK_SIZE)
 		die("bad inode size");
 #endif
@@ -814,11 +793,11 @@ extern int mkfs_minix_main(int argc, char **argv)
 							break;
 						}
 					case 'v':
-#ifdef HAVE_MINIX2
+#ifdef BB_FEATURE_MINIX2
 						version2 = 1;
 #else
-						fprintf(stderr, "%s: not compiled with minix v2 support\n",
-								program_name, device_name);
+						errorMsg("%s: not compiled with minix v2 support\n",
+								device_name);
 						exit(-1);
 #endif
 						break;
@@ -846,7 +825,7 @@ goodbye:
 	if (!device_name || BLOCKS < 10) {
 		show_usage();
 	}
-#ifdef HAVE_MINIX2
+#ifdef BB_FEATURE_MINIX2
 	if (version2) {
 		if (namelen == 14)
 			magic = MINIX2_SUPER_MAGIC;
@@ -880,7 +859,7 @@ goodbye:
 		check_blocks();
 	else if (listfile)
 		get_list_blocks(listfile);
-#ifdef HAVE_MINIX2
+#ifdef BB_FEATURE_MINIX2
 	if (version2) {
 		make_root_inode2();
 		make_bad_inode2();
