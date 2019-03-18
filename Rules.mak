@@ -19,7 +19,7 @@
 
 #--------------------------------------------------------
 PROG      := busybox
-VERSION   := 1.00-rc3
+VERSION   := 1.01
 BUILDTIME := $(shell TZ=UTC date -u "+%Y.%m.%d-%H:%M%z")
 
 
@@ -42,7 +42,7 @@ LD             = $(CROSS)ld
 NM             = $(CROSS)nm
 STRIP          = $(CROSS)strip
 CPP            = $(CC) -E
-MAKEFILES      = $(TOPDIR).config
+# MAKEFILES      = $(top_builddir)/.config
 
 # What OS are you compiling busybox for?  This allows you to include
 # OS specific things, syscall overrides, etc.
@@ -80,13 +80,13 @@ BB_SRC_DIR=
 #GCCINCDIR:=$(shell gcc -print-search-dirs | sed -ne "s/install: \(.*\)/\1include/gp")
 
 WARNINGS=-Wall -Wstrict-prototypes -Wshadow
-CFLAGS=-I$(TOPDIR)include
-ARFLAGS=-r
+CFLAGS=-I$(top_builddir)/include -I$(top_srcdir)/include -I$(srcdir)
+ARFLAGS=cru
 
 #--------------------------------------------------------
 export VERSION BUILDTIME TOPDIR HOSTCC HOSTCFLAGS CROSS CC AR AS LD NM STRIP CPP
 ifeq ($(strip $(TARGET_ARCH)),)
-TARGET_ARCH=$(shell $(CC) -dumpmachine | sed -e s'/-.*//' \
+TARGET_ARCH:=$(shell $(CC) -dumpmachine | sed -e s'/-.*//' \
 		-e 's/i.86/i386/' \
 		-e 's/sparc.*/sparc/' \
 		-e 's/arm.*/arm/g' \
@@ -102,12 +102,21 @@ endif
 
 # Pull in the user's busybox configuration
 ifeq ($(filter $(noconfig_targets),$(MAKECMDGOALS)),)
--include $(TOPDIR).config
+-include $(top_builddir)/.config
 endif
 
 # A nifty macro to make testing gcc features easier
 check_gcc=$(shell if $(CC) $(1) -S -o /dev/null -xc /dev/null > /dev/null 2>&1; \
 	then echo "$(1)"; else echo "$(2)"; fi)
+
+# Setup some shortcuts so that silent mode is silent like it should be
+ifeq ($(subst s,,$(MAKEFLAGS)),$(MAKEFLAGS))
+export MAKE_IS_SILENT=n
+SECHO=@echo
+else
+export MAKE_IS_SILENT=y
+SECHO=-@false
+endif
 
 #--------------------------------------------------------
 # Arch specific compiler optimization stuff should go here.
@@ -115,8 +124,7 @@ check_gcc=$(shell if $(CC) $(1) -S -o /dev/null -xc /dev/null > /dev/null 2>&1; 
 # for OPTIMIZATION...
 
 # use '-Os' optimization if available, else use -O2
-OPTIMIZATION=
-OPTIMIZATION=${call check_gcc,-Os,-O2}
+OPTIMIZATION:=${call check_gcc,-Os,-O2}
 
 # Some nice architecture specific optimizations
 ifeq ($(strip $(TARGET_ARCH)),arm)
@@ -158,8 +166,8 @@ ifeq ($(strip $(CONFIG_DEBUG)),y)
     STRIPCMD:=/bin/true -Not_stripping_since_we_are_debugging
 else
     CFLAGS+=$(WARNINGS) $(OPTIMIZATIONS) -D_GNU_SOURCE -DNDEBUG
-    LDFLAGS += -s -Wl,-warn-common
-    STRIPCMD:=$(STRIP) --remove-section=.note --remove-section=.comment
+    LDFLAGS += -Wl,-warn-common
+    STRIPCMD:=$(STRIP) -s --remove-section=.note --remove-section=.comment
 endif
 ifeq ($(strip $(CONFIG_STATIC)),y)
     LDFLAGS += --static
@@ -189,12 +197,4 @@ endif
 # have a chance of winning.
 CFLAGS += $(CFLAGS_EXTRA)
 
-%.o: %.c
-	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
-
 .PHONY: dummy
-
-
-
-.EXPORT_ALL_VARIABLES:
-

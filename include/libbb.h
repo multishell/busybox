@@ -34,6 +34,7 @@
 #include <stdint.h>
 
 #include <netdb.h>
+#include <netinet/in.h>
 
 #ifdef DMALLOC
 #include <dmalloc.h>
@@ -150,6 +151,7 @@ extern FILE *bb_xfopen(const char *path, const char *mode);
 extern int   bb_fclose_nonstdin(FILE *f);
 extern void  bb_fflush_stdout_and_exit(int retval) __attribute__ ((noreturn));
 
+#define BB_GETOPT_ERROR 0x80000000UL
 extern const char *bb_opt_complementaly;
 extern const struct option *bb_applet_long_options;
 extern unsigned long bb_getopt_ulflags(int argc, char **argv, const char *applet_opts, ...);
@@ -230,9 +232,9 @@ extern unsigned long bb_xparse_number(const char *numstr,
  * increases target size and is often not needed embedded systems.  */
 extern long my_getpwnam(const char *name);
 extern long my_getgrnam(const char *name);
-extern char * my_getpwuid(char *name, long uid);
-extern char * my_getgrgid(char *group, long gid);
-extern long my_getpwnamegid(const char *name);
+extern char * my_getug(char *buffer, char *idname, long id, int bufsize, char prefix);
+extern char * my_getpwuid(char *name, long uid, int bufsize);
+extern char * my_getgrgid(char *group, long gid, int bufsize);
 extern char *bb_askpass(int timeout, const char * prompt);
 
 extern int device_open(const char *device, int mode);
@@ -323,6 +325,7 @@ extern const char * const bb_msg_full_version;
 extern const char * const bb_msg_memory_exhausted;
 extern const char * const bb_msg_invalid_date;
 extern const char * const bb_msg_io_error;
+extern const char * const bb_msg_read_error;
 extern const char * const bb_msg_write_error;
 extern const char * const bb_msg_name_longer_than_foo;
 extern const char * const bb_msg_unknown;

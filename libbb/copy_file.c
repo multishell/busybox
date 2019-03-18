@@ -146,7 +146,7 @@ int copy_file(const char *source, const char *dest, int flags)
 
 		if (dest_exists) {
 			if (flags & FILEUTILS_INTERACTIVE) {
-				bb_error_msg("overwrite `%s'? ", dest);
+				fprintf(stderr, "%s: overwrite `%s'? ", bb_applet_name, dest);
 				if (!bb_ask_confirmation()) {
 					close (src_fd);
 					return 0;
@@ -197,12 +197,16 @@ int copy_file(const char *source, const char *dest, int flags)
 	    S_ISSOCK(source_stat.st_mode) || S_ISFIFO(source_stat.st_mode) ||
 	    S_ISLNK(source_stat.st_mode)) {
 
-		if (dest_exists &&
-		       ((flags & FILEUTILS_FORCE) == 0 || unlink(dest) < 0)) {
+		if (dest_exists) {
+			if((flags & FILEUTILS_FORCE) == 0) {
+				fprintf(stderr, "`%s' exists\n", dest);
+				return -1;
+			}
+			if(unlink(dest) < 0) {
 				bb_perror_msg("unable to remove `%s'", dest);
 				return -1;
-
 			}
+		}
 	} else {
 		bb_error_msg("internal error: unrecognized file type");
 		return -1;

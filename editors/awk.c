@@ -1084,7 +1084,7 @@ static node *parse_expr(unsigned long iexp) {
 			cn->a.n = vn;
 			xtc = TC_OPERAND | TC_UOPPRE | TC_REGEXP;
 			if (tc & (TC_OPERAND | TC_REGEXP)) {
-				xtc = TC_UOPPRE | TC_BINOP | TC_OPERAND | iexp;
+				xtc = TC_UOPPRE | TC_UOPPOST | TC_BINOP | TC_OPERAND | iexp;
 				/* one should be very careful with switch on tclass -
 				 * only simple tclasses should be used! */
 				switch (tc) {
@@ -1101,7 +1101,6 @@ static node *parse_expr(unsigned long iexp) {
 						cn->info |= xS;
 						cn->r.n = parse_expr(TC_ARRTERM);
 					}
-					xtc = TC_UOPPOST | TC_UOPPRE | TC_BINOP | TC_OPERAND | iexp;
 					break;
 				
 				  case TC_NUMBER:
@@ -1554,7 +1553,7 @@ static void handle_special(var *v) {
 			memcpy(b+len, s, l);
 			len += l;
 		}
-		b[len] = '\0';
+		if (b) b[len] = '\0';
 		setvar_p(V[F0], b);
 		is_f0_split = TRUE;
 
@@ -2551,6 +2550,7 @@ static int awk_exit(int r) {
 
 	if (! exiting) {
 		exiting = TRUE;
+		nextrec = FALSE;
 		evaluate(endseq.first, &tv);
 	}
 

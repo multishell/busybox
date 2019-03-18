@@ -108,7 +108,7 @@ extern int logger_main(int argc, char **argv)
 	char buf[1024], name[128];
 
 	/* Fill out the name string early (may be overwritten later) */
-	my_getpwuid(name, geteuid());
+	my_getpwuid(name, geteuid(), sizeof(name));
 
 	/* Parse any options */
 	while ((opt = getopt(argc, argv, "p:st:")) > 0) {
@@ -127,7 +127,7 @@ extern int logger_main(int argc, char **argv)
 		}
 	}
 
-	openlog(name, option, (pri | LOG_FACMASK));
+	openlog(name, option, 0);
 	if (optind == argc) {
 		do {
 			/* read from stdin */
@@ -152,8 +152,8 @@ extern int logger_main(int argc, char **argv)
 			message = xrealloc(message, len);
 			if(!i)
 				message[0] = 0;
-			 else
-			strcat(message, " ");
+			else
+				strcat(message, " ");
 			strcat(message, *argv);
 			argv++;
 		}

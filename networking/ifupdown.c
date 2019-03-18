@@ -150,7 +150,7 @@ struct interfaces_file_t
 
 static char no_act = 0;
 static char verbose = 0;
-static char **environ = NULL;
+static char **__myenviron = NULL;
 
 #ifdef CONFIG_FEATURE_IFUPDOWN_IP
 
@@ -699,7 +699,7 @@ static const llist_t *find_list_string(const llist_t *list, const char *string)
 	return(NULL);
 }
 
-static struct interfaces_file_t *read_interfaces(char *filename)
+static struct interfaces_file_t *read_interfaces(const char *filename)
 {
 #ifdef CONFIG_FEATURE_IFUPDOWN_MAPPING
 	struct mapping_defn_t *currmap = NULL;
@@ -961,16 +961,16 @@ static void set_environ(struct interface_defn_t *iface, char *mode)
 	const int n_env_entries = iface->n_options + 5;
 	char **ppch;
 
-	if (environ != NULL) {
-		for (ppch = environ; *ppch; ppch++) {
+	if (__myenviron != NULL) {
+		for (ppch = __myenviron; *ppch; ppch++) {
 			free(*ppch);
 			*ppch = NULL;
 		}
-		free(environ);
-		environ = NULL;
+		free(__myenviron);
+		__myenviron = NULL;
 	}
-	environ = xmalloc(sizeof(char *) * (n_env_entries + 1 /* for final NULL */ ));
-	environend = environ;
+	__myenviron = xmalloc(sizeof(char *) * (n_env_entries + 1 /* for final NULL */ ));
+	environend = __myenviron;
 	*environend = NULL;
 
 	for (i = 0; i < iface->n_options; i++) {
@@ -1010,7 +1010,7 @@ static int doit(char *str)
 			case -1:		/* failure */
 				return 0;
 			case 0:		/* child */
-				execle(DEFAULT_SHELL, DEFAULT_SHELL, "-c", str, NULL, environ);
+				execle(DEFAULT_SHELL, DEFAULT_SHELL, "-c", str, NULL, __myenviron);
 				exit(127);
 		}
 		waitpid(child, &status, 0);
@@ -1192,7 +1192,7 @@ extern int ifupdown_main(int argc, char **argv)
 	FILE *state_fp = NULL;
 	llist_t *state_list = NULL;
 	llist_t *target_list = NULL;
-	char *interfaces = "/etc/network/interfaces";
+	const char *interfaces = "/etc/network/interfaces";
 	const char *statefile = "/var/run/ifstate";
 
 #ifdef CONFIG_FEATURE_IFUPDOWN_MAPPING
@@ -1219,7 +1219,7 @@ extern int ifupdown_main(int argc, char **argv)
 		{
 			switch (i) {
 				case 'i':	/* interfaces */
-					interfaces = bb_xstrdup(optarg);
+					interfaces = optarg;
 					break;
 				case 'v':	/* verbose */
 					verbose = 1;

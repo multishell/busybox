@@ -1,6 +1,6 @@
 /* vi: set sw=4 ts=4: */
 /*
- * $Id: ping6.c,v 1.5 2003/05/22 07:10:22 andersen Exp $
+ * $Id: ping6.c,v 1.6 2004/03/15 08:28:48 andersen Exp $
  * Mini ping implementation for busybox
  *
  * Copyright (C) 1999 by Randolph Chung <tausq@debian.org>

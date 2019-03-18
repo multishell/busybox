@@ -683,9 +683,9 @@ static int list_single(struct dnode *dn)
 			break;
 		case LIST_ID_NAME:
 #ifdef CONFIG_FEATURE_LS_USERNAME
-			my_getpwuid(scratch, dn->dstat.st_uid);
+			my_getpwuid(scratch, dn->dstat.st_uid, sizeof(scratch));
 			printf("%-8.8s ", scratch);
-			my_getgrgid(scratch, dn->dstat.st_gid);
+			my_getgrgid(scratch, dn->dstat.st_gid, sizeof(scratch));
 			printf("%-8.8s", scratch);
 			column += 17;
 			break;
@@ -874,7 +874,7 @@ static const char ls_options[]="Cadil1gnsxAk" \
 	LS_STR_SELINUX \
 	LS_STR_AUTOWIDTH;
 
-#define LIST_MASK_TRIGGER	LIST_SHORT
+#define LIST_MASK_TRIGGER	0
 #define STYLE_MASK_TRIGGER	STYLE_MASK
 #define SORT_MASK_TRIGGER	SORT_MASK
 #define DISP_MASK_TRIGGER	DISP_ROWS

@@ -78,6 +78,7 @@ static char LocalHostName[64];
 #include <netinet/in.h>
 /* udp socket for logging to remote host */
 static int remotefd = -1;
+static struct sockaddr_in remoteaddr;
 
 /* where do we log? */
 static char *RemoteHost;
@@ -379,11 +380,30 @@ static void message(char *fmt, ...)
 	}
 }
 
+#ifdef CONFIG_FEATURE_REMOTE_LOG
+static void init_RemoteLog(void)
+{
+	memset(&remoteaddr, 0, sizeof(remoteaddr));
+	remotefd = socket(AF_INET, SOCK_DGRAM, 0);
+
+	if (remotefd < 0) {
+		bb_error_msg("cannot create socket");
+	}
+
+	remoteaddr.sin_family = AF_INET;
+	remoteaddr.sin_addr = *(struct in_addr *) *(xgethostbyname(RemoteHost))->h_addr_list;
+	remoteaddr.sin_port = htons(RemotePort);
+}
+#endif
+
 static void logMessage(int pri, char *msg)
 {
 	time_t now;
 	char *timestamp;
 	static char res[20] = "";
+#ifdef CONFIG_FEATURE_REMOTE_LOG	
+	static char line[MAXLINE + 1];
+#endif
 	CODE *c_pri, *c_fac;
 
 	if (pri != 0) {
@@ -412,25 +432,30 @@ static void logMessage(int pri, char *msg)
 	/* todo: supress duplicates */
 
 #ifdef CONFIG_FEATURE_REMOTE_LOG
-	/* send message to remote logger */
-	if (-1 != remotefd) {
-		static const int IOV_COUNT = 2;
-		struct iovec iov[IOV_COUNT];
-		struct iovec *v = iov;
+	if (doRemoteLog == TRUE) {
+		/* trying connect the socket */
+		if (-1 == remotefd) {
+			init_RemoteLog();
+		}
 
-		memset(&res, 0, sizeof(res));
-		snprintf(res, sizeof(res), "<%d>", pri);
-		v->iov_base = res;
-		v->iov_len = strlen(res);
-		v++;
+		/* if we have a valid socket, send the message */
+		if (-1 != remotefd) {
+			now = 1;
+			snprintf(line, sizeof(line), "<%d>%s", pri, msg);
 
-		v->iov_base = msg;
-		v->iov_len = strlen(msg);
-	  writev_retry:
-		if ((-1 == writev(remotefd, iov, IOV_COUNT)) && (errno == EINTR)) {
-			goto writev_retry;
+		retry:
+			/* send message to remote logger */
+			if(( -1 == sendto(remotefd, line, strlen(line), 0,
+							(struct sockaddr *) &remoteaddr,
+							sizeof(remoteaddr))) && (errno == EINTR)) {
+				/* sleep now seconds and retry (with now * 2) */
+				sleep(now);
+				now *= 2;
+				goto retry;
+			}
 		}
 	}
+
 	if (local_logging == TRUE)
 #endif
 	{
@@ -503,40 +528,6 @@ static int serveConnection(char *tmpbuf, int n_read)
 	}
 	return n_read;
 }
-
-
-#ifdef CONFIG_FEATURE_REMOTE_LOG
-static void init_RemoteLog(void)
-{
-
-	struct sockaddr_in remoteaddr;
-	struct hostent *hostinfo;
-	int len = sizeof(remoteaddr);
-
-	memset(&remoteaddr, 0, len);
-
-	remotefd = socket(AF_INET, SOCK_DGRAM, 0);
-
-	if (remotefd < 0) {
-		bb_error_msg_and_die("cannot create socket");
-	}
-
-	hostinfo = xgethostbyname(RemoteHost);
-
-	remoteaddr.sin_family = AF_INET;
-	remoteaddr.sin_addr = *(struct in_addr *) *hostinfo->h_addr_list;
-	remoteaddr.sin_port = htons(RemotePort);
-
-	/* Since we are using UDP sockets, connect just sets the default host and port
-	 * for future operations
-	 */
-	if (0 != (connect(remotefd, (struct sockaddr *) &remoteaddr, len))) {
-		bb_error_msg_and_die("cannot connect to remote host %s:%d", RemoteHost,
-						  RemotePort);
-	}
-
-}
-#endif
 
 static void doSyslogd(void) __attribute__ ((noreturn));
 static void doSyslogd(void)

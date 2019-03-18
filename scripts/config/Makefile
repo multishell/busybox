@@ -2,12 +2,18 @@
 #
 # Copyright (C) 2002 Erik Andersen <andersen@codepoet.org>
 
-TOPDIR=../../
-include $(TOPDIR)Rules.mak
+top_srcdir=../..
+top_builddir=../..
+srcdir=$(top_srcdir)/scripts/config
+include $(top_builddir)/Rules.mak
 
 all: ncurses conf mconf
 
+ifeq ($(shell uname),SunOS)
+LIBS = -lcurses
+else
 LIBS = -lncurses
+endif
 ifeq (/usr/include/ncurses/ncurses.h, $(wildcard /usr/include/ncurses/ncurses.h))
 	HOSTNCURSES += -I/usr/include/ncurses -DCURSES_LOC="<ncurses.h>"
 else
@@ -30,13 +36,17 @@ endif
 endif
 endif
 
-CONF_SRC  =conf.c
-MCONF_SRC =mconf.c checklist.c menubox.c textbox.c yesno.c inputbox.c util.c msgbox.c
-SHARED_SRC=zconf.tab.c
-SHARED_DEPS:=lkc.h lkc_proto.h lkc_defs.h expr.h zconf.tab.h
-CONF_OBJS =$(patsubst %.c,%.o, $(CONF_SRC))
-MCONF_OBJS=$(patsubst %.c,%.o, $(MCONF_SRC))
-SHARED_OBJS=$(patsubst %.c,%.o, $(SHARED_SRC))
+CONF_SRC     = conf.c
+MCONF_SRC    = mconf.c
+LXD_SRC      = lxdialog/checklist.c lxdialog/menubox.c lxdialog/textbox.c \
+               lxdialog/yesno.c lxdialog/inputbox.c lxdialog/util.c \
+               lxdialog/msgbox.c
+SHARED_SRC   = zconf.tab.c
+SHARED_DEPS := $(srcdir)/lkc.h $(srcdir)/lkc_proto.h \
+               lkc_defs.h $(srcdir)/expr.h zconf.tab.h
+CONF_OBJS    = $(patsubst %.c,%.o, $(CONF_SRC))
+MCONF_OBJS   = $(patsubst %.c,%.o, $(MCONF_SRC) $(LXD_SRC))
+SHARED_OBJS  = $(patsubst %.c,%.o, $(SHARED_SRC))
 
 conf: $(CONF_OBJS) $(SHARED_OBJS)
 	$(HOSTCC) $(NATIVE_LDFLAGS) $^ -o $@
@@ -44,13 +54,13 @@ conf: $(CONF_OBJS) $(SHARED_OBJS)
 mconf: $(MCONF_OBJS) $(SHARED_OBJS)
 	$(HOSTCC) $(NATIVE_LDFLAGS) $^ -o $@ $(LIBS)
 
-$(CONF_OBJS): %.o : %.c $(SHARED_DEPS)
+$(CONF_OBJS): %.o : $(srcdir)/%.c $(SHARED_DEPS)
 	$(HOSTCC) $(HOSTCFLAGS) -I. -c $< -o $@
 
-$(MCONF_OBJS): %.o : %.c $(SHARED_DEPS)
+$(MCONF_OBJS): %.o : $(srcdir)/%.c $(SHARED_DEPS)
 	$(HOSTCC) $(HOSTCFLAGS) $(HOSTNCURSES) -I. -c $< -o $@
 
-lkc_defs.h: lkc_proto.h
+lkc_defs.h: $(srcdir)/lkc_proto.h
 	@sed < $< > $@ 's/P(\([^,]*\),.*/#define \1 (\*\1_p)/'
 
 ###
@@ -61,28 +71,29 @@ lkc_defs.h: lkc_proto.h
 
 ifdef LKC_GENPARSER
 
-%.tab.c %.tab.h: %.y
+%.tab.c %.tab.h: $(srcdir)/%.y
 	bison -t -d -v -b $* -p $(notdir $*) $<
 
-lex.%.c: %.l
+lex.%.c: $(srcdir)/%.l
 	flex -P$(notdir $*) -o$@ $<
 else
 
 lex.zconf.o: lex.zconf.c $(SHARED_DEPS)
-	$(HOSTCC) $(HOSTCFLAGS) -I. -c $< -o $@
+	$(HOSTCC) $(HOSTCFLAGS) -I$(srcdir) -c $< -o $@
 
-lex.zconf.c: lex.zconf.c_shipped
-	cp lex.zconf.c_shipped lex.zconf.c
+lex.zconf.c: $(srcdir)/lex.zconf.c_shipped
+	cp $< $@
 
-zconf.tab.o: zconf.tab.c lex.zconf.c confdata.c expr.c symbol.c menu.c $(SHARED_DEPS)
-	$(HOSTCC) $(HOSTCFLAGS) -I. -c $< -o $@
+zconf.tab.c: $(srcdir)/zconf.tab.c_shipped
+	cp $< $@
 
-zconf.tab.c: zconf.tab.c_shipped
-	cp zconf.tab.c_shipped zconf.tab.c
-
-zconf.tab.h: zconf.tab.h_shipped
-	cp zconf.tab.h_shipped zconf.tab.h
+zconf.tab.h: $(srcdir)/zconf.tab.h_shipped
+	cp $< $@
 endif
+
+zconf.tab.o: zconf.tab.c lex.zconf.c $(srcdir)/confdata.c $(srcdir)/expr.c \
+             $(srcdir)/symbol.c $(srcdir)/menu.c $(SHARED_DEPS)
+	$(HOSTCC) $(HOSTCFLAGS) -I$(srcdir) -I. -c $< -o $@
 
 .PHONY: ncurses
 

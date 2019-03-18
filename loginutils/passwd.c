@@ -38,7 +38,6 @@ extern int update_passwd(const struct passwd *pw, char *crypt_pw)
 	char buffer[80];
 	char username[32];
 	char *pw_rest;
-	int has_shadow = 0;
 	int mask;
 	int continued;
 	FILE *fp;
@@ -46,12 +45,12 @@ extern int update_passwd(const struct passwd *pw, char *crypt_pw)
 	struct stat sb;
 	struct flock lock;
 
+#ifdef CONFIG_FEATURE_SHADOWPASSWDS
 	if (access(bb_path_shadow_file, F_OK) == 0) {
-		has_shadow = 1;
-	}
-	if (has_shadow) {
 		snprintf(filename, sizeof filename, "%s", bb_path_shadow_file);
-	} else {
+	} else
+#endif
+	{
 		snprintf(filename, sizeof filename, "%s", bb_path_passwd_file);
 	}
 
@@ -145,7 +144,6 @@ extern int passwd_main(int argc, char **argv)
 	int uflg = 0;				/* -u - unlock account */
 	int dflg = 0;				/* -d - delete password */
 	const struct passwd *pw;
-	unsigned short ruid;
 
 #ifdef CONFIG_FEATURE_SHADOWPASSWDS
 	const struct spwd *sp;
@@ -170,12 +168,8 @@ extern int passwd_main(int argc, char **argv)
 			bb_show_usage();
 		}
 	}
-	ruid = getuid();
-	pw = (struct passwd *) getpwuid(ruid);
-	if (!pw) {
-               bb_error_msg_and_die("Cannot determine your user name.");
-	}
-	myname = (char *) bb_xstrdup(pw->pw_name);
+	myname = (char *) bb_xstrdup(my_getpwuid(NULL, getuid(), -1));
+	/* exits on error */
 	if (optind < argc) {
 		name = argv[optind];
 	} else {

@@ -197,7 +197,10 @@ int nslookup_main(int argc, char **argv)
 		host = xgethostbyname(argv[1]);
 	}
 	hostent_fprint(host, "Name:  ");
-	return EXIT_SUCCESS;
+	if (host) {
+		return EXIT_SUCCESS;
+	}
+	return EXIT_FAILURE;
 }
 
-/* $Id: nslookup.c,v 1.31 2004/01/30 22:40:05 andersen Exp $ */
+/* $Id: nslookup.c,v 1.33 2004/10/13 07:25:01 andersen Exp $ */

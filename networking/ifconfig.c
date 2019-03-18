@@ -15,7 +15,7 @@
  * Foundation;  either  version 2 of the License, or  (at
  * your option) any later version.
  *
- * $Id: ifconfig.c,v 1.29 2004/03/15 08:28:48 andersen Exp $
+ * $Id: ifconfig.c,v 1.30 2004/03/31 11:30:08 andersen Exp $
  *
  */
 
@@ -46,8 +46,8 @@
 #include <netpacket/packet.h>
 #include <net/ethernet.h>
 #else
-#include <asm/types.h>
-#include <linux/if_ether.h>
+#include <sys/types.h>
+#include <netinet/if_ether.h>
 #endif
 #include "inet_common.h"
 #include "busybox.h"
@@ -177,7 +177,7 @@ struct in6_ifreq {
 
 struct arg1opt {
 	const char *name;
-	unsigned short selector;
+	int selector;
 	unsigned short ifr_offset;
 };
 

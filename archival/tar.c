@@ -234,9 +234,9 @@ static inline int writeTarHeader(struct TarBallInfo *tbInfo,
 			TAR_MAGIC_LEN + TAR_VERSION_LEN);
 
 	/* Enter the user and group names (default to root if it fails) */
-	if (my_getpwuid(header.uname, statbuf->st_uid) == NULL)
+	if (my_getpwuid(header.uname, statbuf->st_uid, sizeof(header.uname)) == NULL)
 		strcpy(header.uname, "root");
-	if (my_getgrgid(header.gname, statbuf->st_gid) == NULL)
+	if (my_getgrgid(header.gname, statbuf->st_gid, sizeof(header.gname)) == NULL)
 		strcpy(header.gname, "root");
 
 	if (tbInfo->hlInfo) {
@@ -724,7 +724,7 @@ int tar_main(int argc, char **argv)
 				);
 
 	/* Check one and only one context option was given */
-	if(opt & 0x80000000UL) {
+	if(opt & BB_GETOPT_ERROR) {
 		bb_show_usage();
 	}
 #ifdef CONFIG_FEATURE_TAR_CREATE

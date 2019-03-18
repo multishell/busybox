@@ -233,5 +233,5 @@ David Schleef <ds@schleef.org>
 
 =cut
 
-# $Id: depmod.pl,v 1.3 2003/07/14 21:20:51 andersen Exp $
+# $Id: depmod.pl,v 1.4 2004/03/15 08:28:33 andersen Exp $
 

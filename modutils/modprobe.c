@@ -4,6 +4,7 @@
  *
  * Copyright (c) 2002 by Robert Griebl, griebl@gmx.de
  * Copyright (c) 2003 by Andrew Dennison, andrew.dennison@motec.com.au
+ * Copyright (c) 2005 by Jim Bauer, jfbauer@nfr.com
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,6 +23,8 @@
 */
 
 #include <sys/utsname.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <getopt.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -34,7 +37,8 @@
 
 
 struct dep_t {
-	char *  m_module;
+	char *  m_name;
+	char *  m_path;
 	char *  m_options;
 
 	int     m_isalias  : 1;
@@ -47,7 +51,8 @@ struct dep_t {
 };
 
 struct mod_list_t {
-	char *  m_module;
+	char *  m_name;
+	char *  m_path;
 	char *  m_options;
 
 	struct mod_list_t * m_prev;
@@ -159,11 +164,12 @@ static struct dep_t *build_dep ( void )
 
 		if ( !continuation_line ) {
 			char *col = strchr ( buffer, ':' );
+			char *dot = col;
 
 			if ( col ) {
 				char *mods;
+				char *modpath;
 				char *mod;
-				int ext = 0;
 
 				*col = 0;
 				mods = strrchr ( buffer, '/' );
@@ -173,16 +179,19 @@ static struct dep_t *build_dep ( void )
 				else
 					mods++;
 
+				modpath = strchr ( buffer, '/' );
+				if ( !modpath )
+					modpath = buffer;
 #if defined(CONFIG_FEATURE_2_6_MODULES)
 				if ((k_version > 4) && ( *(col-3) == '.' ) &&
 						( *(col-2) == 'k' ) && ( *(col-1) == 'o' ))
-					ext = 3;
+					dot = col - 3;
 				else
 #endif
 					if (( *(col-2) == '.' ) && ( *(col-1) == 'o' ))
-						ext = 2;
+						dot = col - 2;
 
-				mod = bb_xstrndup ( buffer, col - buffer );
+				mod = bb_xstrndup ( mods, dot - mods );
 
 				if ( !current ) {
 					first = current = (struct dep_t *) xmalloc ( sizeof ( struct dep_t ));
@@ -191,7 +200,8 @@ static struct dep_t *build_dep ( void )
 					current-> m_next = (struct dep_t *) xmalloc ( sizeof ( struct dep_t ));
 					current = current-> m_next;
 				}
-				current-> m_module  = mod;
+				current-> m_name  = mod;
+				current-> m_path  = bb_xstrdup(modpath);
 				current-> m_options = 0;
 				current-> m_isalias = 0;
 				current-> m_depcnt  = 0;
@@ -317,7 +327,7 @@ static struct dep_t *build_dep ( void )
 						current-> m_next = (struct dep_t *) xcalloc ( 1, sizeof ( struct dep_t ));
 						current = current-> m_next;
 					}
-					current-> m_module  = bb_xstrdup ( alias );
+					current-> m_name  = bb_xstrdup ( alias );
 					current-> m_isalias = 1;
 
 					if (( strcmp ( mod, "off" ) == 0 ) || ( strcmp ( mod, "null" ) == 0 )) {
@@ -339,14 +349,14 @@ static struct dep_t *build_dep ( void )
 					struct dep_t *dt;
 
 					for ( dt = first; dt; dt = dt-> m_next ) {
-						if ( strcmp ( dt-> m_module, mod ) == 0 )
+						if ( strcmp ( dt-> m_name, mod ) == 0 )
 							break;
 					}
 					if ( dt ) {
 						dt-> m_options = xrealloc ( dt-> m_options, bb_strlen( opt ) + 1 );
 						strcpy ( dt-> m_options, opt );
 
-						// fprintf ( stderr, "OPTION: '%s' -> '%s'\n", dt-> m_module, dt-> m_options );
+						// fprintf ( stderr, "OPTION: '%s' -> '%s'\n", dt-> m_name, dt-> m_options );
 					}
 				}
 			}
@@ -355,29 +365,6 @@ static struct dep_t *build_dep ( void )
 	close ( fd );
 
 	return first;
-}
-
-/* check if /lib/modules/bar/foo.ko belongs to module foo */
-/* return 1 = found, 0 = not found                        */
-static int mod_strcmp ( const char *mod_path, const char *mod_name )
-{
-	/* last path component */
-	const char *last_comp = strrchr (mod_path, '/'); 
-	const char *mod_ext = ".o";
-
-#if defined(CONFIG_FEATURE_2_6_MODULES)
-	if ( k_version > 4 )
-		mod_ext = ".ko";
-#endif
-
-	last_comp = last_comp ? last_comp + 1 : mod_path;
-
-	return (strncmp(last_comp,
-					 mod_name,
-					 strlen(mod_name)) == 0 ) &&
-		   ((strcmp(last_comp + strlen (mod_name), mod_ext) == 0) || last_comp[strlen(mod_name)] == 0) &&
-		   (strcmp(mod_path + strlen(mod_path) -
-					strlen(mod_ext), mod_ext) == 0);
 }
 
 /* return 1 = loaded, 0 = not loaded, -1 = can't tell */
@@ -396,7 +383,7 @@ static int already_loaded (const char *name)
 		p = strchr (buffer, ' ');
 		if (p) {
 			*p = 0;
-			if (mod_strcmp (name, buffer)) {
+			if (strcmp (name, buffer) == 0) {
 				close (fd);
 				return 1;
 			}
@@ -409,29 +396,65 @@ static int already_loaded (const char *name)
 
 static int mod_process ( struct mod_list_t *list, int do_insert )
 {
-	char lcmd [4096];
 	int rc = 0;
+	char *argv[10];
+	int argc;
 
 	while ( list ) {
-		*lcmd = '\0';
+		argc = 0;
 		if ( do_insert ) {
-			if (already_loaded (list->m_module) != 1)
-				snprintf ( lcmd, sizeof( lcmd ) - 1, "insmod %s %s %s %s %s",
-						do_syslog ? "-s" : "", autoclean ? "-k" : "",
-						quiet ? "-q" : "", list-> m_module, list-> m_options ?
-						list-> m_options : "" );
+		    if (already_loaded (list->m_name) != 1) {
+				argv[argc++] = "insmod";
+				if (do_syslog)
+					argv[argc++] = "-s";
+				if (autoclean)
+					argv[argc++] = "-k";
+				if (quiet)
+					argv[argc++] = "-q";
+				argv[argc++] = list-> m_path;
+				if (list-> m_options)
+					argv[argc++] = list-> m_options;
+			}
 		} else {
-			if (already_loaded (list->m_module) != 0)
-				snprintf ( lcmd, sizeof( lcmd ) - 1, "rmmod %s %s",
-						do_syslog ? "-s" : "", list-> m_module );
+			/* modutils uses short name for removal */
+		    if (already_loaded (list->m_name) != 0) {
+				argv[argc++] = "rmmod";
+				if (do_syslog)
+					argv[argc++] = "-s";
+				argv[argc++] = list->m_name;
+			}
 		}
+		argv[argc] = NULL;
 
-		if (*lcmd) {
+		if (argc) {
 			if (verbose) {
-				printf("%s\n", lcmd);
+				int i;
+				for (i=0; i<argc; i++)
+				  printf("%s ", argv[i]);
+				printf("\n");
 			}
 			if (!show_only) {
-				int rc2 = system(lcmd);
+				int rc2 = 0;
+				int status;
+				switch (fork()) {
+				case -1:
+					rc2 = 1;
+					break;
+				case 0: //child
+					execvp(argv[0], argv);
+					bb_perror_msg_and_die("exec of %s", argv[0]);
+					/* NOTREACHED */
+				default:
+					if (wait(&status) == -1) {
+						rc2 = 1;
+						break;
+					}
+					if (WIFEXITED(status))
+						rc2 = WEXITSTATUS(status);
+					if (WIFSIGNALED(status))
+						rc2 = WTERMSIG(status);
+					break;
+				}
 				if (do_insert) {
 					rc = rc2; /* only last module matters */
 				}
@@ -450,24 +473,13 @@ static void check_dep ( char *mod, struct mod_list_t **head, struct mod_list_t *
 	struct mod_list_t *find;
 	struct dep_t *dt;
 	char *opt = 0;
-	int lm;
-
-	// remove .o extension
-	lm = bb_strlen ( mod );
-
-#if defined(CONFIG_FEATURE_2_6_MODULES)
-	if ((k_version > 4) && ( mod [lm-3] == '.' ) &&
-			( mod [lm-2] == 'k' ) && ( mod [lm-1] == 'o' ))
-		mod [lm-3] = 0;
-	else
-#endif
-		if (( mod [lm-2] == '.' ) && ( mod [lm-1] == 'o' ))
-			mod [lm-2] = 0;
+	char *path = 0;
 
 	// check dependencies
 	for ( dt = depend; dt; dt = dt-> m_next ) {
-		if ( mod_strcmp ( dt-> m_module, mod )) {
-			mod = dt-> m_module;
+		if ( strcmp ( dt-> m_name, mod ) == 0) {
+			mod = dt-> m_name;
+			path = dt-> m_path;
 			opt = dt-> m_options;
 			break;
 		}
@@ -479,12 +491,13 @@ static void check_dep ( char *mod, struct mod_list_t **head, struct mod_list_t *
 			struct dep_t *adt;
 
 			for ( adt = depend; adt; adt = adt-> m_next ) {
-				if ( strcmp ( adt-> m_module, dt-> m_deparr [0] ) == 0 )
+				if ( strcmp ( adt-> m_name, dt-> m_deparr [0] ) == 0 )
 					break;
 			}
 			if ( adt ) {
 				dt = adt;
-				mod = dt-> m_module;
+				mod = dt-> m_name;
+				path = dt-> m_path;
 				if ( !opt )
 					opt = dt-> m_options;
 			}
@@ -495,9 +508,14 @@ static void check_dep ( char *mod, struct mod_list_t **head, struct mod_list_t *
 			return;
 	}
 
+	if ( !path ) {
+		bb_error_msg ("module %s not found.", mod);
+		return;
+	}
+
 	// search for duplicates
 	for ( find = *head; find; find = find-> m_next ) {
-		if ( !strcmp ( mod, find-> m_module )) {
+		if ( !strcmp ( mod, find-> m_name )) {
 			// found -> dequeue it
 
 			if ( find-> m_prev )
@@ -516,7 +534,8 @@ static void check_dep ( char *mod, struct mod_list_t **head, struct mod_list_t *
 
 	if ( !find ) { // did not find a duplicate
 		find = (struct mod_list_t *) xmalloc ( sizeof(struct mod_list_t));
-		find-> m_module = mod;
+		find-> m_name = mod;
+		find-> m_path = path;
 		find-> m_options = opt;
 	}
 
@@ -598,8 +617,6 @@ static int mod_remove ( char *mod )
 	return rc;
 
 }
-
-
 
 extern int modprobe_main(int argc, char** argv)
 {

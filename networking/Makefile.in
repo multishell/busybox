@@ -19,9 +19,9 @@
 
 NETWORKING_AR:=networking.a
 ifndef $(NETWORKING_DIR)
-NETWORKING_DIR:=$(TOPDIR)networking/
+NETWORKING_DIR:=$(top_builddir)/networking/
 endif
-
+srcdir=$(top_srcdir)/networking
 NETWORKING-y:=
 NETWORKING-$(CONFIG_ARPING)	+= arping.o
 NETWORKING-$(CONFIG_FTPGET)	+= ftpgetput.o
@@ -61,5 +61,8 @@ ifeq ($(needcrypt-y),y)
 endif
 
 $(NETWORKING_DIR)$(NETWORKING_AR): $(patsubst %,$(NETWORKING_DIR)%, $(NETWORKING-y))
-	$(AR) -ro $@ $(patsubst %,$(NETWORKING_DIR)%, $(NETWORKING-y))
+	$(AR) $(ARFLAGS) $@ $(patsubst %,$(NETWORKING_DIR)%, $(NETWORKING-y))
+
+$(NETWORKING_DIR)%.o: $(srcdir)/%.c
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
 

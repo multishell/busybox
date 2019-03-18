@@ -19,8 +19,9 @@
 
 EDITOR_AR:=editors.a
 ifndef $(EDITOR_DIR)
-EDITOR_DIR:=$(TOPDIR)editors/
+EDITOR_DIR:=$(top_builddir)/editors/
 endif
+srcdir=$(top_srcdir)/editors
 
 EDITOR-y:=
 EDITOR-$(CONFIG_AWK)	   += awk.o
@@ -40,5 +41,8 @@ ifeq ($(needlibm-y),y)
 endif
 
 $(EDITOR_DIR)$(EDITOR_AR): $(patsubst %,$(EDITOR_DIR)%, $(EDITOR-y))
-	$(AR) -ro $@ $(patsubst %,$(EDITOR_DIR)%, $(EDITOR-y))
+	$(AR) $(ARFLAGS) $@ $(patsubst %,$(EDITOR_DIR)%, $(EDITOR-y))
+
+$(EDITOR_DIR)%.o: $(srcdir)/%.c
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
 

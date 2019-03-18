@@ -98,7 +98,7 @@ static void print_line(const char *line, int linenum, char decoration)
 	}
 	last_line_printed = linenum;
 #endif
-	if (print_filename)
+	if (print_filename > 0)
 		printf("%s%c", cur_file, decoration);
 	if (print_line_num)
 		printf("%i%c", linenum, decoration);
@@ -219,7 +219,7 @@ static int grep_file(FILE *file)
 
 	/* grep -c: print [filename:]count, even if count is zero */
 	if (print_match_counts) {
-		if (print_filename)
+		if (print_filename > 0)
 			printf("%s:", cur_file);
 		    printf("%d\n", nmatches);
 	}
@@ -249,9 +249,9 @@ static void load_regexes_from_file(llist_t *fopt)
 		fopt = cur->link;
 		free(cur);
 		f = bb_xfopen(ffile, "r");
-	while ((line = bb_get_chomped_line_from_file(f)) != NULL) {
-		pattern_head = llist_add_to(pattern_head, line);
-	}
+		while ((line = bb_get_chomped_line_from_file(f)) != NULL) {
+			pattern_head = llist_add_to(pattern_head, line);
+		}
 	}
 }
 
@@ -261,7 +261,7 @@ extern int grep_main(int argc, char **argv)
 	FILE *file;
 	int matched;
 	unsigned long opt;
-	llist_t *fopt;
+	llist_t *fopt = NULL;
 
 	/* do normal option parsing */
 #ifdef CONFIG_FEATURE_GREP_CONTEXT
@@ -325,6 +325,11 @@ extern int grep_main(int argc, char **argv)
 		print_filename--;
 	if(opt & GREP_OPT_f)
 		load_regexes_from_file(fopt);
+
+#ifdef CONFIG_FEATURE_GREP_FGREP_ALIAS
+	if(bb_applet_name[0] == 'f')
+		fgrep_flag = 1;
+#endif
 
 #ifdef CONFIG_FEATURE_GREP_EGREP_ALIAS
 	if(bb_applet_name[0] == 'e' || (opt & GREP_OPT_E))

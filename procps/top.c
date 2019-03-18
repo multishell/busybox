@@ -52,25 +52,16 @@ typedef int (*cmp_t)(procps_status_t *P, procps_status_t *Q);
 static procps_status_t *top;   /* Hehe */
 static int ntop;
 
-
+#ifdef CONFIG_FEATURE_USE_TERMIOS
 static int pid_sort (procps_status_t *P, procps_status_t *Q)
 {
-    int p = P->pid;
-    int q = Q->pid;
-
-    if( p < q ) return -1;
-    if( p > q ) return  1;
-    return 0;
+    return (Q->pid - P->pid);
 }
+#endif
 
 static int mem_sort (procps_status_t *P, procps_status_t *Q)
 {
-    long p = P->rss;
-    long q = Q->rss;
-
-    if( p > q ) return -1;
-    if( p < q ) return  1;
-    return 0;
+    return (int)(Q->rss - P->rss);
 }
 
 #ifdef FEATURE_CPU_USAGE_PERCENTAGE
@@ -80,24 +71,12 @@ static cmp_t sort_function[sort_depth];
 
 static int pcpu_sort (procps_status_t *P, procps_status_t *Q)
 {
-    int p = P->pcpu;
-    int q = Q->pcpu;
-
-    if( p > q ) return -1;
-    if( p < q ) return  1;
-    return 0;
+    return (Q->pcpu - P->pcpu);
 }
 
 static int time_sort (procps_status_t *P, procps_status_t *Q)
 {
-    long p = P->stime;
-    long q = Q->stime;
-
-    p += P->utime;
-    q += Q->utime;
-    if( p > q ) return -1;
-    if( p < q ) return  1;
-    return 0;
+    return (int)((Q->stime + Q->utime) - (P->stime + P->utime));
 }
 
 int mult_lvl_cmp(void* a, void* b) {
@@ -432,7 +411,7 @@ static void clearmems(void)
 	ntop = 0;
 }
 
-#if defined CONFIG_FEATURE_USE_TERMIOS
+#ifdef CONFIG_FEATURE_USE_TERMIOS
 #include <termios.h>
 #include <sys/time.h>
 #include <signal.h>
@@ -461,7 +440,7 @@ static void sig_catcher (int sig)
 int top_main(int argc, char **argv)
 {
 	int opt, interval, lines, col;
-#if defined CONFIG_FEATURE_USE_TERMIOS
+#ifdef CONFIG_FEATURE_USE_TERMIOS
 	struct termios new_settings;
 	struct timeval tv;
 	fd_set readfds;
@@ -495,7 +474,7 @@ int top_main(int argc, char **argv)
 	if (chdir("/proc") < 0) {
 		bb_perror_msg_and_die("chdir('/proc')");
 	}
-#if defined CONFIG_FEATURE_USE_TERMIOS
+#ifdef CONFIG_FEATURE_USE_TERMIOS
 	tcgetattr(0, (void *) &initial_settings);
 	memcpy(&new_settings, &initial_settings, sizeof(struct termios));
 	new_settings.c_lflag &= ~(ISIG | ICANON); /* unbuffered input */
@@ -521,13 +500,15 @@ int top_main(int argc, char **argv)
 #endif
 	}
 #endif /* CONFIG_FEATURE_USE_TERMIOS */
+
 #ifdef FEATURE_CPU_USAGE_PERCENTAGE
 	sort_function[0] = pcpu_sort;
 	sort_function[1] = mem_sort;
 	sort_function[2] = time_sort;
 #else
 	sort_function = mem_sort;
-#endif
+#endif /* FEATURE_CPU_USAGE_PERCENTAGE */
+
 	while (1) {
 		/* read process IDs & status for all the processes */
 		procps_status_t * p;
@@ -556,14 +537,14 @@ int top_main(int argc, char **argv)
 		do_stats();
 #else
 		qsort(top, ntop, sizeof(procps_status_t), (void*)sort_function);
-#endif
+#endif /* FEATURE_CPU_USAGE_PERCENTAGE */
 		opt = lines;
 		if (opt > ntop) {
 			opt = ntop;
 		}
 		/* show status for each of the processes */
 		display_status(opt, col);
-#if defined CONFIG_FEATURE_USE_TERMIOS
+#ifdef CONFIG_FEATURE_USE_TERMIOS
 		tv.tv_sec = interval;
 		tv.tv_usec = 0;
 		FD_ZERO (&readfds);
@@ -571,8 +552,8 @@ int top_main(int argc, char **argv)
 		select (1, &readfds, NULL, NULL, &tv);
 		if (FD_ISSET (0, &readfds)) {
 			if (read (0, &c, 1) <= 0) {   /* signal */
-		return EXIT_FAILURE;
-	}
+				return EXIT_FAILURE;
+			}
 			if(c == 'q' || c == initial_settings.c_cc[VINTR])
 				return EXIT_SUCCESS;
 			if(c == 'M') {
@@ -606,7 +587,7 @@ int top_main(int argc, char **argv)
 		}
 #else
 		sleep(interval);
-#endif                                  /* CONFIG_FEATURE_USE_TERMIOS */
+#endif /* CONFIG_FEATURE_USE_TERMIOS */
 		clearmems();
 	}
 

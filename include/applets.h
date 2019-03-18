@@ -341,7 +341,7 @@
 	APPLET(logger, logger_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_LOGIN
-	APPLET(login, login_main, _BB_DIR_BIN, _BB_SUID_NEVER)
+	APPLET(login, login_main, _BB_DIR_BIN, _BB_SUID_ALWAYS)
 #endif
 #ifdef CONFIG_LOGNAME
 	APPLET(logname, logname_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
@@ -440,7 +440,7 @@
 	APPLET_NOUSAGE("pipe_progress", pipe_progress_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_PIVOT_ROOT
- 	APPLET(pivot_root, pivot_root_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
+	APPLET(pivot_root, pivot_root_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_POWEROFF
 	APPLET(poweroff, poweroff_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
@@ -482,7 +482,7 @@
 	APPLET(rmmod, rmmod_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_ROUTE
- 	APPLET(route, route_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
+	APPLET(route, route_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_RPM
 	APPLET(rpm, rpm_main, _BB_DIR_BIN, _BB_SUID_NEVER)
@@ -672,7 +672,7 @@
 #endif
 
 #if !defined(PROTOTYPES) && !defined(MAKE_USAGE)
-	{ 0,NULL,0 }
+	{ 0,NULL,0,0 }
 };
 
 #endif

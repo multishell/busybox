@@ -782,8 +782,8 @@ static int match_compare(const void *a, const void *b)
 #define QUOT    (UCHAR_MAX+1)
 
 #define collapse_pos(is, in) { \
-	memcpy(int_buf+(is), int_buf+(in), (BUFSIZ+1-(is)-(in))*sizeof(int)); \
-	memcpy(pos_buf+(is), pos_buf+(in), (BUFSIZ+1-(is)-(in))*sizeof(int)); }
+	memmove(int_buf+(is), int_buf+(in), (BUFSIZ+1-(is)-(in))*sizeof(int)); \
+	memmove(pos_buf+(is), pos_buf+(in), (BUFSIZ+1-(is)-(in))*sizeof(int)); }
 
 static int find_match(char *matchBuf, int *len_with_quotes)
 {
@@ -1297,6 +1297,7 @@ int cmdedit_read_input(char *prompt, char command[BUFSIZ])
 			/* Control-d -- Delete one character, or exit
 			 * if the len=0 and no chars to delete */
 			if (len == 0) {
+					errno = 0;
 prepare_to_die:
 #if !defined(CONFIG_ASH)
 				printf("exit");

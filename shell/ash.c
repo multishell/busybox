@@ -1353,6 +1353,7 @@ struct builtincmd {
 
 #define IS_BUILTIN_SPECIAL(builtincmd) ((builtincmd)->name[0] & 1)
 #define IS_BUILTIN_REGULAR(builtincmd) ((builtincmd)->name[0] & 2)
+#define IS_BUILTIN_ASSIGN(builtincmd) ((builtincmd)->name[0] & 4)
 
 static const struct builtincmd builtincmd[] = {
 	{ BUILTIN_SPEC_REG      ".", dotcmd },
@@ -2316,6 +2317,7 @@ cdcmd(int argc, char **argv)
 		dest = bltinlookup(homestr);
 	else if (dest[0] == '-' && dest[1] == '\0') {
 		dest = bltinlookup("OLDPWD");
+		if ( !dest ) goto out;
 		flags |= CD_PRINT;
 		goto step7;
 	}
@@ -3207,7 +3209,14 @@ parse_command_args(char **argv, const char **path)
 }
 #endif
 
-
+static inline int
+isassignment(const char *p)
+{
+	const char *q = endofname(p);
+	if (p == q)
+		return 0;
+	return *q == '=';
+}
 
 /*
  * Execute a simple command.
@@ -3231,6 +3240,8 @@ evalcommand(union node *cmd, int flags)
 	int cmd_is_exec;
 	int status;
 	char **nargv;
+	struct builtincmd *bcmd;
+	int pseudovarflag = 0;
 
 	/* First expand the arguments. */
 	TRACE(("evalcommand(0x%lx, %d) called\n", (long)cmd, flags));
@@ -3245,11 +3256,21 @@ evalcommand(union node *cmd, int flags)
 	*arglist.lastp = NULL;
 
 	argc = 0;
+	if (cmd->ncmd.args)
+	{
+		bcmd = find_builtin(cmd->ncmd.args->narg.text);
+		pseudovarflag = bcmd && IS_BUILTIN_ASSIGN(bcmd);
+	}
+
 	for (argp = cmd->ncmd.args; argp; argp = argp->narg.next) {
 		struct strlist **spp;
 
 		spp = arglist.lastp;
-		expandarg(argp, &arglist, EXP_FULL | EXP_TILDE);
+		if (pseudovarflag && isassignment(argp->narg.text)) 
+			expandarg(argp, &arglist, EXP_VARTILDE);
+		else
+			expandarg(argp, &arglist, EXP_FULL | EXP_TILDE);
+
 		for (sp = *spp; sp; sp = sp->next)
 			argc++;
 	}
@@ -6050,7 +6071,9 @@ retry:
 	if (!iflag || parsefile->fd)
 		nr = safe_read(parsefile->fd, buf, BUFSIZ - 1);
 	else {
+#ifdef CONFIG_FEATURE_COMMAND_TAB_COMPLETION
 		cmdedit_path_lookup = pathval();
+#endif
 		nr = cmdedit_read_input((char *) cmdedit_prompt, buf);
 		if(nr == 0) {
 			/* Ctrl+C presend */
@@ -6062,7 +6085,7 @@ retry:
 			}
 			goto retry;
 		}
-		if(nr < 0) {
+		if(nr < 0 && errno == 0) {
 			/* Ctrl+D presend */
 			nr = 0;
 		}
@@ -6614,7 +6637,7 @@ usage:
 		} else
 			pid = number(*argv);
 		if (kill(pid, signo) != 0) {
-			sh_warnx("%m\n");
+			sh_warnx("kill %d: %s", pid, errmsg(errno, NULL));
 			i = 1;
 		}
 	} while (*++argv);
@@ -9367,15 +9390,6 @@ static void setprompt(int);
 
 
 
-static inline int
-isassignment(const char *p)
-{
-	const char *q = endofname(p);
-	if (p == q)
-		return 0;
-	return *q == '=';
-}
-
 
 /*
  * Read and parse a command.  Returns NEOF on end of file.  (NULL is a
@@ -12002,7 +12016,7 @@ setvar(const char *name, const char *val, int flags)
 	INTOFF;
 	p = mempcpy(nameeq = ckmalloc(namelen + vallen + 2), name, namelen);
 	*p++ = '\0';
-	if (vallen) {
+	if (val) {
 		p[-1] = '=';
 		p = mempcpy(p, val, vallen);
 	}
@@ -13268,7 +13282,7 @@ arith_apply(operator op, v_n_t *numstack, v_n_t **numstackptr)
 			if(numptr_val < 0)
 				return -3;      /* exponent less than 0 */
 			else {
-				long c = 1;
+				arith_t c = 1;
 
 				if(numptr_val)
 					while(numptr_val--)
@@ -13291,7 +13305,7 @@ arith_apply(operator op, v_n_t *numstack, v_n_t **numstackptr)
 			goto err;
 		}
 		/* save to shell variable */
-		sprintf(buf, "%lld", (long long) rez);
+		snprintf(buf, sizeof(buf), "%lld", (long long) rez);
 		setvar(numptr_m1->var, buf, 0);
 		/* after saving, make previous value for v++ or v-- */
 		if(op == TOK_POST_INC)
@@ -13417,7 +13431,7 @@ static arith_t arith (const char *expr, int *perrcode)
 			goto prologue;
 		}
 		if((p = endofname(expr)) != expr) {
-			int var_name_size = (p-expr) + 1;  /* trailing zero */
+			size_t var_name_size = (p-expr) + 1;  /* trailing zero */
 
 			numstackptr->var = alloca(var_name_size);
 			safe_strncpy(numstackptr->var, expr, var_name_size);
@@ -13429,7 +13443,7 @@ static arith_t arith (const char *expr, int *perrcode)
 			continue;
 		} else if (is_digit(arithval)) {
 			numstackptr->var = NULL;
-			numstackptr->val = strtol(expr, (char **) &expr, 0);
+			numstackptr->val = strtoll(expr, (char **) &expr, 0);
 			goto num;
 		}
 		for(p = op_tokens; ; p++) {

@@ -57,20 +57,31 @@ config CONFIG_GETTY
 	help
 	  getty lets you log in on a tty, it is normally invoked by init.
 
-config CONFIG_FEATURE_U_W_TMP
-	bool "  Support utmp and wtmp files"
-	depends on CONFIG_GETTY || CONFIG_LOGIN || CONFIG_SU || CONFIG_WHO || CONFIG_LAST
+config CONFIG_FEATURE_UTMP
+	bool "  Support utmp file"
+	depends on CONFIG_GETTY || CONFIG_LOGIN || CONFIG_SU || CONFIG_WHO 
 	default n
 	help
-	  The files /var/run/utmp and /var/run/wtmp can be used to track when
-	  user's have logged into and logged out of the system, allowing programs
-	  such as 'who' and 'last' to list who is currently logged in.
+	  The file /var/run/utmp is used to track who is currently logged in.
+
+config CONFIG_FEATURE_WTMP
+	bool "  Support wtmp file"
+	depends on CONFIG_GETTY || CONFIG_LOGIN || CONFIG_SU || CONFIG_LAST
+	default n
+	select CONFIG_FEATURE_UTMP
+	help
+	  The file /var/run/wtmp is used to track when user's have logged into 
+	  and logged out of the system.
 
 config CONFIG_LOGIN
 	bool "login"
 	default n
+	select CONFIG_FEATURE_SUID
 	help
 	  login is used when signing onto a system.
+
+	  Note that Busybox binary must be setuid root for this applet to
+	  work properly.
 
 config CONFIG_FEATURE_SECURETTY
 	bool "  Support for /etc/securetty"
@@ -84,18 +95,26 @@ config CONFIG_FEATURE_SECURETTY
 config CONFIG_PASSWD
 	bool "passwd"
 	default n
+	select CONFIG_FEATURE_SUID
 	help
 	  passwd changes passwords for user and group accounts.  A normal user
 	  may only change the password for his/her own account, the super user
 	  may change the password for any account.  The administrator of a group
 	  may change the password for the group.
 
+	  Note that Busybox binary must be setuid root for this applet to
+	  work properly.
+
 config CONFIG_SU
 	bool "su"
 	default n
+	select CONFIG_FEATURE_SUID
 	help
 	  su is used to become another user during a login session.
 	  Invoked without a username, su defaults to becoming the super user.
+
+	  Note that Busybox binary must be setuid root for this applet to
+	  work properly.
 
 config CONFIG_SULOGIN
 	bool "sulogin"
@@ -107,8 +126,12 @@ config CONFIG_SULOGIN
 config CONFIG_VLOCK
 	bool "vlock"
 	default n
+	select CONFIG_FEATURE_SUID
 	help
 	  Build the "vlock" applet which allows you to lock (virtual) terminals.
+
+	  Note that Busybox binary must be setuid root for this applet to
+	  work properly.
 
 comment "Common options for adduser, deluser, login, su"
 	depends on CONFIG_ADDUSER || CONFIG_DELUSER || CONFIG_LOGIN || CONFIG_SU
