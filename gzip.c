@@ -1222,6 +1222,7 @@ int gzip_main(int argc, char **argv)
 	int fromstdin = 0;
 	int force = 0;
 	int opt;
+	int file_count;
 
 	while ((opt = getopt(argc, argv, "cf123456789dq")) != -1) {
 		switch (opt) {
@@ -1269,6 +1270,7 @@ int gzip_main(int argc, char **argv)
 	}
 #endif
 
+	file_count = argc - optind;
 	strncpy(z_suffix, Z_SUFFIX, sizeof(z_suffix) - 1);
 	z_len = strlen(z_suffix);
 
@@ -1279,73 +1281,79 @@ int gzip_main(int argc, char **argv)
 	ALLOC(uch, window, 2L * WSIZE);
 	ALLOC(ush, tab_prefix, 1L << BITS);
 
-	if (fromstdin == 1) {
-		strcpy(ofname, "stdin");
+	if (file_count != 0) {
+		while (optind < argc) {
 
-		inFileNum = fileno(stdin);
-		time_stamp = 0;			/* time unknown by default */
-		ifile_size = -1L;		/* convention for unknown size */
-	} else {
-		/* Open up the input file */
-		strncpy(ifname, argv[optind], MAX_PATH_LEN);
+			if (fromstdin == 1) {
+				strcpy(ofname, "stdin");
 
-		/* Open input file */
-		inFileNum = open(ifname, O_RDONLY);
-		if (inFileNum < 0)
-			perror_msg_and_die("%s", ifname);
-		/* Get the time stamp on the input file. */
-		if (stat(ifname, &statBuf) < 0)
-			perror_msg_and_die("%s", ifname);
-		time_stamp = statBuf.st_ctime;
-		ifile_size = statBuf.st_size;
-	}
+				inFileNum = fileno(stdin);
+				time_stamp = 0;			/* time unknown by default */
+				ifile_size = -1L;		/* convention for unknown size */
+				optind++;
+			} else {
+				/* Open up the input file */
+				strncpy(ifname, argv[optind++], MAX_PATH_LEN);
 
-
-	if (tostdout == 1) {
-		/* And get to work */
-		strcpy(ofname, "stdout");
-		outFileNum = fileno(stdout);
-
-		clear_bufs();			/* clear input and output buffers */
-		part_nb = 0;
-
-		/* Actually do the compression/decompression. */
-		zip(inFileNum, outFileNum);
-
-	} else {
-
-		/* And get to work */
-		strncpy(ofname, ifname, MAX_PATH_LEN - 4);
-		strcat(ofname, ".gz");
+				/* Open input file */
+				inFileNum = open(ifname, O_RDONLY);
+				if (inFileNum < 0)
+					perror_msg_and_die("%s", ifname);
+				/* Get the time stamp on the input file. */
+				if (stat(ifname, &statBuf) < 0)
+					perror_msg_and_die("%s", ifname);
+				time_stamp = statBuf.st_ctime;
+				ifile_size = statBuf.st_size;
+			}
 
 
-		/* Open output fille */
+			if (tostdout == 1) {
+				/* And get to work */
+				strcpy(ofname, "stdout");
+				outFileNum = fileno(stdout);
+
+				clear_bufs();			/* clear input and output buffers */
+				part_nb = 0;
+
+				/* Actually do the compression/decompression. */
+				zip(inFileNum, outFileNum);
+
+			} else {
+
+				/* And get to work */
+				strncpy(ofname, ifname, MAX_PATH_LEN - 4);
+				strcat(ofname, ".gz");
+
+
+				/* Open output fille */
 #if (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 1)
-		outFileNum = open(ofname, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW);
+				outFileNum = open(ofname, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW);
 #else
-		outFileNum = open(ofname, O_RDWR | O_CREAT | O_EXCL);
+				outFileNum = open(ofname, O_RDWR | O_CREAT | O_EXCL);
 #endif
-		if (outFileNum < 0)
-			perror_msg_and_die("%s", ofname);
-		/* Set permissions on the file */
-		fchmod(outFileNum, statBuf.st_mode);
+				if (outFileNum < 0)
+					perror_msg_and_die("%s", ofname);
+				/* Set permissions on the file */
+				fchmod(outFileNum, statBuf.st_mode);
 
-		clear_bufs();			/* clear input and output buffers */
-		part_nb = 0;
+				clear_bufs();			/* clear input and output buffers */
+				part_nb = 0;
 
-		/* Actually do the compression/decompression. */
-		result = zip(inFileNum, outFileNum);
-		close(outFileNum);
-		close(inFileNum);
-		/* Delete the original file */
-		if (result == OK)
-			delFileName = ifname;
-		else
-			delFileName = ofname;
+				/* Actually do the compression/decompression. */
+				result = zip(inFileNum, outFileNum);
+				close(outFileNum);
+				close(inFileNum);
+				/* Delete the original file */
+				if (result == OK)
+					delFileName = ifname;
+				else
+					delFileName = ofname;
 
-		if (unlink(delFileName) < 0)
-			perror_msg_and_die("%s", delFileName);
-	}
+				if (unlink(delFileName) < 0)
+					perror_msg_and_die("%s", delFileName);
+			}
+		}      /* while () */
+	}      /* if ()    */
 
 	return(exit_code);
 }

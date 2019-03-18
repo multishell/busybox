@@ -53,7 +53,8 @@ struct host_info {
 };
 
 static void parse_url(char *url, struct host_info *h);
-static FILE *open_socket(char *host, int port);
+static struct sockaddr_in *lookup_host(char *host);
+static FILE *open_socket(struct sockaddr_in *s_in, int port);
 static char *gethdr(char *buf, size_t bufsiz, FILE *fp, int *istrunc);
 static int ftpcmd(char *s1, char *s2, FILE *fp, char *buf);
 
@@ -168,6 +169,7 @@ int wget_main(int argc, char **argv)
 	int extra_headers_left = sizeof(extra_headers);
 	int which_long_opt = 0, option_index = -1;
 	struct host_info server, target;
+	struct sockaddr_in *s_in;
 
 	FILE *sfp = NULL;			/* socket to web/ftp server			*/
 	FILE *dfp = NULL;			/* socket to ftp server (data)		*/
@@ -289,6 +291,8 @@ int wget_main(int argc, char **argv)
 			do_continue = 0;
 	}
 
+	s_in = lookup_host (server.host);
+
 	if (proxy || !target.is_ftp) {
 		/*
 		 *  HTTP session
@@ -301,7 +305,7 @@ int wget_main(int argc, char **argv)
 			 * Open socket to http server
 			 */
 			if (sfp) fclose(sfp);
-			sfp = open_socket(server.host, server.port);
+			sfp = open_socket(s_in, server.port);
 			
 			/*
 			 * Send HTTP request.
@@ -407,7 +411,7 @@ read_response:		if (fgets(buf, sizeof(buf), sfp) == NULL)
 		if (! target.user)
 			target.user = xstrdup("anonymous:busybox@");
 
-		sfp = open_socket(server.host, server.port);
+		sfp = open_socket(s_in, server.port);
 		if (ftpcmd(NULL, NULL, sfp, buf) != 220)
 			close_delete_and_die("%s", buf+4);
 
@@ -450,7 +454,7 @@ read_response:		if (fgets(buf, sizeof(buf), sfp) == NULL)
 		port = atoi(s+1);
 		s = strrchr(buf, ',');
 		port += atoi(s+1) * 256;
-		dfp = open_socket(server.host, port);
+		dfp = open_socket(s_in, port);
 
 		if (do_continue) {
 			sprintf(buf, "REST %ld", beg_range);
@@ -481,7 +485,8 @@ read_response:		if (fgets(buf, sizeof(buf), sfp) == NULL)
 #endif
 	do {
 		while ((filesize > 0 || !got_clen) && (n = safe_fread(buf, 1, chunked ? (filesize > sizeof(buf) ? sizeof(buf) : filesize) : sizeof(buf), dfp)) > 0) {
-		safe_fwrite(buf, 1, n, output);
+		if (safe_fwrite(buf, 1, n, output) != n)
+			perror_msg_and_die("fwrite");
 #ifdef BB_FEATURE_WGET_STATUSBAR
 		statbytes+=n;
 #endif
@@ -533,7 +538,7 @@ void parse_url(char *url, struct host_info *h)
 		*sp++ = '\0';
 		h->path = sp;
 	} else
-		h->path = "";
+		h->path = xstrdup("");
 
 	up = strrchr(h->host, '@');
 	if (up != NULL) {
@@ -552,26 +557,34 @@ void parse_url(char *url, struct host_info *h)
 }
 
 
-FILE *open_socket(char *host, int port)
+static struct sockaddr_in *lookup_host(char *host)
 {
-	struct sockaddr_in s_in;
+	static struct sockaddr_in s_in;
 	struct hostent *hp;
-	int fd;
-	FILE *fp;
 
 	memset(&s_in, 0, sizeof(s_in));
 	s_in.sin_family = AF_INET;
 	hp = xgethostbyname(host);
 	memcpy(&s_in.sin_addr, hp->h_addr_list[0], hp->h_length);
-	s_in.sin_port = htons(port);
+
+	return &s_in;
+}
+
+
+FILE *open_socket(struct sockaddr_in *s_in, int port)
+{
+	int fd;
+	FILE *fp;
+
+	s_in->sin_port = htons(port);
 
 	/*
 	 * Get the server onto a stdio stream.
 	 */
 	if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
 		perror_msg_and_die("socket()");
-	if (connect(fd, (struct sockaddr *) &s_in, sizeof(s_in)) < 0)
-		perror_msg_and_die("connect(%s)", host);
+	if (connect(fd, (struct sockaddr *) s_in, sizeof(*s_in)) < 0)
+		perror_msg_and_die("connect()");
 	if ((fp = fdopen(fd, "r+")) == NULL)
 		perror_msg_and_die("fdopen()");
 
@@ -817,7 +830,7 @@ progressmeter(int flag)
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	$Id: wget.c,v 1.45 2001/07/19 22:28:01 andersen Exp $
+ *	$Id: wget.c,v 1.48 2002/04/27 07:40:00 andersen Exp $
  */
 
 

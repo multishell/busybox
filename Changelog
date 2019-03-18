@@ -1,3 +1,118 @@
+0.60.3
+
+    Stable Release
+
+    New Applets & New Features:
+	* Added new a 'time' applet (by special request)
+	* Added new a 'losetup' applet
+	* The tftp has been fixed to work
+	* Default shell is now ash.
+	* msh shell should work properly on mmu-less systems again
+	* ls can now do color
+
+    Bugfixes:
+	* Erik Andersen
+	    -- Hacked together a new time applet
+	    -- Fixed dangling comma in init.c (s390 arch only)
+	    -- Fixed more so when it is run on files in the procfs that 
+		claim 0 length, it will not do weird things i.e. more /proc/pci
+	    -- Copyright message cleanups.  Fixed sash attributions.
+	    -- Backporting of fixes and general maintenance.
+	    -- Fixed several cases where reboot, halt, and poweroff would fail
+		to function properly when Linux is booted into an initrd.
+	    -- Fixed a silly compile bug in cpio
+	    -- nslookup now works properly with uClibc, remove old workaround
+	    -- Added conv=noerror support to dd
+	    -- Fixed ash and msh cmdedit to properly account for the current 
+		PATH setting
+	    -- Document netcat options and add -e support
+	    -- Fixed insanely broken insmod endianness handling
+	    -- Update init.c for better syle conformance, properly detach from 
+		terminal when necessary, better code reuse, FIFO inittab file 
+		reading/executing, allow init to be halted and restarted, etc.
+	    -- Allow gunzip to work on multiple archives, add -v option
+	    -- Updated x86 optimizations to save over 10k.
+	* Edward Betts
+	    -- added -x switch to du.c
+	* Cliff L. Biffle
+	    -- Added memory usage to the ps listings
+	* Przemyslaw Czerpak
+	    -- Made telnet 8-bit clean, handle screen size, and is now RFC
+		compliant.  Works nicely now. 
+	* Wolfgang Denk
+	    -- hush now supports shell loops (for, while, until) and control 
+		operators (||, &&)
+	* Russ Dill
+	    -- Added an 'restart' inittab action, allowing init to re-exec
+		itself (or call a script which calls pivot_root then exec...) 
+	* Larry Doolittle
+	    -- Made syslogd not give up when errno is EINTR
+	* Geoffrey Espin
+	    -- support find -newer <file>
+	* Robert Griebl
+	    -- Reworked modprobe so it now reads and uses modules.dep
+	* Karl M. Hegbloom
+	    -- Fixed a silly bug where CONTEXT and EGREP_ALIAS were coupled.
+	* Kevin Hilman
+	    -- Fixed memory corruption from long pathnames in /etc/fstab
+	* J.W.Janssen
+	    -- color ls support!
+	* Matt Kraai
+	    -- Fixed get_line_from_file() so that NULL is treated as end of 
+		line, thereby fixing cut, grep, sed, etc. when working on binary
+		files or anything that might contain a NULL.
+	    -- Fixed wget to do DNS initial DNS lookups, and do that only once
+		to avoid skipping to a different server when round-robin DNS is
+		in use (bug found by Mike Coleman <mkc@mathdogs.com>)
+	    -- Several sed fixes
+	    -- Added new losetup applet
+	* Ben Low
+	    -- allow tftp to work with stdin as well as stdout.
+	* Frank P. MacLachlan <fpm-plutus@tgs.indyme.com> avoid a potential 
+		NULL pointer problem in mount.
+	* Glenn McGrath
+	    -- gunzip was incorrectly reporting a failed crc and length
+		(Discovered by Change, Shu-Hao).  The problem was the bitbuffer
+		needs to be unwound after decompression as it was eating into the
+		crc/size field.
+	    -- Reworked wc.c to fix severe efficiency problems and make it 
+		smaller.  When just counting file chars, simply stat the file 
+		instead of reading the whole thing.  (Fixes Debian bug #103302)
+	    -- Updated dmalloc options
+	* Manuel Novoa III
+	    -- rewrote get_last_path_component() so it would not be so
+		horrible, and would behave correctly in several important corner
+		cases.
+	* Vladimir Oleynik
+	    -- Fixed ash problem where ^C could be blocked
+	    -- Several command line editing updates (cmdedit now supports
+		CTRL-K and CTRL-L,  fixed a segfault, etc)
+	    -- Fixed ash problem where ^C could be blocked
+	    -- Several size optimizations for various applets
+	* Tim Riker
+	    -- make ash prompt the same as other shells if cmdedit and
+		fancyprompt are enabled.
+	* Jeff Studer
+	    -- tftp now generates default values for localfilename and
+		remotefilename based on provided file names when possible.
+	* Stefan Soucek and Miles Bader
+	    -- Re-add mmu-less support to msh
+	* Jim Treadway
+	    -- Fixed a buffer overflow in the local group handling code.
+	    -- Fixed a missing "\" in usage.h
+	    -- Made pidof not add trailing spaces
+	    -- Fixed msh bugs so things like "A = 1; B = `eval $A`; echo $B"
+		can now work.
+	* Mike Voytovich
+	    -- insmod big endian ARM support
+
+
+	 -Erik Andersen, 27 April 2002
+
+
+
+
+
 0.60.2
 
     Stable Release
@@ -650,7 +765,7 @@
 	* Added a mini ar archive utility, especially written for BusyBox by 
 	    Glenn McGrath <bug1@netconnect.com.au>
 	* Added mktemp, contributed by Daniel Jacobowitz <dan@debian.org>
-	* Added setkeycodes, for those that have wierd keyboard buttons.
+	* Added setkeycodes, for those that have weird keyboard buttons.
 	* Added md5sum, uuencode and uudecode -- thanks to Alfred M. Szmidt 
 	    <ams@trillian.itslinux.org> for contributing these.
         * Added 'grep -v' option (inverted search) and updated 

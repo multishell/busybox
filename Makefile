@@ -1,6 +1,6 @@
 # Makefile for busybox
 #
-# Copyright (C) 1999,2000,2001 Erik Andersen <andersee@debian.org>
+# Copyright (C) 1999-2002 Erik Andersen <andersee@debian.org>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 #
 
 PROG      := busybox
-VERSION   := 0.60.2
+VERSION   := 0.60.3
 BUILDTIME := $(shell TZ=UTC date -u "+%Y.%m.%d-%H:%M%z")
 export VERSION
 
@@ -55,7 +55,11 @@ USE_SYSTEM_PWD_GRP = true
 # which is an excellent public domain mem leak and malloc problem
 # detector.  To enable dmalloc, before running busybox you will
 # want to first set up your environment.
-# eg: `export DMALLOC_OPTIONS=debug=0x14f47d83,inter=100,log=logfile`
+# eg: `export DMALLOC_OPTIONS=debug=0x34f47d83,inter=100,log=logfile`
+# The debug= value is generated using the following command
+# dmalloc -p log-stats -p log-non-free -p log-bad-space -p log-elapsed-time \
+#      -p check-fence -p check-heap -p check-lists -p check-blank \
+#      -p check-funcs -p realloc-copy -p allow-free-null
 # Do not enable this for production builds...
 DODMALLOC = false
 
@@ -74,7 +78,7 @@ DOLFS = false
 
 # If you have a "pristine" source directory, point BB_SRC_DIR to it.
 # Experimental and incomplete; tell the mailing list
-# <busybox@oss.lineo.com> if you do or don't like it so far.
+# <busybox@busybox.net> if you do or don't like it so far.
 BB_SRC_DIR =
 
 # If you are running a cross compiler, you may want to set this
@@ -82,7 +86,7 @@ BB_SRC_DIR =
 CROSS =
 CC = $(CROSS)gcc
 AR = $(CROSS)ar
-STRIPTOOL = $(CROSS)strip
+STRIP = $(CROSS)strip
 
 # To compile vs uClibc, just use the compiler wrapper built by uClibc...
 # Everything should compile and work as expected these days...
@@ -107,8 +111,8 @@ STRIPTOOL = $(CROSS)strip
 #GCCINCDIR = $(shell gcc -print-search-dirs | sed -ne "s/install: \(.*\)/\1include/gp")
 
 # use '-Os' optimization if available, else use -O2
-OPTIMIZATION := $(shell if $(CC) -Os -S -o /dev/null -xc /dev/null >/dev/null 2>&1; \
-    then echo "-Os"; else echo "-O2" ; fi)
+OPTIMIZATION := ${shell if $(CC) -Os -S -o /dev/null -xc /dev/null >/dev/null 2>&1; \
+	then echo "-Os"; else echo "-O2" ; fi}
 
 WARNINGS = -Wall -Wshadow
 
@@ -123,6 +127,22 @@ ARFLAGS = -r
 # prone to casual user adjustment.
 # 
 
+TARGET_ARCH=${shell $(CC) -dumpmachine | sed -e s'/-linux//' -e 's/i.86/i386/' -e 's/sparc.*/sparc/' \
+		-e 's/arm.*/arm/g' -e 's/m68k.*/m68k/' -e 's/ppc/powerpc/g'}
+# Some nice architecture specific optimizations
+ifeq ($(strip $(TARGET_ARCH)),arm)
+	OPTIMIZATION+=-fstrict-aliasing
+endif
+ifeq ($(strip $(TARGET_ARCH)),i386)
+	OPTIMIZATION+=-march=i386
+	OPTIMIZATION += ${shell if $(CC) -mpreferred-stack-boundary=2 -S -o /dev/null -xc \
+		/dev/null >/dev/null 2>&1; then echo "-mpreferred-stack-boundary=2"; fi}
+	OPTIMIZATION += ${shell if $(CC) -malign-functions=0 -malign-jumps=0 -S -o /dev/null -xc \
+		/dev/null >/dev/null 2>&1; then echo "-malign-functions=0 -malign-jumps=0"; fi}
+	CFLAGS+=-pipe
+else
+	CFLAGS+=-pipe
+endif
 ifeq ($(strip $(DOLFS)),true)
     # For large file support
     CFLAGS+=-D_FILE_OFFSET_BITS=64 -D__USE_FILE_OFFSET64
@@ -143,11 +163,11 @@ endif
 ifeq ($(strip $(DODEBUG)),true)
     CFLAGS  += $(WARNINGS) -g -D_GNU_SOURCE
     LDFLAGS += -Wl,-warn-common
-    STRIP    =
+    STRIPCMD    = /bin/true -Since_we_are_debugging
 else
     CFLAGS  += $(WARNINGS) $(OPTIMIZATION) -fomit-frame-pointer -D_GNU_SOURCE
     LDFLAGS += -s -Wl,-warn-common
-    STRIP    = $(STRIPTOOL) --remove-section=.note --remove-section=.comment $(PROG)
+    STRIPCMD    = $(STRIP) -s --remove-section=.note --remove-section=.comment
 endif
 ifeq ($(strip $(DOSTATIC)),true)
     LDFLAGS += --static
@@ -303,15 +323,9 @@ docs/BusyBox.1: docs/busybox.pod
 	- pod2man --center=BusyBox --release="version $(VERSION)" \
 		$< > $@
 
-docs/BusyBox.html: docs/busybox.lineo.com/BusyBox.html
-	- mkdir -p docs
-	-@ rm -f docs/BusyBox.html
-	-@ ln -s busybox.lineo.com/BusyBox.html docs/BusyBox.html
-
-docs/busybox.lineo.com/BusyBox.html: docs/busybox.pod
-	-@ mkdir -p docs/busybox.lineo.com
-	-  pod2html --noindex $< > \
-	    docs/busybox.lineo.com/BusyBox.html
+docs/BusyBox.html: docs/busybox.pod
+	-@ mkdir -p docs
+	-  pod2html --noindex $< > docs/BusyBox.html
 	-@ rm -f pod2htm*
 
 
@@ -339,12 +353,12 @@ docs/busybox.pdf: docs/busybox.ps
 
 docs/busybox/busyboxdocumentation.html: docs/busybox.sgml
 	- mkdir -p docs
-	(cd docs/busybox.lineo.com; sgmltools -b html ../busybox.sgml)
+	(cd docs; sgmltools -b html ../busybox.sgml)
 
 
 busybox: $(PWD_LIB) $(LIBBB_LIB) $(OBJECTS) 
 	$(CC) $(LDFLAGS) -o $@ $(OBJECTS) $(LIBBB_LIB) $(PWD_LIB) $(LIBRARIES)
-	$(STRIP)
+	$(STRIPCMD) $(PROG)
 
 # Without VPATH, rule expands to "/bin/sh busybox.mkll Config.h applets.h"
 # but with VPATH, some or all of those file names are resolved to the
@@ -362,19 +376,27 @@ else
 endif
 
 $(PWD_OBJS): %.o: %.c Config.h busybox.h applets.h Makefile
-	- mkdir -p $(PWD_GRP)
+ifneq ($(strip $(BB_SRC_DIR)),)
+	-mkdir -p $(PWD_GRP)
+endif
 	$(CC) $(CFLAGS) $(PWD_CFLAGS) -c $< -o $*.o
 
 $(LIBBB_OBJS): %.o: %.c Config.h busybox.h applets.h Makefile libbb/libbb.h
-	- mkdir -p $(LIBBB)
+ifneq ($(strip $(BB_SRC_DIR)),)
+	-mkdir -p $(LIBBB)
+endif
 	$(CC) $(CFLAGS) $(LIBBB_CFLAGS) -c $< -o $*.o
 
 $(LIBBB_MOBJ): $(LIBBB_MSRC)
-	- mkdir -p $(LIBBB)
+ifneq ($(strip $(BB_SRC_DIR)),)
+	-mkdir -p $(LIBBB)
+endif
 	$(CC) $(CFLAGS) $(LIBBB_CFLAGS) -DL_$(patsubst libbb/%,%,$*) -c $< -o $*.o
 
 $(LIBBB_AROBJS): $(LIBBB_ARCSRC)
-	- mkdir -p $(LIBBB)
+ifneq ($(strip $(BB_SRC_DIR)),)
+	-mkdir -p $(LIBBB)
+endif
 	$(CC) $(CFLAGS) $(LIBBB_CFLAGS) -DL_$(patsubst libbb/%,%,$*) -c $< -o $*.o
 
 libpwd.a: $(PWD_OBJS)
@@ -398,13 +420,12 @@ test tests:
 
 clean:
 	- cd tests && $(MAKE) clean
-	- rm -f docs/BusyBox.txt docs/BusyBox.1 docs/BusyBox.html \
-	    docs/busybox.lineo.com/BusyBox.html
+	- rm -f docs/BusyBox.txt docs/BusyBox.1 docs/BusyBox.html docs/BusyBox.html
 	- rm -f docs/busybox.txt docs/busybox.dvi docs/busybox.ps \
-	    docs/busybox.pdf docs/busybox.lineo.com/busybox.html
+	    docs/busybox.pdf docs/busybox.html
 	- rm -f multibuild.log Config.h.orig *.gdb *.elf
 	- rm -rf docs/busybox _install libpwd.a libbb.a pod2htm*
-	- rm -f busybox.links libbb/loop.h *~ slist.mk core applet_source_list
+	- rm -f busybox busybox.links libbb/loop.h *~ slist.mk core applet_source_list
 	- find -name \*.o -exec rm -f {} \;
 
 distclean: clean
@@ -413,6 +434,9 @@ distclean: clean
 
 install: install.sh busybox busybox.links
 	$(SHELL) $< $(PREFIX)
+
+uninstall: busybox busybox.links
+	for i in `cat busybox.links` ; do rm -f $$PREFIX$$i; done
 
 install-hardlinks: install.sh busybox busybox.links
 	$(SHELL) $< $(PREFIX) --hardlinks

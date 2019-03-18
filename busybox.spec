@@ -1,6 +1,6 @@
 %define name	busybox
 %define epoch   0
-%define version	0.60.2
+%define version	0.60.3
 %define release	%(date -I | sed -e 's/-/_/g')
 %define serial  1
 
@@ -12,8 +12,8 @@ Serial:	 %{serial}
 Copyright: GPL
 Group: System/Utilities
 Summary: BusyBox is a tiny suite of Unix utilities in a multi-call binary.
-URL:	 http://busybox.lineo.com/
-Source:	 ftp://oss.lineo.com/busybox/%{name}-%{version}.tar.gz
+URL:	 http://busybox.net/
+Source:	 ftp://busybox.net/busybox/%{name}-%{version}.tar.gz
 Buildroot: /var/tmp/%{name}-%{version}
 Packager : Erik Andersen <andersen@codepoet.org>
 

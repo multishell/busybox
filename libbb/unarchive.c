@@ -410,7 +410,7 @@ file_header_t *get_header_cpio(FILE *src_stream)
 				sscanf(cpio_header, "%6c%8x%8x%8x%8x%8x%8lx%8lx%16c%8x%8x%8x%8c",
 					dummy, &inode, (unsigned int*)&cpio_entry->mode, 
 					(unsigned int*)&cpio_entry->uid, (unsigned int*)&cpio_entry->gid,
-					&nlink, &cpio_entry->mtime, &cpio_entry->size,
+					&nlink, &cpio_entry->mtime, (unsigned long*)&cpio_entry->size,
 					dummy, &major, &minor, &namesize, dummy);
 
 				cpio_entry->name = (char *) xcalloc(1, namesize);

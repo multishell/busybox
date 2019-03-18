@@ -3,7 +3,7 @@
  * lash -- the BusyBox Lame-Ass SHell
  *
  * Copyright (C) 1999,2000 by Lineo, inc. and Erik Andersen
- * Copyright (C) 1999,2000,2001 by Erik Andersen <andersee@debian.org>
+ * Copyright (C) 1999-2002 Erik Andersen <andersee@debian.org>
  *
  * Based in part on ladsh.c by Michael K. Johnson and Erik W. Troan, which is
  * under the following liberal license: "We have placed this source code in the
@@ -1226,7 +1226,7 @@ static int pseudo_exec(struct child_prog *child)
 #ifdef BB_FEATURE_SH_STANDALONE_SHELL
 	/* Check if the command matches any busybox internal
 	 * commands ("applets") here.  Following discussions from
-	 * November 2000 on busybox@oss.lineo.com, don't use
+	 * November 2000 on busybox@busybox.net, don't use
 	 * get_last_path_component().  This way explicit (with
 	 * slashes) filenames will never be interpreted as an
 	 * applet, just like with builtins.  This way the user can
@@ -1309,6 +1309,12 @@ static int run_command(struct job *newjob, int inbg, int outpipe[2])
 	int pipefds[2];				/* pipefd[0] is for reading */
 	struct built_in_command *x;
 	struct child_prog *child;
+#if __GNUC__
+	/* Avoid longjmp clobbering */
+	(void) &i;
+	(void) &nextin;
+	(void) &nextout;
+#endif
 
 	nextin = 0, nextout = 1;
 	for (i = 0; i < newjob->num_progs; i++) {
@@ -1345,11 +1351,7 @@ static int run_command(struct job *newjob, int inbg, int outpipe[2])
 			}
 		}
 
-#if !defined(__UCLIBC__) || defined(__UCLIBC_HAS_MMU__)
 		if (!(child->pid = fork())) 
-#else
-		if (!(child->pid = vfork())) 
-#endif
 		{
 			/* Set the handling for job control signals back to the default.  */
 			signal(SIGINT, SIG_DFL);

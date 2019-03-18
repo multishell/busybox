@@ -346,7 +346,7 @@ Example:
 =item B<dd>
 
 dd [if=FILE] [of=FILE] [bs=N] [count=N] [skip=N]
-	  [seek=N] [conv=notrunc|sync]
+	  [seek=N] [conv=notrunc|noerror|sync]
 
 Copy a file, converting and formatting according to options
 
@@ -357,6 +357,7 @@ Copy a file, converting and formatting according to options
 	skip=N		skip N input blocks
 	seek=N		skip N output blocks
 	conv=notrunc	don't truncate output file
+	conv=noerror	continue after read errors
 	conv=sync	pad blocks with zeros
 
 Numbers may be suffixed by c (x1), w (x2), b (x512), kD (x1000), k (x1024),
@@ -449,7 +450,7 @@ Options:
 =item B<dpkg>
 
 dpkg B<-i> package_file
-
+[B<-CPru>] package_name
 
 	-i	Install the package
 	-C	Configure an unpackaged package
@@ -483,7 +484,7 @@ Example:
 
 =item B<du>
 
-du [B<-lshmk>] [FILE]...
+du [B<-lsxhmk>] [FILE]...
 
 Summarizes disk space used for each FILE and/or directory.
 Disk space is printed in units of 1024 bytes.
@@ -494,6 +495,7 @@ Options:
 	-s	display only a total for each argument
 	-h	print sizes in human readable format (e.g., 1K 243M 2G )
 	-m	print sizes in megabytes
+	-x	skip directories on different filesystems
 	-k	print sizes in kilobytes(default)
 
 Example:
@@ -682,6 +684,7 @@ EXPRESSION may consist of:
 			or exactly (NNN)
 	-mtime TIME	Modified time is greater than (+N); less than (-N);
 			or exactly (N) days
+	-newer FILE	Modified time is more recent than FILE's
 
 Example:
 
@@ -961,6 +964,7 @@ it has the following default behavior:
 	::ctrlaltdel:/sbin/reboot
 	::shutdown:/sbin/swapoff -a
 	::shutdown:/bin/umount -a -r
+	::restart:/sbin/init
 
 if it detects that /dev/console is _not_ a serial console, it will also run:
 
@@ -992,7 +996,7 @@ If you choose to use an /etc/inittab file, the inittab entry format is as follow
 	<action>: 
 
 		Valid actions include: sysinit, respawn, askfirst, wait, 
-		once, ctrlaltdel, and shutdown.
+		once, restart, ctrlaltdel, and shutdown.
 
 		The available actions can be classified into two groups: actions
 		that are run only once, and actions that are re-run when the specified
@@ -1005,7 +1009,10 @@ If you choose to use an /etc/inittab file, the inittab entry format is as follow
 			completion of all sysinit actions, all 'wait' actions are run.
 			'wait' actions, like  'sysinit' actions, cause init to wait until
 			the specified task completes.  'once' actions are asynchronous,
-			therefore, init does not wait for them to complete.  'ctrlaltdel'
+			therefore, init does not wait for them to complete.  'restart' is
+			the action taken to restart the init process.  By default this should
+			simply run /sbin/init, but can be a script which runs pivot_root or it
+			can do all sorts of other interesting things.  The 'ctrlaltdel' init
 			actions are run when the system detects that someone on the system
                        console has pressed the CTRL-ALT-DEL key combination.  Typically one
                        wants to run 'reboot' at this point to cause the system to reboot.
@@ -1060,6 +1067,9 @@ Example /etc/inittab file:
 	#
 	# Example how to put a getty on a modem line.
 	#::respawn:/sbin/getty 57600 ttyS2
+	
+	# Stuff to do when restarting the init process
+	::restart:/sbin/init
 	
 	# Stuff to do before rebooting
 	::ctrlaltdel:/sbin/reboot
@@ -1261,6 +1271,19 @@ Example:
 logread         
 
 Shows the messages from syslogd (using circular buffer).
+
+-------------------------------
+
+=item B<losetup>
+
+losetup [OPTION]... LOOPDEVICE [FILE]
+
+Associate LOOPDEVICE with FILE.
+
+Options:
+
+	-d		Disassociate LOOPDEVICE.
+	-o OFFSET	Start OFFSET bytes into FILE.
 
 -------------------------------
 
@@ -1573,9 +1596,15 @@ Example:
 
 =item B<nc>
 
-nc [IP] [port]
+nc [OPTIONS] [IP] [port]
 
 Netcat opens a pipe to IP:port
+
+Options:
+
+	-l		listen mode, for inbound connects
+	-p PORT		local port number
+	-e PROG		program to exec after connect (dangerous!)
 
 Example:
 
@@ -2088,6 +2117,14 @@ Options:
 	-l FILE	Transfer local FILE.
 	-p	Put file.
 	-r FILE	Transfer remote FILE.
+
+-------------------------------
+
+=item B<time>
+
+time [OPTION]... COMMAND [ARGS...]
+
+Runs the program COMMAND with arguments ARGS.  When COMMAND finishes,
 
 -------------------------------
 

@@ -73,7 +73,7 @@ static FILE *in_file, *out_file;
 static unsigned char *window;
 static unsigned long *crc_table;
 
-static unsigned long crc = 0xffffffffL;	/* shift register contents */
+static unsigned long crc; /* shift register contents */
 
 /* Return codes from gzip */
 static const int ERROR = 1;
@@ -131,6 +131,8 @@ static void make_crc_table()
 	/* terms of polynomial defining this crc (except x^32): */
 	static int p[] = {0,1,2,4,5,7,8,10,11,12,16,22,23,26};
 
+	/* initial shift register value */
+	crc = 0xffffffffL;	
 	crc_table = (unsigned long *) malloc(256 * sizeof(unsigned long));
 
 	/* Make exclusive-or pattern from polynomial (0xedb88320) */
@@ -875,6 +877,13 @@ static int inflate()
 		}
 	} while (!e);
 
+	/* Undo too much lookahead.  The next read will be byte aligned so we
+	 * can discard unused bits in the last meaningful byte.  */
+	while (bk >= 8) {
+		bk -= 8;
+		ungetc((bb << bk), in_file);
+	}
+
 	/* flush out window */
 	flush_window();
 
@@ -980,12 +989,15 @@ extern int unzip(FILE *l_in_file, FILE *l_out_file)
 
 		if (res == 3) {
 			error_msg(memory_exhausted);
+			exit_code = 1;
 		} else if (res != 0) {
 			error_msg("invalid compressed data--format violated");
+			exit_code = 1;
 		}
 
 	} else {
 		error_msg("internal error, invalid method");
+		exit_code = 1;
 	}
 
 	/* Get the crc and original length
@@ -995,18 +1007,20 @@ extern int unzip(FILE *l_in_file, FILE *l_out_file)
 	fread(buf, 1, 8, in_file);
 
 	/* Validate decompression - crc */
-	if ((unsigned int)((buf[0] | (buf[1] << 8)) |((buf[2] | (buf[3] << 8)) << 16)) != (crc ^ 0xffffffffL)) {
+	if (!exit_code && (unsigned int)((buf[0] | (buf[1] << 8)) |((buf[2] | (buf[3] << 8)) << 16)) != (crc ^ 0xffffffffL)) {
 		error_msg("invalid compressed data--crc error");
+		exit_code = 1;
 	}
 	/* Validate decompression - size */
-	if (((buf[4] | (buf[5] << 8)) |((buf[6] | (buf[7] << 8)) << 16)) != (unsigned long) bytes_out) {
+	if (!exit_code && ((buf[4] | (buf[5] << 8)) |((buf[6] | (buf[7] << 8)) << 16)) != (unsigned long) bytes_out) {
 		error_msg("invalid compressed data--length error");
+		exit_code = 1;
 	}
 
 	free(window);
 	free(crc_table);
 
-	return 0;
+	return exit_code;
 }
 
 /*

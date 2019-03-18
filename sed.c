@@ -423,8 +423,11 @@ static char *parse_cmd_str(struct sed_cmd * const sed_cmd, const char *const cmd
 		idx = get_address(sed_cmd, cmdstr, &sed_cmd->beg_line, &sed_cmd->beg_match);
 
 	/* second part (if present) will begin with a comma */
-	if (cmdstr[idx] == ',')
-		idx += get_address(sed_cmd, &cmdstr[++idx], &sed_cmd->end_line, &sed_cmd->end_match);
+	if (cmdstr[idx] == ',') {
+		/* Avoid potential undefined operation on `idx' by using a tmp var */
+		int foo = get_address(sed_cmd, &cmdstr[++idx], &sed_cmd->end_line, &sed_cmd->end_match);
+		idx += foo;
+	}
 
 	/* last part (mandatory) will be a command */
 	if (cmdstr[idx] == '\0')
@@ -667,6 +670,7 @@ static void process_file(FILE *file)
 					/* we are currently within the beginning & ending address range */
 					still_in_range
 			   ) {
+				int deleted = 0;
 
 				/*
 				 * actual sedding
@@ -679,6 +683,7 @@ static void process_file(FILE *file)
 
 					case 'd':
 						altered++;
+						deleted = 1;
 						break;
 
 					case 's':
@@ -783,6 +788,9 @@ static void process_file(FILE *file)
 				else {
 					still_in_range = 1;
 				}
+				if (deleted)
+					break;
+
 			}
 		}
 

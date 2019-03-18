@@ -9,7 +9,7 @@
 // BusyBox Applications
 //#define BB_ADJTIMEX
 //#define BB_AR
-//#define BB_ASH
+#define BB_ASH
 #define BB_BASENAME
 #define BB_CAT
 #define BB_CHGRP
@@ -68,6 +68,7 @@
 //#define BB_LOADKMAP
 #define BB_LOGGER
 //#define BB_LOGNAME
+//#define BB_LOSETUP
 #define BB_LS
 #define BB_LSMOD
 //#define BB_MAKEDEVS
@@ -81,7 +82,7 @@
 #define BB_MODPROBE
 #define BB_MORE
 #define BB_MOUNT
-#define BB_MSH
+//#define BB_MSH
 //#define BB_MT
 #define BB_MV
 //#define BB_NC
@@ -117,6 +118,7 @@
 //#define BB_TEST
 //#define BB_TELNET
 //#define BB_TFTP
+//#define BB_TIME
 #define BB_TOUCH
 //#define BB_TR
 //#define BB_TRACEROUTE
@@ -151,10 +153,10 @@
 //
 // If you enabled one or more of the shells, you may select which one
 // should be run when sh is invoked:
-//#define BB_FEATURE_SH_IS_ASH
+#define BB_FEATURE_SH_IS_ASH
 //#define BB_FEATURE_SH_IS_HUSH
 //#define BB_FEATURE_SH_IS_LASH
-#define BB_FEATURE_SH_IS_MSH
+//#define BB_FEATURE_SH_IS_MSH
 //
 // BusyBox will, by default, malloc space for its buffers.  This costs code
 // size for the call to xmalloc.  You can use the following feature to have
@@ -179,12 +181,12 @@
 //#define BB_FEATURE_USE_DEVPS_PATCH
 //
 // show verbose usage messages
-//#define BB_FEATURE_VERBOSE_USAGE
+#define BB_FEATURE_VERBOSE_USAGE
 //
 // Use termios to manipulate the screen ('more' is prettier with this on)
 //#define BB_FEATURE_USE_TERMIOS
 //
-// calculate terminal & column widths (for more and ls)
+// calculate terminal & column widths (for more, ls, and telnet)
 #define BB_FEATURE_AUTOWIDTH
 //
 // show username/groupnames for ls
@@ -204,6 +206,9 @@
 //
 // enable ls -L
 #define BB_FEATURE_LS_FOLLOWLINKS
+//
+// Use color to identify different file types
+#define BB_FEATURE_LS_COLOR
 //
 // Disable for a smaller (but less functional) ping
 #define BB_FEATURE_FANCY_PING
@@ -295,6 +300,13 @@
 // Only relevant if a shell is enabled.
 //#define BB_FEATURE_SH_FANCY_PROMPT
 //
+// Uncomment this option to disable job control.  Job control lets you 
+// run jobs in the background (which completely useless for is all you 
+// are doing is running scripts).  Disabing this is bad for interactive
+// use, since when you hit ^C in an application, it will also kill the 
+// shell.  This adds about 2.5k on an x86 system.
+#define BB_FEATURE_ASH_JOB_CONTROL
+//
 //Turn on extra fbset options
 //#define BB_FEATURE_FBSET_FANCY
 //
@@ -360,8 +372,11 @@
 // Support for the find -perm option.
 #define BB_FEATURE_FIND_PERM
 //
-// Support for the find -mtine option.
+// Support for the find -mtime option.
 #define BB_FEATURE_FIND_MTIME
+//
+//// Support for the find -newer option.
+#define BB_FEATURE_FIND_NEWER
 //
 // Support for the -A -B and -C context flags in grep
 //#define BB_FEATURE_GREP_CONTEXT

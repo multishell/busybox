@@ -7,8 +7,8 @@
  *
  *
  * Copyright (C) 1999,2000 by Lineo, inc. and Erik Andersen
- * Written by Erik Andersen <andersee@debian.org>
- * and Ron Alder <alder@lineo.com>
+ * Copyright (C) 1999-2002 Erik Andersen <andersee@debian.org>
+ * Written by Erik Andersen and Ron Alder <alder@lineo.com>
  *
  * Modified by Bryan Rittmeyer <bryan@ixiacom.com> to support SH4
  * and (theoretically) SH3. I have only tested SH4 in little endian mode.
@@ -132,7 +132,7 @@
 
 
 #ifndef MODUTILS_MODULE_H
-static const int MODUTILS_MODULE_H = 1;
+#define MODUTILS_MODULE_H
 
 /* This file contains the structures used by the 2.0 and 2.1 kernels.
    We do not use the kernel headers directly because we do not wish
@@ -353,6 +353,13 @@ static const int MODUTILS_OBJ_H = 1;
 
 #include <stdio.h>
 #include <elf.h>
+#include <endian.h>
+
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+#define ELFDATAM    ELFDATA2LSB
+#elif __BYTE_ORDER == __BIG_ENDIAN
+#define ELFDATAM    ELFDATA2MSB
+#endif
 
 
 /* Machine-specific elf macros for i386 et al.  */
@@ -372,10 +379,6 @@ static const int MODUTILS_OBJ_H = 1;
 
 #define ELFCLASSM	ELFCLASS32
 
-#if (defined(__mc68000__))					
-#define ELFDATAM	ELFDATA2MSB
-#endif
-
 
 
 #if defined(__sh__)
@@ -383,21 +386,19 @@ static const int MODUTILS_OBJ_H = 1;
 #define MATCH_MACHINE(x) (x == EM_SH)
 #define SHT_RELM	SHT_RELA
 #define Elf32_RelM	Elf32_Rela
-#define ELFDATAM	ELFDATA2LSB
 
 #elif defined(__arm__)
 
 #define MATCH_MACHINE(x) (x == EM_ARM)
 #define SHT_RELM	SHT_REL
 #define Elf32_RelM	Elf32_Rel
-#define ELFDATAM	ELFDATA2LSB
+
 
 #elif defined(__powerpc__)
 
 #define MATCH_MACHINE(x) (x == EM_PPC)
 #define SHT_RELM	SHT_RELA
 #define Elf32_RelM	Elf32_Rela
-#define ELFDATAM    ELFDATA2MSB
 
 #elif defined(__mips__)
 
@@ -413,12 +414,6 @@ static const int MODUTILS_OBJ_H = 1;
 #define MATCH_MACHINE(x) (x == EM_MIPS || x == EM_MIPS_RS3_LE)
 #define SHT_RELM	SHT_REL
 #define Elf32_RelM	Elf32_Rel
-#ifdef __MIPSEB__
-#define ELFDATAM        ELFDATA2MSB
-#endif
-#ifdef __MIPSEL__
-#define ELFDATAM        ELFDATA2LSB
-#endif
 
 #elif defined(__i386__)
 
@@ -433,7 +428,6 @@ static const int MODUTILS_OBJ_H = 1;
 
 #define SHT_RELM	SHT_REL
 #define Elf32_RelM	Elf32_Rel
-#define ELFDATAM	ELFDATA2LSB
 
 #elif defined(__mc68000__) 
 
@@ -574,8 +568,10 @@ static void *obj_extend_section (struct obj_section *sec, unsigned long more);
 static int obj_string_patch(struct obj_file *f, int secidx, ElfW(Addr) offset,
 		     const char *string);
 
+#ifdef BB_FEATURE_NEW_MODULE_INTERFACE
 static int obj_symbol_patch(struct obj_file *f, int secidx, ElfW(Addr) offset,
 		     struct obj_symbol *sym);
+#endif
 
 static int obj_check_undefineds(struct obj_file *f);
 
@@ -605,7 +601,9 @@ static enum obj_reloc arch_apply_relocation (struct obj_file *f,
 
 static int arch_create_got (struct obj_file *f);
 
+#ifdef BB_FEATURE_NEW_MODULE_INTERFACE
 static int arch_init_module (struct obj_file *f, struct new_module *);
+#endif
 
 #endif /* obj.h */
 //----------------------------------------------------------------------------
@@ -1268,10 +1266,12 @@ static int arch_create_got(struct obj_file *f)
 	return 1;
 }
 
+#ifdef BB_FEATURE_NEW_MODULE_INTERFACE
 static int arch_init_module(struct obj_file *f, struct new_module *mod)
 {
 	return 1;
 }
+#endif
 
 
 /*======================================================================*/
@@ -2631,6 +2631,7 @@ obj_string_patch(struct obj_file *f, int secidx, ElfW(Addr) offset,
 	return 1;
 }
 
+#ifdef BB_FEATURE_NEW_MODULE_INTERFACE
 static int
 obj_symbol_patch(struct obj_file *f, int secidx, ElfW(Addr) offset,
 				 struct obj_symbol *sym)
@@ -2646,6 +2647,7 @@ obj_symbol_patch(struct obj_file *f, int secidx, ElfW(Addr) offset,
 
 	return 1;
 }
+#endif
 
 static int obj_check_undefineds(struct obj_file *f)
 {

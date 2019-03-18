@@ -25,8 +25,14 @@
 #include <unistd.h>
 #include <features.h>
 #include <sys/types.h>
+/* Kernel headers before 2.1.mumble need this on the Alpha to get
+   _syscall* defined.  */
+#define __LIBRARY__
 #include <sys/syscall.h>
+#if __GNU_LIBRARY__ < 5
+/* This is needed for libc5 */
 #include <asm/unistd.h>
+#endif
 #include "grp.h"
 
 //#define __NR_setgroups        81

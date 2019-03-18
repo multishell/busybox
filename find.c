@@ -51,6 +51,10 @@ static char mtime_char;
 static int mtime_days;
 #endif
 
+#ifdef BB_FEATURE_FIND_NEWER
+time_t newer_mtime;
+#endif
+
 static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
 {
 	if (pattern != NULL) {
@@ -85,6 +89,13 @@ static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
 						mtime_secs < file_age + 24 * 60 * 60) ||
 				(mtime_char == '+' && mtime_secs >= file_age) || 
 				(mtime_char == '-' && mtime_secs < file_age)))
+			goto no_match;
+	}
+#endif
+#ifdef BB_FEATURE_FIND_NEWER
+	if (newer_mtime != 0) {
+		time_t file_age = newer_mtime - statbuf->st_mtime;
+		if (file_age >= 0)
 			goto no_match;
 	}
 #endif
@@ -179,6 +190,15 @@ int find_main(int argc, char **argv)
 				error_msg_and_die("invalid argument `%s' to `-mtime'", argv[i]);
 			if ((mtime_char = argv[i][0]) == '-')
 				mtime_days = -mtime_days;
+#endif
+#ifdef BB_FEATURE_FIND_NEWER
+		} else if (strcmp(argv[i], "-newer") == 0) {
+			struct stat stat_newer;
+			if (++i == argc)
+				error_msg_and_die("option `-newer' requires an argument");
+		    if (stat (argv[i], &stat_newer) != 0)
+				error_msg_and_die("file %s not found", argv[i]);
+			newer_mtime = stat_newer.st_mtime;
 #endif
 		} else
 			show_usage();

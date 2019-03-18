@@ -26,40 +26,50 @@
 #include <stdlib.h>
 #include "busybox.h"
 
-static int total_lines, total_words, total_chars, max_length;
-static int print_lines, print_words, print_chars, print_length;
+enum print_e {
+	print_lines = 1,
+	print_words = 2,
+	print_chars = 4,
+	print_length = 8
+};
 
-static void print_counts(int lines, int words, int chars, int length,
-				  		 const char *name)
+static unsigned int total_lines = 0;
+static unsigned int total_words = 0;
+static unsigned int total_chars = 0;
+static unsigned int max_length = 0;
+static char print_type = 0;
+
+static void print_counts(const unsigned int lines, const unsigned int words,
+	const unsigned int chars, const unsigned int length, const char *name)
 {
-	char const *space = "";
-
-	if (print_lines) {
-		printf("%7d", lines);
-		space = " ";
+	if (print_type & print_lines) {
+		printf("%7d ", lines);
 	}
-	if (print_words) {
-		printf("%s%7d", space, words);
-		space = " ";
+	if (print_type & print_words) {
+		printf("%7d ", words);
 	}
-	if (print_chars) {
-		printf("%s%7d", space, chars);
-		space = " ";
+	if (print_type & print_chars) {
+		printf("%7d ", chars);
 	}
-	if (print_length)
-		printf("%s%7d", space, length);
-	if (*name)
-		printf(" %s", name);
+	if (print_type & print_length) {
+		printf("%7d ", length);
+	}
+	if (*name) {
+		printf("%s", name);
+	}
 	putchar('\n');
 }
 
 static void wc_file(FILE * file, const char *name)
 {
-	int lines, words, chars, length;
-	int in_word = 0, linepos = 0;
+	unsigned int lines = 0;
+	unsigned int words = 0;
+	unsigned int chars = 0;
+	unsigned int length = 0;
+	unsigned int linepos = 0;
+	char in_word = 0;
 	int c;
 
-	lines = words = chars = length = 0;
 	while ((c = getc(file)) != EOF) {
 		chars++;
 		switch (c) {
@@ -77,7 +87,7 @@ static void wc_file(FILE * file, const char *name)
 		case ' ':
 			linepos++;
 		case '\v':
-		  word_separator:
+word_separator:
 			if (in_word) {
 				in_word = 0;
 				words++;
@@ -89,68 +99,71 @@ static void wc_file(FILE * file, const char *name)
 			break;
 		}
 	}
-	if (linepos > length)
+	if (linepos > length) {
 		length = linepos;
-	if (in_word)
+	}
+	if (in_word) {
 		words++;
+	}
 	print_counts(lines, words, chars, length, name);
 	total_lines += lines;
 	total_words += words;
 	total_chars += chars;
-	if (length > max_length)
+	if (length > max_length) {
 		max_length = length;
-	fclose(file);
-	fflush(stdout);
+	}
 }
 
 int wc_main(int argc, char **argv)
 {
-	FILE *file;
-	unsigned int num_files_counted = 0;
-	int opt, status = EXIT_SUCCESS;
-
-	total_lines = total_words = total_chars = max_length = 0;
-	print_lines = print_words = print_chars = print_length = 0;
+	int opt;
 
 	while ((opt = getopt(argc, argv, "clLw")) > 0) {
-			switch (opt) {
+		switch (opt) {
 			case 'c':
-				print_chars = 1;
+				print_type |= print_chars;
 				break;
 			case 'l':
-				print_lines = 1;
+				print_type |= print_lines;
 				break;
 			case 'L':
-				print_length = 1;
+				print_type |= print_length;
 				break;
 			case 'w':
-				print_words = 1;
+				print_type |= print_words;
 				break;
 			default:
 				show_usage();
-			}
-	}
-
-	if (!print_lines && !print_words && !print_chars && !print_length)
-		print_lines = print_words = print_chars = 1;
-
-	if (argv[optind] == NULL || strcmp(argv[optind], "-") == 0) {
-		wc_file(stdin, "");
-		return EXIT_SUCCESS;
-	} else {
-		while (optind < argc) {
-			if ((file = wfopen(argv[optind], "r")) != NULL)
-				wc_file(file, argv[optind]);
-			else
-				status = EXIT_FAILURE;
-			num_files_counted++;
-			optind++;
 		}
 	}
 
-	if (num_files_counted > 1)
-		print_counts(total_lines, total_words, total_chars,
-					 max_length, "total");
+	if (print_type == 0) {
+		print_type = print_lines | print_words | print_chars;
+	}
 
-	return status;
+	if (argv[optind] == NULL || strcmp(argv[optind], "-") == 0) {
+		wc_file(stdin, "");
+	} else {
+		unsigned short num_files_counted = 0;
+		while (optind < argc) {
+			if (print_type == print_chars) {
+				struct stat statbuf;
+				stat(argv[optind], &statbuf);
+				print_counts(0, 0, statbuf.st_size, 0, argv[optind]);
+				total_chars += statbuf.st_size;
+			} else {
+				FILE *file;
+				file = xfopen(argv[optind], "r");
+				wc_file(file, argv[optind]);
+				fclose(file);
+			}
+			optind++;
+			num_files_counted++;
+		}
+		if (num_files_counted > 1) {
+			print_counts(total_lines, total_words, total_chars, max_length, "total");
+		}
+	}
+
+	return(EXIT_SUCCESS);
 }

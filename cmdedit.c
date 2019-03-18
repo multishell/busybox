@@ -207,7 +207,8 @@ static void cmdedit_reset_term(void)
 		handlers_sets &= ~SET_WCHG_HANDLERS;
 	}
 	fflush(stdout);
-#ifdef BB_FEATURE_CLEAN_UP
+#if 0
+//#ifdef BB_FEATURE_CLEAN_UP
 	if (his_front) {
 		struct history *n;
 
@@ -799,8 +800,8 @@ static int match_compare(const void *a, const void *b)
 #define QUOT    (UCHAR_MAX+1)
 
 #define collapse_pos(is, in) { \
-	memcpy(int_buf+is, int_buf+in, (BUFSIZ+1-is-in)*sizeof(int)); \
-	memcpy(pos_buf+is, pos_buf+in, (BUFSIZ+1-is-in)*sizeof(int)); }
+	memcpy(int_buf+(is), int_buf+(in), (BUFSIZ+1-(is)-(in))*sizeof(int)); \
+	memcpy(pos_buf+(is), pos_buf+(in), (BUFSIZ+1-(is)-(in))*sizeof(int)); }
 
 static int find_match(char *matchBuf, int *len_with_quotes)
 {
@@ -1262,6 +1263,20 @@ prepare_to_die:
 #ifdef BB_FEATURE_COMMAND_TAB_COMPLETION
 			input_tab(&lastWasTab);
 #endif
+			break;
+		case 11:
+			/* Control-k -- clear to end of line */  
+			*(command + cursor) = 0;
+			len = cursor;
+			printf("\033[J");
+			break;
+		case 12: 
+			{
+				/* Control-l -- clear screen */
+				int old_cursor = cursor;
+				printf("\033[H");
+				redraw(0, len-old_cursor);
+			}
 			break;
 		case 14:
 			/* Control-n -- Get next command in history */

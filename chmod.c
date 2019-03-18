@@ -44,16 +44,28 @@ int chmod_main(int argc, char **argv)
 	int i;
 	int opt;
 	int recursiveFlag = FALSE;
+	int opt_eq_modeFlag = FALSE;
 
 	/* do normal option parsing */
-	while ((opt = getopt(argc, argv, "R")) > 0) {
+	while ((opt = getopt(argc, argv, "Rrwxst")) > 0) {
 		switch (opt) {
 			case 'R':
 				recursiveFlag = TRUE;
 				break;
+			case 'r':
+			case 'w':
+			case 'x':
+			case 's':
+			case 't': 
+				opt_eq_modeFlag = TRUE;
+				break;
 			default:
 				show_usage();
 		}
+	}
+
+	if (opt_eq_modeFlag == TRUE) {          
+		optind--;
 	}
 
 	if (argc > optind && argc > 2 && argv[optind]) {

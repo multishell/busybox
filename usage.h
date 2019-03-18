@@ -191,7 +191,7 @@
 
 #define dd_trivial_usage \
 	"[if=FILE] [of=FILE] [bs=N] [count=N] [skip=N]\n" \
-	"\t  [seek=N] [conv=notrunc|sync]"
+	"\t  [seek=N] [conv=notrunc|noerror|sync]"
 #define dd_full_usage \
 	"Copy a file, converting and formatting according to options\n\n" \
 	"\tif=FILE\t\tread from FILE instead of stdin\n" \
@@ -201,6 +201,7 @@
 	"\tskip=N\t\tskip N input blocks\n" \
 	"\tseek=N\t\tskip N output blocks\n" \
 	"\tconv=notrunc\tdon't truncate output file\n" \
+	"\tconv=noerror\tcontinue after read errors\n" \
 	"\tconv=sync\tpad blocks with zeros\n" \
 	"\n" \
 	"Numbers may be suffixed by c (x1), w (x2), b (x512), kD (x1000), k (x1024),\n" \
@@ -272,7 +273,7 @@
 	"\t-d\toutput will be in DOS format"
 
 #define dpkg_trivial_usage \
-	"-i package_file\n"
+	"-i package_file\n" \
 	"[-CPru] package_name"
 #define dpkg_full_usage \
 	"\t-i\tInstall the package\n" \
@@ -297,7 +298,7 @@
 	"$ dpkg-deb -X ./busybox_0.48-1_i386.deb /tmp\n"
 
 #define du_trivial_usage \
-	"[-ls" USAGE_HUMAN_READABLE("hm") USAGE_NOT_HUMAN_READABLE("") "k] [FILE]..."
+	"[-lsx" USAGE_HUMAN_READABLE("hm") USAGE_NOT_HUMAN_READABLE("") "k] [FILE]..."
 #define du_full_usage \
 	"Summarizes disk space used for each FILE and/or directory.\n" \
 	"Disk space is printed in units of 1024 bytes.\n\n" \
@@ -307,6 +308,7 @@
 	USAGE_HUMAN_READABLE( \
 	"\n\t-h\tprint sizes in human readable format (e.g., 1K 243M 2G )\n" \
 	"\t-m\tprint sizes in megabytes\n" \
+	"\t-x\tskip directories on different filesystems\n" \
 	"\t-k\tprint sizes in kilobytes(default)") USAGE_NOT_HUMAN_READABLE( \
 	"\n\t-k\tprint sizes in kilobytes(compatibility)")
 #define du_example_usage \
@@ -448,6 +450,11 @@
 #else
   #define USAGE_FIND_MTIME(a)
 #endif
+#ifdef BB_FEATURE_FIND_NEWER
+  #define USAGE_FIND_NEWER(a) a
+#else
+  #define USAGE_FIND_NEWER(a)
+#endif
 
 #define find_trivial_usage \
 	"[PATH...] [EXPRESSION]"
@@ -463,7 +470,9 @@
 ) USAGE_FIND_PERM( \
 	"\n\t-perm PERMS\tPermissions match any of (+NNN); all of (-NNN);\n\t\t\tor exactly (NNN)" \
 ) USAGE_FIND_MTIME( \
-	"\n\t-mtime TIME\tModified time is greater than (+N); less than (-N);\n\t\t\tor exactly (N) days")
+	"\n\t-mtime TIME\tModified time is greater than (+N); less than (-N);\n\t\t\tor exactly (N) days"\
+) USAGE_FIND_NEWER( \
+	"\n\t-newer FILE\tModified time is more recent than FILE's")
 #define find_example_usage \
 	"$ find / -name /etc/passwd\n" \
 	"/etc/passwd\n"
@@ -686,6 +695,7 @@
 "	::ctrlaltdel:/sbin/reboot\n" \
 "	::shutdown:/sbin/swapoff -a\n" \
 "	::shutdown:/bin/umount -a -r\n" \
+"	::restart:/sbin/init\n" \
 "\n" \
 "if it detects that /dev/console is _not_ a serial console, it will also run:\n" \
 "\n" \
@@ -717,7 +727,7 @@
 "	<action>: \n" \
 "\n" \
 "		Valid actions include: sysinit, respawn, askfirst, wait, \n" \
-"		once, ctrlaltdel, and shutdown.\n" \
+"		once, restart, ctrlaltdel, and shutdown.\n" \
 "\n" \
 "		The available actions can be classified into two groups: actions\n" \
 "		that are run only once, and actions that are re-run when the specified\n" \
@@ -730,7 +740,10 @@
 "			completion of all sysinit actions, all 'wait' actions are run.\n" \
 "			'wait' actions, like  'sysinit' actions, cause init to wait until\n" \
 "			the specified task completes.  'once' actions are asynchronous,\n" \
-"			therefore, init does not wait for them to complete.  'ctrlaltdel'\n" \
+"			therefore, init does not wait for them to complete.  'restart' is\n" \
+"			the action taken to restart the init process.  By default this should\n" \
+"			simply run /sbin/init, but can be a script which runs pivot_root or it\n" \
+"			can do all sorts of other interesting things.  The 'ctrlaltdel' init\n" \
 "			actions are run when the system detects that someone on the system\n" \
 "                       console has pressed the CTRL-ALT-DEL key combination.  Typically one\n" \
 "                       wants to run 'reboot' at this point to cause the system to reboot.\n" \
@@ -785,6 +798,9 @@
 "	#\n" \
 "	# Example how to put a getty on a modem line.\n" \
 "	#::respawn:/sbin/getty 57600 ttyS2\n" \
+"	\n" \
+"	# Stuff to do when restarting the init process\n" \
+"	::restart:/sbin/init\n" \
 "	\n" \
 "	# Stuff to do before rebooting\n" \
 "	::ctrlaltdel:/sbin/reboot\n" \
@@ -902,6 +918,14 @@
 
 #define logread_full_usage \
         "Shows the messages from syslogd (using circular buffer)."
+
+#define losetup_trivial_usage \
+	"[OPTION]... LOOPDEVICE [FILE]"
+#define losetup_full_usage \
+	"Associate LOOPDEVICE with FILE.\n\n" \
+	"Options:\n" \
+	"\t-d\t\tDisassociate LOOPDEVICE.\n" \
+	"\t-o OFFSET\tStart OFFSET bytes into FILE.\n"
 
 #ifdef BB_FEATURE_LS_TIMESTAMPS
   #define USAGE_LS_TIMESTAMPS(a) a
@@ -1164,9 +1188,13 @@
 	"$ mv /tmp/foo /bin/bar\n" 
 
 #define nc_trivial_usage \
-	"[IP] [port]" 
+	"[OPTIONS] [IP] [port]" 
 #define nc_full_usage \
-	"Netcat opens a pipe to IP:port"
+	"Netcat opens a pipe to IP:port\n\n" \
+	"Options:\n" \
+	"\t-l\t\tlisten mode, for inbound connects\n" \
+	"\t-p PORT\t\tlocal port number\n" \
+	"\t-e PROG\t\tprogram to exec after connect (dangerous!)"
 #define nc_example_usage \
 	"$ nc foobar.somedomain.com 25\n" \
 	"220 foobar ESMTP Exim 3.12 #1 Sat, 15 Apr 2000 00:03:02 -0600\n" \
@@ -1568,6 +1596,14 @@
 #else
   #define USAGE_TFTP_PUT(a)
 #endif
+
+#define time_trivial_usage \
+	"[OPTION]... COMMAND [ARGS...]"
+#define time_full_usage \
+	"Runs the program COMMAND with arguments ARGS.  When COMMAND finishes,\n"
+	"COMMAND's resource usage information is displayed\n\n"
+	"Options:\n" \
+	"\t-v\tDisplays verbose resource usage information."
 
 #define tftp_trivial_usage \
 	"[OPTION]... HOST [PORT]"

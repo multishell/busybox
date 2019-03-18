@@ -3,6 +3,7 @@
  * Mini kill/killall implementation for busybox
  *
  * Copyright (C) 1995, 1996 by Bruce Perens <bruce@pixar.com>.
+ * Copyright (C) 1999-2002 by Erik Andersen <andersee@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -114,7 +115,7 @@ extern int kill_main(int argc, char **argv)
 		pid_t myPid=getpid();
 		/* Looks like they want to do a killall.  Do that */
 		while (--argc >= 0) {
-			pid_t* pidList;
+			long* pidList;
 
 			pidList = find_pid_by_name( *argv);
 			if (!pidList || *pidList<=0) {

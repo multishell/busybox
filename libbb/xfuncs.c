@@ -2,9 +2,7 @@
 /*
  * Utility routines.
  *
- * Copyright (C) tons of folks.  Tracking down who wrote what
- * isn't something I'm going to worry about...  If you wrote something
- * here, please feel free to acknowledge your work.
+ * Copyright (C) 1999,2000,2001 by Erik Andersen <andersee@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,10 +17,6 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
- * Based in part on code from sash, Copyright (c) 1999 by David I. Bell 
- * Permission has been granted to redistribute this code under the GPL.
- *
  */
 
 #include <stdio.h>
@@ -36,26 +30,15 @@
 extern void *xmalloc(size_t size)
 {
 	void *ptr = malloc(size);
-
-	if (!ptr)
+	if (ptr == NULL && size != 0)
 		error_msg_and_die(memory_exhausted);
 	return ptr;
 }
 
-extern void *xrealloc(void *old, size_t size)
+extern void *xrealloc(void *ptr, size_t size)
 {
-	void *ptr;
-
-	/* SuS2 says "If size is 0 and ptr is not a null pointer, the
-	 * object pointed to is freed."  Do that here, in case realloc
-	 * returns a NULL, since we don't want to choke in that case. */
-	if (size==0 && old) {
-		free(old);
-		return NULL;
-	}
-
-	ptr = realloc(old, size);
-	if (!ptr)
+	ptr = realloc(ptr, size);
+	if (ptr == NULL && size != 0)
 		error_msg_and_die(memory_exhausted);
 	return ptr;
 }
@@ -63,7 +46,7 @@ extern void *xrealloc(void *old, size_t size)
 extern void *xcalloc(size_t nmemb, size_t size)
 {
 	void *ptr = calloc(nmemb, size);
-	if (!ptr)
+	if (ptr == NULL && nmemb != 0 && size != 0)
 		error_msg_and_die(memory_exhausted);
 	return ptr;
 }
@@ -100,6 +83,13 @@ FILE *xfopen(const char *path, const char *mode)
 	if ((fp = fopen(path, mode)) == NULL)
 		perror_msg_and_die("%s", path);
 	return fp;
+}
+
+/* Stupid gcc always includes its own builtin strlen()... */
+#undef strlen
+size_t xstrlen(const char *string)
+{
+	return(strlen(string));
 }
 
 /* END CODE */

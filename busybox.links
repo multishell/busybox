@@ -1,4 +1,5 @@
 /usr/bin/[
+/bin/ash
 /usr/bin/basename
 /bin/cat
 /bin/chgrp
@@ -41,7 +42,6 @@
 /sbin/modprobe
 /bin/more
 /bin/mount
-/bin/msh
 /bin/mv
 /bin/pidof
 /sbin/poweroff

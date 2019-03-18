@@ -22,7 +22,7 @@
 #include <string.h>
 #include "libbb.h"
 
-#if defined __UCLIBC__ || __GNU_LIBRARY___ < 5
+#if defined __GNU_LIBRARY___ < 5
 
 /* Return a string containing the path name of the parent
  * directory of PATH.  */

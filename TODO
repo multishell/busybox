@@ -47,10 +47,6 @@ and then start with the biggest things and make them smaller...
 
 -----------------------
 
- du.c probably ought to have an -x switch like GNU du does...
-
------------------------
-
 xargs could use a -l option
 
 ------------------------------------------------------------------

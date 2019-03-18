@@ -45,6 +45,14 @@
 
 #include "cmdedit.h"
 #include "busybox.h"
+
+/* define this to use fork on MMU-systems instead of vfork */
+#if !defined(__UCLIBC__) || defined(__UCLIBC_HAS_MMU__)
+#define USE_FORK
+#else
+#undef USE_FORK
+#endif
+
 #ifdef test
 //#undef BB_FEATURE_COMMAND_EDITING
 const char *applet_name = "msh";
@@ -63,7 +71,9 @@ const char *applet_name = "msh";
 #define LINELIM 4096
 #define NPUSH   8				/* limit to input nesting */
 
+#ifndef NOFILE
 #define NOFILE  20				/* Number of open files */
+#endif
 #define NUFILE  10				/* Number of user-accessible files */
 #define FDBASE  10				/* First file usable by Shell */
 
@@ -239,7 +249,7 @@ static struct var *lookup(char *n);
 static int rlookup(char *n);
 static struct wdblock *glob(char *cp, struct wdblock *wb);
 static int subgetc(int ec, int quoted);
-static char **makenv(void);
+static char **makenv(int all);
 static char **eval(char **ap, int f);
 static int setstatus(int s);
 static int waitfor(int lastpid, int canintr);
@@ -618,6 +628,8 @@ int msh_main(int argc, char **argv)
 			prs(prompt->value);
 #endif
 		onecommand();
+		/* Ensure that getenv("PATH") stays current */
+		setenv("PATH", path->value, 1);
 	}
 }
 
@@ -712,7 +724,7 @@ void leave()
 	scraphere();
 	freehere(1);
 	runtrap(0);
-	exit(exstat);
+	_exit(exstat);
 	/* NOTREACHED */
 }
 
@@ -2124,10 +2136,29 @@ static char *signame[] = {
 
 #define NSIGNAL (sizeof(signame)/sizeof(signame[0]))
 
+/*
+ * common actions when creating a new child
+ */
+#ifdef USE_FORK
+#define XFORK fork
+static int parent()
+{
+	register int i;
+
+	i = fork();
+	if (i != 0) {
+		if (i == -1)
+			warn("try again");
+	}
+	return (i);
+}
+#else
+#  define parent vfork
+#  define XFORK  vfork
+#endif
 
 static int forkexec(struct op *t, int *pin, int *pout, int act, char **wp,
 					int *pforked);
-static int parent(void);
 static int iosetup(struct ioword *iop, int pipein, int pipeout);
 static void echo(char **wp);
 static struct op **find1case(struct op *t, char *w);
@@ -2210,8 +2241,15 @@ int act;
 		break;
 
 	case TASYNC:
+	{
+	        /* save global vars altered by child */
+		int hinteractive = interactive;
+
 		i = parent();
 		if (i != 0) {
+		        /* restore global vars */
+			interactive = hinteractive;
+
 			if (i != -1) {
 				setval(lookup("!"), putn(i));
 				if (pin != NULL)
@@ -2233,10 +2271,10 @@ int act;
 				close(0);
 				open("/dev/null", 0);
 			}
-			exit(execute(t->left, pin, pout, FEXEC));
+			_exit(execute(t->left, pin, pout, FEXEC));
 		}
 		break;
-
+	}
 	case TOR:
 	case TAND:
 		rv = execute(t->left, pin, pout, 0);
@@ -2338,6 +2376,26 @@ int *pforked;
 	int resetsig;
 	char **owp;
 
+	int *hpin = pin;
+	int *hpout = pout;
+	int hforked;
+	char *hwp;
+	int hinteractive;
+	int hintr;
+	struct brkcon * hbrklist;
+	int hexecflg;
+
+#if __GNUC__
+	/* Avoid longjmp clobbering */
+	(void) &pin;
+	(void) &pout;
+	(void) &wp;
+	(void) &shcom;
+	(void) &cp;
+	(void) &resetsig;
+	(void) &owp;
+#endif	
+
 	owp = wp;
 	resetsig = 0;
 	*pforked = 0;
@@ -2360,8 +2418,30 @@ int *pforked;
 	t->words = wp;
 	f = act;
 	if (shcom == NULL && (f & FEXEC) == 0) {
+
+	        /* save vars altered by child (needed by vfork) */
+		hpin = pin;
+		hpout = pout;
+		hforked = *pforked;
+		hwp = *wp;
+		hinteractive = interactive;
+		hintr = intr;
+		hbrklist = brklist;
+		hexecflg = execflg;
+	
 		i = parent();
 		if (i != 0) {
+		        /* restore vars altered by child (needed by vfork) */
+			pin = hpin;
+			pout = hpout;
+			*pforked = hforked;
+			*wp = hwp;
+			interactive = hinteractive;
+			intr = hintr;
+			brklist = hbrklist;
+			execflg = hexecflg;
+
+			*pforked = 0;
 			if (i == -1)
 				return (rv);
 			if (pin != NULL)
@@ -2417,10 +2497,10 @@ int *pforked;
 		signal(SIGQUIT, SIG_DFL);
 	}
 	if (t->type == TPAREN)
-		exit(execute(t->left, NOPIPE, NOPIPE, FEXEC));
+		_exit(execute(t->left, NOPIPE, NOPIPE, FEXEC));
 	if (wp[0] == NULL)
-		exit(0);
-	cp = rexecve(wp[0], wp, makenv());
+		_exit(0);
+	cp = rexecve(wp[0], wp, makenv(0));
 	prs(wp[0]);
 	prs(": ");
 	warn(cp);
@@ -2428,21 +2508,6 @@ int *pforked;
 		trap[0] = NULL;
 	leave();
 	/* NOTREACHED */
-}
-
-/*
- * common actions when creating a new child
- */
-static int parent()
-{
-	register int i;
-
-	i = fork();
-	if (i != 0) {
-		if (i == -1)
-			warn("try again");
-	}
-	return (i);
 }
 
 /*
@@ -2670,7 +2735,22 @@ char *c, **v, **envp;
 	register char *sp, *tp;
 	int eacces = 0, asis = 0;
 
-	sp = any('/', c) ? "" : path->value;
+#ifdef BB_FEATURE_SH_STANDALONE_SHELL
+	char *name = c;
+#ifdef BB_FEATURE_SH_APPLETS_ALWAYS_WIN
+	name = get_last_path_component(name);
+#endif
+	optind = 1;
+	if (find_applet_by_name(name)) {
+		/* We have to exec here since we vforked.  Running 
+		 * run_applet_by_name() won't work and bad things
+		 * will happen. */
+		execve("/proc/self/exe", v, envp);
+		execve("busybox", v, envp);
+	}
+#endif
+
+	sp = any('/', c)? "": path->value;
 	asis = *sp == '\0';
 	while (asis || *sp != '\0') {
 		asis = 0;
@@ -2756,12 +2836,14 @@ int (*f) ();
  * built-in commands: doX
  */
 
-int dolabel()
+static int
+dolabel()
 {
 	return (0);
 }
 
-int dochdir(t)
+static int
+dochdir(t)
 register struct op *t;
 {
 	register char *cp, *er;
@@ -2819,7 +2901,7 @@ struct op *t;
 		signal(SIGINT, SIG_DFL);
 		signal(SIGQUIT, SIG_DFL);
 	}
-	cp = rexecve(t->words[0], t->words, makenv());
+	cp = rexecve(t->words[0], t->words, makenv(0));
 	prs(t->words[0]);
 	prs(": ");
 	err(cp);
@@ -3292,14 +3374,14 @@ int f;
  * names in the dictionary. Keyword assignments
  * will already have been done.
  */
-char **makenv()
+char **makenv(int all)
 {
 	register struct wdblock *wb;
 	register struct var *vp;
 
 	wb = NULL;
 	for (vp = vlist; vp; vp = vp->next)
-		if (vp->status & EXPORT)
+		if (all || vp->status & EXPORT)
 			wb = addword(vp->name, wb);
 	wb = addword((char *) 0, wb);
 	return (getwords(wb));
@@ -3580,6 +3662,10 @@ int quoted;
 	register char *cp, *s;
 	register int i, c;
 	int pf[2];
+#ifndef USE_FORK
+	char *av[4];
+	char **env;
+#endif
 
 	c = readc();
 	s = e.linep;
@@ -3598,7 +3684,10 @@ int quoted;
 	}
 	if (openpipe(pf) < 0)
 		return (0);
-	if ((i = fork()) == -1) {
+#ifndef USE_FORK
+	env = makenv(1);
+#endif
+	if ((i = XFORK()) == -1) {
 		closepipe(pf);
 		err("try again");
 		return (0);
@@ -3616,10 +3705,11 @@ int quoted;
 			signal(i, SIG_DFL);
 	dup2(pf[1], 1);
 	closepipe(pf);
+	cp = strsave(e.linep = s, 0);
+#ifdef USE_FORK
 	flag['e'] = 0;
 	flag['v'] = 0;
 	flag['n'] = 0;
-	cp = strsave(e.linep = s, 0);
 	areanum = 1;
 	inhere = acthere = (struct here *) 0;
 	freearea(areanum);			/* free old space */
@@ -3630,6 +3720,18 @@ int quoted;
 	PUSHIO(aword, cp, nlchar);
 	onecommand();
 	exit(1);
+#else
+	/* NOTE: When we are vfork()'ing we've got to exec here.
+	 * Therefore we start the command using /bin/sh -c.
+	 */
+	av[0] = "sh";
+	av[1] = "-c";
+	av[2] = cp;
+	av[3] = NULL;
+	execve("/bin/sh", av, env);
+	err("grave: execlp failed\n");
+	_exit(1);
+#endif
 }
 
 char *unquote(as)

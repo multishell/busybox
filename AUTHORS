@@ -8,7 +8,7 @@ incorect, _please_ let me know.
 
 -----------
 
-Erik Andersen <andersee@debian.org>
+Erik Andersen <andersen@codepoet.org>, <andersee@debian.org>
     Tons of new stuff, major rewrite of most of the
     core apps, tons of new apps as noted in header files.
 
@@ -28,8 +28,16 @@ Dave Cinege <dcinege@psychosis.com>
     more(v2), makedevs, dutmp, modularization, auto links file, 
     various fixes, Linux Router Project maintenance
 
+Magnus Damm <damm@opensource.se>
+    tftp client
+    insmod powerpc support
+
 Larry Doolittle <ldoolitt@recycle.lbl.gov>
     pristine source directory compilation, lots of patches and fixes.
+
+Gennady Feldman <gfeldman@cachier.com>
+    Sysklogd (single threaded syslogd, IPC Circular buffer support,
+    logread), various fixes.
 
 Karl M. Hegbloom <karlheg@debian.org>
     cp_mv.c, the test suite, various fixes to utility.c, &c.
@@ -38,7 +46,7 @@ Daniel Jacobowitz <dan@debian.org>
     mktemp.c
 
 Matt Kraai <kraai@alumni.carnegiemellon.edu>
-    documentation, bugfixes
+    documentation, bugfixes, test suite
 
 John Lombardo <john@deltanet.com>	
     dirname, tr
@@ -46,8 +54,15 @@ John Lombardo <john@deltanet.com>
 Glenn McGrath <bug1@optushome.com.au>
     ar, dpkg, dpkg-deb
 
+Vladimir Oleynik <dzo@simtreas.ru>
+    cmdedit; ports: ash, stty, traceroute; locale, various fixes
+    and irreconcilable critic of everything not perfect.
+
 Bruce Perens <bruce@pixar.com>
     Original author of BusyBox. His code is still in many apps.
+
+Tim Riker <Tim@Rikers.org>
+    bug fixes, member of fan club
 
 Kent Robotti <robotti@metconnect.com>
     reset, tons and tons of bug reports and patchs.
@@ -73,9 +88,6 @@ Charles P. Wright <cpwright@villagenet.com>
 Enrique Zanardi <ezanardi@ull.es>
     tarcat (since removed), loadkmap, various fixes, Debian maintenance
 
-Vladimir Oleynik <dzo@simtreas.ru>
-    cmdedit; ports: ash, stty, traceroute; locale, various fixes
-    and irreconcilable critic of everything not perfect.
+Emanuele Aina <emanuele.aina@tiscali.it>
+	run-parts
 
-Tim Riker <Tim@Rikers.org>
-    bug fixes, member of fan club

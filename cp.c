@@ -39,7 +39,7 @@ extern int cp_main(int argc, char **argv)
 	int flags = 0;
 	int i;
 
-	while ((opt = getopt(argc, argv, "adfipR")) != -1)
+	while ((opt = getopt(argc, argv, "adfipRr")) != -1)
 		switch (opt) {
 		case 'a':
 			flags |= FILEUTILS_PRESERVE_STATUS | FILEUTILS_RECUR;
@@ -57,6 +57,9 @@ extern int cp_main(int argc, char **argv)
 			flags |= FILEUTILS_PRESERVE_STATUS;
 			break;
 		case 'R':
+			flags |= FILEUTILS_RECUR | FILEUTILS_PRESERVE_STATUS;
+			break;
+		case 'r':
 			flags |= FILEUTILS_RECUR;
 			break;
 		default:

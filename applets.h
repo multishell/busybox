@@ -242,6 +242,9 @@
 #ifdef BB_LOGREAD
 	APPLET(logread, logread_main, _BB_DIR_SBIN)
 #endif
+#ifdef BB_LOSETUP
+	APPLET(losetup, losetup_main, _BB_DIR_SBIN)
+#endif
 #ifdef BB_LS
 	APPLET(ls, ls_main, _BB_DIR_BIN)
 #endif
@@ -400,6 +403,9 @@
 #endif
 #ifdef BB_TFTP
 	APPLET(tftp, tftp_main, _BB_DIR_USR_BIN)
+#endif
+#ifdef BB_TIME
+	APPLET(time, time_main, _BB_DIR_USR_BIN)
 #endif
 #ifdef BB_TOUCH
 	APPLET(touch, touch_main, _BB_DIR_BIN)

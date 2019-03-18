@@ -1,8 +1,7 @@
-/* vi: set sw=4 ts=4: */
 /*
- * Utility routines.
+ * Mini losetup implementation for busybox
  *
- * Copyright (C) 1999,2000,2001 by Erik Andersen <andersee@debian.org>
+ * Copyright (C) 2002  Matt Kraai.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,28 +16,43 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ *
  */
 
-#include <stdarg.h>
+#include <getopt.h>
 #include <stdlib.h>
 
-#include "libbb.h"
+#include "busybox.h"
 
-extern void herror_msg(const char *s, ...)
+int
+losetup_main (int argc, char **argv)
 {
-	va_list p;
+  int delete = 0;
+  int offset = 0;
+  int opt;
 
-	va_start(p, s);
-	vherror_msg(s, p);
-	va_end(p);
+  while ((opt = getopt (argc, argv, "do:")) != -1)
+    switch (opt)
+      {
+      case 'd':
+	delete = 1;
+	break;
+
+      case 'o':
+	offset = parse_number (optarg, NULL);
+	break;
+
+      default:
+	show_usage ();
+      }
+
+  if ((delete && (offset || optind + 1 != argc))
+      || (!delete && optind + 2 != argc))
+    show_usage ();
+
+  if (delete)
+    return del_loop (argv[optind]) ? EXIT_SUCCESS : EXIT_FAILURE;
+  else
+    return set_loop (argv[optind], argv[optind + 1], offset, &opt)
+      ? EXIT_FAILURE : EXIT_SUCCESS;
 }
-
-
-/* END CODE */
-/*
-Local Variables:
-c-file-style: "linux"
-c-basic-offset: 4
-tab-width: 4
-End:
-*/

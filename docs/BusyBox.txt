@@ -314,7 +314,7 @@ COMMANDS
         -------------------------------
 
     dd  dd [if=FILE] [of=FILE] [bs=N] [count=N] [skip=N] [seek=N]
-        [conv=notrunc|sync]
+        [conv=notrunc|noerror|sync]
 
         Copy a file, converting and formatting according to options
 
@@ -325,6 +325,7 @@ COMMANDS
                 skip=N          skip N input blocks
                 seek=N          skip N output blocks
                 conv=notrunc    don't truncate output file
+                conv=noerror    continue after read errors
                 conv=sync       pad blocks with zeros
 
         Numbers may be suffixed by c (x1), w (x2), b (x512), kD (x1000), k
@@ -410,7 +411,7 @@ COMMANDS
         -------------------------------
 
     dpkg
-        dpkg -i package_file
+        dpkg -i package_file [-CPru] package_name
 
                 -i      Install the package
                 -C      Configure an unpackaged package
@@ -441,7 +442,7 @@ COMMANDS
 
         -------------------------------
 
-    du  du [-lshmk] [FILE]...
+    du  du [-lsxhmk] [FILE]...
 
         Summarizes disk space used for each FILE and/or directory. Disk
         space is printed in units of 1024 bytes.
@@ -452,6 +453,7 @@ COMMANDS
                 -s      display only a total for each argument
                 -h      print sizes in human readable format (e.g., 1K 243M 2G )
                 -m      print sizes in megabytes
+                -x      skip directories on different filesystems
                 -k      print sizes in kilobytes(default)
 
         Example:
@@ -630,6 +632,7 @@ COMMANDS
                                 or exactly (NNN)
                 -mtime TIME     Modified time is greater than (+N); less than (-N);
                                 or exactly (N) days
+                -newer FILE     Modified time is more recent than FILE's
 
         Example:
 
@@ -894,6 +897,7 @@ COMMANDS
                 ::ctrlaltdel:/sbin/reboot
                 ::shutdown:/sbin/swapoff -a
                 ::shutdown:/bin/umount -a -r
+                ::restart:/sbin/init
 
         if it detects that /dev/console is _not_ a serial console, it will
         also run:
@@ -927,7 +931,7 @@ COMMANDS
                 <action>: 
 
                         Valid actions include: sysinit, respawn, askfirst, wait, 
-                        once, ctrlaltdel, and shutdown.
+                        once, restart, ctrlaltdel, and shutdown.
 
                         The available actions can be classified into two groups: actions
                         that are run only once, and actions that are re-run when the specified
@@ -940,7 +944,10 @@ COMMANDS
                                 completion of all sysinit actions, all 'wait' actions are run.
                                 'wait' actions, like  'sysinit' actions, cause init to wait until
                                 the specified task completes.  'once' actions are asynchronous,
-                                therefore, init does not wait for them to complete.  'ctrlaltdel'
+                                therefore, init does not wait for them to complete.  'restart' is
+                                the action taken to restart the init process.  By default this should
+                                simply run /sbin/init, but can be a script which runs pivot_root or it
+                                can do all sorts of other interesting things.  The 'ctrlaltdel' init
                                 actions are run when the system detects that someone on the system
                                console has pressed the CTRL-ALT-DEL key combination.  Typically one
                                wants to run 'reboot' at this point to cause the system to reboot.
@@ -994,6 +1001,9 @@ COMMANDS
                 #
                 # Example how to put a getty on a modem line.
                 #::respawn:/sbin/getty 57600 ttyS2
+        
+                # Stuff to do when restarting the init process
+                ::restart:/sbin/init
         
                 # Stuff to do before rebooting
                 ::ctrlaltdel:/sbin/reboot
@@ -1179,6 +1189,18 @@ COMMANDS
         logread
 
         Shows the messages from syslogd (using circular buffer).
+
+        -------------------------------
+
+    losetup
+        losetup [OPTION]... LOOPDEVICE [FILE]
+
+        Associate LOOPDEVICE with FILE.
+
+        Options:
+
+                -d              Disassociate LOOPDEVICE.
+                -o OFFSET       Start OFFSET bytes into FILE.
 
         -------------------------------
 
@@ -1469,9 +1491,15 @@ COMMANDS
 
         -------------------------------
 
-    nc  nc [IP] [port]
+    nc  nc [OPTIONS] [IP] [port]
 
         Netcat opens a pipe to IP:port
+
+        Options:
+
+                -l              listen mode, for inbound connects
+                -p PORT         local port number
+                -e PROG         program to exec after connect (dangerous!)
 
         Example:
 
@@ -1948,6 +1976,13 @@ COMMANDS
                 -l FILE Transfer local FILE.
                 -p      Put file.
                 -r FILE Transfer remote FILE.
+
+        -------------------------------
+
+    time
+        time [OPTION]... COMMAND [ARGS...]
+
+        Runs the program COMMAND with arguments ARGS. When COMMAND finishes,
 
         -------------------------------
 

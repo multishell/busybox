@@ -1,3 +1,28 @@
+busybox (1:0.60.3-1) unstable; urgency=low
+  
+  * New version released.  See Changelog for non-Debian specific details.
+  * makedevs no longer segfaults (closes: #123921)
+  * wget no longer crashes (closes: #138943)
+  * wget now checks the safe_fwrite return code (closes: #143179)
+
+ -- Erik Andersen <andersee@debian.org>  Sat, 27 Apr 2002 01:33:34 -0600
+
+busybox (1:0.60.2-3) testing unstable; urgency=low
+  
+  * Fix wc stdin handling (closes: #123387).
+  * Fix wget to do just one DNS lookup (closes: #124068)
+
+ -- Erik Andersen <andersee@debian.org>  Sun, 16 Dec 2001 22:51:03 -0700
+
+busybox (1:0.60.2-2) unstable; urgency=low
+  
+  * Several small bugfixes (closes: #120353, #120369, #122638, 
+  * Reworked wc.c to fix the severe efficiency problems and make it 
+    smaller.  This one is mainly for the boot-floppies (closes: #120441)
+  * Enable hostname (closes: #120511)
+
+ -- Erik Andersen <andersee@debian.org>  Thu,  6 Dec 2001 00:06:33 -0700
+
 busybox (1:0.60.2-1) unstable; urgency=low
   
   * New version released.  See Changelog for non-Debian specific details.

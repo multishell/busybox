@@ -51,14 +51,12 @@ static const int TERMINAL_WIDTH = 79;      /* not 80 in case terminal has linefo
  */
 
 typedef struct proc_s {
-	char
-	 cmd[16];					/* basename of executable file in call to exec(2) */
-	int
-	 ruid,						/* real only (sorry) */
-	 pid,						/* process id */
-	 ppid;						/* pid of parent process */
-	char
-	 state;						/* single-char code for process state (S=sleeping) */
+	char cmd[16];					/* basename of executable file in call to exec(2) */
+	int ruid;						/* real only (sorry) */
+	int pid;						/* process id */
+	int ppid;						/* pid of parent process */
+	char state;						/* single-char code for process state (S=sleeping) */
+	unsigned int vmsize;			/* size of process as far as the vm is concerned */
 } proc_t;
 
 
@@ -89,6 +87,7 @@ static void parse_proc_status(char *S, proc_t * P)
 	tmp = strstr(S, "State");
 	sscanf(tmp, "State:\t%c", &P->state);
 
+	P->vmsize = 0;
 	tmp = strstr(S, "Pid:");
 	if (tmp)
 		sscanf(tmp, "Pid:\t%d\n" "PPid:\t%d\n", &P->pid, &P->ppid);
@@ -102,7 +101,13 @@ static void parse_proc_status(char *S, proc_t * P)
 	else
 		error_msg("Internal error!");
 
-
+	tmp = strstr(S, "VmSize:");
+	if (tmp)
+		sscanf(tmp, "VmSize:\t%d", &P->vmsize);
+#if 0
+	else
+		error_msg("Internal error!");
+#endif
 }
 
 extern int ps_main(int argc, char **argv)
@@ -133,7 +138,7 @@ extern int ps_main(int argc, char **argv)
 			terminal_width = win.ws_col - 1;
 #endif
 
-	printf("  PID  Uid     Stat Command\n");
+	printf("  PID  Uid     VmSize Stat Command\n");
 	while ((entry = readdir(dir)) != NULL) {
 		if (!isdigit(*entry->d_name))
 			continue;
@@ -152,7 +157,10 @@ extern int ps_main(int argc, char **argv)
 		if (file == NULL)
 			continue;
 		i = 0;
-		len = printf("%5d %-8s %c    ", p.pid, uidName, p.state);
+		if(p.vmsize == 0)
+			len = printf("%5d %-8s        %c    ", p.pid, uidName, p.state);
+		else
+			len = printf("%5d %-8s %6d %c    ", p.pid, uidName, p.vmsize, p.state);
 		while (((c = getc(file)) != EOF) && (i < (terminal_width-len))) {
 			i++;
 			if (c == '\0')

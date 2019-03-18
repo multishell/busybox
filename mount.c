@@ -3,6 +3,7 @@
  * Mini mount implementation for busybox
  *
  * Copyright (C) 1995, 1996 by Bruce Perens <bruce@pixar.com>.
+ * Copyright (C) 1999-2002 by Erik Andersen <andersee@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -424,7 +425,8 @@ extern int mount_main(int argc, char **argv)
 	if (optind < argc) {
 		/* if device is a filename get its real path */
 		if (stat(argv[optind], &statbuf) == 0) {
-			device = simplify_path(argv[optind]);
+			char *tmp = simplify_path(argv[optind]);
+			safe_strncpy(device, tmp, PATH_MAX);
 		} else {
 			safe_strncpy(device, argv[optind], PATH_MAX);
 		}
@@ -457,6 +459,7 @@ extern int mount_main(int argc, char **argv)
 			
 			if (all == TRUE || flags == 0) {	// Allow single mount to override fstab flags
 				flags = 0;
+				string_flags = string_flags_buf;
 				*string_flags = '\0';
 				parse_mount_options(m->mnt_opts, &flags, string_flags);
 			}
@@ -468,9 +471,8 @@ singlemount:
 			string_flags = strdup(string_flags);
 			rc = EXIT_SUCCESS;
 #ifdef BB_NFSMOUNT
-			if (strchr(device, ':') != NULL)
+			if (strchr(device, ':') != NULL) {
 				filesystemType = "nfs";
-			if (strcmp(filesystemType, "nfs") == 0) {
 				if (nfsmount (device, directory, &flags, &extra_opts,
 							&string_flags, 1)) {
 					perror_msg("nfsmount failed");

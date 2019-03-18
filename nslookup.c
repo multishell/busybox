@@ -90,10 +90,16 @@ static int addr_list_fprint(char **h_addr_list)
 }
 
 /* print the results as nslookup would */
-static struct hostent *hostent_fprint(struct hostent *host)
+static struct hostent *hostent_fprint(struct hostent *host, int is_server)
 {
+	char *format;
+	if (is_server) {
+		format = "Server:     ";
+	} else {
+		format = "Name:       ";
+	}
 	if (host) {
-		printf("Name:       %s\n", host->h_name);
+		printf("%s%s\n", format, host->h_name);
 		addr_list_fprint(host->h_addr_list);
 	} else {
 		printf("*** Unknown host\n");
@@ -128,24 +134,15 @@ static struct hostent *gethostbyaddr_wrapper(const char *address)
 	return gethostbyaddr((char *) &addr, 4, AF_INET);	/* IPv4 only for now */
 }
 
-#ifdef __UCLIBC__
-#warning FIXME after fixing uClibc to define struct _res 
-static inline void server_print(void)
-{
-       printf("Server:     %s\n", "default");
-       printf("Address:    %s\n\n", "default");
-}
-#else
 /* lookup the default nameserver and display it */
 static inline void server_print(void)
 {
 	struct sockaddr_in def = _res.nsaddr_list[0];
 	char *ip = inet_ntoa(def.sin_addr);
 
-	hostent_fprint(gethostbyaddr_wrapper(ip));
+	hostent_fprint(gethostbyaddr_wrapper(ip), 1);
 	printf("\n");
 }
-#endif	
 
 /* naive function to check whether char *s is an ip address */
 static int is_ip_address(const char *s)
@@ -176,8 +173,8 @@ int nslookup_main(int argc, char **argv)
 	} else {
 		host = gethostbyname(argv[1]);
 	}
-	hostent_fprint(host);
+	hostent_fprint(host, 0);
 	return EXIT_SUCCESS;
 }
 
-/* $Id: nslookup.c,v 1.27 2001/11/19 23:34:17 andersen Exp $ */
+/* $Id: nslookup.c,v 1.28 2002/04/27 04:03:59 andersen Exp $ */

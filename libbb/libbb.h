@@ -2,7 +2,6 @@
 /*
  * Busybox main internal header file
  *
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -16,11 +15,8 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
- * Based in part on code from sash, Copyright (c) 1999 by David I. Bell 
- * Permission has been granted to redistribute this code under the GPL.
- *
  */
+
 #ifndef	__LIBBB_H__
 #define	__LIBBB_H__    1
 
@@ -120,7 +116,7 @@ extern void write_mtab(char* blockDevice, char* directory,
 	char* filesystemType, long flags, char* string_flags);
 extern void erase_mtab(const char * name);
 extern long atoi_w_units (const char *cp);
-extern pid_t* find_pid_by_name( char* pidName);
+extern long* find_pid_by_name( char* pidName);
 extern char *find_real_root_device_name(const char* name);
 extern char *get_line_from_file(FILE *file);
 extern void print_file(FILE *file);
@@ -306,6 +302,7 @@ extern const char * const can_not_create_raw_socket;
 # define SC_1 "/dev/tts/1"
 # define VC_FORMAT "/dev/vc/%d"
 # define SC_FORMAT "/dev/tts/%d"
+# define LOOP_FORMAT "/dev/loop/%d"
 #else
 # define CURRENT_VC "/dev/tty0"
 # define VC_1 "/dev/tty1"
@@ -317,10 +314,20 @@ extern const char * const can_not_create_raw_socket;
 # define SC_1 "/dev/ttyS1"
 # define VC_FORMAT "/dev/tty%d"
 # define SC_FORMAT "/dev/ttyS%d"
+# define LOOP_FORMAT "/dev/loop%d"
 #endif
 
 /* The following devices are the same on devfs and non-devfs systems.  */
 #define CURRENT_TTY "/dev/tty"
 #define CONSOLE_DEV "/dev/console"
+
+/* Cope with mmu-less systems somewhat gracefully */
+#if defined(__UCLIBC__) && !defined(__UCLIBC_HAS_MMU__)
+#define fork	vfork
+#endif
+
+/* Stupid gcc always includes its own builtin strlen()... */
+extern size_t xstrlen(const char *string);
+#define strlen(x)	xstrlen(x)
 
 #endif /* __LIBBB_H__ */

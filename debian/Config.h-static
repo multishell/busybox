@@ -68,6 +68,7 @@
 #define BB_LOADKMAP
 #define BB_LOGGER
 #define BB_LOGNAME
+#define BB_LOSETUP
 #define BB_LS
 #define BB_LSMOD
 #define BB_MAKEDEVS
@@ -78,7 +79,7 @@
 #define BB_MKNOD
 #define BB_MKSWAP
 #define BB_MKTEMP
-//#define BB_MODPROBE
+#define BB_MODPROBE
 #define BB_MORE
 #define BB_MOUNT
 //#define BB_MSH
@@ -117,6 +118,7 @@
 #define BB_TEST
 #define BB_TELNET
 #define BB_TFTP
+#define BB_TIME
 #define BB_TOUCH
 #define BB_TR
 #define BB_TRACEROUTE
@@ -184,7 +186,7 @@
 // Use termios to manipulate the screen ('more' is prettier with this on)
 #define BB_FEATURE_USE_TERMIOS
 //
-// calculate terminal & column widths (for more and ls)
+// calculate terminal & column widths (for more, ls, and telnet)
 #define BB_FEATURE_AUTOWIDTH
 //
 // show username/groupnames for ls
@@ -204,6 +206,9 @@
 //
 // enable ls -L
 #define BB_FEATURE_LS_FOLLOWLINKS
+//
+// Use color to identify different file types
+#define BB_FEATURE_LS_COLOR
 //
 // Disable for a smaller (but less functional) ping
 #define BB_FEATURE_FANCY_PING
@@ -239,6 +244,9 @@
 // Enable support for mounting remote NFS volumes. 
 // You may need to mount with "-o nolock" if you are
 // not running a local portmapper daemon...
+//
+// If you are using uClibc, be sure that you've already compiled
+// uClibc with INCLUDE_RPC=true (contained in the Config file)
 #define BB_FEATURE_NFSMOUNT
 //
 // Enable support forced filesystem unmounting 
@@ -269,7 +277,7 @@
 #define BB_FEATURE_COMMAND_TAB_COMPLETION
 //
 // Attempts to match usernames in a ~-prefixed path
-//#define BB_FEATURE_COMMAND_USERNAME_COMPLETION
+#define BB_FEATURE_COMMAND_USERNAME_COMPLETION
 //
 //Allow the shell to invoke all the compiled in BusyBox applets as if they
 //were shell builtins.  Nice for staticly linking an emergency rescue shell,
@@ -292,11 +300,18 @@
 // Only relevant if a shell is enabled.
 #define BB_FEATURE_SH_FANCY_PROMPT
 //
+// Uncomment this option to disable job control.  Job control lets you 
+// run jobs in the background (which completely useless for is all you 
+// are doing is running scripts).  Disabing this is bad for interactive
+// use, since when you hit ^C in an application, it will also kill the 
+// shell.  This adds about 2.5k on an x86 system.
+#define BB_FEATURE_ASH_JOB_CONTROL
+//
 //Turn on extra fbset options
 //#define BB_FEATURE_FBSET_FANCY
 //
 //Turn on fbset readmode support
-//#define BB_FEATURE_FBSET_READMODE
+#define BB_FEATURE_FBSET_READMODE
 //
 // Support insmod/lsmod/rmmod for post 2.1 kernels
 #define BB_FEATURE_NEW_MODULE_INTERFACE
@@ -314,24 +329,28 @@
 //#define BB_FEATURE_INSMOD_LOADINKMEM
 //
 // Support for Minix filesystem, version 2
-//#define BB_FEATURE_MINIX2
+#define BB_FEATURE_MINIX2
 //
-// Enable ifconfig status reporting output -- this feature adds 12k.
+// Enable ifconfig status reporting output -- this feature adds 7k.
 #define BB_FEATURE_IFCONFIG_STATUS
 //
 // Enable ifconfig slip-specific options "keepalive" and "outfill"
-//#define BB_FEATURE_IFCONFIG_SLIP
+#define BB_FEATURE_IFCONFIG_SLIP
 //
 // Enable ifconfig options "mem_start", "io_addr", and "irq".
-//#define BB_FEATURE_IFCONFIG_MEMSTART_IOADDR_IRQ
+#define BB_FEATURE_IFCONFIG_MEMSTART_IOADDR_IRQ
 //
 // Enable ifconfig option "hw".  Currently works for only with "ether".
 #define BB_FEATURE_IFCONFIG_HW
 //
+// Allows "broadcast +" to set broadcast automatically based on hostaddr
+// and netmask, at a cost of about 100 bytes of code (i386).
+#define BB_FEATURE_IFCONFIG_BROADCAST_PLUS
+//
 // Enable busybox --install [-s]
 // to create links (or symlinks) for all the commands that are 
 // compiled into the binary.  (needs /proc filesystem)
-#define BB_FEATURE_INSTALLER
+//#define BB_FEATURE_INSTALLER
 //
 // Enable a nifty progress meter in wget (adds just under 2k)
 #define BB_FEATURE_WGET_STATUSBAR
@@ -353,14 +372,17 @@
 // Support for the find -perm option.
 #define BB_FEATURE_FIND_PERM
 //
-// Support for the find -mtine option.
+// Support for the find -mtime option.
 #define BB_FEATURE_FIND_MTIME
 //
+//// Support for the find -newer option.
+#define BB_FEATURE_FIND_NEWER
+//
 // Support for the -A -B and -C context flags in grep
-//#define BB_FEATURE_GREP_CONTEXT
+#define BB_FEATURE_GREP_CONTEXT
 //
 // Support for the EGREP applet (alias to the grep applet)
-//#define BB_FEATURE_GREP_EGREP_ALIAS
+#define BB_FEATURE_GREP_EGREP_ALIAS
 //
 // Tell tftp what commands that should be supported.
 #define BB_FEATURE_TFTP_PUT
@@ -383,6 +405,9 @@
 // Support for TELNET to pass TERM type to remote host.  Adds 384 bytes.
 #define BB_FEATURE_TELNET_TTYPE
 //
+// Support for devfs.
+//#define BB_FEATURE_DEVFS
+//
 // End of Features List
 //
 //
@@ -398,13 +423,7 @@
 #if defined __UCLIBC__ && ! defined __UCLIBC_HAS_MMU__
 	#undef BB_RPM2CPIO		/* Uses gz_open(), which uses fork() */
 	#undef BB_DPKG_DEB		/* Uses gz_open(), which uses fork() */
-	#undef BB_ASH			/* Uses fork() */
-	#undef BB_HUSH			/* Uses fork() */
-	#undef BB_LASH			/* Uses fork() */
-	#undef BB_INIT			/* Uses fork() */
 	#undef BB_FEATURE_TAR_GZIP	/* Uses fork() */
-	#undef BB_SYSLOGD		/* Uses daemon() */
-	#undef BB_KLOGD			/* Uses daemon() */
 	#undef BB_UPDATE		/* Uses daemon() */
 #endif
 #if defined BB_ASH || defined BB_HUSH || defined BB_LASH || defined BB_MSH
@@ -420,6 +439,10 @@
 	#undef BB_FEATURE_SH_APPLETS_ALWAYS_WIN
 	#undef BB_FEATURE_SH_STANDALONE_SHELL
 	#undef BB_FEATURE_SH_FANCY_PROMPT
+#endif
+//
+#if (defined BB_ASH || defined BB_HUSH || defined BB_MSH) && ! defined BB_TEST
+	#define BB_TEST
 #endif
 //
 #ifdef BB_KILLALL

@@ -549,12 +549,12 @@ traceroute_main(argc, argv)
 	if (setsockopt(sndsock, SOL_SOCKET, SO_SNDBUF, (char *)&datalen,
 		       sizeof(datalen)) < 0)
 		perror_msg_and_die("SO_SNDBUF");
-#endif SO_SNDBUF
+#endif /* SO_SNDBUF */
 #ifdef IP_HDRINCL
 	if (setsockopt(sndsock, IPPROTO_IP, IP_HDRINCL, (char *)&on,
 		       sizeof(on)) < 0)
 		perror_msg_and_die("IP_HDRINCL");
-#endif IP_HDRINCL
+#endif /* IP_HDRINCL */
 #ifdef BB_FEATURE_TRACEROUTE_SO_DEBUG
 	if (options & SO_DEBUG)
 		(void) setsockopt(sndsock, SOL_SOCKET, SO_DEBUG,
@@ -574,7 +574,7 @@ traceroute_main(argc, argv)
 #ifndef IP_HDRINCL
 		if (bind(sndsock, (struct sockaddr *)&from, sizeof(from)) < 0)
 			perror_msg_and_die("bind");
-#endif IP_HDRINCL
+#endif /* IP_HDRINCL */
 	}
 
 	fprintf(stderr, "traceroute to %s (%s)", hostname,

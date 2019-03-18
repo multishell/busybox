@@ -19,7 +19,7 @@
  */
 
 static const char vi_Version[] =
-	"$Id: vi.c,v 1.17 2001/11/17 07:15:43 andersen Exp $";
+	"$Id: vi.c,v 1.18 2002/04/26 08:06:31 andersen Exp $";
 
 /*
  * To compile for standalone use:
@@ -342,7 +342,7 @@ extern int vi_main(int argc, char **argv)
 		reg[i] = 0;
 	}					// init the yank regs
 #endif							/* BB_FEATURE_VI_YANKMARK */
-#ifdef BB_FEATURE_VI_DOT_CMD
+#if defined(BB_FEATURE_VI_DOT_CMD) || defined(BB_FEATURE_VI_YANKMARK)
 	modifying_cmds = (Byte *) "aAcCdDiIJoOpPrRsxX<>~";	// cmds modifying text[]
 #endif							/* BB_FEATURE_VI_DOT_CMD */
 
