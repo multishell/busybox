@@ -22,7 +22,7 @@
 
 /* BB_AUDIT SUSv3 _NOT_ compliant -- option -G is not currently supported. */
 /* Hacked by Tito Ragusa (C) 2004 to handle usernames of whatever length and to
- * be more similar to GNU id. 
+ * be more similar to GNU id.
  */
 
 #include "busybox.h"
@@ -32,8 +32,7 @@
 #include <sys/types.h>
 
 #ifdef CONFIG_SELINUX
-#include <proc_secure.h>
-#include <flask_util.h>
+#include <selinux/selinux.h>          /* for is_selinux_enabled() */
 #endif
 
 #define PRINT_REAL        1
@@ -42,10 +41,10 @@
 #define JUST_GROUP        8
 
 static short printf_full(unsigned int id, const char *arg, const char prefix)
-{	
+{
 	const char *fmt = "%cid=%u";
 	short status=EXIT_FAILURE;
-	
+
 	if(arg) {
 		fmt = "%cid=%u(%s)";
 		status=EXIT_SUCCESS;
@@ -61,20 +60,12 @@ extern int id_main(int argc, char **argv)
 	gid_t gid;
 	unsigned long flags;
 	short status;
-#ifdef CONFIG_SELINUX
-	int is_flask_enabled_flag = is_flask_enabled();
-#endif
 
-	bb_opt_complementaly = "u~g:g~u";
+	/* Don't allow -n -r -nr -ug -rug -nug -rnug */
+	/* Don't allow more than one username */
+	bb_opt_complementally = "?1:?:u--g:g--u:r?ug:n?ug";
 	flags = bb_getopt_ulflags(argc, argv, "rnug");
 
-	if ((flags & BB_GETOPT_ERROR)
-	/* Don't allow -n -r -nr */
-	|| (flags <= 3 && flags > 0) 
-	/* Don't allow more than one username */
-	|| (argc > optind + 1))
-		bb_show_usage();
-	
 	/* This values could be overwritten later */
 	uid = geteuid();
 	gid = getegid();
@@ -82,44 +73,53 @@ extern int id_main(int argc, char **argv)
 		uid = getuid();
 		gid = getgid();
 	}
-	
+
 	if(argv[optind]) {
 		p=getpwnam(argv[optind]);
-		/* my_getpwnam is needed because it exits on failure */
-		uid = my_getpwnam(argv[optind]);
+		/* bb_xgetpwnam is needed because it exits on failure */
+		uid = bb_xgetpwnam(argv[optind]);
 		gid = p->pw_gid;
-		/* in this case PRINT_REAL is the same */ 
+		/* in this case PRINT_REAL is the same */
 	}
 
 	if(flags & (JUST_GROUP | JUST_USER)) {
 		/* JUST_GROUP and JUST_USER are mutually exclusive */
 		if(flags & NAME_NOT_NUMBER) {
-			/* my_getpwuid and my_getgrgid exit on failure so puts cannot segfault */
-			puts((flags & JUST_USER) ? my_getpwuid(NULL, uid, -1 ) : my_getgrgid(NULL, gid, -1 ));
+			/* bb_getpwuid and bb_getgrgid exit on failure so puts cannot segfault */
+			puts((flags & JUST_USER) ? bb_getpwuid(NULL, uid, -1 ) : bb_getgrgid(NULL, gid, -1 ));
 		} else {
 			bb_printf("%u\n",(flags & JUST_USER) ? uid : gid);
 		}
-		/* exit */ 
+		/* exit */
 		bb_fflush_stdout_and_exit(EXIT_SUCCESS);
 	}
 
 	/* Print full info like GNU id */
-	/* my_getpwuid doesn't exit on failure here */
-	status=printf_full(uid, my_getpwuid(NULL, uid, 0), 'u');
+	/* bb_getpwuid doesn't exit on failure here */
+	status=printf_full(uid, bb_getpwuid(NULL, uid, 0), 'u');
 	putchar(' ');
-	/* my_getgrgid doesn't exit on failure here */
-	status|=printf_full(gid, my_getgrgid(NULL, gid, 0), 'g');
+	/* bb_getgrgid doesn't exit on failure here */
+	status|=printf_full(gid, bb_getgrgid(NULL, gid, 0), 'g');
+
 #ifdef CONFIG_SELINUX
-	if(is_flask_enabled_flag) {
-		security_id_t mysid = getsecsid();
-		char context[80];
-		int len = sizeof(context);
-		context[0] = '\0';
-		if(security_sid_to_context(mysid, context, &len))
-			strcpy(context, "unknown");
+	if ( is_selinux_enabled() ) {
+			security_context_t mysid;
+			char context[80];
+			int len = sizeof(context);
+
+			getcon(&mysid);
+			context[0] = '\0';
+			if (mysid) {
+					len = strlen(mysid)+1;
+					safe_strncpy(context, mysid, len);
+					freecon(mysid);
+			}else{
+					safe_strncpy(context, "unknown",8);
+			}
 		bb_printf(" context=%s", context);
 	}
 #endif
+
 	putchar('\n');
 	bb_fflush_stdout_and_exit(status);
 }

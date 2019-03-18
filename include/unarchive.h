@@ -1,11 +1,13 @@
 #ifndef	__UNARCHIVE_H__
 #define	__UNARCHIVE_H__
 
-#define ARCHIVE_PRESERVE_DATE	1
-#define ARCHIVE_CREATE_LEADING_DIRS		2
-#define ARCHIVE_EXTRACT_UNCONDITIONAL	4
-#define ARCHIVE_EXTRACT_QUIET	8
-#define ARCHIVE_EXTRACT_NEWER	16
+#define ARCHIVE_PRESERVE_DATE           1
+#define ARCHIVE_CREATE_LEADING_DIRS     2
+#define ARCHIVE_EXTRACT_UNCONDITIONAL   4
+#define ARCHIVE_EXTRACT_QUIET           8
+#define ARCHIVE_EXTRACT_NEWER           16
+#define ARCHIVE_NOPRESERVE_OWN          32
+#define ARCHIVE_NOPRESERVE_PERM         64
 
 #include <sys/types.h>
 #include <stdio.h>
@@ -98,6 +100,7 @@ extern const llist_t *find_list_entry(const llist_t *list, const char *filename)
 
 extern int uncompressStream(int src_fd, int dst_fd);
 extern void inflate_init(unsigned int bufsize);
+extern void inflate_cleanup(void);
 extern int inflate_unzip(int in, int out);
 extern int inflate_gunzip(int in, int out);
 

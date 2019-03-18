@@ -8,20 +8,7 @@
  * Copyright (C) 2003 by Glenn McGrath <bug1@iinet.net.au>
  * Copyright (C) 2003,2004 by Rob Landley <rob@landley.net>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
 /* Code overview.
@@ -35,7 +22,7 @@
   (sed_cmd_head/sed_cmd_tail).
 
   add_input_file() adds a FILE * to the list of input files.  We need to
-  know them all ahead of time to find the last line for the $ match.
+  know all input sources ahead of time to find the last line for the $ match.
 
   process_files() does actual sedding, reading data lines from each input FILE *
   (which could be stdin) and applying the sed command list (sed_cmd_head) to
@@ -53,38 +40,30 @@
 	 - commands: (p)rint, (d)elete, (s)ubstitue (with g & I flags)
 	 - edit commands: (a)ppend, (i)nsert, (c)hange
 	 - file commands: (r)ead
-	 - backreferences in substitution expressions (\1, \2...\9)
+	 - backreferences in substitution expressions (\0, \1, \2...\9)
 	 - grouped commands: {cmd1;cmd2}
 	 - transliteration (y/source-chars/dest-chars/)
 	 - pattern space hold space storing / swapping (g, h, x)
-	 - labels / branching (: label, b, t)
+	 - labels / branching (: label, b, t, T)
 
 	 (Note: Specifying an address (range) to match is *optional*; commands
 	 default to the whole pattern space if no specific address match was
 	 requested.)
 
-	Unsupported features:
-
-	 - GNU extensions
-	 - and more.
-
 	Todo:
-
 	 - Create a wrapper around regex to make libc's regex conform with sed
-	 - Fix bugs
-
 
 	Reference http://www.opengroup.org/onlinepubs/007904975/utilities/sed.html
 */
 
 #include <stdio.h>
 #include <unistd.h>		/* for getopt() */
-#include <regex.h>
 #include <string.h>		/* for strdup() */
 #include <errno.h>
 #include <ctype.h>		/* for isspace() */
 #include <stdlib.h>
 #include "busybox.h"
+#include "xregex.h"
 
 typedef struct sed_cmd_s {
     /* Ordered by alignment requirements: currently 36 bytes on x86 */
@@ -116,18 +95,18 @@ typedef struct sed_cmd_s {
 /* globals */
 /* options */
 static int be_quiet, in_place, regex_type;
-FILE *nonstdout;
-char *outname,*hold_space;
+static FILE *nonstdout;
+static char *outname,*hold_space;
 
 /* List of input files */
-int input_file_count,current_input_file;
-FILE **input_file_list;
+static int input_file_count,current_input_file;
+static FILE **input_file_list;
 
 static const char bad_format_in_subst[] =
 	"bad format in substitution expression";
-const char *const semicolon_whitespace = "; \n\r\t\v";
+static const char *const semicolon_whitespace = "; \n\r\t\v";
 
-regmatch_t regmatch[10];
+static regmatch_t regmatch[10];
 static regex_t *previous_regex_ptr;
 
 /* linked list of sed commands */
@@ -139,7 +118,7 @@ struct append_list {
 	char *string;
 	struct append_list *next;
 };
-struct append_list *append_head=NULL, *append_tail=NULL;
+static struct append_list *append_head=NULL, *append_tail=NULL;
 
 #ifdef CONFIG_FEATURE_CLEAN_UP
 static void free_and_close_stuff(void)
@@ -209,7 +188,7 @@ static void parse_escapes(char *dest, const char *string, int len, char from, ch
 	*dest=0;
 }
 
-static char *copy_parsing_slashn(const char *string, int len)
+static char *copy_parsing_escapes(const char *string, int len)
 {
 	char *dest=xmalloc(len+1);
 
@@ -270,7 +249,7 @@ static int parse_regex_delim(const char *cmdstr, char **match, char **replace)
 	if (idx == -1) {
 		bb_error_msg_and_die(bad_format_in_subst);
 	}
-	*match = copy_parsing_slashn(cmdstr_ptr, idx);
+	*match = copy_parsing_escapes(cmdstr_ptr, idx);
 
 	/* save the replacement string */
 	cmdstr_ptr += idx + 1;
@@ -278,7 +257,7 @@ static int parse_regex_delim(const char *cmdstr, char **match, char **replace)
 	if (idx == -1) {
 		bb_error_msg_and_die(bad_format_in_subst);
 	}
-	*replace = copy_parsing_slashn(cmdstr_ptr, idx);
+	*replace = copy_parsing_escapes(cmdstr_ptr, idx);
 
 	return ((cmdstr_ptr - cmdstr) + idx);
 }
@@ -307,7 +286,7 @@ static int get_address(char *my_str, int *linenum, regex_t ** regex)
 		if (next == -1)
 			bb_error_msg_and_die("unterminated match expression");
 
-		temp=copy_parsing_slashn(pos,next);
+		temp=copy_parsing_escapes(pos,next);
 		*regex = (regex_t *) xmalloc(sizeof(regex_t));
 		xregcomp(*regex, temp, regex_type|REG_NEWLINE);
 		free(temp);
@@ -380,6 +359,7 @@ static int parse_subst_cmd(sed_cmd_t * const sed_cmd, char *substr)
 			case 'p':
 				sed_cmd->sub_p = 1;
 				break;
+			/* Write to file */
 			case 'w':
 			{
 				char *temp;
@@ -391,6 +371,11 @@ static int parse_subst_cmd(sed_cmd_t * const sed_cmd, char *substr)
 			case 'I':
 				cflags |= REG_ICASE;
 				break;
+			/* Comment */
+			case '#':
+				while(substr[++idx]);
+				/* Fall through */
+			/* End of command */
 			case ';':
 			case '}':
 				goto out;
@@ -440,7 +425,7 @@ static char *parse_cmd_args(sed_cmd_t *sed_cmd, char *cmdstr)
 		if(sed_cmd->cmd=='w')
 			sed_cmd->file=bb_xfopen(sed_cmd->string,"w");
 	/* handle branch commands */
-	} else if (strchr(":bt", sed_cmd->cmd)) {
+	} else if (strchr(":btT", sed_cmd->cmd)) {
 		int length;
 
 		while(isspace(*cmdstr)) cmdstr++;
@@ -482,7 +467,7 @@ static char *parse_cmd_args(sed_cmd_t *sed_cmd, char *cmdstr)
 
 /* Parse address+command sets, skipping comment lines. */
 
-void add_cmd(char *cmdstr)
+static void add_cmd(char *cmdstr)
 {
 	static char *add_cmd_line=NULL;
 	sed_cmd_t *sed_cmd;
@@ -576,7 +561,7 @@ void add_cmd(char *cmdstr)
 
 /* Append to a string, reallocating memory as necessary. */
 
-struct pipeline {
+static struct pipeline {
 	char *buf;	/* Space to hold string */
 	int idx;	/* Space used */
 	int len;	/* Space allocated */
@@ -584,7 +569,7 @@ struct pipeline {
 
 #define PIPE_GROW 64
 
-void pipe_putc(char c)
+static void pipe_putc(char c)
 {
 	if(pipeline.idx==pipeline.len) {
 		pipeline.buf = xrealloc(pipeline.buf, pipeline.len + PIPE_GROW);
@@ -600,7 +585,7 @@ static void do_subst_w_backrefs(const char *line, const char *replace)
 	/* go through the replacement string */
 	for (i = 0; replace[i]; i++) {
 		/* if we find a backreference (\1, \2, etc.) print the backref'ed * text */
-		if (replace[i] == '\\' && replace[i+1]>'0' && replace[i+1]<='9') {
+		if (replace[i] == '\\' && replace[i+1]>='0' && replace[i+1]<='9') {
 			int backref=replace[++i]-'0';
 
 			/* print out the text held in regmatch[backref] */
@@ -729,7 +714,7 @@ static void flush_append(void)
 	append_head=append_tail=NULL;
 }
 
-void add_input_file(FILE *file)
+static void add_input_file(FILE *file)
 {
 	input_file_list=xrealloc(input_file_list,(input_file_count+1)*sizeof(FILE *));
 	input_file_list[input_file_count++]=file;
@@ -1000,11 +985,15 @@ restart:
 						break;
 					}
 
-					/* Test if substition worked, branch if so. */
+					/* Test/branch if substitution occurred */
 					case 't':
-						if (!substituted) break;
+						if(!substituted) break;
 						substituted=0;
-							/* Fall through */
+						/* Fall through */
+					/* Test/branch if substitution didn't occur */
+					case 'T':
+						if (substituted) break;
+						/* Fall through */
 					/* Branch to label */
 					case 'b':
 						if (!sed_cmd->string) goto discard_commands;
@@ -1021,6 +1010,7 @@ restart:
 							for (j = 0; sed_cmd->string[j]; j += 2) {
 								if (pattern_space[i] == sed_cmd->string[j]) {
 									pattern_space[i] = sed_cmd->string[j + 1];
+									break;
 								}
 							}
 						}
@@ -1123,13 +1113,11 @@ extern int sed_main(int argc, char **argv)
 		bb_perror_msg_and_die("atexit");
 #endif
 
-#define LIE_TO_AUTOCONF
-#ifdef LIE_TO_AUTOCONF
+	/* Lie to autoconf when it starts asking stupid questions. */
 	if(argc==2 && !strcmp(argv[1],"--version")) {
 		printf("This is not GNU sed version 4.0\n");
 		exit(0);
 	}
-#endif
 
 	/* do normal option parsing */
 	while ((opt = getopt(argc, argv, "irne:f:")) > 0) {
@@ -1155,8 +1143,7 @@ extern int sed_main(int argc, char **argv)
 
 			cmdfile = bb_xfopen(optarg, "r");
 
-			while ((line = bb_get_chomped_line_from_file(cmdfile))
-				 != NULL) {
+			while ((line = bb_get_chomped_line_from_file(cmdfile)) != NULL) {
 				add_cmd(line);
 				getpat=0;
 				free(line);

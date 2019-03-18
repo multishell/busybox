@@ -1,25 +1,22 @@
 # Rules.make for busybox
 #
-# Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+# Copyright (C) 1999-2005 by Erik Andersen <andersen@codepoet.org>
 #
-# This program is free software; you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
+# Licensed under GPLv2, see the file LICENSE in this tarball for details.
 #
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-# General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; if not, write to the Free Software
-# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-#
+
+# Pull in the user's busybox configuration
+ifeq ($(filter $(noconfig_targets),$(MAKECMDGOALS)),)
+-include $(top_builddir)/.config
+endif
 
 #--------------------------------------------------------
 PROG      := busybox
-VERSION   := 1.01
+MAJOR_VERSION   :=1
+MINOR_VERSION   :=1
+SUBLEVEL_VERSION:=0
+EXTRAVERSION    :=
+VERSION   :=$(MAJOR_VERSION).$(MINOR_VERSION).$(SUBLEVEL_VERSION)$(EXTRAVERSION)
 BUILDTIME := $(shell TZ=UTC date -u "+%Y.%m.%d-%H:%M%z")
 
 
@@ -27,7 +24,7 @@ BUILDTIME := $(shell TZ=UTC date -u "+%Y.%m.%d-%H:%M%z")
 # With a modern GNU make(1) (highly recommended, that's what all the
 # developers use), all of the following configuration values can be
 # overridden at the command line.  For example:
-#   make CROSS=powerpc-linux- BB_SRC_DIR=$HOME/busybox PREFIX=/mnt/app
+#   make CROSS=powerpc-linux- top_srcdir="$HOME/busybox" PREFIX=/mnt/app
 #--------------------------------------------------------
 
 # If you are running a cross compiler, you will want to set 'CROSS'
@@ -43,6 +40,15 @@ NM             = $(CROSS)nm
 STRIP          = $(CROSS)strip
 CPP            = $(CC) -E
 # MAKEFILES      = $(top_builddir)/.config
+RM             = rm
+RM_F           = $(RM) -f
+LN             = ln
+LN_S           = $(LN) -s
+MKDIR          = mkdir
+MKDIR_P        = $(MKDIR) -p
+MV             = mv
+CP             = cp
+
 
 # What OS are you compiling busybox for?  This allows you to include
 # OS specific things, syscall overrides, etc.
@@ -60,11 +66,6 @@ LC_ALL:= C
 # For optimization overrides, it's better still to set OPTIMIZATION.
 CFLAGS_EXTRA=$(subst ",, $(strip $(EXTRA_CFLAGS_OPTIONS)))
 
-# If you have a "pristine" source directory, point BB_SRC_DIR to it.
-# Experimental and incomplete; tell the mailing list
-# <busybox@busybox.net> if you do or don't like it so far.
-BB_SRC_DIR=
-
 # To compile vs some other alternative libc, you may need to use/adjust
 # the following lines to meet your needs...
 #
@@ -76,15 +77,21 @@ BB_SRC_DIR=
 # For other libraries, you are on your own.  But these may (or may not) help...
 #LDFLAGS+=-nostdlib
 #LIBRARIES:=$(LIBCDIR)/lib/libc.a -lgcc
-#CROSS_CFLAGS+=-nostdinc -I$(LIBCDIR)/include -I$(GCCINCDIR)
+#CROSS_CFLAGS+=-nostdinc -I$(LIBCDIR)/include -I$(GCCINCDIR) -funsigned-char
 #GCCINCDIR:=$(shell gcc -print-search-dirs | sed -ne "s/install: \(.*\)/\1include/gp")
 
 WARNINGS=-Wall -Wstrict-prototypes -Wshadow
 CFLAGS=-I$(top_builddir)/include -I$(top_srcdir)/include -I$(srcdir)
 ARFLAGS=cru
 
+
+# gcc centric. Perhaps fiddle with findstring gcc,$(CC) for the rest
+# get the CC MAJOR/MINOR version
+CC_MAJOR:=$(shell printf "%02d" $(shell echo __GNUC__ | $(CC) -E -xc - | tail -n 1))
+CC_MINOR:=$(shell printf "%02d" $(shell echo __GNUC_MINOR__ | $(CC) -E -xc - | tail -n 1))
+
 #--------------------------------------------------------
-export VERSION BUILDTIME TOPDIR HOSTCC HOSTCFLAGS CROSS CC AR AS LD NM STRIP CPP
+export VERSION BUILDTIME HOSTCC HOSTCFLAGS CROSS CC AR AS LD NM STRIP CPP
 ifeq ($(strip $(TARGET_ARCH)),)
 TARGET_ARCH:=$(shell $(CC) -dumpmachine | sed -e s'/-.*//' \
 		-e 's/i.86/i386/' \
@@ -100,14 +107,12 @@ TARGET_ARCH:=$(shell $(CC) -dumpmachine | sed -e s'/-.*//' \
 		)
 endif
 
-# Pull in the user's busybox configuration
-ifeq ($(filter $(noconfig_targets),$(MAKECMDGOALS)),)
--include $(top_builddir)/.config
-endif
-
 # A nifty macro to make testing gcc features easier
-check_gcc=$(shell if $(CC) $(1) -S -o /dev/null -xc /dev/null > /dev/null 2>&1; \
-	then echo "$(1)"; else echo "$(2)"; fi)
+check_gcc=$(shell \
+	if [ "$(1)" != "" ]; then \
+		if $(CC) $(1) -S -o /dev/null -xc /dev/null > /dev/null 2>&1; \
+		then echo "$(1)"; else echo "$(2)"; fi \
+	fi)
 
 # Setup some shortcuts so that silent mode is silent like it should be
 ifeq ($(subst s,,$(MAKEFLAGS)),$(MAKEFLAGS))
@@ -118,13 +123,15 @@ export MAKE_IS_SILENT=y
 SECHO=-@false
 endif
 
+CFLAGS+=$(call check_gcc,-funsigned-char,)
+
 #--------------------------------------------------------
 # Arch specific compiler optimization stuff should go here.
 # Unless you want to override the defaults, do not set anything
 # for OPTIMIZATION...
 
 # use '-Os' optimization if available, else use -O2
-OPTIMIZATION:=${call check_gcc,-Os,-O2}
+OPTIMIZATION:=$(call check_gcc,-Os,-O2)
 
 # Some nice architecture specific optimizations
 ifeq ($(strip $(TARGET_ARCH)),arm)
@@ -136,7 +143,7 @@ ifeq ($(strip $(TARGET_ARCH)),i386)
 	OPTIMIZATION+=$(call check_gcc,-falign-functions=0 -falign-jumps=0 -falign-loops=0,\
 		-malign-functions=0 -malign-jumps=0 -malign-loops=0)
 endif
-OPTIMIZATIONS=$(OPTIMIZATION) -fomit-frame-pointer
+OPTIMIZATIONS:=$(OPTIMIZATION) -fomit-frame-pointer
 
 #
 #--------------------------------------------------------
@@ -173,19 +180,20 @@ ifeq ($(strip $(CONFIG_STATIC)),y)
     LDFLAGS += --static
 endif
 
+ifeq ($(strip $(CONFIG_SELINUX)),y)
+    LIBRARIES += -lselinux
+endif
+
 ifeq ($(strip $(PREFIX)),)
     PREFIX:=`pwd`/_install
 endif
 
 # Additional complications due to support for pristine source dir.
 # Include files in the build directory should take precedence over
-# the copy in BB_SRC_DIR, both during the compilation phase and the
+# the copy in top_srcdir, both during the compilation phase and the
 # shell script that finds the list of object files.
 # Work in progress by <ldoolitt@recycle.lbl.gov>.
-#
-ifneq ($(strip $(BB_SRC_DIR)),)
-    VPATH:=$(BB_SRC_DIR)
-endif
+
 
 OBJECTS:=$(APPLET_SOURCES:.c=.o) busybox.o usage.o applets.o
 CFLAGS    += $(CROSS_CFLAGS)
@@ -196,5 +204,17 @@ endif
 # Put user-supplied flags at the end, where they
 # have a chance of winning.
 CFLAGS += $(CFLAGS_EXTRA)
+
+#------------------------------------------------------------
+# Installation options
+ifeq ($(strip $(CONFIG_INSTALL_APPLET_HARDLINKS)),y)
+INSTALL_OPTS=--hardlinks
+endif
+ifeq ($(strip $(CONFIG_INSTALL_APPLET_SYMLINKS)),y)
+INSTALL_OPTS=--symlinks
+endif
+ifeq ($(strip $(CONFIG_INSTALL_APPLET_DONT)),y)
+INSTALL_OPTS=
+endif
 
 .PHONY: dummy

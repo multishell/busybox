@@ -162,7 +162,8 @@ struct op {
 #define	TDOT	17
 
 /* Strings for names to make debug easier */
-char *T_CMD_NAMES[] = {
+#ifdef MSHDEBUG
+static char *T_CMD_NAMES[] = {
 	"PLACEHOLDER",
 	"TCOM",
 	"TPAREN",
@@ -182,7 +183,7 @@ char *T_CMD_NAMES[] = {
 	"TASYNC",
 	"TDOT",
 };
-
+#endif
 
 /*
  * actions determining the environment of a process
@@ -513,7 +514,7 @@ static int eofc(void);
 static int readc(void);
 static void unget(int c);
 static void ioecho(int c);
-static void prs(char *s);
+static void prs(const char *s);
 static void prn(unsigned u);
 static void closef(int i);
 static void closeall(void);
@@ -621,7 +622,7 @@ struct here {
 	struct here *h_next;
 };
 
-static char *signame[] = {
+static const char * const signame[] = {
 	"Signal 0",
 	"Hangup",
 	(char *) NULL,				/* interrupt */
@@ -643,10 +644,10 @@ static char *signame[] = {
 #define	NSIGNAL (sizeof(signame)/sizeof(signame[0]))
 
 struct res {
-	char *r_name;
+	const char *r_name;
 	int r_val;
 };
-static struct res restab[] = {
+static const struct res restab[] = {
 	{"for", FOR},
 	{"case", CASE},
 	{"esac", ESAC},
@@ -698,7 +699,7 @@ static const struct builtincmd builtincmds[] = {
 	{0, 0}
 };
 
-struct op *scantree(struct op *);
+static struct op *scantree(struct op *);
 static struct op *dowholefile(int, int);
 
 /* Globals */
@@ -708,7 +709,7 @@ static char **dolv;
 static int dolc;
 static int exstat;
 static char gflg;
-static int interactive = 0;		/* Is this an interactive shell */
+static int interactive;			/* Is this an interactive shell */
 static int execflg;
 static int multiline;			/* \n changed to ; */
 static struct op *outtree;		/* result from parser */
@@ -2244,7 +2245,7 @@ char **wp;
 static int rlookup(n)
 REGISTER char *n;
 {
-	REGISTER struct res *rp;
+	REGISTER const struct res *rp;
 
 	DBGPRINTF7(("RLOOKUP: enter, n is %s\n", n));
 
@@ -2713,7 +2714,7 @@ int act;
 				interactive = 0;
 				if (pin == NULL) {
 					close(0);
-					open("/dev/null", 0);
+					open(bb_dev_null, 0);
 				}
 				_exit(execute(t->left, pin, pout, FEXEC));
 			}
@@ -4638,8 +4639,8 @@ REGISTER struct wdblock *wb;
 	return (wd);
 }
 
-int (*func) (char *, char *);
-int globv;
+static int (*func) (char *, char *);
+static int globv;
 
 static void glob0(a0, a1, a2, a3)
 char *a0;
@@ -5165,7 +5166,7 @@ REGISTER struct ioarg *ap;
 }
 
 static void prs(s)
-REGISTER char *s;
+REGISTER const char *s;
 {
 	if (*s)
 		write(2, s, strlen(s));

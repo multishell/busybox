@@ -62,7 +62,7 @@ extern int df_main(int argc, char **argv)
 	const char *disp_units_hdr = hdr_1k;
 
 #ifdef CONFIG_FEATURE_HUMAN_READABLE
-	bb_opt_complementaly = "h-km:k-hm:m-hk";
+	bb_opt_complementally = "h-km:k-hm:m-hk";
 	opt = bb_getopt_ulflags(argc, argv, "hmk");
 	if(opt & 1) {
 				df_disp_hr = 0;
@@ -130,13 +130,13 @@ extern int df_main(int argc, char **argv)
 			} else if (strcmp(device, "/dev/root") == 0) {
 				/* Adjusts device to be the real root device,
 				* or leaves device alone if it can't find it */
-				if ((device = find_real_root_device_name()) == NULL) {
+				if ((device = find_block_device("/")) == NULL) {
 					goto SET_ERROR;
 				}
 			}
 
 #ifdef CONFIG_FEATURE_HUMAN_READABLE
-			bb_printf("%-21s%9s ", device,
+			bb_printf("%-20s %9s ", device,
 					  make_human_readable_str(s.f_blocks, s.f_bsize, df_disp_hr));
 
 			bb_printf("%9s ",
@@ -147,7 +147,7 @@ extern int df_main(int argc, char **argv)
 					  make_human_readable_str(s.f_bavail, s.f_bsize, df_disp_hr),
 					  blocks_percent_used, mount_point);
 #else
-			bb_printf("%-21s%9ld %9ld %9ld %3ld%% %s\n",
+			bb_printf("%-20s %9ld %9ld %9ld %3ld%% %s\n",
 					  device,
 					  kscale(s.f_blocks, s.f_bsize),
 					  kscale(s.f_blocks-s.f_bfree, s.f_bsize),

@@ -23,10 +23,10 @@ const char *conf_confnames[] = {
 	NULL,
 };
 
-static char *conf_expand_value(const signed char *in)
+static char *conf_expand_value(const char *in)
 {
 	struct symbol *sym;
-	const signed char *src;
+	const char *src;
 	static char res_value[SYMBOL_MAXLENGTH];
 	char *dst, name[SYMBOL_MAXLENGTH];
 
@@ -255,6 +255,21 @@ int conf_read(const char *name)
 	return 0;
 }
 
+struct menu *next_menu(struct menu *menu)
+{
+	if (menu->list) return menu->list;
+	do {
+		if (menu->next) {
+			menu = menu->next;
+			break;
+		}
+	} while ((menu = menu->parent));
+	
+	return menu;
+}
+
+#define SYMBOL_FORCEWRITE (1<<31)
+
 int conf_write(const char *name)
 {
 	FILE *out, *out_h;
@@ -318,6 +333,12 @@ int conf_write(const char *name)
 	if (!sym_change_count)
 		sym_clear_all_valid();
 
+	/* Force write of all non-duplicate symbols. */
+
+	/* Write out everything by default. */
+	for(menu = rootmenu.list; menu; menu = next_menu(menu))
+		if (menu->sym) menu->sym->flags |= SYMBOL_FORCEWRITE;
+
 	menu = rootmenu.list;
 	while (menu) {
 		sym = menu->sym;
@@ -336,9 +357,10 @@ int conf_write(const char *name)
 					       " */\n", str);
 		} else if (!(sym->flags & SYMBOL_CHOICE)) {
 			sym_calc_value(sym);
-			if (!(sym->flags & SYMBOL_WRITE))
+			if (!(sym->flags & SYMBOL_FORCEWRITE))
 				goto next;
-			sym->flags &= ~SYMBOL_WRITE;
+
+			sym->flags &= ~SYMBOL_FORCEWRITE;
 			type = sym->type;
 			if (type == S_TRISTATE) {
 				sym_calc_value(modules_sym);
@@ -396,33 +418,21 @@ int conf_write(const char *name)
 			case S_HEX:
 				str = sym_get_string_value(sym);
 				if (str[0] != '0' || (str[1] != 'x' && str[1] != 'X')) {
-					fprintf(out, "%s=%s\n", sym->name, str);
+					fprintf(out, "%s=%s\n", sym->name, *str ? str : "0");
 					if (out_h)
 						fprintf(out_h, "#define %s 0x%s\n", sym->name, str);
 					break;
 				}
 			case S_INT:
 				str = sym_get_string_value(sym);
-				fprintf(out, "%s=%s\n", sym->name, str);
+				fprintf(out, "%s=%s\n", sym->name, *str ? str : "0");
 				if (out_h)
 					fprintf(out_h, "#define %s %s\n", sym->name, str);
 				break;
 			}
 		}
-
-	next:
-		if (menu->list) {
-			menu = menu->list;
-			continue;
-		}
-		if (menu->next)
-			menu = menu->next;
-		else while ((menu = menu->parent)) {
-			if (menu->next) {
-				menu = menu->next;
-				break;
-			}
-		}
+next:
+		menu = next_menu(menu);
 	}
 	fclose(out);
 	if (out_h) {

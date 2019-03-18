@@ -329,8 +329,7 @@ static void INET_setroute(int action, char **args)
 		bb_perror_msg_and_die("SIOC[ADD|DEL]RT");
 	}
 
-	/* Don't bother closing, as we're exiting after we return anyway. */
-	/* close(skfd); */
+	if (ENABLE_FEATURE_CLEAN_UP) close(skfd);
 }
 
 #ifdef CONFIG_FEATURE_IPV6
@@ -348,7 +347,7 @@ static void INET6_setroute(int action, char **args)
 		/* We know args isn't NULL from the check in route_main. */
 		const char *target = *args++;
 
-		if (strcmp(target, "default") == 0) {
+		if (strcmp(target, bb_INET_default) == 0) {
 			prefix_len = 0;
 			memset(&sa6, 0, sizeof(sa6));
 		} else {
@@ -440,8 +439,7 @@ static void INET6_setroute(int action, char **args)
 		bb_perror_msg_and_die("SIOC[ADD|DEL]RT");
 	}
 
-	/* Don't bother closing, as we're exiting after we return anyway. */
-	/* close(skfd); */
+	if (ENABLE_FEATURE_CLEAN_UP) close(skfd);
 }
 #endif
 
@@ -485,6 +483,7 @@ void set_flags(char *flagstr, int flags)
 	}
 }
 
+/* also used in netstat */
 void displayroutes(int noresolve, int netstatfmt)
 {
 	char devname[64], flags[16], sdest[16], sgw[16];

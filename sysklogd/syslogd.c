@@ -150,7 +150,7 @@ static inline void sem_down(int semid)
 }
 
 
-void ipcsyslog_cleanup(void)
+static void ipcsyslog_cleanup(void)
 {
 	printf("Exiting Syslogd!\n");
 	if (shmid != -1) {
@@ -165,7 +165,7 @@ void ipcsyslog_cleanup(void)
 	}
 }
 
-void ipcsyslog_init(void)
+static void ipcsyslog_init(void)
 {
 	if (buf == NULL) {
 		if ((shmid = shmget(KEY_ID, shm_size, IPC_CREAT | 1023)) == -1) {
@@ -195,7 +195,7 @@ void ipcsyslog_init(void)
 }
 
 /* write message to buffer */
-void circ_message(const char *msg)
+static void circ_message(const char *msg)
 {
 	int l = strlen(msg) + 1;	/* count the whole message w/ '\0' included */
 
@@ -319,9 +319,8 @@ static void message(char *fmt, ...)
 
 	} else
 #endif
-	if ((fd =
-			 device_open(logFilePath,
-							 O_WRONLY | O_CREAT | O_NOCTTY | O_APPEND |
+	if ((fd = device_open(logFilePath,
+					O_WRONLY | O_CREAT | O_NOCTTY | O_APPEND |
 							 O_NONBLOCK)) >= 0) {
 		fl.l_type = F_WRLCK;
 		fcntl(fd, F_SETLKW, &fl);
@@ -333,7 +332,7 @@ static void message(char *fmt, ...)
 				&& (lseek(fd,0,SEEK_END) > logFileSize) ) {
 				if(logFileRotate > 0) {
 					int i;
-					char oldFile[(strlen(logFilePath)+3)], newFile[(strlen(logFilePath)+3)];
+					char oldFile[(strlen(logFilePath)+4)], newFile[(strlen(logFilePath)+4)];
 					for(i=logFileRotate-1;i>0;i--) {
 						sprintf(oldFile, "%s.%d", logFilePath, i-1);
 						sprintf(newFile, "%s.%d", logFilePath, i);
@@ -363,8 +362,7 @@ static void message(char *fmt, ...)
 		close(fd);
 	} else {
 		/* Always send console messages to /dev/console so people will see them. */
-		if ((fd =
-			 device_open(_PATH_CONSOLE,
+		if ((fd = device_open(_PATH_CONSOLE,
 						 O_WRONLY | O_NOCTTY | O_NONBLOCK)) >= 0) {
 			va_start(arguments, fmt);
 			vdprintf(fd, fmt, arguments);
@@ -400,7 +398,7 @@ static void logMessage(int pri, char *msg)
 {
 	time_t now;
 	char *timestamp;
-	static char res[20] = "";
+	static char res[20];
 #ifdef CONFIG_FEATURE_REMOTE_LOG	
 	static char line[MAXLINE + 1];
 #endif
@@ -600,16 +598,19 @@ static void doSyslogd(void)
 
 		if (FD_ISSET(sock_fd, &fds)) {
 			int i;
+#if MAXLINE > BUFSIZ
+# define TMP_BUF_SZ BUFSIZ
+#else
+# define TMP_BUF_SZ MAXLINE
+#endif
+#define tmpbuf bb_common_bufsiz1
 
-			RESERVE_CONFIG_BUFFER(tmpbuf, MAXLINE + 1);
-
-			memset(tmpbuf, '\0', MAXLINE + 1);
-			if ((i = recv(sock_fd, tmpbuf, MAXLINE, 0)) > 0) {
+			if ((i = recv(sock_fd, tmpbuf, TMP_BUF_SZ, 0)) > 0) {
+				tmpbuf[i] = '\0';
 				serveConnection(tmpbuf, i);
 			} else {
 				bb_perror_msg_and_die("UNIX socket error");
 			}
-			RELEASE_CONFIG_BUFFER(tmpbuf);
 		}				/* FD_ISSET() */
 	}					/* for main loop */
 }

@@ -16,40 +16,41 @@
 
 
 #if defined(PROTOTYPES)
-  #define APPLET(a,b,c,d) extern int b(int argc, char **argv);
-  #define APPLET_NOUSAGE(a,b,c,d) extern int b(int argc, char **argv);
-  #define APPLET_ODDNAME(a,b,c,d,e) extern int b(int argc, char **argv);
+# define APPLET(a,b,c,d) extern int b(int argc, char **argv);
+# define APPLET_NOUSAGE(a,b,c,d) extern int b(int argc, char **argv);
+# define APPLET_ODDNAME(a,b,c,d,e) extern int b(int argc, char **argv);
   extern const char usage_messages[];
 #elif defined(MAKE_USAGE)
-  #ifdef CONFIG_FEATURE_VERBOSE_USAGE
-    #define APPLET(a,b,c,d) a##_trivial_usage "\n\n" a##_full_usage "\0"
-    #define APPLET_NOUSAGE(a,b,c,d) "\b\0"
-    #define APPLET_ODDNAME(a,b,c,d,e) e##_trivial_usage "\n\n" e##_full_usage "\0"
-  #else
-    #define APPLET(a,b,c,d) a##_trivial_usage "\0"
-    #define APPLET_NOUSAGE(a,b,c,d) "\b\0"
-    #define APPLET_ODDNAME(a,b,c,d,e) e##_trivial_usage "\0"
-  #endif
+# ifdef CONFIG_FEATURE_VERBOSE_USAGE
+#  define APPLET(a,b,c,d) a##_trivial_usage "\n\n" a##_full_usage "\0"
+#  define APPLET_NOUSAGE(a,b,c,d) "\b\0"
+#  define APPLET_ODDNAME(a,b,c,d,e) e##_trivial_usage "\n\n" e##_full_usage "\0"
+# else
+#  define APPLET(a,b,c,d) a##_trivial_usage "\0"
+#  define APPLET_NOUSAGE(a,b,c,d) "\b\0"
+#  define APPLET_ODDNAME(a,b,c,d,e) e##_trivial_usage "\0"
+# endif
 #elif defined(MAKE_LINKS)
-#  define APPLET(a,b,c,d) LINK c a
-#  define APPLET_NOUSAGE(a,b,c,d) LINK c a
-#  define APPLET_ODDNAME(a,b,c,d,e) LINK c a
+# define APPLET(a,b,c,d) LINK c a
+# define APPLET_NOUSAGE(a,b,c,d) LINK c a
+# define APPLET_ODDNAME(a,b,c,d,e) LINK c a
 #else
   const struct BB_applet applets[] = {
-  #define APPLET(a,b,c,d) {#a,b,c,d},
-  #define APPLET_NOUSAGE(a,b,c,d) {a,b,c,d},
-  #define APPLET_ODDNAME(a,b,c,d,e) {a,b,c,d},
+# define APPLET(a,b,c,d) {#a,b,c,d},
+# define APPLET_NOUSAGE(a,b,c,d) {a,b,c,d},
+# define APPLET_ODDNAME(a,b,c,d,e) {a,b,c,d},
 #endif
 
 #ifdef CONFIG_INSTALL_NO_USR
-#define _BB_DIR_USR_BIN _BB_DIR_BIN
-#define _BB_DIR_USR_SBIN _BB_DIR_SBIN
+# define _BB_DIR_USR_BIN _BB_DIR_BIN
+# define _BB_DIR_USR_SBIN _BB_DIR_SBIN
 #endif
 
 
 
 #ifdef CONFIG_TEST
 	APPLET_NOUSAGE("[", test_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
+	APPLET_NOUSAGE("[[", test_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_ADDGROUP
 	APPLET(addgroup, addgroup_main, _BB_DIR_BIN, _BB_SUID_NEVER)
@@ -75,6 +76,9 @@
 #ifdef CONFIG_BASENAME
 	APPLET(basename, basename_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_BBCONFIG
+	APPLET(bbconfig, bbconfig_main, _BB_DIR_BIN, _BB_SUID_NEVER)
+#endif
 #ifdef CONFIG_BUNZIP2
 	APPLET(bunzip2, bunzip2_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
@@ -87,6 +91,9 @@
 #endif
 #ifdef CONFIG_CAT
 	APPLET(cat, cat_main, _BB_DIR_BIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_CHATTR
+	APPLET(chattr, chattr_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_CHGRP
 	APPLET(chgrp, chgrp_main, _BB_DIR_BIN, _BB_SUID_NEVER)
@@ -108,6 +115,9 @@
 #endif
 #ifdef CONFIG_CMP
 	APPLET(cmp, cmp_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_COMM
+	APPLET(comm, comm_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_CP
 	APPLET(cp, cp_main, _BB_DIR_BIN, _BB_SUID_NEVER)
@@ -170,7 +180,13 @@
 	APPLET(dumpkmap, dumpkmap_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_DUMPLEASES
-        APPLET(dumpleases, dumpleases_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
+	APPLET(dumpleases, dumpleases_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_E2FSCK
+	APPLET(e2fsck, e2fsck_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_E2LABEL
+	APPLET_NOUSAGE("e2label", tune2fs_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_ECHO
 	APPLET(echo, echo_main, _BB_DIR_BIN, _BB_SUID_NEVER)
@@ -178,11 +194,20 @@
 #if defined(CONFIG_FEATURE_GREP_EGREP_ALIAS)
 	APPLET_NOUSAGE("egrep", grep_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_EJECT
+	APPLET(eject, eject_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
+#endif
 #ifdef CONFIG_ENV
 	APPLET(env, env_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_ETHER_WAKE
+	APPLET_ODDNAME("ether-wake", etherwake_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER, ether_wake)
+#endif
 #ifdef CONFIG_EXPR
 	APPLET(expr, expr_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_FAKEIDENTD
+	APPLET(fakeidentd, fakeidentd_main, _BB_DIR_USR_SBIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_FALSE
 	APPLET(false, false_main, _BB_DIR_BIN, _BB_SUID_NEVER)
@@ -205,6 +230,9 @@
 #ifdef CONFIG_FIND
 	APPLET(find, find_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_FINDFS
+	APPLET_NOUSAGE("findfs", tune2fs_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
+#endif
 #ifdef CONFIG_FOLD
 	APPLET(fold, fold_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
@@ -214,6 +242,13 @@
 #ifdef CONFIG_FREERAMDISK
 	APPLET(freeramdisk, freeramdisk_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_FSCK
+	APPLET(fsck, fsck_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_E2FSCK
+	APPLET_NOUSAGE("fsck.ext2", e2fsck_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
+	APPLET_NOUSAGE("fsck.ext3", e2fsck_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
+#endif
 #ifdef CONFIG_FSCK_MINIX
 	APPLET_ODDNAME("fsck.minix", fsck_minix_main, _BB_DIR_SBIN, _BB_SUID_NEVER, fsck_minix)
 #endif
@@ -222,6 +257,9 @@
 #endif
 #ifdef CONFIG_FTPPUT
 	APPLET(ftpput, ftpgetput_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_FUSER
+	APPLET(fuser, fuser_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_GETOPT
 	APPLET(getopt, getopt_main, _BB_DIR_BIN, _BB_SUID_NEVER)
@@ -298,6 +336,12 @@
 #ifdef CONFIG_IPCALC
 	APPLET(ipcalc, ipcalc_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_IPCRM
+	APPLET(ipcrm, ipcrm_main, _BB_DIR_USR_BIN, _BB_SUID_ALWAYS)
+#endif
+#ifdef CONFIG_IPCS
+	APPLET(ipcs, ipcs_main, _BB_DIR_USR_BIN, _BB_SUID_ALWAYS)
+#endif
 #ifdef CONFIG_IPLINK
 	APPLET(iplink, iplink_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
@@ -324,6 +368,9 @@
 #endif
 #ifdef CONFIG_LENGTH
 	APPLET(length, length_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_LESS
+	APPLET(less, less_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_FEATURE_INITRD
 	APPLET_NOUSAGE("linuxrc", init_main, _BB_DIR_ROOT, _BB_SUID_NEVER)
@@ -355,6 +402,9 @@
 #ifdef CONFIG_LS
 	APPLET(ls, ls_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_LSATTR
+	APPLET(lsattr, lsattr_main, _BB_DIR_BIN, _BB_SUID_NEVER)
+#endif
 #ifdef CONFIG_LSMOD
 	APPLET(lsmod, lsmod_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
@@ -364,14 +414,24 @@
 #ifdef CONFIG_MD5SUM
 	APPLET(md5sum, md5sum_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_MDEV
+	APPLET(mdev, mdev_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
+#endif
 #ifdef CONFIG_MESG
 	APPLET(mesg, mesg_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_MKDIR
 	APPLET(mkdir, mkdir_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_MKE2FS
+	APPLET(mke2fs, mke2fs_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
+#endif
 #ifdef CONFIG_MKFIFO
 	APPLET(mkfifo, mkfifo_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_MKE2FS
+	APPLET_NOUSAGE("mkfs.ext2", mke2fs_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
+	APPLET_NOUSAGE("mkfs.ext3", mke2fs_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_MKFS_MINIX
 	APPLET_ODDNAME("mkfs.minix", mkfs_minix_main, _BB_DIR_SBIN, _BB_SUID_NEVER, mkfs_minix)
@@ -394,6 +454,9 @@
 #ifdef CONFIG_MOUNT
 	APPLET(mount, mount_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_MOUNTPOINT
+	APPLET(mountpoint, mountpoint_main, _BB_DIR_BIN, _BB_SUID_NEVER)
+#endif
 #ifdef CONFIG_MSH
 	APPLET_NOUSAGE("msh", msh_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
@@ -411,6 +474,12 @@
 #endif
 #ifdef CONFIG_NETSTAT
 	APPLET(netstat, netstat_main, _BB_DIR_BIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_NICE
+	APPLET(nice, nice_main, _BB_DIR_BIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_NOHUP
+	APPLET(nohup, nohup_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_NSLOOKUP
 	APPLET(nslookup, nslookup_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
@@ -445,6 +514,9 @@
 #ifdef CONFIG_POWEROFF
 	APPLET(poweroff, poweroff_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_PRINTENV
+	APPLET(printenv, printenv_main, _BB_DIR_BIN, _BB_SUID_NEVER)
+#endif
 #ifdef CONFIG_PRINTF
 	APPLET(printf, printf_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
@@ -459,6 +531,9 @@
 #endif
 #ifdef CONFIG_READLINK
 	APPLET(readlink, readlink_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_READPROFILE
+	APPLET(readprofile, readprofile_main, _BB_DIR_USR_SBIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_REALPATH
 	APPLET(realpath, realpath_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
@@ -493,6 +568,9 @@
 #ifdef CONFIG_RUN_PARTS
 	APPLET_ODDNAME("run-parts", run_parts_main, _BB_DIR_BIN, _BB_SUID_NEVER, run_parts)
 #endif
+#if BB_APPLET_RUNLEVEL
+	APPLET(runlevel, runlevel_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
+#endif
 #ifdef CONFIG_RX
 	APPLET(rx, rx_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
@@ -502,8 +580,14 @@
 #ifdef CONFIG_SEQ
 	APPLET(seq, seq_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_SETCONSOLE
+	APPLET(setconsole, setconsole_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
+#endif
 #ifdef CONFIG_SETKEYCODES
 	APPLET(setkeycodes, setkeycodes_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_SETSID
+	APPLET(setsid, setsid_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
 #if defined(CONFIG_FEATURE_SH_IS_ASH) && defined(CONFIG_ASH)
 	APPLET_NOUSAGE("sh", ash_main, _BB_DIR_BIN, _BB_SUID_NEVER)
@@ -524,7 +608,10 @@
 	APPLET(sort, sort_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_START_STOP_DAEMON
-    APPLET_ODDNAME("start-stop-daemon", start_stop_daemon_main, _BB_DIR_SBIN, _BB_SUID_NEVER, start_stop_daemon)
+	APPLET_ODDNAME("start-stop-daemon", start_stop_daemon_main, _BB_DIR_SBIN, _BB_SUID_NEVER, start_stop_daemon)
+#endif
+#ifdef CONFIG_STAT
+	APPLET(stat, stat_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_STRINGS
 	APPLET(strings, strings_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
@@ -538,16 +625,22 @@
 #ifdef CONFIG_SULOGIN
 	APPLET(sulogin, sulogin_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_SUM
+	APPLET(sum, sum_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
+#endif
 #ifdef CONFIG_SWAPONOFF
 	APPLET(swapoff, swap_on_off_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_SWAPONOFF
 	APPLET(swapon, swap_on_off_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_SWITCH_ROOT
+	APPLET(switch_root, switch_root_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
+#endif
 #ifdef CONFIG_SYNC
 	APPLET(sync, sync_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
-#ifdef CONFIG_SYSCTL
+#ifdef CONFIG_BB_SYSCTL
 	APPLET(sysctl, sysctl_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_SYSLOGD
@@ -583,7 +676,7 @@
 #ifdef CONFIG_TOUCH
 	APPLET(touch, touch_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
-#ifdef CONFIG_TR
+#if ENABLE_TR
 	APPLET(tr, tr_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_TRACEROUTE
@@ -595,11 +688,14 @@
 #ifdef CONFIG_TTY
 	APPLET(tty, tty_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_TUNE2FS
+	APPLET(tune2fs, tune2fs_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
+#endif
 #ifdef CONFIG_UDHCPC
 	APPLET(udhcpc, udhcpc_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_UDHCPD
-        APPLET(udhcpd, udhcpd_main, _BB_DIR_USR_SBIN, _BB_SUID_NEVER)
+	APPLET(udhcpd, udhcpd_main, _BB_DIR_USR_SBIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_UMOUNT
 	APPLET(umount, umount_main, _BB_DIR_BIN, _BB_SUID_NEVER)
@@ -643,7 +739,7 @@
 #ifdef CONFIG_WATCH
 	APPLET(watch, watch_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
-#ifdef CONFIG_WATCHDOG
+#if ENABLE_WATCHDOG
 	APPLET(watchdog, watchdog_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_WC
@@ -669,6 +765,9 @@
 #endif
 #ifdef CONFIG_GUNZIP
 	APPLET(zcat, gunzip_main, _BB_DIR_BIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_ZCIP
+	APPLET(zcip, zcip_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
 
 #if !defined(PROTOTYPES) && !defined(MAKE_USAGE)

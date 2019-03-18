@@ -37,6 +37,7 @@
 #include <string.h>		/* strcmp and friends */
 #include <ctype.h>		/* isdigit and friends */
 #include <stddef.h>		/* offsetof */
+#include <unistd.h>
 #include <netdb.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
@@ -352,7 +353,7 @@ int ifconfig_main(int argc, char **argv)
 		for (op = OptArray; op->name; op++) {	/* Find table entry. */
 			if (strcmp(p, op->name) == 0) {	/* If name matches... */
 				if ((mask &= op->flags)) {	/* set the mask and go. */
-					goto FOUND_ARG;;
+					goto FOUND_ARG;
 				}
 				/* If we get here, there was a valid arg with an */
 				/* invalid '-' prefix. */
@@ -479,7 +480,7 @@ int ifconfig_main(int argc, char **argv)
 					memcpy((((char *) (&ifr)) + a1op->ifr_offset),
 						   p, sizeof(struct sockaddr));
 				} else {
-					unsigned int i = strtoul(*argv, NULL, 0);
+					unsigned long i = strtoul(*argv, NULL, 0);
 
 					p = ((char *) (&ifr)) + a1op->ifr_offset;
 #ifdef CONFIG_FEATURE_IFCONFIG_MEMSTART_IOADDR_IRQ
@@ -558,6 +559,7 @@ int ifconfig_main(int argc, char **argv)
 		continue;
 	}					/* end of while-loop */
 
+	if (ENABLE_FEATURE_CLEAN_UP) close(sockfd);
 	return goterr;
 }
 
@@ -565,7 +567,7 @@ int ifconfig_main(int argc, char **argv)
 /* Input an Ethernet address and convert to binary. */
 static int in_ether(char *bufp, struct sockaddr *sap)
 {
-	unsigned char *ptr;
+	char *ptr;
 	int i, j;
 	unsigned char val;
 	unsigned char c;

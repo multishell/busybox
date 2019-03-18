@@ -2,10 +2,9 @@
 #ifndef _DHCPC_H
 #define _DHCPC_H
 
+#ifndef DEFAULT_SCRIPT
 #define DEFAULT_SCRIPT  "/usr/share/udhcpc/default.script"
-
-/* allow libbb_udhcp.h to redefine DEFAULT_SCRIPT */
-#include "libbb_udhcp.h"
+#endif
 
 #define INIT_SELECTING	0
 #define REQUESTING	1
@@ -26,7 +25,9 @@ struct client_config_t {
 	char *pidfile;			/* Optionally store the process ID */
 	char *script;			/* User script to run at dhcp events */
 	uint8_t *clientid;		/* Optional client id to use */
+	uint8_t *vendorclass;		/* Optional vendor class-id to use */
 	uint8_t *hostname;		/* Optional hostname to use */
+	uint8_t *fqdn;			/* Optional fully qualified domain name to use */
 	int ifindex;			/* Index number of the interface to use */
 	uint8_t arp[6];			/* Our arp address */
 };

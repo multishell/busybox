@@ -234,10 +234,6 @@ static void flush_outbuf(void);
  * terms of the GNU General Public License, see the file COPYING.
  */
 
-#if !defined(OF) && defined(lint)
-#  include "gzip.h"
-#endif
-
 #ifndef BITS
 #  define BITS 16
 #endif
@@ -1270,7 +1266,7 @@ int gzip_main(int argc, char **argv)
 					strcat(path, ".gz");
 
 					/* Open output file */
-#if (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 1)
+#if (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 1) && defined O_NOFOLLOW
 					outFileNum =
 						open(path, O_RDWR | O_CREAT | O_EXCL | O_NOFOLLOW);
 #else

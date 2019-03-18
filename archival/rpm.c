@@ -143,7 +143,7 @@ int rpm_main(int argc, char **argv)
 		mytags = rpm_gettags(rpm_fd, (int *) &tagcount);
 		offset = lseek(rpm_fd, 0, SEEK_CUR);
 		if (!mytags) { printf("Error reading rpm header\n"); exit(-1); }
-		map = mmap(0, offset > getpagesize() ? (offset + offset % getpagesize()) : getpagesize(), PROT_READ, MAP_SHARED, rpm_fd, 0); // Mimimum is one page
+		map = mmap(0, offset > getpagesize() ? (offset + offset % getpagesize()) : getpagesize(), PROT_READ, MAP_PRIVATE, rpm_fd, 0); // Mimimum is one page
 		if (func & rpm_install) {
 			loop_through_files(RPMTAG_BASENAMES, fileaction_dobackup); /* Backup any config files */
 			extract_cpio_gz(rpm_fd); // Extact the archive
@@ -243,7 +243,7 @@ rpm_index **rpm_gettags(int fd, int *num_tags)
 		storepos = lseek(fd,0,SEEK_CUR) + header.entries * 16;
 
 		while (header.entries--) {
-			tmpindex = tags[tagindex++] = malloc(sizeof(rpm_index));
+			tmpindex = tags[tagindex++] = xmalloc(sizeof(rpm_index));
 			read(fd, tmpindex, sizeof(rpm_index));
 			tmpindex->tag = ntohl(tmpindex->tag); tmpindex->type = ntohl(tmpindex->type); tmpindex->count = ntohl(tmpindex->count);
 			tmpindex->offset = storepos + ntohl(tmpindex->offset);
@@ -260,12 +260,16 @@ rpm_index **rpm_gettags(int fd, int *num_tags)
 int bsearch_rpmtag(const void *key, const void *item)
 {
 	rpm_index **tmp = (rpm_index **) item;
+	/* gcc throws warnings here when sizeof(void*)!=sizeof(int) ...
+	 * it's ok to ignore it because this isn't a 'real' pointer */
 	return ((int) key - tmp[0]->tag);
 }
 
 int rpm_getcount(int tag)
 {
 	rpm_index **found;
+	/* gcc throws warnings here when sizeof(void*)!=sizeof(int) ...
+	 * it's ok to ignore it because tag won't be used as a pointer */
 	found = bsearch((void *) tag, mytags, tagcount, sizeof(struct rpmtag *), bsearch_rpmtag);
 	if (!found) return 0;
 	else return found[0]->count;
@@ -274,6 +278,8 @@ int rpm_getcount(int tag)
 char *rpm_getstring(int tag, int itemindex)
 {
 	rpm_index **found;
+	/* gcc throws warnings here when sizeof(void*)!=sizeof(int) ...
+	 * it's ok to ignore it because tag won't be used as a pointer */
 	found = bsearch((void *) tag, mytags, tagcount, sizeof(struct rpmtag *), bsearch_rpmtag);
 	if (!found || itemindex >= found[0]->count) return NULL;
 	if (found[0]->type == RPM_STRING_TYPE || found[0]->type == RPM_I18NSTRING_TYPE || found[0]->type == RPM_STRING_ARRAY_TYPE) {
@@ -288,6 +294,8 @@ int rpm_getint(int tag, int itemindex)
 {
 	rpm_index **found;
 	int n, *tmpint;
+	/* gcc throws warnings here when sizeof(void*)!=sizeof(int) ...
+	 * it's ok to ignore it because tag won't be used as a pointer */
 	found = bsearch((void *) tag, mytags, tagcount, sizeof(struct rpmtag *), bsearch_rpmtag);
 	if (!found || itemindex >= found[0]->count) return -1;
 	tmpint = (int *) (map + found[0]->offset);
@@ -323,8 +331,8 @@ void fileaction_dobackup(char *filename, int fileref)
 void fileaction_setowngrp(char *filename, int fileref)
 {
 	int uid, gid;
-	uid = my_getpwnam(rpm_getstring(RPMTAG_FILEUSERNAME, fileref));
-	gid = my_getgrnam(rpm_getstring(RPMTAG_FILEGROUPNAME, fileref));
+	uid = bb_xgetpwnam(rpm_getstring(RPMTAG_FILEUSERNAME, fileref));
+	gid = bb_xgetgrnam(rpm_getstring(RPMTAG_FILEGROUPNAME, fileref));
 	chown (filename, uid, gid);
 }
 

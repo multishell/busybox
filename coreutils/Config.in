@@ -59,6 +59,13 @@ config CONFIG_CMP
 	  cmp is used to compare two files and returns the result
 	  to standard output.
 
+config CONFIG_COMM
+	bool "comm"
+	default n
+	help
+	  comm is used to compare two files line by line and return
+	  a three-column output.
+
 config CONFIG_CP
 	bool "cp"
 	default n
@@ -144,11 +151,12 @@ config CONFIG_FEATURE_DU_DEFALT_BLOCKSIZE_1K
 	  Use a blocksize of (1K) instead of the default 512b.
 
 config CONFIG_ECHO
-	bool "echo (basic SUSv3 version taking no options)"
+	bool "echo (basic SuSv3 version taking no options)"
 	default n
 	help
 	  echo is used to print a specified string to stdout.
 
+# this entry also appears in shell/Config.in, next to the echo builtin
 config CONFIG_FEATURE_FANCY_ECHO
 	bool "  Enable echo options (-n and -e)"
 	default y
@@ -291,11 +299,23 @@ config CONFIG_FEATURE_LS_USERNAME
 	  Allow ls to display username/groupname for files.
 
 config CONFIG_FEATURE_LS_COLOR
-	bool "  Use color to identify file types"
+	bool "  Allow use of color to identify file types"
 	default y
 	depends on CONFIG_LS
 	help
-	  Allow ls to use color when displaying files.
+	  This enables the --color option to ls.
+
+if CONFIG_FEATURE_LS_COLOR
+    config CONFIG_FEATURE_LS_COLOR_IS_DEFAULT
+	    bool "  Produce colored ls output by default"
+	    default n
+	    help
+	      Saying yes here will turn coloring on by default,
+	      even if no "--color" option is given to the ls command.
+	      This is not recommended, since the colors are not
+	      configurable, and the output may not be legible on
+	      many output screens.
+endif
 
 config CONFIG_MD5SUM
 	bool "md5sum"
@@ -329,11 +349,29 @@ config CONFIG_MV
 	help
 	  mv is used to move or rename files or directories.
 
+config CONFIG_NICE
+	bool "nice"
+	default n
+	help
+	  nice runs a program with modified scheduling priority.
+
+config CONFIG_NOHUP
+	bool "nohup"
+	default n
+	help
+	  run a command immune to hangups, with output to a non-tty.
+
 config CONFIG_OD
 	bool "od"
 	default n
 	help
 	  od is used to dump binary files in octal and other formats.
+
+config CONFIG_PRINTENV
+	bool "printenv"
+	default n
+	help
+	  printenv is used to print all or part of environment.
 
 config CONFIG_PRINTF
 	bool "printf"
@@ -398,11 +436,44 @@ config CONFIG_SORT
 	help
 	  sort is used to sort lines of text in specified files.
 
+config CONFIG_FEATURE_SORT_BIG
+	bool "  full SuSv3 compliant sort (Support -ktcsbdfiozgM)"
+	default y
+	depends on CONFIG_SORT
+	help
+	  Without this, sort only supports  -r, -u, and an integer version
+	  of -n.  Selecting this adds sort keys, floating point support, and
+	  more.  This adds a little over 3k to a nonstatic build on x86.
+
+	  The SuSv3 sort standard is available at:
+	  http://www.opengroup.org/onlinepubs/007904975/utilities/sort.html
+
+config CONFIG_STAT
+	bool "stat"
+	default n
+	help
+	  display file or filesystem status.
+
+config CONFIG_FEATURE_STAT_FORMAT
+	bool "  Enable custom formats (-c)"
+	default n
+	depends on CONFIG_STAT
+	help
+	  Without this, stat will not support the '-c format' option where 
+	  users can pass a custom format string for output.  This adds about 
+	  7k to a nonstatic build on amd64.
+
 config CONFIG_STTY
 	bool "stty"
 	default n
 	help
 	  stty is used to change and print terminal line settings.
+
+config CONFIG_SUM
+	bool "sum"
+	default n
+	help
+	  checksum and count the blocks in a file
 
 config CONFIG_SYNC
 	bool "sync"
@@ -475,6 +546,25 @@ config CONFIG_TR
 	help
 	  tr is used to squeeze, and/or delete characters from standard
 	  input, writing to standard output.
+
+config CONFIG_FEATURE_TR_CLASSES
+	bool "  Enable character classes (such as [:upper:])"
+	default n
+	depends on CONFIG_TR
+	help
+	  Enable character classes, enabling commands such as:
+	  tr [:upper:] [:lower:] to convert input into lowercase.
+
+config CONFIG_FEATURE_TR_EQUIV
+	bool "  Enable equivalence classes"
+	default n
+	depends on CONFIG_TR
+	help
+	  Enable equivalence classes, which essentially add the enclosed
+	  character to the current set. For instance, tr [=a=] xyz would
+	  replace all instances of 'a' with 'xyz'. This option is mainly
+	  useful for cases when no other way of expressing a character
+	  is possible.
 
 if CONFIG_HUSH || CONFIG_LASH || CONFIG_MSH
 	config CONFIG_TRUE

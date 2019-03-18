@@ -16,11 +16,7 @@
 
 #include "libbb.h"
 
-extern procps_status_t * procps_scan(int save_user_arg0
-#ifdef CONFIG_SELINUX
-	, int use_selinux , security_id_t *sid
-#endif
-	)
+extern procps_status_t * procps_scan(int save_user_arg0)
 {
 	static DIR *dir;
 	struct dirent *entry;
@@ -57,19 +53,12 @@ extern procps_status_t * procps_scan(int save_user_arg0
 		sprintf(status, "/proc/%d", pid);
 		if(stat(status, &sb))
 			continue;
-		my_getpwuid(curstatus.user, sb.st_uid, sizeof(curstatus.user));
+		bb_getpwuid(curstatus.user, sb.st_uid, sizeof(curstatus.user));
 
 		sprintf(status, "/proc/%d/stat", pid);
+
 		if((fp = fopen(status, "r")) == NULL)
 			continue;
-#ifdef CONFIG_SELINUX
-		if(use_selinux)
-		{
-			if(fstat_secure(fileno(fp), &sb, sid))
-				continue;
-		}
-		else
-#endif
 		name = fgets(buf, sizeof(buf), fp);
 		fclose(fp);
 		if(name == NULL)
@@ -83,7 +72,7 @@ extern procps_status_t * procps_scan(int save_user_arg0
 		"%c %d "
 		"%*s %*s %*s %*s "     /* pgrp, session, tty, tpgid */
 		"%*s %*s %*s %*s %*s " /* flags, min_flt, cmin_flt, maj_flt, cmaj_flt */
-#ifdef FEATURE_CPU_USAGE_PERCENTAGE
+#ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
 		"%lu %lu "
 #else
 		"%*s %*s "
@@ -94,12 +83,12 @@ extern procps_status_t * procps_scan(int save_user_arg0
 		"%*s "                 /* vsize */
 		"%ld",
 		curstatus.state, &curstatus.ppid,
-#ifdef FEATURE_CPU_USAGE_PERCENTAGE
+#ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
 		&curstatus.utime, &curstatus.stime,
 #endif
 		&tasknice,
 		&curstatus.rss);
-#ifdef FEATURE_CPU_USAGE_PERCENTAGE
+#ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
 		if(n != 6)
 #else
 		if(n != 4)

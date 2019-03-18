@@ -34,8 +34,8 @@
 #include "busybox.h"
 
 //XXX just found out about libbb/messages.c . maybe move stuff there ? - ghoz
-const char msg_req_arg[] = "option `%s' requires an argument";
-const char msg_invalid_arg[] = "invalid argument `%s' to `%s'";
+static const char msg_req_arg[] = "option `%s' requires an argument";
+static const char msg_invalid_arg[] = "invalid argument `%s' to `%s'";
 
 static char *pattern;
 
@@ -59,11 +59,17 @@ static int xdev_count = 0;
 #endif
 
 #ifdef CONFIG_FEATURE_FIND_NEWER
-time_t newer_mtime;
+static time_t newer_mtime;
 #endif
 
 #ifdef CONFIG_FEATURE_FIND_INUM
 static ino_t inode_num;
+#endif
+
+#ifdef CONFIG_FEATURE_FIND_EXEC
+static char **exec_str;
+static int num_matches;
+static int exec_opt;
 #endif
 
 static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
@@ -131,6 +137,18 @@ static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
 			goto no_match;
 	}
 #endif
+#ifdef CONFIG_FEATURE_FIND_EXEC
+	if (exec_opt) {
+		int i;
+		char *cmd_string = "";
+		for (i = 0; i < num_matches; i++)
+			cmd_string = bb_xasprintf("%s%s%s", cmd_string, exec_str[i], fileName);
+		cmd_string = bb_xasprintf("%s%s", cmd_string, exec_str[num_matches]);
+		system(cmd_string);
+		goto no_match;
+	}
+#endif
+	
 	puts(fileName);
 no_match:
 	return (TRUE);
@@ -259,6 +277,33 @@ int find_main(int argc, char **argv)
 			inode_num = strtol(argv[i], &end, 10);
 			if (end[0] != '\0')
 				bb_error_msg_and_die(msg_invalid_arg, argv[i], "-inum");
+#endif
+#ifdef CONFIG_FEATURE_FIND_EXEC
+		} else if (strcmp(argv[i], "-exec") == 0) {
+			int b_pos;
+			char *cmd_string = "";
+
+			while (i++) {
+				if (i == argc)
+					bb_error_msg_and_die(msg_req_arg, "-exec");
+				if (*argv[i] == ';')
+					break;
+				cmd_string = bb_xasprintf("%s %s", cmd_string, argv[i]);
+			}
+			
+			if (*cmd_string == 0)
+				bb_error_msg_and_die(msg_req_arg, "-exec");
+			cmd_string++;
+			exec_str = xmalloc(sizeof(char *));
+
+			while ((b_pos = strstr(cmd_string, "{}") - cmd_string), (b_pos >= 0)) {
+				num_matches++;
+				exec_str = xrealloc(exec_str, (num_matches + 1) * sizeof(char *));
+				exec_str[num_matches - 1] = bb_xstrndup(cmd_string, b_pos);
+				cmd_string += b_pos + 2;
+			}
+			exec_str[num_matches] = bb_xstrdup(cmd_string);
+			exec_opt = 1;
 #endif
 		} else
 			bb_show_usage();

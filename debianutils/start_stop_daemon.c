@@ -16,7 +16,7 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <unistd.h>
-#include <getopt.h>
+#include <getopt.h> /* struct option */
 
 #include "busybox.h"
 #include "pwd_.h"
@@ -204,18 +204,18 @@ do_stop(void)
 
 
 static const struct option ssd_long_options[] = {
-	{ "stop",				0,		NULL,		'K' },
-	{ "start",				0,		NULL,		'S' },
+	{ "stop",			0,		NULL,		'K' },
+	{ "start",			0,		NULL,		'S' },
 	{ "background",			0,		NULL,		'b' },
-	{ "quiet",				0,		NULL,		'q' },
+	{ "quiet",			0,		NULL,		'q' },
 	{ "make-pidfile",		0,		NULL,		'm' },
 	{ "startas",			1,		NULL,		'a' },
-	{ "name",				1,		NULL,		'n' },
-	{ "signal",				1,		NULL,		's' },
-	{ "user",				1,		NULL,		'u' },
-	{ "exec",				1,		NULL,		'x' },
+	{ "name",			1,		NULL,		'n' },
+	{ "signal",			1,		NULL,		's' },
+	{ "user",			1,		NULL,		'u' },
+	{ "exec",			1,		NULL,		'x' },
 	{ "pidfile",			1,		NULL,		'p' },
-	{ 0,			0,		0,			0 }
+	{ 0,				0,		0,		0 }
 };
 
 #define SSD_CTX_STOP		1
@@ -233,17 +233,13 @@ start_stop_daemon_main(int argc, char **argv)
 
 	bb_applet_long_options = ssd_long_options;
 
-	bb_opt_complementaly = "K~S:S~K";
+	/* Check required one context option was given */
+	bb_opt_complementally = "K:S:?:K--S:S--K";
 	opt = bb_getopt_ulflags(argc, argv, "KSbqma:n:s:u:x:p:",
-			&startas, &cmdname, &signame, &userspec, &execname, &pidfile);
+		&startas, &cmdname, &signame, &userspec, &execname, &pidfile);
 
-	/* Check one and only one context option was given */
-	if ((opt & BB_GETOPT_ERROR) || (opt & (SSD_CTX_STOP | SSD_CTX_START)) == 0) {
-		bb_show_usage();
-	}
-
-	if (opt & SSD_OPT_QUIET)
-		quiet = 1;
+	
+	quiet = opt & SSD_OPT_QUIET;
 
 	if (signame) {
 		signal_nr = bb_xgetlarg(signame, 10, 0, NSIG);
@@ -265,7 +261,7 @@ start_stop_daemon_main(int argc, char **argv)
 	argv += optind;
 
 	if (userspec && sscanf(userspec, "%d", &user_id) != 1)
-		user_id = my_getpwnam(userspec);
+		user_id = bb_xgetpwnam(userspec);
 
 	if (opt & SSD_CTX_STOP) {
 		do_stop();

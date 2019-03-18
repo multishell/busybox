@@ -63,7 +63,6 @@ static char *license_msg[] = {
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <getopt.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -117,7 +116,7 @@ extern int gunzip_main(int argc, char **argv)
 
 		/* Set output filename and number */
 		if (opt & GUNZIP_OPT_TEST) {
-			dst_fd = bb_xopen("/dev/null", O_WRONLY);	/* why does test use filenum 2 ? */
+			dst_fd = bb_xopen(bb_dev_null, O_WRONLY);	/* why does test use filenum 2 ? */
 		} else if (opt & GUNZIP_OPT_STDOUT) {
 			dst_fd = STDOUT_FILENO;
 		} else {

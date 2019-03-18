@@ -1,4 +1,3 @@
-#include "config.h"
 #include "libbb.h"
 
 /* uncompress for busybox -- (c) 2002 Robert Griebl
@@ -65,23 +64,20 @@
 #define MAXCODE(n)	(1L << (n))
 
 /* Block compress mode -C compatible with 2.0 */
-int block_mode = BLOCK_MODE;
+static int block_mode = BLOCK_MODE;
 
 /* user settable max # bits/code */
-int maxbits = BITS;
-
-/* Exitcode of compress (-1 no file compressed) */
-int exit_code = -1;
+static int maxbits = BITS;
 
 /* Input buffer */
-unsigned char inbuf[IBUFSIZ + 64];
+static unsigned char inbuf[IBUFSIZ + 64];
 
 /* Output buffer */
-unsigned char outbuf[OBUFSIZ + 2048];
+static unsigned char outbuf[OBUFSIZ + 2048];
 
 
-long int htab[HSIZE];
-unsigned short codetab[HSIZE];
+static long int htab[HSIZE];
+static unsigned short codetab[HSIZE];
 
 #define	htabof(i)				htab[i]
 #define	codetabof(i)			codetab[i]

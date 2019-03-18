@@ -33,13 +33,11 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/ioctl.h>
-/* get page info */
-#include <asm/page.h>
 #include "busybox.h"
 
-//#define FEATURE_CPU_USAGE_PERCENTAGE  /* + 2k */
+//#define CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE  /* + 2k */
 
-#ifdef FEATURE_CPU_USAGE_PERCENTAGE
+#ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
 #include <time.h>
 #include <sys/time.h>
 #include <fcntl.h>
@@ -64,7 +62,7 @@ static int mem_sort (procps_status_t *P, procps_status_t *Q)
     return (int)(Q->rss - P->rss);
 }
 
-#ifdef FEATURE_CPU_USAGE_PERCENTAGE
+#ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
 
 #define sort_depth 3
 static cmp_t sort_function[sort_depth];
@@ -79,7 +77,7 @@ static int time_sort (procps_status_t *P, procps_status_t *Q)
     return (int)((Q->stime + Q->utime) - (P->stime + P->utime));
 }
 
-int mult_lvl_cmp(void* a, void* b) {
+static int mult_lvl_cmp(void* a, void* b) {
     int i, cmp_val;
 
     for(i = 0; i < sort_depth; i++) {
@@ -281,7 +279,7 @@ static void do_stats(void)
 }
 #else
 static cmp_t sort_function;
-#endif /* FEATURE_CPU_USAGE_PERCENTAGE */
+#endif /* CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE */
 
 /* display generic info (meminfo / loadavg) */
 static unsigned long display_generic(void)
@@ -303,10 +301,10 @@ static unsigned long display_generic(void)
 	 * First, we read in the first line. Old kernels will have bogus
 	 * strings we don't care about, whereas new kernels will start right
 	 * out with MemTotal:
-	 * 				-- PFM.
+	 *                              -- PFM.
 	 */
 	if (fscanf(fp, "MemTotal: %lu %s\n", &total, buf) != 2) {
-		fgets(buf, sizeof(buf), fp);	/* skip first line */
+		fgets(buf, sizeof(buf), fp);    /* skip first line */
 
 		fscanf(fp, "Mem: %lu %lu %lu %lu %lu %lu",
 		   &total, &used, &mfree, &shared, &buffers, &cached);
@@ -370,7 +368,7 @@ static void display_status(int count, int col)
 	char rss_str_buf[8];
 	unsigned long total_memory = display_generic();
 
-#ifdef FEATURE_CPU_USAGE_PERCENTAGE
+#ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
 	/* what info of the processes is shown */
 	printf("\n\e[7m  PID USER     STATUS   RSS  PPID %%CPU %%MEM COMMAND\e[0m\n");
 #else
@@ -388,7 +386,7 @@ static void display_status(int count, int col)
 			sprintf(rss_str_buf, "%6ldM", s->rss/1024);
 		else
 			sprintf(rss_str_buf, "%7ld", s->rss);
-#ifdef FEATURE_CPU_USAGE_PERCENTAGE
+#ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
 		printf("%5d %-8s %s  %s %5d %2d.%d %2u.%u ",
 			s->pid, s->user, s->state, rss_str_buf, s->ppid,
 			s->pcpu/10, s->pcpu%10, pmem/10, pmem%10);
@@ -424,7 +422,7 @@ static void reset_term(void)
 	tcsetattr(0, TCSANOW, (void *) &initial_settings);
 #ifdef CONFIG_FEATURE_CLEAN_UP
 	clearmems();
-#ifdef FEATURE_CPU_USAGE_PERCENTAGE
+#ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
 	free(save_history);
 #endif
 #endif /* CONFIG_FEATURE_CLEAN_UP */
@@ -440,6 +438,7 @@ static void sig_catcher (int sig)
 int top_main(int argc, char **argv)
 {
 	int opt, interval, lines, col;
+	char *sinterval;
 #ifdef CONFIG_FEATURE_USE_TERMIOS
 	struct termios new_settings;
 	struct timeval tv;
@@ -448,24 +447,19 @@ int top_main(int argc, char **argv)
 	struct sigaction sa;
 #endif /* CONFIG_FEATURE_USE_TERMIOS */
 
-	/* Default update rate is 5 seconds */
-	interval = 5;
-
 	/* do normal option parsing */
-	while ((opt = getopt(argc, argv, "d:")) > 0) {
-	    switch (opt) {
-		case 'd':
-		    interval = atoi(optarg);
-		    break;
-		default:
-		    bb_show_usage();
-	    }
+	opt = bb_getopt_ulflags(argc, argv, "d:", &sinterval);
+	if((opt & 1)) {
+		interval = atoi(sinterval);
+	} else {
+		/* Default update rate is 5 seconds */
+		interval = 5;
 	}
 
 	/* Default to 25 lines - 5 lines for status */
 	lines = 25 - 5;
 	/* Default CMD format size */
-#ifdef FEATURE_CPU_USAGE_PERCENTAGE
+#ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
 	col = 35 - 6;
 #else
 	col = 35;
@@ -493,7 +487,7 @@ int top_main(int argc, char **argv)
 	get_terminal_width_height(0, &col, &lines);
 	if (lines > 4) {
 	    lines -= 5;
-#ifdef FEATURE_CPU_USAGE_PERCENTAGE
+#ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
 	    col = col - 80 + 35 - 6;
 #else
 	    col = col - 80 + 35;
@@ -501,23 +495,19 @@ int top_main(int argc, char **argv)
 	}
 #endif /* CONFIG_FEATURE_USE_TERMIOS */
 
-#ifdef FEATURE_CPU_USAGE_PERCENTAGE
+#ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
 	sort_function[0] = pcpu_sort;
 	sort_function[1] = mem_sort;
 	sort_function[2] = time_sort;
 #else
 	sort_function = mem_sort;
-#endif /* FEATURE_CPU_USAGE_PERCENTAGE */
+#endif /* CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE */
 
 	while (1) {
 		/* read process IDs & status for all the processes */
 		procps_status_t * p;
 
-#ifdef CONFIG_SELINUX
-		while ((p = procps_scan(0, 0, NULL) ) != 0) {
-#else
 		while ((p = procps_scan(0)) != 0) {
-#endif
 			int n = ntop;
 
 			top = xrealloc(top, (++ntop)*sizeof(procps_status_t));
@@ -526,7 +516,7 @@ int top_main(int argc, char **argv)
 		if (ntop == 0) {
 		bb_perror_msg_and_die("scandir('/proc')");
 	}
-#ifdef FEATURE_CPU_USAGE_PERCENTAGE
+#ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
 		if(!Hertz) {
 			init_Hertz_value();
 			do_stats();
@@ -537,7 +527,7 @@ int top_main(int argc, char **argv)
 		do_stats();
 #else
 		qsort(top, ntop, sizeof(procps_status_t), (void*)sort_function);
-#endif /* FEATURE_CPU_USAGE_PERCENTAGE */
+#endif /* CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE */
 		opt = lines;
 		if (opt > ntop) {
 			opt = ntop;
@@ -557,7 +547,7 @@ int top_main(int argc, char **argv)
 			if(c == 'q' || c == initial_settings.c_cc[VINTR])
 				return EXIT_SUCCESS;
 			if(c == 'M') {
-#ifdef FEATURE_CPU_USAGE_PERCENTAGE
+#ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
 				sort_function[0] = mem_sort;
 				sort_function[1] = pcpu_sort;
 				sort_function[2] = time_sort;
@@ -565,7 +555,7 @@ int top_main(int argc, char **argv)
 				sort_function = mem_sort;
 #endif
 			}
-#ifdef FEATURE_CPU_USAGE_PERCENTAGE
+#ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
 			if(c == 'P') {
 				sort_function[0] = pcpu_sort;
 				sort_function[1] = mem_sort;
@@ -578,7 +568,7 @@ int top_main(int argc, char **argv)
 			}
 #endif
 			if(c == 'N') {
-#ifdef FEATURE_CPU_USAGE_PERCENTAGE
+#ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
 				sort_function[0] = pid_sort;
 #else
 				sort_function = pid_sort;

@@ -18,7 +18,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <getopt.h>
 
 #include "unarchive.h"
 #include "busybox.h"
@@ -56,7 +55,7 @@ extern int dpkg_deb_main(int argc, char **argv)
 	control_tar_llist = llist_add_to(control_tar_llist, "control.tar.bz2");
 #endif
 
-	bb_opt_complementaly = "c~efXx:e~cfXx:f~ceXx:X~cefx:x~cefX";
+	bb_opt_complementally = "?c--efXx:e--cfXx:f--ceXx:X--cefx:x--cefX";
 	opt = bb_getopt_ulflags(argc, argv, "cefXx");
 
 	if (opt & DPKG_DEB_OPT_CONTENTS) {
@@ -76,7 +75,7 @@ extern int dpkg_deb_main(int argc, char **argv)
 		 * it should accept a second argument which specifies a
 		 * specific field to print */
 		ar_archive->accept = control_tar_llist;
-		tar_archive->accept = llist_add_to(NULL, "./control");;
+		tar_archive->accept = llist_add_to(NULL, "./control");
 		tar_archive->filter = filter_accept_list;
 		tar_archive->action_data = data_extract_to_stdout;
 	}
@@ -88,7 +87,7 @@ extern int dpkg_deb_main(int argc, char **argv)
 		argcount = 2;
 	}
 
-	if ((optind + argcount != argc) || (opt & BB_GETOPT_ERROR)) {
+	if ((optind + argcount) != argc) {
 		bb_show_usage();
 	}
 

@@ -60,13 +60,12 @@ enum {
 #include <fcntl.h>
 #include <signal.h>
 #include <termios.h>
+#include <getopt.h> /* struct option */
 #include <sys/ioctl.h>
 #include <sys/sysmacros.h>     /* major() and minor() */
 #include "busybox.h"
 #ifdef CONFIG_SELINUX
-#include <fs_secure.h>
-#include <flask_util.h>
-#include <ss.h>
+#include <selinux/selinux.h>   /* for is_selinux_enabled() */
 #endif
 
 #ifdef CONFIG_FEATURE_LS_TIMESTAMPS
@@ -84,15 +83,15 @@ enum {
 
 /* 51306 lrwxrwxrwx  1 root     root         2 May 11 01:43 /bin/view -> vi* */
 /* what file information will be listed */
-#define LIST_INO		(1U<<0)
-#define LIST_BLOCKS		(1U<<1)
+#define LIST_INO	(1U<<0)
+#define LIST_BLOCKS	(1U<<1)
 #define LIST_MODEBITS	(1U<<2)
-#define LIST_NLINKS		(1U<<3)
+#define LIST_NLINKS	(1U<<3)
 #define LIST_ID_NAME	(1U<<4)
 #define LIST_ID_NUMERIC	(1U<<5)
 #define LIST_CONTEXT	(1U<<6)
-#define LIST_SIZE		(1U<<7)
-#define LIST_DEV		(1U<<8)
+#define LIST_SIZE	(1U<<7)
+#define LIST_DEV	(1U<<8)
 #define LIST_DATE_TIME	(1U<<9)
 #define LIST_FULLTIME	(1U<<10)
 #define LIST_FILENAME	(1U<<11)
@@ -104,22 +103,22 @@ enum {
 
 /* what files will be displayed */
 /* TODO -- We may be able to make DISP_NORMAL 0 to save a bit slot. */
-#define DISP_NORMAL		(1U<<14)	/* show normal filenames */
+#define DISP_NORMAL	(1U<<14)	/* show normal filenames */
 #define DISP_DIRNAME	(1U<<15)	/* 2 or more items? label directories */
-#define DISP_HIDDEN		(1U<<16)	/* show filenames starting with .  */
-#define DISP_DOT		(1U<<17)	/* show . and .. */
-#define DISP_NOLIST		(1U<<18)	/* show directory as itself, not contents */
+#define DISP_HIDDEN	(1U<<16)	/* show filenames starting with .  */
+#define DISP_DOT	(1U<<17)	/* show . and .. */
+#define DISP_NOLIST	(1U<<18)	/* show directory as itself, not contents */
 #define DISP_RECURSIVE	(1U<<19)	/* show directory and everything below it */
-#define DISP_ROWS		(1U<<20)	/* print across rows */
+#define DISP_ROWS	(1U<<20)	/* print across rows */
 
 #define DISP_MASK       (((DISP_ROWS << 1) - 1) & ~(DISP_NORMAL - 1))
 
 #ifdef CONFIG_FEATURE_LS_SORTFILES
 /* how will the files be sorted */
-#define SORT_ORDER_FORWARD   0			/* sort in reverse order */
+#define SORT_ORDER_FORWARD   0		/* sort in reverse order */
 #define SORT_ORDER_REVERSE   (1U<<27)	/* sort in reverse order */
 
-#define SORT_NAME      0			/* sort by file name */
+#define SORT_NAME      0		/* sort by file name */
 #define SORT_SIZE      (1U<<28)		/* sort by file size */
 #define SORT_ATIME     (2U<<28)		/* sort by last access time */
 #define SORT_CTIME     (3U<<28)		/* sort by last change time */
@@ -166,23 +165,33 @@ enum {
 
 /* colored LS support by JaWi, janwillem.janssen@lxtreme.nl */
 #ifdef CONFIG_FEATURE_LS_COLOR
+
 static int show_color = 0;
 
+/* long option entry used only for --color, which has no short option
+ * equivalent.  */
+static const struct option ls_color_opt[] =
+{
+	{"color", optional_argument, NULL, 1},
+        {NULL, 0, NULL, 0}
+};
+
 #define COLOR(mode)	("\000\043\043\043\042\000\043\043"\
-					"\000\000\044\000\043\000\000\040" [TYPEINDEX(mode)])
+			 "\000\000\044\000\043\000\000\040" [TYPEINDEX(mode)])
 #define ATTR(mode)	("\00\00\01\00\01\00\01\00"\
-					"\00\00\01\00\01\00\00\01" [TYPEINDEX(mode)])
+			 "\00\00\01\00\01\00\00\01" [TYPEINDEX(mode)])
 #endif
 
 /*
  * a directory entry and its stat info are stored here
  */
 struct dnode {			/* the basic node */
-	char *name;			/* the dir entry name */
+	char *name;		/* the dir entry name */
 	char *fullname;		/* the dir entry name */
+	int   allocated;
 	struct stat dstat;	/* the file stat info */
 #ifdef CONFIG_SELINUX
-	security_id_t sid;
+	security_context_t sid;
 #endif
 	struct dnode *next;	/* point at the next node */
 };
@@ -195,7 +204,7 @@ static int list_single(struct dnode *);
 static unsigned int all_fmt;
 
 #ifdef CONFIG_SELINUX
-static int is_flask_enabled_flag;
+static int selinux_enabled= 0;
 #endif
 
 #ifdef CONFIG_FEATURE_AUTOWIDTH
@@ -213,20 +222,20 @@ static struct dnode *my_stat(char *fullname, char *name)
 	struct stat dstat;
 	struct dnode *cur;
 #ifdef CONFIG_SELINUX
-	security_id_t sid;
+	security_context_t sid=NULL;
 #endif
 	int rc;
 
 #ifdef CONFIG_FEATURE_LS_FOLLOWLINKS
 	if (all_fmt & FOLLOW_LINKS) {
 #ifdef CONFIG_SELINUX
-		if(is_flask_enabled_flag)
-			rc = stat_secure(fullname, &dstat, &sid);
-		else
+	        if (is_selinux_enabled())  {
+		  rc=0; /*  Set the number which means success before hand.  */
+		  rc = getfilecon(fullname,&sid);
+		}
 #endif
-			rc = stat(fullname, &dstat);
-		if(rc)
-		{
+		  rc = stat(fullname, &dstat);
+		if(rc) {
 			bb_perror_msg("%s", fullname);
 			status = EXIT_FAILURE;
 			return 0;
@@ -235,13 +244,13 @@ static struct dnode *my_stat(char *fullname, char *name)
 #endif
 	{
 #ifdef CONFIG_SELINUX
-		if(is_flask_enabled_flag)
-			rc = lstat_secure(fullname, &dstat, &sid);
-		else
+	        if  (is_selinux_enabled())  {
+		  rc=0; /*  Set the number which means success before hand.  */
+		  rc = lgetfilecon(fullname,&sid);
+		}
 #endif
-			rc = lstat(fullname, &dstat);
-		if(rc)
-		{
+		rc = lstat(fullname, &dstat);
+		if(rc) {
 			bb_perror_msg("%s", fullname);
 			status = EXIT_FAILURE;
 			return 0;
@@ -309,11 +318,10 @@ static int count_dirs(struct dnode **dn, int nfiles, int notsubdirs)
 	dirs = 0;
 	for (i = 0; i < nfiles; i++) {
 		if (S_ISDIR(dn[i]->dstat.st_mode)
-			&& (notsubdirs
-				|| ((dn[i]->name[0] != '.')
-					|| (dn[i]->name[1]
+			&& (notsubdirs || 
+			((dn[i]->name[0] != '.') || (dn[i]->name[1]
 						&& ((dn[i]->name[1] != '.')
-							|| dn[i]->name[2])))))
+						|| dn[i]->name[2])))))
 			dirs++;
 	}
 	return (dirs);
@@ -341,8 +349,7 @@ static struct dnode **dnalloc(int num)
 	if (num < 1)
 		return (NULL);
 
-	p = (struct dnode **) xcalloc((size_t) num,
-								  (size_t) (sizeof(struct dnode *)));
+	p = (struct dnode **) xcalloc((size_t) num, (size_t) (sizeof(struct dnode *)));
 	return (p);
 }
 
@@ -356,7 +363,8 @@ static void dfree(struct dnode **dnp)
 
 	cur = dnp[0];
 	while (cur != NULL) {
-		free(cur->fullname);	/* free the filename */
+		if(cur->allocated)
+			free(cur->fullname);	/* free the filename */
 		next = cur->next;
 		free(cur);		/* free the dnode */
 		cur = next;
@@ -611,6 +619,7 @@ static struct dnode **list_dir(const char *path)
 		cur = my_stat(fullname, strrchr(fullname, '/') + 1);
 		if (!cur)
 			continue;
+		cur->allocated = 1;
 		cur->next = dn;
 		dn = cur;
 		nfiles++;
@@ -683,9 +692,9 @@ static int list_single(struct dnode *dn)
 			break;
 		case LIST_ID_NAME:
 #ifdef CONFIG_FEATURE_LS_USERNAME
-			my_getpwuid(scratch, dn->dstat.st_uid, sizeof(scratch));
+			bb_getpwuid(scratch, dn->dstat.st_uid, sizeof(scratch));
 			printf("%-8.8s ", scratch);
-			my_getgrgid(scratch, dn->dstat.st_gid, sizeof(scratch));
+			bb_getgrgid(scratch, dn->dstat.st_gid, sizeof(scratch));
 			printf("%-8.8s", scratch);
 			column += 17;
 			break;
@@ -736,12 +745,16 @@ static int list_single(struct dnode *dn)
 #ifdef CONFIG_SELINUX
 		case LIST_CONTEXT:
 			{
-				char context[64];
-				int len = sizeof(context);
-				if(security_sid_to_context(dn->sid, context, &len))
-				{
-					strcpy(context, "unknown");
-					len = 7;
+				char context[80];
+				int len;
+			
+				if (dn->sid) {
+				  /*  I assume sid initilized with NULL  */
+				  len = strlen(dn->sid)+1;
+				  safe_strncpy(context, dn->sid, len);
+				  freecon(dn->sid);
+				}else {
+				  safe_strncpy(context, "unknown", 8);
 				}
 				printf("%-32s ", context);
 				column += MAX(33, len);
@@ -937,6 +950,9 @@ static const unsigned opt_flags[] = {
 #ifdef CONFIG_SELINUX
 	LIST_MODEBITS|LIST_NLINKS|LIST_CONTEXT|LIST_SIZE|LIST_DATE_TIME, /* K */
 #endif
+#ifdef CONFIG_FEATURE_AUTOWIDTH
+       0, 0,                    /* T, w - ignored */
+#endif
 	(1U<<31)
 };
 
@@ -962,9 +978,8 @@ extern int ls_main(int argc, char **argv)
 	char *tabstops_str = NULL;
 	char *terminal_width_str = NULL;
 #endif
-
-#ifdef CONFIG_SELINUX
-	is_flask_enabled_flag = is_flask_enabled();
+#ifdef CONFIG_FEATURE_LS_COLOR
+	char *color_opt;
 #endif
 
 	all_fmt = LIST_SHORT | DISP_NORMAL | STYLE_AUTO
@@ -984,13 +999,16 @@ extern int ls_main(int argc, char **argv)
 #endif
 
 #ifdef CONFIG_FEATURE_LS_COLOR
-	if (isatty(STDOUT_FILENO))
-		show_color = 1;
+	bb_applet_long_options = ls_color_opt;
 #endif
 
 	/* process options */
 #ifdef CONFIG_FEATURE_AUTOWIDTH
-	opt = bb_getopt_ulflags(argc, argv, ls_options, &tabstops_str, &terminal_width_str);
+	opt = bb_getopt_ulflags(argc, argv, ls_options, &tabstops_str, &terminal_width_str
+#ifdef CONFIG_FEATURE_LS_COLOR
+		, &color_opt
+#endif
+		);
 	if (tabstops_str) {
 		tabstops = atoi(tabstops_str);
 	}
@@ -998,11 +1016,16 @@ extern int ls_main(int argc, char **argv)
 		terminal_width = atoi(terminal_width_str);
 	}
 #else
-	opt = bb_getopt_ulflags(argc, argv, ls_options);
+	opt = bb_getopt_ulflags(argc, argv, ls_options
+#ifdef CONFIG_FEATURE_LS_COLOR
+		, &color_opt
+#endif
+		);
 #endif
 	for (i = 0; opt_flags[i] != (1U<<31); i++) {
 		if (opt & (1 << i)) {
 			unsigned int flags = opt_flags[i];
+			
 			if (flags & LIST_MASK_TRIGGER) {
 				all_fmt &= ~LIST_MASK;
 			}
@@ -1033,6 +1056,32 @@ extern int ls_main(int argc, char **argv)
 			all_fmt |= flags;
 		}
 	}
+
+#ifdef CONFIG_FEATURE_LS_COLOR
+	{
+		/* find color bit value - last position for short getopt */
+
+#if CONFIG_FEATURE_LS_COLOR_IS_DEFAULT
+		char *p;
+
+		if ((p = getenv ("LS_COLORS")) != NULL && 
+			(*p == '\0' || (strcmp(p, "none") == 0))) {
+			;
+		} else if (isatty(STDOUT_FILENO)) {
+		    	show_color = 1;
+		}
+#endif
+
+		if((opt & (1 << i))) {  /* next flag after short options */
+			if (color_opt == NULL || strcmp("always", color_opt) == 0)
+				show_color = 1;
+			else if (color_opt != NULL && strcmp("never", color_opt) == 0)
+				show_color = 0;
+			else if (color_opt != NULL && strcmp("auto", color_opt) == 0 && isatty(STDOUT_FILENO))
+				show_color = 1;
+		}
+	}
+#endif
 
 	/* sort out which command line options take precedence */
 #ifdef CONFIG_FEATURE_LS_RECURSIVE
@@ -1070,14 +1119,12 @@ extern int ls_main(int argc, char **argv)
 	 */
 	ac = argc - optind;	/* how many cmd line args are left */
 	if (ac < 1) {
-		av = (char **) xcalloc((size_t) 1, (size_t) (sizeof(char *)));
-		av[0] = bb_xstrdup(".");
+		static const char * const dotdir[] = { "." };
+
+		av = (char **) dotdir;
 		ac = 1;
 	} else {
-		av = (char **) xcalloc((size_t) ac, (size_t) (sizeof(char *)));
-		for (oi = 0; oi < ac; oi++) {
-			av[oi] = argv[optind++];	/* copy pointer to real cmd line arg */
-		}
+		av = argv + optind;
 	}
 
 	/* now, everything is in the av array */
@@ -1087,11 +1134,10 @@ extern int ls_main(int argc, char **argv)
 	/* stuff the command line file names into an dnode array */
 	dn = NULL;
 	for (oi = 0; oi < ac; oi++) {
-		char *fullname = bb_xstrdup(av[oi]);
-
-		cur = my_stat(fullname, fullname);
+		cur = my_stat(av[oi], av[oi]);
 		if (!cur)
 			continue;
+		cur->allocated = 0;
 		cur->next = dn;
 		dn = cur;
 		nfiles++;

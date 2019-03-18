@@ -5,7 +5,7 @@
  * Copyright (c) 1989, 1991, 1993, 1994
  *      The Regents of the University of California.  All rights reserved.
  *
- * Copyright (c) 1997-2003 Herbert Xu <herbert@debian.org>
+ * Copyright (c) 1997-2005 Herbert Xu <herbert@gondor.apana.org.au>
  * was re-ported from NetBSD and debianized.
  *
  *
@@ -105,7 +105,7 @@
 #undef JOBS
 #endif
 
-#if JOBS
+#if JOBS || defined(CONFIG_ASH_READ_NCHARS)
 #include <termios.h>
 #endif
 
@@ -275,16 +275,6 @@ static void forceinton(void)
 		0; \
 	})
 #endif /* CONFIG_ASH_OPTIMIZE_FOR_SIZE */
-
-/*
- * BSD setjmp saves the signal mask, which violates ANSI C and takes time,
- * so we use _setjmp instead.
- */
-
-#if defined(BSD) && !defined(__SVR4) && !defined(__GLIBC__)
-#define setjmp(jmploc)  _setjmp(jmploc)
-#define longjmp(jmploc, val)    _longjmp(jmploc, val)
-#endif
 
 /*      $NetBSD: expand.h,v 1.13 2002/11/24 22:35:40 christos Exp $     */
 
@@ -578,7 +568,7 @@ struct parsefile {
 };
 
 static struct parsefile basepf;         /* top level input file */
-static char basebuf[IBUFSIZ];           /* buffer for top level input file */
+#define basebuf bb_common_bufsiz1       /* buffer for top level input file */
 static struct parsefile *parsefile = &basepf;  /* current input file */
 
 
@@ -1249,6 +1239,9 @@ static int commandcmd(int, char **);
 #endif
 static int dotcmd(int, char **);
 static int evalcmd(int, char **);
+#ifdef CONFIG_ASH_BUILTIN_ECHO
+static int echocmd(int, char **);
+#endif
 static int execcmd(int, char **);
 static int exitcmd(int, char **);
 static int exportcmd(int, char **);
@@ -1308,39 +1301,12 @@ struct builtincmd {
 	/* unsigned flags; */
 };
 
-#ifdef CONFIG_ASH_CMDCMD
-# ifdef JOBS
-#  ifdef CONFIG_ASH_ALIAS
-#    define COMMANDCMD (builtincmd + 7)
-#    define EXECCMD (builtincmd + 10)
-#  else
-#    define COMMANDCMD (builtincmd + 6)
-#    define EXECCMD (builtincmd + 9)
-#  endif
-# else /* ! JOBS */
-#  ifdef CONFIG_ASH_ALIAS
-#    define COMMANDCMD (builtincmd + 6)
-#    define EXECCMD (builtincmd + 9)
-#  else
-#    define COMMANDCMD (builtincmd + 5)
-#    define EXECCMD (builtincmd + 8)
-#  endif
-# endif /* JOBS */
-#else   /* ! CONFIG_ASH_CMDCMD */
-# ifdef JOBS
-#  ifdef CONFIG_ASH_ALIAS
-#    define EXECCMD (builtincmd + 9)
-#  else
-#    define EXECCMD (builtincmd + 8)
-#  endif
-# else /* ! JOBS */
-#  ifdef CONFIG_ASH_ALIAS
-#    define EXECCMD (builtincmd + 8)
-#  else
-#    define EXECCMD (builtincmd + 7)
-#  endif
-# endif /* JOBS */
-#endif /* CONFIG_ASH_CMDCMD */
+
+#define COMMANDCMD (builtincmd + 5 + \
+	ENABLE_ASH_ALIAS + ENABLE_ASH_JOB_CONTROL)
+#define EXECCMD (builtincmd + 7 + \
+	ENABLE_ASH_CMDCMD + ENABLE_ASH_ALIAS + \
+	ENABLE_ASH_BUILTIN_ECHO + ENABLE_ASH_JOB_CONTROL)
 
 #define BUILTIN_NOSPEC  "0"
 #define BUILTIN_SPECIAL "1"
@@ -1371,6 +1337,9 @@ static const struct builtincmd builtincmd[] = {
 	{ BUILTIN_REGULAR       "command", commandcmd },
 #endif
 	{ BUILTIN_SPEC_REG      "continue", breakcmd },
+#ifdef CONFIG_ASH_BUILTIN_ECHO
+	{ BUILTIN_REGULAR       "echo", echocmd },
+#endif
 	{ BUILTIN_SPEC_REG      "eval", evalcmd },
 	{ BUILTIN_SPEC_REG      "exec", execcmd },
 	{ BUILTIN_SPEC_REG      "exit", exitcmd },
@@ -1721,9 +1690,11 @@ init(void)
       {
 	      char **envp;
 	      char ppid[32];
+	      const char *p;
+	      struct stat st1, st2;
 
 	      initvar();
-	      for (envp = environ ; *envp ; envp++) {
+	      for (envp = environ ; envp && *envp ; envp++) {
 		      if (strchr(*envp, '=')) {
 			      setvareq(*envp, VEXPORT|VTEXTFIXED);
 		      }
@@ -1731,7 +1702,13 @@ init(void)
 
 	      snprintf(ppid, sizeof(ppid), "%d", (int) getppid());
 	      setvar("PPID", ppid, 0);
-	      setpwd(0, 0);
+
+	      p = lookupvar("PWD");
+	      if (p)
+	      if (*p != '/' || stat(p, &st1) || stat(".", &st2) ||
+		  st1.st_dev != st2.st_dev || st1.st_ino != st2.st_ino)
+		      p = 0;
+	      setpwd(p, 0);
       }
 }
 
@@ -1949,19 +1926,21 @@ struct shparam {
 #define bflag optlist[11]
 #define uflag optlist[12]
 #define qflag optlist[13]
+#define viflag optlist[14]
 
 #ifdef DEBUG
-#define nolog optlist[14]
-#define debug optlist[15]
-#define NOPTS   16
-#else
-#define NOPTS   14
+#define nolog optlist[15]
+#define debug optlist[16]
+#endif
+
+#ifndef CONFIG_FEATURE_COMMAND_EDITING_VI
+#define setvimode(on) viflag = 0   /* forcibly keep the option off */
 #endif
 
 /*      $NetBSD: options.c,v 1.33 2003/01/22 20:36:04 dsl Exp $ */
 
 
-static const char *const optletters_optnames[NOPTS] = {
+static const char *const optletters_optnames[] = {
 	"e"   "errexit",
 	"f"   "noglob",
 	"I"   "ignoreeof",
@@ -1976,6 +1955,7 @@ static const char *const optletters_optnames[NOPTS] = {
 	"b"   "notify",
 	"u"   "nounset",
 	"q"   "quietprofile",
+	"\0"  "vi",
 #ifdef DEBUG
 	"\0"  "nolog",
 	"\0"  "debug",
@@ -1985,6 +1965,7 @@ static const char *const optletters_optnames[NOPTS] = {
 #define optletters(n) optletters_optnames[(n)][0]
 #define optnames(n) (&optletters_optnames[(n)][1])
 
+#define NOPTS (sizeof(optletters_optnames)/sizeof(optletters_optnames[0]))
 
 static char optlist[NOPTS];
 
@@ -2317,9 +2298,7 @@ cdcmd(int argc, char **argv)
 		dest = bltinlookup(homestr);
 	else if (dest[0] == '-' && dest[1] == '\0') {
 		dest = bltinlookup("OLDPWD");
-		if ( !dest ) goto out;
 		flags |= CD_PRINT;
-		goto step7;
 	}
 	if (!dest)
 		dest = nullstr;
@@ -2564,7 +2543,11 @@ onint(void) {
 	int i;
 
 	intpending = 0;
+#if 0
+	/* comment by vodz: its strange for me, this programm don`t use other
+	   signal block */
 	sigsetmask(0);
+#endif
 	i = EXSIG;
 	if (gotsig[SIGINT - 1] && !trap[SIGINT]) {
 		if (!(rootshell && iflag)) {
@@ -2580,20 +2563,17 @@ onint(void) {
 static void
 exvwarning(const char *msg, va_list ap)
 {
-	FILE *errs;
-	const char *name;
-	const char *fmt;
+	 FILE *errs;
 
-	errs = stderr;
-	name = arg0;
-	fmt = "%s: ";
-	if (commandname) {
-		name = commandname;
-		fmt = "%s: %d: ";
-	}
-	fprintf(errs, fmt, name, startlinno);
-	vfprintf(errs, msg, ap);
-	outcslow('\n', errs);
+	 errs = stderr;
+	 fprintf(errs, "%s: ", arg0);
+	 if (commandname) {
+		 const char *fmt = (!iflag || parsefile->fd) ?
+					"%s: %d: " : "%s: ";
+		 fprintf(errs, fmt, commandname, startlinno);
+	 }
+	 vfprintf(errs, msg, ap);
+	 outcslow('\n', errs);
 }
 
 /*
@@ -3218,6 +3198,12 @@ isassignment(const char *p)
 	return *q == '=';
 }
 
+#ifdef CONFIG_ASH_EXPAND_PRMT
+static const char *expandstr(const char *ps);
+#else
+#define expandstr(s) s
+#endif
+
 /*
  * Execute a simple command.
  */
@@ -3266,7 +3252,7 @@ evalcommand(union node *cmd, int flags)
 		struct strlist **spp;
 
 		spp = arglist.lastp;
-		if (pseudovarflag && isassignment(argp->narg.text)) 
+		if (pseudovarflag && isassignment(argp->narg.text))
 			expandarg(argp, &arglist, EXP_VARTILDE);
 		else
 			expandarg(argp, &arglist, EXP_FULL | EXP_TILDE);
@@ -3313,7 +3299,7 @@ evalcommand(union node *cmd, int flags)
 		const char *p = " %s";
 
 		p++;
-		dprintf(preverrout_fd, p, ps4val());
+		dprintf(preverrout_fd, p, expandstr(ps4val()));
 
 		sp = varlist.list;
 		for(n = 0; n < 2; n++) {
@@ -3742,27 +3728,13 @@ tryexec(char *cmd, char **argv, char **envp)
 {
 	int repeated = 0;
 #ifdef CONFIG_FEATURE_SH_STANDALONE_SHELL
-	int flg_bb = 0;
-	char *name = cmd;
-
-	if(strchr(name, '/') == NULL && find_applet_by_name(name) != NULL) {
-		flg_bb = 1;
-	}
-	if(flg_bb) {
-		char **ap;
-		char **new;
-
-		*argv = name;
-		if(strcmp(name, "busybox")) {
-			for (ap = argv; *ap; ap++);
-			ap = new = xmalloc((ap - argv + 2) * sizeof(char *));
-			*ap++ = cmd = "/bin/busybox";
-			while ((*ap++ = *argv++));
-			argv = new;
-			repeated++;
-		} else {
-			cmd = "/bin/busybox";
-		}
+	if(find_applet_by_name(cmd) != NULL) {
+		/* re-exec ourselves with the new arguments */
+		execve("/proc/self/exe",argv,envp);
+		/* If proc isn't mounted, try hardcoded path to busybox binary*/
+		execve("/bin/busybox",argv,envp);
+		/* If they called chroot or otherwise made the binary no longer
+		 * executable, fall through */
 	}
 #endif
 
@@ -4626,11 +4598,12 @@ expandarg(union node *arg, struct arglist *arglist, int flag)
 	ifsfirst.next = NULL;
 	ifslastp = NULL;
 	argstr(arg->narg.text, flag);
+	p = _STPUTC('\0', expdest);
+	expdest = p - 1;
 	if (arglist == NULL) {
 		return;                 /* here document expanded */
 	}
-	STPUTC('\0', expdest);
-	p = grabstackstr(expdest);
+	p = grabstackstr(p);
 	exparg.lastp = &exparg.list;
 	/*
 	 * TODO - EXP_REDIR
@@ -5386,9 +5359,12 @@ param:
 			size_t partlen;
 
 			partlen = strlen(p);
-
 			len += partlen;
-			if (len > partlen && sep) {
+
+			if (!(subtype == VSPLUS || subtype == VSLENGTH))
+				memtodest(p, partlen, syntax, quotes);
+
+			if (*ap && sep) {
 				char *q;
 
 				len++;
@@ -5401,9 +5377,6 @@ param:
 				STPUTC(sep, q);
 				expdest = q;
 			}
-
-			if (!(subtype == VSPLUS || subtype == VSLENGTH))
-				memtodest(p, partlen, syntax, quotes);
 		}
 		return len;
 	case '0':
@@ -5970,7 +5943,6 @@ varunset(const char *end, const char *var, const char *umsg, int varflags)
  */
 
 #define EOF_NLEFT -99           /* value of parsenleft when EOF pushed back */
-#define IBUFSIZ (BUFSIZ + 1)
 
 static void pushfile(void);
 
@@ -6047,10 +6019,19 @@ pfgets(char *line, int len)
 
 
 #ifdef CONFIG_FEATURE_COMMAND_EDITING
+#ifdef CONFIG_ASH_EXPAND_PRMT
+static char *cmdedit_prompt;
+#else
 static const char *cmdedit_prompt;
+#endif
 static inline void putprompt(const char *s)
 {
+#ifdef CONFIG_ASH_EXPAND_PRMT
+	free(cmdedit_prompt);
+	cmdedit_prompt = bb_xstrdup(s);
+#else
 	cmdedit_prompt = s;
+#endif
 }
 #else
 static inline void putprompt(const char *s)
@@ -6634,10 +6615,12 @@ usage:
 		if (**argv == '%') {
 			jp = getjob(*argv, 0);
 			pid = -jp->ps[0].pid;
-		} else
-			pid = number(*argv);
+		} else {
+			pid = **argv == '-' ?
+				-number(*argv + 1) : number(*argv);
+		}
 		if (kill(pid, signo) != 0) {
-			sh_warnx("kill %d: %s", pid, errmsg(errno, NULL));
+			sh_warnx("(%d) - %m", pid);
 			i = 1;
 		}
 	} while (*++argv);
@@ -7652,11 +7635,10 @@ cmdputs(const char *s)
 	char *nextc;
 	int subtype = 0;
 	int quoted = 0;
-	static const char *const vstype[16] = {
-		nullstr, "}", "-", "+", "?", "=",
-		"%", "%%", "#", "##", nullstr
+	static const char vstype[VSTYPE + 1][4] = {
+		"", "}", "-", "+", "?", "=",
+		"%", "%%", "#", "##"
 	};
-
 	nextc = makestrspace((strlen(s) + 1) * 8, cmdnextc);
 	p = s;
 	while ((c = *p++) != 0) {
@@ -7678,14 +7660,10 @@ cmdputs(const char *s)
 				goto dostr;
 			break;
 		case CTLENDVAR:
+			str = "\"}" + !(quoted & 1);
 			quoted >>= 1;
 			subtype = 0;
-			if (quoted & 1) {
-				str = "\"}";
-				goto dostr;
-			}
-			c = '}';
-			break;
+			goto dostr;
 		case CTLBACKQ:
 			str = "$(...)";
 			goto dostr;
@@ -7707,13 +7685,13 @@ cmdputs(const char *s)
 		case '=':
 			if (subtype == 0)
 				break;
+			if ((subtype & VSTYPE) != VSNORMAL)
+				quoted <<= 1;
 			str = vstype[subtype & VSTYPE];
 			if (subtype & VSNUL)
 				c = ':';
 			else
-				c = *str++;
-			if (c != '}')
-				quoted <<= 1;
+				goto checkstr;
 			break;
 		case '\'':
 		case '\\':
@@ -7728,6 +7706,7 @@ cmdputs(const char *s)
 			break;
 		}
 		USTPUTC(c, nextc);
+checkstr:
 		if (!str)
 			continue;
 dostr:
@@ -8169,7 +8148,7 @@ static int dotcmd(int argc, char **argv)
 	for (sp = cmdenviron; sp; sp = sp->next)
 		setvareq(bb_xstrdup(sp->text), VSTRFIXED | VTEXTFIXED);
 
-	if (argc >= 2) {	/* That's what SVR2 does */
+	if (argc >= 2) {        /* That's what SVR2 does */
 		char *fullname;
 		struct stackmark smark;
 
@@ -8210,6 +8189,13 @@ exitcmd(int argc, char **argv)
 	/* NOTREACHED */
 }
 
+#ifdef CONFIG_ASH_BUILTIN_ECHO
+static int
+echocmd(int argc, char **argv)
+{
+	return bb_echo(argc, argv);
+}
+#endif
 /*      $NetBSD: memalloc.c,v 1.27 2003/01/22 20:36:04 dsl Exp $        */
 
 /*
@@ -8876,6 +8862,7 @@ optschanged(void)
 #endif
 	setinteractive(iflag);
 	setjobctl(mflag);
+	setvimode(viflag);
 }
 
 static inline void
@@ -9915,7 +9902,6 @@ parseheredoc(void)
 	while (here) {
 		if (needprompt) {
 			setprompt(2);
-			needprompt = 0;
 		}
 		readtoken1(pgetc(), here->here->type == NHERE? SQSYNTAX : DQSYNTAX,
 				here->eofmark, here->striptabs);
@@ -10048,7 +10034,6 @@ static int xxreadtoken()
 	}
 	if (needprompt) {
 		setprompt(2);
-		needprompt = 0;
 	}
 	startlinno = plinno;
 	for (;;) {                      /* until token or start of word found */
@@ -10116,7 +10101,6 @@ xxreadtoken(void)
 	}
 	if (needprompt) {
 		setprompt(2);
-		needprompt = 0;
 	}
 	startlinno = plinno;
 	for (;;) {      /* until token or start of word found */
@@ -10672,7 +10656,6 @@ parsebackq: {
 		for (;;) {
 			if (needprompt) {
 				setprompt(2);
-				needprompt = 0;
 			}
 			switch (pc = pgetc()) {
 			case '`':
@@ -10882,9 +10865,35 @@ synerror(const char *msg)
  *    should be added here.
  */
 
+#ifdef CONFIG_ASH_EXPAND_PRMT
+static const char *
+expandstr(const char *ps)
+{
+	union node n;
+
+	/* XXX Fix (char *) cast. */
+	setinputstring((char *)ps);
+	readtoken1(pgetc(), DQSYNTAX, nullstr, 0);
+	popfile();
+
+	n.narg.type = NARG;
+	n.narg.next = NULL;
+	n.narg.text = wordtext;
+	n.narg.backquote = backquotelist;
+
+	expandarg(&n, NULL, 0);
+	return stackblock();
+}
+#endif
+
 static void setprompt(int whichprompt)
 {
 	const char *prompt;
+#ifdef CONFIG_ASH_EXPAND_PRMT
+	struct stackmark smark;
+#endif
+
+	needprompt = 0;
 
 	switch (whichprompt) {
 	case 1:
@@ -10896,7 +10905,14 @@ static void setprompt(int whichprompt)
 	default:                        /* 0 */
 		prompt = nullstr;
 	}
-	putprompt(prompt);
+#ifdef CONFIG_ASH_EXPAND_PRMT
+	setstackmark(&smark);
+	stalloc(stackblocksize());
+#endif
+	putprompt(expandstr(prompt));
+#ifdef CONFIG_ASH_EXPAND_PRMT
+	popstackmark(&smark);
+#endif
 }
 
 
@@ -12597,14 +12613,77 @@ readcmd(int argc, char **argv)
 	int startword;
 	int status;
 	int i;
+#if defined(CONFIG_ASH_READ_NCHARS)
+	int nch_flag = 0;
+	int nchars = 0;
+	int silent = 0;
+	struct termios tty, old_tty;
+#endif
+#if defined(CONFIG_ASH_READ_TIMEOUT)
+	fd_set set;
+	struct timeval ts;
+
+	ts.tv_sec = ts.tv_usec = 0;
+#endif
 
 	rflag = 0;
 	prompt = NULL;
-	while ((i = nextopt("p:r")) != '\0') {
-		if (i == 'p')
+#if defined(CONFIG_ASH_READ_NCHARS) && defined(CONFIG_ASH_READ_TIMEOUT)
+	while ((i = nextopt("p:rt:n:s")) != '\0')
+#elif defined(CONFIG_ASH_READ_NCHARS)
+	while ((i = nextopt("p:rn:s")) != '\0')
+#elif defined(CONFIG_ASH_READ_TIMEOUT)
+	while ((i = nextopt("p:rt:")) != '\0')
+#else
+	while ((i = nextopt("p:r")) != '\0')
+#endif
+	{
+		switch(i) {
+		case 'p':
 			prompt = optionarg;
-		else
+			break;
+#if defined(CONFIG_ASH_READ_NCHARS)
+		case 'n':
+			nchars = strtol(optionarg, &p, 10);
+			if (*p)
+				error("invalid count");
+			nch_flag = (nchars > 0);
+			break;
+		case 's':
+			silent = 1;
+			break;
+#endif
+#if defined(CONFIG_ASH_READ_TIMEOUT)
+		case 't':
+			ts.tv_sec = strtol(optionarg, &p, 10);
+			ts.tv_usec = 0;
+			if (*p == '.') {
+				char *p2;
+				if (*++p) {
+					int scale;
+					ts.tv_usec = strtol(p, &p2, 10);
+					if (*p2)
+						error("invalid timeout");
+					scale = p2 - p;
+					/* normalize to usec */
+					if (scale > 6)
+						error("invalid timeout");
+					while (scale++ < 6)
+						ts.tv_usec *= 10;
+				}
+			} else if (*p) {
+				error("invalid timeout");
+			}
+			if ( ! ts.tv_sec && ! ts.tv_usec)
+				error("invalid timeout");
+			break;
+#endif
+		case 'r':
 			rflag = 1;
+			break;
+		default:
+			break;
+		}
 	}
 	if (prompt && isatty(0)) {
 		out2str(prompt);
@@ -12613,11 +12692,46 @@ readcmd(int argc, char **argv)
 		error("arg count");
 	if ((ifs = bltinlookup("IFS")) == NULL)
 		ifs = defifs;
+#if defined(CONFIG_ASH_READ_NCHARS)
+	if (nch_flag || silent) {
+		tcgetattr(0, &tty);
+		old_tty = tty;
+		if (nch_flag) {
+		    tty.c_lflag &= ~ICANON;
+		    tty.c_cc[VMIN] = nchars;
+		}
+		if (silent) {
+		    tty.c_lflag &= ~(ECHO|ECHOK|ECHONL);
+
+		}
+		tcsetattr(0, TCSANOW, &tty);
+	}
+#endif
+#if defined(CONFIG_ASH_READ_TIMEOUT)
+	if (ts.tv_sec || ts.tv_usec) {
+		FD_ZERO (&set);
+		FD_SET (0, &set);
+
+		i = select (FD_SETSIZE, &set, NULL, NULL, &ts);
+		if (!i) {
+#if defined(CONFIG_ASH_READ_NCHARS)
+			if (nch_flag)
+				tcsetattr(0, TCSANOW, &old_tty);
+#endif
+			return 1;
+		}
+	}
+#endif
 	status = 0;
 	startword = 1;
 	backslash = 0;
 	STARTSTACKSTR(p);
-	for (;;) {
+#if defined(CONFIG_ASH_READ_NCHARS)
+	while (!nch_flag || nchars--)
+#else
+	for (;;)
+#endif
+	{
 		if (read(0, &c, 1) != 1) {
 			status = 1;
 			break;
@@ -12651,6 +12765,11 @@ put:
 			STPUTC(c, p);
 		}
 	}
+#if defined(CONFIG_ASH_READ_NCHARS)
+	if (nch_flag || silent)
+		tcsetattr(0, TCSANOW, &old_tty);
+#endif
+
 	STACKSTRNUL(p);
 	/* Remove trailing blanks */
 	while ((char *)stackblock() <= --p && strchr(ifs, *p) != NULL)
@@ -13305,7 +13424,11 @@ arith_apply(operator op, v_n_t *numstack, v_n_t **numstackptr)
 			goto err;
 		}
 		/* save to shell variable */
-		snprintf(buf, sizeof(buf), "%lld", (long long) rez);
+#ifdef CONFIG_ASH_MATH_SUPPORT_64
+		snprintf(buf, sizeof(buf), "%lld", rez);
+#else
+		snprintf(buf, sizeof(buf), "%ld", rez);
+#endif
 		setvar(numptr_m1->var, buf, 0);
 		/* after saving, make previous value for v++ or v-- */
 		if(op == TOK_POST_INC)
@@ -13443,7 +13566,11 @@ static arith_t arith (const char *expr, int *perrcode)
 			continue;
 		} else if (is_digit(arithval)) {
 			numstackptr->var = NULL;
+#ifdef CONFIG_ASH_MATH_SUPPORT_64
 			numstackptr->val = strtoll(expr, (char **) &expr, 0);
+#else
+			numstackptr->val = strtol(expr, (char **) &expr, 0);
+#endif
 			goto num;
 		}
 		for(p = op_tokens; ; p++) {
@@ -13575,11 +13702,7 @@ int main(int argc, char **argv)
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- *
- * 3. <BSD Advertising Clause omitted per the July 22, 1999 licensing change
- *              ftp://ftp.cs.berkeley.edu/pub/4bsd/README.Impt.License.Change>
- *
- * 4. Neither the name of the University nor the names of its contributors
+ * 3. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
  *

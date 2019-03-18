@@ -24,13 +24,13 @@
 #ifndef	_BB_INTERNAL_H_
 #define	_BB_INTERNAL_H_    1
 
-#include "config.h"
+#include "bb_config.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
-#include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 
 #if __GNU_LIBRARY__ < 5 && \
     !defined(__dietlibc__) && \
@@ -42,10 +42,6 @@
 #define BB_BANNER "BusyBox v" BB_VER " (" BB_BT ")"
 #else
 #define BB_BANNER "BusyBox v" BB_VER " (" BB_EXTRA_VERSION ")"
-#endif
-
-#ifdef DMALLOC
-#include <dmalloc.h>
 #endif
 
 #include <features.h>
@@ -116,6 +112,10 @@ extern const struct BB_applet applets[];
 #include <sys/param.h>
 #ifndef PATH_MAX
 #define  PATH_MAX         256
+#endif
+
+#ifdef DMALLOC
+#include <dmalloc.h>
 #endif
 
 #endif							/* _BB_INTERNAL_H_ */

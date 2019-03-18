@@ -117,7 +117,7 @@ static void addgroup_wrapper(const char *login, gid_t gid)
 {
 	char *cmd;
 
-	bb_xasprintf(&cmd, "addgroup -g %d %s", gid, login);
+	cmd = bb_xasprintf("addgroup -g %d \"%s\"", gid, login);
 	system(cmd);
 	free(cmd);
 }
@@ -305,7 +305,7 @@ int adduser_main(int argc, char **argv)
 
 	if (usegroup) {
 		/* Add user to a group that already exists */
-		pw.pw_gid = my_getgrnam(usegroup);
+		pw.pw_gid = bb_xgetgrnam(usegroup);
 		/* exits on error */	
 	}
 

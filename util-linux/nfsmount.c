@@ -52,6 +52,12 @@
 #include <rpc/pmap_clnt.h>
 #include "nfsmount.h"
 
+/* This is just a warning of a common mistake.  Possibly this should be a
+ *  * uclibc faq entry rather than in busybox... */
+#if ENABLE_FEATURE_MOUNT_NFS && defined(__UCLIBC__) && ! defined(__UCLIBC_HAS_RPC__)
+#error "You need to build uClibc with UCLIBC_HAS_RPC for NFS support."
+#endif
+
 
 /*
  * NFS stats. The good thing with these values is that NFSv3 errors are
@@ -303,7 +309,7 @@ return &p;
 }
 
 int nfsmount(const char *spec, const char *node, int *flags,
-	     char **extra_opts, char **mount_opts, int running_bg)
+	     char **mount_opts, int running_bg)
 {
 	static char *prev_bg_host;
 	char hostdir[1024];
@@ -399,7 +405,7 @@ int nfsmount(const char *spec, const char *node, int *flags,
 	/* add IP address to mtab options for use when unmounting */
 
 	s = inet_ntoa(server_addr.sin_addr);
-	old_opts = *extra_opts;
+	old_opts = *mount_opts;
 	if (!old_opts)
 		old_opts = "";
 	if (strlen(old_opts) + strlen(s) + 10 >= sizeof(new_opts)) {
@@ -408,7 +414,7 @@ int nfsmount(const char *spec, const char *node, int *flags,
 	}
 	sprintf(new_opts, "%s%saddr=%s",
 		old_opts, *old_opts ? "," : "", s);
-	*extra_opts = bb_xstrdup(new_opts);
+	*mount_opts = bb_xstrdup(new_opts);
 
 	/* Set default options.
 	 * rsize/wsize (and bsize, for ver >= 3) are left 0 in order to
@@ -889,7 +895,7 @@ fail:
 #define EDQUOT	ENOSPC
 #endif
 
-static struct {
+static const struct {
 	enum nfs_stat stat;
 	int errnum;
 } nfs_errtbl[] = {

@@ -35,13 +35,16 @@ config CONFIG_FEATURE_INIT_COREDUMPS
 	  core file sizes.  If this option is disabled, processes
 	  will not generate any core files.
 
-config CONFIG_FEATURE_INIT_SWAPON
-	bool "  Should init run swapon if short on memory?"
-	default y
+config CONFIG_FEATURE_INIT_SCTTY
+	bool "  Support running commands with a controlling-tty?"
+	default n
 	depends on CONFIG_INIT
 	help
-	  If the system has less than one megabyte of total memory, init
-	  will run '/sbin/swapon -a' to add swap memory.
+	  If this option is enabled a command starting with hyphen (-)
+	  is run in its own session (setsid(2)) and possibly with a
+	  controlling tty (TIOCSCTTY).  This is not the traditional init
+	  behavour, but is often what you want in an embedded system where
+	  the console is only accessed during development or for maintenance.
 
 config CONFIG_FEATURE_EXTRA_QUIET
 	bool "  Should init be _extra_ quiet on boot?"
@@ -57,6 +60,13 @@ config CONFIG_HALT
 	help
 	  Stop all processes and halt the system.
 
+config CONFIG_MESG
+	bool "mesg"
+	default y
+	help
+	  Mesg controls access to your terminal by others.  It is typically
+	  used to allow or disallow other users to write to your terminal
+
 config CONFIG_POWEROFF
 	bool "poweroff"
 	default y
@@ -68,13 +78,6 @@ config CONFIG_REBOOT
 	default y
 	help
 	  Stop all processes and reboot the system.
-
-config CONFIG_MESG
-	bool "mesg"
-	default y
-	help
-	  Mesg controls access to your terminal by others.  It is typically
-	  used to allow or disallow other users to write to your terminal
 
 endmenu
 

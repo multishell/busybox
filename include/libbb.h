@@ -27,24 +27,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
-#include <sys/stat.h>
 #include <sys/types.h>
-#include <regex.h>
+#include <sys/stat.h>
 #include <termios.h>
 #include <stdint.h>
 
 #include <netdb.h>
-#include <netinet/in.h>
-
-#ifdef DMALLOC
-#include <dmalloc.h>
-#endif
 
 #include <features.h>
 
-#include "config.h"
+#include "bb_config.h"
 #ifdef CONFIG_SELINUX
-#include <proc_secure.h>
+#include <selinux/selinux.h>
 #endif
 
 #include "pwd_.h"
@@ -68,6 +62,8 @@
 #if !__GNUC_PREREQ (2,92)
 # define __restrict     /* Ignore */
 #endif
+
+#define attribute_noreturn __attribute__ ((__noreturn__))
 
 /* Some useful definitions */
 #define FALSE   ((int) 0)
@@ -106,6 +102,8 @@ extern void bb_perror_nomsg(void);
 extern void bb_verror_msg(const char *s, va_list p) __attribute__ ((format (printf, 1, 0)));
 extern void bb_vperror_msg(const char *s, va_list p)  __attribute__ ((format (printf, 1, 0)));
 
+extern int bb_echo(int argc, char** argv);
+
 extern const char *bb_mode_string(int mode);
 extern int is_directory(const char *name, int followLinks, struct stat *statBuf);
 
@@ -131,13 +129,13 @@ extern int get_kernel_revision(void);
 
 extern int get_console_fd(void);
 extern struct mntent *find_mount_point(const char *name, const char *table);
-extern void write_mtab(char* blockDevice, char* directory,
-					   char* filesystemType, long flags, char* string_flags);
 extern void erase_mtab(const char * name);
 extern long *find_pid_by_name( const char* pidName);
-extern char *find_real_root_device_name(void);
+extern long *pidlist_reverse(long *pidList);
+extern char *find_block_device(char *path);
 extern char *bb_get_line_from_file(FILE *file);
 extern char *bb_get_chomped_line_from_file(FILE *file);
+extern char *bb_get_chunk_from_file(FILE *file);
 extern int bb_copyfd_size(int fd1, int fd2, const off_t size);
 extern int bb_copyfd_eof(int fd1, int fd2);
 extern void  bb_xprint_and_close_file(FILE *file);
@@ -145,19 +143,16 @@ extern int   bb_xprint_file_by_name(const char *filename);
 extern char  bb_process_escape_sequence(const char **ptr);
 extern char *bb_get_last_path_component(char *path);
 extern FILE *bb_wfopen(const char *path, const char *mode);
+extern FILE *bb_wfopen_input(const char *filename);
 extern FILE *bb_xfopen(const char *path, const char *mode);
 
-//#warning rename?
 extern int   bb_fclose_nonstdin(FILE *f);
 extern void  bb_fflush_stdout_and_exit(int retval) __attribute__ ((noreturn));
 
 #define BB_GETOPT_ERROR 0x80000000UL
-extern const char *bb_opt_complementaly;
+extern const char *bb_opt_complementally;
 extern const struct option *bb_applet_long_options;
 extern unsigned long bb_getopt_ulflags(int argc, char **argv, const char *applet_opts, ...);
-
-//#warning rename?
-extern FILE *bb_wfopen_input(const char *filename);
 
 extern int bb_vfprintf(FILE * __restrict stream, const char * __restrict format,
 					   va_list arg) __attribute__ ((format (printf, 2, 0)));
@@ -182,12 +177,12 @@ extern const char *bb_skip_whitespace(const char *);
 extern struct BB_applet *find_applet_by_name(const char *name);
 void run_applet_by_name(const char *name, int argc, char **argv);
 
-//#warning is this needed anymore?
-#ifndef DMALLOC
-extern void *xmalloc (size_t size);
+/* dmalloc will redefine these to it's own implementation. It is safe
+ * to have the prototypes here unconditionally.  */
+extern void *xmalloc(size_t size);
 extern void *xrealloc(void *old, size_t size);
 extern void *xcalloc(size_t nmemb, size_t size);
-#endif
+
 extern char *bb_xstrdup (const char *s);
 extern char *bb_xstrndup (const char *s, int n);
 extern char *safe_strncpy(char *dst, const char *src, size_t size);
@@ -225,31 +220,28 @@ extern unsigned long bb_xparse_number(const char *numstr,
 		const struct suffix_mult *suffixes);
 
 
-//#warning change names?
-
 /* These parse entries in /etc/passwd and /etc/group.  This is desirable
  * for BusyBox since we want to avoid using the glibc NSS stuff, which
- * increases target size and is often not needed embedded systems.  */
-extern long my_getpwnam(const char *name);
-extern long my_getgrnam(const char *name);
-extern char * my_getug(char *buffer, char *idname, long id, int bufsize, char prefix);
-extern char * my_getpwuid(char *name, long uid, int bufsize);
-extern char * my_getgrgid(char *group, long gid, int bufsize);
+ * increases target size and is often not needed on embedded systems.  */
+extern long bb_xgetpwnam(const char *name);
+extern long bb_xgetgrnam(const char *name);
+extern char * bb_getug(char *buffer, char *idname, long id, int bufsize, char prefix);
+extern char * bb_getpwuid(char *name, long uid, int bufsize);
+extern char * bb_getgrgid(char *group, long gid, int bufsize);
 extern char *bb_askpass(int timeout, const char * prompt);
 
 extern int device_open(const char *device, int mode);
 
+extern char *query_loop(const char *device);
 extern int del_loop(const char *device);
-extern int set_loop(const char *device, const char *file, int offset, int *loopro);
-extern char *find_unused_loop_device (void);
-
+extern int set_loop(char **device, const char *file, int offset);
 
 #if (__GLIBC__ < 2)
 extern int vdprintf(int d, const char *format, va_list ap);
 #endif
 
 int nfsmount(const char *spec, const char *node, int *flags,
-	     char **extra_opts, char **mount_opts, int running_bg);
+	     char **mount_opts, int running_bg);
 
 /* Include our own copy of struct sysinfo to avoid binary compatability
  * problems with Linux 2.4, which changed things.  Grumble, grumble. */
@@ -341,6 +333,12 @@ extern const char * const bb_path_gshadow_file;
 extern const char * const bb_path_group_file;
 extern const char * const bb_path_securetty_file;
 extern const char * const bb_path_motd_file;
+extern const char * const bb_dev_null;
+
+#ifndef BUFSIZ
+#define BUFSIZ 4096
+#endif
+extern char bb_common_bufsiz1[BUFSIZ+1];
 
 /*
  * You can change LIBBB_DEFAULT_LOGIN_SHELL, but don`t use,
@@ -418,17 +416,17 @@ void reset_ino_dev_hashtable(void);
 extern size_t bb_strlen(const char *string);
 #define strlen(x)   bb_strlen(x)
 
-void bb_xasprintf(char **string_ptr, const char *format, ...) __attribute__ ((format (printf, 2, 3)));
-
+char *bb_xasprintf(const char *format, ...) __attribute__ ((format (printf, 1, 2)));
 
 #define FAIL_DELAY    3
+extern void bb_do_delay(int seconds);
 extern void change_identity ( const struct passwd *pw );
 extern const char *change_identity_e2str ( const struct passwd *pw );
-extern void run_shell ( const char *shell, int loginshell, const char *command, const char **additional_args
+extern void run_shell ( const char *shell, int loginshell, const char *command, const char **additional_args);
 #ifdef CONFIG_SELINUX
-	, security_id_t sid
+extern void renew_current_security_context(void);
+extern void set_current_security_context(security_context_t sid);
 #endif
-);
 extern int run_parts(char **args, const unsigned char test_mode, char **env);
 extern int restricted_shell ( const char *shell );
 extern void setup_environment ( const char *shell, int loginshell, int changeenv, const struct passwd *pw );
@@ -442,29 +440,35 @@ extern ssize_t bb_xread(int fd, void *buf, size_t count);
 extern void bb_xread_all(int fd, void *buf, size_t count);
 extern unsigned char bb_xread_char(int fd);
 
+#ifndef COMM_LEN
+/*#include <sched.h> *//* Task command name length */
+#ifdef TASK_COMM_LEN
+#define COMM_LEN TASK_COMM_LEN
+#else
+#define COMM_LEN 16 /* synchronize with size of comm in struct task_struct
+					                          in /usr/include/linux/sched.h */
+#endif
+#endif
 typedef struct {
 	int pid;
 	char user[9];
 	char state[4];
 	unsigned long rss;
 	int ppid;
-#ifdef FEATURE_CPU_USAGE_PERCENTAGE
+#ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
 	unsigned pcpu;
+	unsigned pscpu;
 	unsigned long stime, utime;
 #endif
 	char *cmd;
 
 	/* basename of executable file in call to exec(2),
 		size from kernel headers */
-	char short_cmd[16];
+	char short_cmd[COMM_LEN];
 } procps_status_t;
 
-extern procps_status_t * procps_scan(int save_user_arg0
-#ifdef CONFIG_SELINUX
-	, int use_selinux, security_id_t *sid
-#endif
-);
-extern unsigned short compare_string_array(const char *string_array[], const char *key);
+extern procps_status_t * procps_scan(int save_user_arg0);
+extern int compare_string_array(const char * const string_array[], const char *key);
 
 extern int my_query_module(const char *name, int which, void **buf, size_t *bufsize, size_t *ret);
 
@@ -473,18 +477,25 @@ typedef struct llist_s {
 	struct llist_s *link;
 } llist_t;
 extern llist_t *llist_add_to(llist_t *old_head, char *new_item);
+extern llist_t *llist_add_to_end(llist_t *list_head, char *data);
+extern llist_t *llist_free_one(llist_t *elm);
+extern void llist_free(llist_t *elm);
 
 extern void print_login_issue(const char *issue_file, const char *tty);
 extern void print_login_prompt(void);
 
 extern void vfork_daemon_rexec(int nochdir, int noclose,
 		int argc, char **argv, char *foreground_opt);
-extern void get_terminal_width_height(int fd, int *width, int *height);
-extern unsigned long get_ug_id(const char *s, long (*my_getxxnam)(const char *));
-extern void xregcomp(regex_t *preg, const char *regex, int cflags);
+extern int get_terminal_width_height(int fd, int *width, int *height);
+extern unsigned long get_ug_id(const char *s, long (*__bb_getxxnam)(const char *));
 
 #define HASH_SHA1	1
 #define HASH_MD5	2
 extern int hash_fd(int fd, const size_t size, const uint8_t hash_algo, uint8_t *hashval);
+
+/* busybox.h will include dmalloc later for us, else include it here.  */
+#if !defined _BB_INTERNAL_H_ && defined DMALLOC
+#include <dmalloc.h>
+#endif
 
 #endif /* __LIBCONFIG_H__ */

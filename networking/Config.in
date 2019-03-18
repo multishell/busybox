@@ -18,6 +18,19 @@ config CONFIG_ARPING
 	help
 	  Ping hosts by ARP packets
 
+config CONFIG_ETHER_WAKE
+	bool "ether-wake"
+	default n
+	help
+	  Send a magic packet to wake up sleeping machines.
+
+config CONFIG_FAKEIDENTD
+	bool "fakeidentd"
+	default n
+	help
+	  fakeidentd listens to the ident port and returns a set fake
+	  value whatever it gets.
+
 config CONFIG_FTPGET
 	bool "ftpget"
 	default n
@@ -101,7 +114,7 @@ config CONFIG_FEATURE_HTTPD_CGI
 	depends on CONFIG_HTTPD
 	help
 	  This option allows scripts and executables to be invoked
-  	  when specific urls are requested.
+	  when specific urls are requested.
 
 config CONFIG_FEATURE_HTTPD_SET_REMOTE_PORT_TO_ENV
 	bool "  Support the REMOTE_PORT environment variable for CGI"
@@ -171,6 +184,7 @@ config CONFIG_FEATURE_IFCONFIG_BROADCAST_PLUS
 config CONFIG_IFUPDOWN
 	bool "ifupdown"
 	default n
+	select CONFIG_RUN_PARTS
 	help
 	  Activate or deactivate the specified interfaces.  This applet makes
 	  use of either "ifconfig" and "route" or the "ip" command to actually
@@ -291,6 +305,13 @@ config CONFIG_FEATURE_INETD_SUPPORT_BILTIN_CHARGEN
 	help
 	  Familiar character generator internal inetd service
 
+config CONFIG_FEATURE_INETD_RPC
+	bool "  Support RPC services"
+	default n
+	depends on CONFIG_INETD
+	help
+	  Suuport Sun-RPC based services
+
 
 config CONFIG_IP
 	bool "ip"
@@ -406,7 +427,7 @@ config CONFIG_NAMEIF
 	  File fields are separated by space or tab.
 	  File format:
 	  # Comment
-	  new_interface_name	XX:XX:XX:XX:XX:XX
+	  new_interface_name    XX:XX:XX:XX:XX:XX
 
 config CONFIG_NC
 	bool "nc"
@@ -414,6 +435,14 @@ config CONFIG_NC
 	help
 	  A simple Unix utility which reads and writes data across network
 	  connections.
+
+config CONFIG_NC_GAPING_SECURITY_HOLE
+	bool "gaping security hole"
+	default n
+	depends on CONFIG_NC
+	help
+	  Add support for executing a program after making or receiving a
+	  successful connection (-e option).
 
 config CONFIG_NETSTAT
 	bool "netstat"
@@ -492,7 +521,6 @@ config CONFIG_FEATURE_TELNET_AUTOLOGIN
 config CONFIG_TELNETD
 	bool "telnetd"
 	default n
-	select CONFIG_LOGIN
 	help
 	  A daemon for the TELNET protocol, allowing you to log onto the host
 	  running the daemon.  Please keep in mind that the TELNET protocol
@@ -594,6 +622,22 @@ config CONFIG_FEATURE_TRACEROUTE_VERBOSE
 	  Add some verbosity to traceroute.  This includes amongst other things
 	  hostnames and ICMP response types.
 
+config CONFIG_FEATURE_TRACEROUTE_SOURCE_ROUTE
+	bool "  Enable loose source route"
+	default n
+	depends on CONFIG_TRACEROUTE
+	help
+	  Add option to specify a loose source route gateway
+	  (8 maximum).
+
+config CONFIG_FEATURE_TRACEROUTE_USE_ICMP
+	bool "  Use ICMP instead of UDP"
+	default n
+	depends on CONFIG_TRACEROUTE
+	help
+	  Add feature to allow for ICMP ECHO instead of UDP datagrams.
+
+
 config CONFIG_VCONFIG
 	bool "vconfig"
 	default n
@@ -629,6 +673,17 @@ config CONFIG_FEATURE_WGET_IP6_LITERAL
 	  Support IPv6 address literal notation in URLs.
 
 source networking/udhcp/Config.in
+
+config CONFIG_ZCIP
+	bool "zcip"
+	default n
+	help
+	  ZCIP provides ZeroConf IPv4 address selection, according to RFC 3927.
+	  It's a daemon that allocates and defends a dynamically assigned
+	  address on the 169.254/16 network, requiring no system administrator.
+
+	  See http://www.zeroconf.org for further details, and "zcip.script"
+	  in the busybox examples.
 
 endmenu
 

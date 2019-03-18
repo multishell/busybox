@@ -132,7 +132,7 @@ static void crondlog(const char *ctl, ...)
 		if (LogFile == 0) {
 			vsyslog(type, fmt, va);
 		} else {
-			int logfd = open(LogFile, O_WRONLY | O_CREAT | O_APPEND, 600);
+			int logfd = open(LogFile, O_WRONLY | O_CREAT | O_APPEND, 0600);
 			if (logfd >= 0) {
 				vdprintf(logfd, fmt, va);
 				close(logfd);
@@ -157,9 +157,9 @@ int crond_main(int ac, char **av)
 #ifdef FEATURE_DEBUG_OPT
 	char *dopt;
 
-	bb_opt_complementaly = "f-b:b-f:S-L:L-S:d-l";
+	bb_opt_complementally = "f-b:b-f:S-L:L-S:d-l";
 #else
-	bb_opt_complementaly = "f-b:b-f:S-L:L-S";
+	bb_opt_complementally = "f-b:b-f:S-L:L-S";
 #endif
 
 	opterr = 0;			/* disable getopt 'errors' message. */
@@ -348,7 +348,7 @@ static void startlogger(void)
 	else {				/* test logfile */
 		int logfd;
 
-		if ((logfd = open(LogFile, O_WRONLY | O_CREAT | O_APPEND, 600)) >= 0) {
+		if ((logfd = open(LogFile, O_WRONLY | O_CREAT | O_APPEND, 0600)) >= 0) {
 			close(logfd);
 		} else {
 			bb_perror_msg("Failed to open log file '%s' reason", LogFile);
@@ -589,10 +589,8 @@ static void SynchronizeFile(const char *fileName)
 					CronLine line;
 					char *ptr;
 
-					if (buf[0]) {
-						buf[strlen(buf) - 1] = 0;
-					}
-					if (buf[0] == 0 || buf[0] == '#' || buf[0] == ' ' || buf[0] == '\t') {
+					trim(buf);
+					if (buf[0] == 0 || buf[0] == '#') {
 						continue;
 					}
 					if (--maxEntries == 0) {

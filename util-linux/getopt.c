@@ -63,10 +63,10 @@ typedef enum {BASH,TCSH} shell_t;
 
 /* Some global variables that tells us how to parse. */
 static shell_t shell=BASH; /* The shell we generate output for. */
-static int quiet_errors=0; /* 0 is not quiet. */
-static int quiet_output=0; /* 0 is not quiet. */
+static int quiet_errors; /* 0 is not quiet. */
+static int quiet_output; /* 0 is not quiet. */
 static int quote=1; /* 1 is do quote. */
-static int alternative=0; /* 0 is getopt_long, 1 is getopt_long_only */
+static int alternative; /* 0 is getopt_long, 1 is getopt_long_only */
 
 /* Function prototypes */
 static const char *normalize(const char *arg);
@@ -192,9 +192,9 @@ int generate_output(char * argv[],int argc,const char *optstr,
         return exit_code;
 }
 
-static struct option *long_options=NULL;
-static int long_options_length=0; /* Length of array */
-static int long_options_nr=0; /* Nr of used elements in array */
+static struct option *long_options;
+static int long_options_length; /* Length of array */
+static int long_options_nr; /* Nr of used elements in array */
 static const int LONG_OPTIONS_INCR = 10;
 #define init_longopt() add_longopt(NULL,0)
 
@@ -285,7 +285,7 @@ void set_shell(const char *new_shell)
  *   4) Returned for -T
  */
 
-static struct option longopts[]=
+static const struct option longopts[]=
 {
         {"options",required_argument,NULL,'o'},
         {"longoptions",required_argument,NULL,'l'},
@@ -300,13 +300,13 @@ static struct option longopts[]=
 };
 
 /* Stop scanning as soon as a non-option argument is found! */
-static const char *shortopts="+ao:l:n:qQs:Tu";
+static const char shortopts[]="+ao:l:n:qQs:Tu";
 
 
 int getopt_main(int argc, char *argv[])
 {
         const char *optstr = NULL;
-        const char *name = NULL;
+        char *name = NULL;
         int opt;
         int compatible=0;
 
@@ -326,11 +326,13 @@ int getopt_main(int argc, char *argv[])
         }
 
         if (argv[1][0] != '-' || compatible) {
+		char *s;
+		
                 quote=0;
-                optstr=xmalloc(strlen(argv[1])+1);
-                strcpy(optstr,argv[1]+strspn(argv[1],"-+"));
+                s=xmalloc(strlen(argv[1])+1);
+                strcpy(s,argv[1]+strspn(argv[1],"-+"));
                 argv[1]=argv[0];
-               return (generate_output(argv+1,argc-1,optstr,long_options));
+               return (generate_output(argv+1,argc-1,s,long_options));
         }
 
         while ((opt=getopt_long(argc,argv,shortopts,longopts,NULL)) != EOF)
@@ -339,14 +341,12 @@ int getopt_main(int argc, char *argv[])
                         alternative=1;
                         break;
                 case 'o':
-                       free(optstr);
                        optstr = optarg;
                         break;
                 case 'l':
                         add_long_options(optarg);
                         break;
                 case 'n':
-                       free(name);
                        name = optarg;
                         break;
                 case 'q':
@@ -370,10 +370,7 @@ int getopt_main(int argc, char *argv[])
         if (!optstr) {
                 if (optind >= argc)
                         bb_error_msg_and_die("missing optstring argument");
-                else {
-                       optstr=bb_xstrdup(argv[optind]);
-                        optind++;
-                }
+                else optstr=argv[optind++];
         }
         if (name)
                 argv[optind-1]=name;

@@ -24,11 +24,10 @@
 
 #include <stdio.h>
 #include <errno.h>
-#include <getopt.h>
+#include <getopt.h> /* optind */
 #include <string.h>
 #include <stdlib.h>
-
-#include "libbb.h"
+#include "busybox.h"
 
 static int read_stduu(FILE *src_stream, FILE *dst_stream)
 {

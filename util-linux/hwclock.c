@@ -155,11 +155,15 @@ static int from_sys_clock(int utc)
 	return 0;
 }
 
-
+#ifdef CONFIG_FEATURE_HWCLOCK_ADJTIME_FHS
+# define ADJTIME_PATH "/var/lib/hwclock/adjtime"
+#else
+# define ADJTIME_PATH "/etc/adjtime"
+#endif
 static int check_utc(void)
 {
 	int utc = 0;
-	FILE *f = fopen ( "/var/lib/hwclock/adjtime", "r" );
+	FILE *f = fopen ( ADJTIME_PATH, "r" );
 
 	if ( f ) {
 		char buffer [128];
@@ -205,12 +209,8 @@ static const struct option hwclock_long_options[] = {
 	bb_applet_long_options = hwclock_long_options;
 #endif
 
-	bb_opt_complementaly = "r~ws:w~rs:s~wr:l~u:u~l";
+	bb_opt_complementally = "?:r--ws:w--rs:s--wr:l--u:u--l";
 	opt = bb_getopt_ulflags(argc, argv, "lursw");
-	/* Check only one mode was given */
-	if(opt & BB_GETOPT_ERROR) {
-		bb_show_usage();
-	}
 
 	/* If -u or -l wasn't given check if we are using utc */
 	if (opt & (HWCLOCK_OPT_UTC | HWCLOCK_OPT_LOCALTIME))

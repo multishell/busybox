@@ -21,7 +21,7 @@ static int new_password(const struct passwd *pw, int amroot, int algo);
 static void set_filesize_limit(int blocks);
 
 
-int get_algo(char *a)
+static int get_algo(char *a)
 {
 	int x = 1;					/* standard: MD5 */
 
@@ -31,7 +31,7 @@ int get_algo(char *a)
 }
 
 
-extern int update_passwd(const struct passwd *pw, char *crypt_pw)
+static int update_passwd(const struct passwd *pw, const char *crypt_pw)
 {
 	char filename[1024];
 	char buf[1025];
@@ -168,7 +168,7 @@ extern int passwd_main(int argc, char **argv)
 			bb_show_usage();
 		}
 	}
-	myname = (char *) bb_xstrdup(my_getpwuid(NULL, getuid(), -1));
+	myname = (char *) bb_xstrdup(bb_getpwuid(NULL, getuid(), -1));
 	/* exits on error */
 	if (optind < argc) {
 		name = argv[optind];
@@ -323,7 +323,6 @@ static int new_password(const struct passwd *pw, int amroot, int algo)
 	char *cp;
 	char orig[200];
 	char pass[200];
-	time_t start, now;
 
 	if (!amroot && crypt_passwd[0]) {
 		if (!(clear = bb_askpass(0, "Old password:"))) {
@@ -334,12 +333,7 @@ static int new_password(const struct passwd *pw, int amroot, int algo)
 		if (strcmp(cipher, crypt_passwd) != 0) {
 			syslog(LOG_WARNING, "incorrect password for `%s'",
 				   pw->pw_name);
-			time(&start);
-			now = start;
-			while (difftime(now, start) < FAIL_DELAY) {
-				sleep(FAIL_DELAY);
-				time(&now);
-			}
+			bb_do_delay(FAIL_DELAY);
 			fprintf(stderr, "Incorrect password.\n");
 			/* return -1; */
 			return 1;

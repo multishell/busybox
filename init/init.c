@@ -225,7 +225,7 @@ static void message(int device, const char *fmt, ...)
 	if (device & LOG) {
 		/* don`t out "\r\n" */
 		openlog(bb_applet_name, 0, LOG_DAEMON);
-		syslog(LOG_INFO, "%s", msg);
+		syslog(LOG_INFO, "%s", msg + 1);
 		closelog();
 	}
 
@@ -308,37 +308,6 @@ static void set_term(int fd)
 	tcsetattr(fd, TCSANOW, &tty);
 }
 
-#ifdef CONFIG_FEATURE_INIT_SWAPON
-/* How much memory does this machine have?
-   Units are kBytes to avoid overflow on 4GB machines */
-static unsigned int check_free_memory(void)
-{
-	struct sysinfo info;
-	unsigned int result, u, s = 10;
-
-	if (sysinfo(&info) != 0) {
-		bb_perror_msg("Error checking free memory");
-		return -1;
-	}
-
-	/* Kernels 2.0.x and 2.2.x return info.mem_unit==0 with values in bytes.
-	 * Kernels 2.4.0 return info.mem_unit in bytes. */
-	u = info.mem_unit;
-	if (u == 0)
-		u = 1;
-	while ((u & 1) == 0 && s > 0) {
-		u >>= 1;
-		s--;
-	}
-	result = (info.totalram >> s) + (info.totalswap >> s);
-	if (((unsigned long long)result * (unsigned long long)u) > UINT_MAX) {
-		return(UINT_MAX);
-	} else {
-		return(result * u);
-	}
-}
-#endif /* CONFIG_FEATURE_INIT_SWAPON */
-
 static void console_init(void)
 {
 	int fd;
@@ -384,7 +353,7 @@ static void console_init(void)
 #ifndef CONFIG_SYSLOGD
 		log_console =
 #endif
-		safe_strncpy(console, "/dev/null", sizeof(console));
+		safe_strncpy(console, bb_dev_null, sizeof(console));
 	} else {
 		s = getenv("TERM");
 		/* check for serial console */
@@ -577,6 +546,13 @@ static pid_t run(const struct init_action *a)
 				cmd[0][0] = '-';
 				strcpy(cmd[0] + 1, s);
 			}
+#ifdef CONFIG_FEATURE_INIT_SCTTY
+			/* Establish this process as session leader and
+			 * (attempt) to make the tty (if any) a controlling tty.
+			 */
+			(void) setsid();
+			(void) ioctl(0, TIOCSCTTY, 0/*don't steal it*/);
+#endif
 		}
 
 #if !defined(__UCLIBC__) || defined(__ARCH_HAS_MMU__)
@@ -858,7 +834,7 @@ static void new_init_action(int action, const char *command, const char *cons)
 	/* do not run entries if console device is not available */
 	if (access(cons, R_OK | W_OK))
 		return;
-	if (strcmp(cons, "/dev/null") == 0 && (action & ASKFIRST))
+	if (strcmp(cons, bb_dev_null) == 0 && (action & ASKFIRST))
 		return;
 
 	new_action = calloc((size_t) (1), sizeof(struct init_action));
@@ -911,38 +887,6 @@ static void delete_init_action(struct init_action *action)
 	}
 }
 
-#ifdef CONFIG_FEATURE_INIT_SWAPON
-/* Make sure there is enough memory to do something useful. *
- * Calls "swapon -a" if needed so be sure /etc/fstab is present... */
-static void check_memory(void)
-{
-	struct stat statBuf;
-
-	if (check_free_memory() > 1000)
-		return;
-
-#if !defined(__UCLIBC__) || defined(__ARCH_HAS_MMU__)
-	if (stat("/etc/fstab", &statBuf) == 0) {
-		/* swapon -a requires /proc typically */
-		new_init_action(SYSINIT, "/bin/mount -t proc proc /proc", "");
-		/* Try to turn on swap */
-		new_init_action(SYSINIT, "/sbin/swapon -a", "");
-		run_actions(SYSINIT);   /* wait and removing */
-		if (check_free_memory() < 1000)
-			goto goodnight;
-	} else
-		goto goodnight;
-	return;
-#endif
-
-  goodnight:
-	message(CONSOLE, "Sorry, your computer does not have enough memory.");
-	loop_forever();
-}
-#else
-# define check_memory()
-#endif /* CONFIG_FEATURE_INIT_SWAPON */
-
 /* NOTE that if CONFIG_FEATURE_USE_INITTAB is NOT defined,
  * then parse_inittab() simply adds in some default
  * actions(i.e., runs INIT_SCRIPT and then starts a pair
@@ -968,10 +912,8 @@ static void parse_inittab(void)
 		new_init_action(CTRLALTDEL, "/sbin/reboot", "");
 		/* Umount all filesystems on halt/reboot */
 		new_init_action(SHUTDOWN, "/bin/umount -a -r", "");
-#if !defined(__UCLIBC__) || defined(__ARCH_HAS_MMU__)
 		/* Swapoff on halt/reboot */
-		new_init_action(SHUTDOWN, "/sbin/swapoff -a", "");
-#endif
+		if(ENABLE_SWAPONOFF) new_init_action(SHUTDOWN, "/sbin/swapoff -a", "");
 		/* Prepare to restart init when a HUP is received */
 		new_init_action(RESTART, "/sbin/init", "");
 		/* Askfirst shell on tty1-4 */
@@ -1144,7 +1086,20 @@ extern int init_main(int argc, char **argv)
 	message(MAYBE_CONSOLE | LOG, "init started:  %s", bb_msg_full_version);
 
 	/* Make sure there is enough memory to do something useful. */
-	check_memory();
+	if (ENABLE_SWAPONOFF) {
+		struct sysinfo info;
+
+		if (!sysinfo(&info) &&
+			(info.mem_unit ? : 1) * (long long)info.totalram < MEGABYTE)
+		{
+			message(CONSOLE,"Low memory: forcing swapon.");
+			/* swapon -a requires /proc typically */
+			new_init_action(SYSINIT, "/bin/mount -t proc proc /proc", "");
+			/* Try to turn on swap */
+			new_init_action(SYSINIT, "/sbin/swapon -a", "");
+			run_actions(SYSINIT);   /* wait and removing */
+		}
+	}
 
 	/* Check if we are supposed to be in single user mode */
 	if (argc > 1 && (!strcmp(argv[1], "single") ||

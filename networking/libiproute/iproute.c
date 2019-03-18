@@ -1,10 +1,7 @@
 /*
  * iproute.c		"ip route".
  *
- *		This program is free software; you can redistribute it and/or
- *		modify it under the terms of the GNU General Public License
- *		as published by the Free Software Foundation; either version
- *		2 of the License, or (at your option) any later version.
+ * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  *
  * Authors:	Alexey Kuznetsov, <kuznet@ms2.inr.ac.ru>
  *
@@ -537,6 +534,15 @@ static int iproute_list_or_flush(int argc, char **argv, int flush)
 			} else if (matches(*argv, "match") == 0) {
 				NEXT_ARG();
 				get_prefix(&filter.mdst, *argv, do_ipv6);
+			} else if (matches(*argv, "table") == 0) {
+				NEXT_ARG();
+				if (matches(*argv, "cache") == 0) {
+					filter.tb = -1;
+				} else if (matches(*argv, "main") != 0) {
+					invarg("invalid \"table\"", *argv);
+				}
+			} else if (matches(*argv, "cache") == 0) {
+				filter.tb = -1;
 			} else {
 				if (matches(*argv, "exact") == 0) {
 					NEXT_ARG();
@@ -579,7 +585,7 @@ static int iproute_list_or_flush(int argc, char **argv, int flush)
 	}
 
 	if (flush) {
-		int round = 0;
+		int _round = 0;
 		char flushb[4096-512];
 
 		if (filter.tb == -1) {
@@ -605,14 +611,14 @@ static int iproute_list_or_flush(int argc, char **argv, int flush)
 				return -1;
 			}
 			if (filter.flushed == 0) {
-				if (round == 0) {
+				if (_round == 0) {
 					if (filter.tb != -1 || do_ipv6 == AF_INET6)
 						fprintf(stderr, "Nothing to flush.\n");
 				}
 				fflush(stdout);
 				return 0;
 			}
-			round++;
+			_round++;
 			if (flush_update() < 0)
 				exit(1);
 		}
@@ -648,7 +654,8 @@ static int iproute_get(int argc, char **argv)
 	char  *odev = NULL;
 	int connected = 0;
 	int from_ok = 0;
-	const char *options[] = { "from", "iif", "oif", "dev", "notify", "connected", "to", 0 };
+	static const char * const options[] = 
+		{ "from", "iif", "oif", "dev", "notify", "connected", "to", 0 };
 
 	memset(&req, 0, sizeof(req));
 
@@ -807,9 +814,10 @@ static int iproute_get(int argc, char **argv)
 
 int do_iproute(int argc, char **argv)
 {
-	const char *ip_route_commands[] = { "add", "append", "change", "chg",
-		"delete", "del", "get", "list", "show", "prepend", "replace", "test", "flush", 0 };
-	unsigned short command_num = 7;
+	static const char * const ip_route_commands[] = 
+		{ "add", "append", "change", "chg", "delete", "del", "get", 
+		"list", "show", "prepend", "replace", "test", "flush", 0 };
+	int command_num = 7;
 	unsigned int flags = 0;
 	int cmd = RTM_NEWROUTE;
 

@@ -109,6 +109,14 @@ extern int insmod_ng_main( int argc, char **argv);
 #endif
 
 
+/* Alpha */
+#if defined(__alpha__)
+#define MATCH_MACHINE(x) (x == EM_ALPHA)
+#define SHT_RELM       SHT_RELA
+#define Elf64_RelM     Elf64_Rela
+#define ELFCLASSM      ELFCLASS64
+#endif
+
 /* ARM support */
 #if defined(__arm__)
 #define MATCH_MACHINE(x) (x == EM_ARM)
@@ -143,6 +151,19 @@ extern int insmod_ng_main( int argc, char **argv);
 #define ELFCLASSM	ELFCLASS32
 #define CONFIG_USE_SINGLE
 #define SYMBOL_PREFIX	"_"
+#endif
+
+/* PA-RISC / HP-PA */
+#if defined(__hppa__)
+#define MATCH_MACHINE(x) (x == EM_PARISC)
+#define SHT_RELM       SHT_RELA
+#if defined(__LP64__)
+#define Elf64_RelM     Elf64_Rela
+#define ELFCLASSM      ELFCLASS64
+#else
+#define Elf32_RelM     Elf32_Rela
+#define ELFCLASSM      ELFCLASS32
+#endif
 #endif
 
 /* x86 */
@@ -196,8 +217,21 @@ extern int insmod_ng_main( int argc, char **argv);
 #define ARCHDATAM       "__dbe_table"
 #endif
 
+/* Nios II */
+#if defined(__nios2__)
+#define MATCH_MACHINE(x) (x == EM_ALTERA_NIOS2)
+#define SHT_RELM	SHT_RELA
+#define Elf32_RelM	Elf32_Rela
+#define ELFCLASSM	ELFCLASS32
+#endif
+
 /* PowerPC */
-#if defined(__powerpc__)
+#if defined(__powerpc64__)
+#define MATCH_MACHINE(x) (x == EM_PPC64)
+#define SHT_RELM	SHT_RELA
+#define Elf64_RelM	Elf64_Rela
+#define ELFCLASSM	ELFCLASS64
+#elif defined(__powerpc__)
 #define MATCH_MACHINE(x) (x == EM_PPC)
 #define SHT_RELM	SHT_RELA
 #define Elf32_RelM	Elf32_Rela
@@ -270,6 +304,9 @@ extern int insmod_ng_main( int argc, char **argv);
 #if defined(__x86_64__)
 #define MATCH_MACHINE(x) (x == EM_X86_64)
 #define SHT_RELM	SHT_RELA
+#define CONFIG_USE_GOT_ENTRIES
+#define CONFIG_GOT_ENTRY_SIZE 8
+#define CONFIG_USE_SINGLE
 #define Elf64_RelM	Elf64_Rela
 #define ELFCLASSM	ELFCLASS64
 #endif
@@ -308,7 +345,7 @@ extern int insmod_ng_main( int argc, char **argv);
 #ifndef MODUTILS_MODULE_H
 static const int MODUTILS_MODULE_H = 1;
 
-#ident "$Id: insmod.c,v 1.125 2004/09/02 23:03:25 andersen Exp $"
+#ident "$Id: insmod.c,v 1.126 2004/12/26 09:13:32 vapier Exp $"
 
 /*======================================================================*/
 /* For sizeof() which are related to the module platform and not to the
@@ -466,7 +503,7 @@ int delete_module(const char *);
 #ifndef MODUTILS_OBJ_H
 static const int MODUTILS_OBJ_H = 1;
 
-#ident "$Id: insmod.c,v 1.125 2004/09/02 23:03:25 andersen Exp $"
+#ident "$Id: insmod.c,v 1.126 2004/12/26 09:13:32 vapier Exp $"
 
 /* The relocatable object is manipulated using elfin types.  */
 
@@ -498,6 +535,12 @@ static const int MODUTILS_OBJ_H = 1;
 #ifndef ELF64_ST_INFO
 # define ELF64_ST_INFO(bind, type)       (((bind) << 4) + ((type) & 0xf))
 #endif
+
+#define ELF_ST_BIND(info) ELFW(ST_BIND)(info)
+#define ELF_ST_TYPE(info) ELFW(ST_TYPE)(info)
+#define ELF_ST_INFO(bind, type) ELFW(ST_INFO)(bind, type)
+#define ELF_R_TYPE(val) ELFW(R_TYPE)(val)
+#define ELF_R_SYM(val) ELFW(R_SYM)(val)
 
 struct obj_string_patch;
 struct obj_symbol_patch;
@@ -697,8 +740,8 @@ struct arch_single_entry
 struct mips_hi16
 {
 	struct mips_hi16 *next;
-	Elf32_Addr *addr;
-	Elf32_Addr value;
+	ElfW(Addr) *addr;
+	ElfW(Addr) value;
 };
 #endif
 
@@ -808,7 +851,7 @@ arch_apply_relocation(struct obj_file *f,
 					  struct obj_section *targsec,
 					  struct obj_section *symsec,
 					  struct obj_symbol *sym,
-				      ElfW(RelM) *rel, ElfW(Addr) v)
+					  ElfW(RelM) *rel, ElfW(Addr) v)
 {
 	struct arch_file *ifile = (struct arch_file *) f;
 	enum obj_reloc ret = obj_reloc_ok;
@@ -823,17 +866,17 @@ arch_apply_relocation(struct obj_file *f,
 #if defined(CONFIG_USE_PLT_ENTRIES)
 	ElfW(Addr) plt = ifile->plt ? ifile->plt->header.sh_addr : 0;
 	unsigned long *ip;
-#if defined(CONFIG_USE_PLT_LIST)
+# if defined(CONFIG_USE_PLT_LIST)
 	struct arch_list_entry *pe;
-#else
+# else
 	struct arch_single_entry *pe;
-#endif
+# endif
 #endif
 
-	switch (ELF32_R_TYPE(rel->r_info)) {
-
+	switch (ELF_R_TYPE(rel->r_info)) {
 
 #if defined(__arm__)
+
 		case R_ARM_NONE:
 			break;
 
@@ -862,90 +905,46 @@ arch_apply_relocation(struct obj_file *f,
 			*loc += v - got;
 			break;
 
-#elif defined(__s390__)
-		case R_390_32:
-			*(unsigned int *) loc += v;
-			break;
-		case R_390_16:
-			*(unsigned short *) loc += v;
-			break;
-		case R_390_8:
-			*(unsigned char *) loc += v;
+#elif defined(__cris__)
+
+		case R_CRIS_NONE:
 			break;
 
-		case R_390_PC32:
-			*(unsigned int *) loc += v - dot;
-			break;
-		case R_390_PC16DBL:
-			*(unsigned short *) loc += (v - dot) >> 1;
-			break;
-		case R_390_PC16:
-			*(unsigned short *) loc += v - dot;
-			break;
-
-		case R_390_PLT32:
-		case R_390_PLT16DBL:
-			/* find the plt entry and initialize it.  */
-			assert(isym != NULL);
-			pe = (struct arch_single_entry *) &isym->pltent;
-			assert(pe->allocated);
-			if (pe->inited == 0) {
-				ip = (unsigned long *)(ifile->plt->contents + pe->offset);
-				ip[0] = 0x0d105810; /* basr 1,0; lg 1,10(1); br 1 */
-				ip[1] = 0x100607f1;
-				if (ELF32_R_TYPE(rel->r_info) == R_390_PLT16DBL)
-					ip[2] = v - 2;
-				else
-					ip[2] = v;
-				pe->inited = 1;
-			}
-
-			/* Insert relative distance to target.  */
-			v = plt + pe->offset - dot;
-			if (ELF32_R_TYPE(rel->r_info) == R_390_PLT32)
-				*(unsigned int *) loc = (unsigned int) v;
-			else if (ELF32_R_TYPE(rel->r_info) == R_390_PLT16DBL)
-				*(unsigned short *) loc = (unsigned short) ((v + 2) >> 1);
-			break;
-
-		case R_390_GLOB_DAT:
-		case R_390_JMP_SLOT:
+		case R_CRIS_32:
+			/* CRIS keeps the relocation value in the r_addend field and
+			 * should not use whats in *loc at all
+			 */
 			*loc = v;
 			break;
 
-		case R_390_RELATIVE:
-			*loc += f->baseaddr;
-			break;
+#elif defined(__H8300H__) || defined(__H8300S__)
 
-		case R_390_GOTPC:
-			assert(got != 0);
-			*(unsigned long *) loc += got - dot;
+		case R_H8_DIR24R8:
+			loc = (ElfW(Addr) *)((ElfW(Addr))loc - 1);
+			*loc = (*loc & 0xff000000) | ((*loc & 0xffffff) + v);
 			break;
-
-		case R_390_GOT12:
-		case R_390_GOT16:
-		case R_390_GOT32:
-			assert(isym != NULL);
-			assert(got != 0);
-			if (!isym->gotent.inited)
-			{
-				isym->gotent.inited = 1;
-				*(Elf32_Addr *)(ifile->got->contents + isym->gotent.offset) = v;
-			}
-			if (ELF32_R_TYPE(rel->r_info) == R_390_GOT12)
-				*(unsigned short *) loc |= (*(unsigned short *) loc + isym->gotent.offset) & 0xfff;
-			else if (ELF32_R_TYPE(rel->r_info) == R_390_GOT16)
-				*(unsigned short *) loc += isym->gotent.offset;
-			else if (ELF32_R_TYPE(rel->r_info) == R_390_GOT32)
-				*(unsigned int *) loc += isym->gotent.offset;
+		case R_H8_DIR24A8:
+			*loc += v;
 			break;
-
-#ifndef R_390_GOTOFF32
-#define R_390_GOTOFF32 R_390_GOTOFF
-#endif
-		case R_390_GOTOFF32:
-			assert(got != 0);
-			*loc += v - got;
+		case R_H8_DIR32:
+		case R_H8_DIR32A16:
+			*loc += v;
+			break;
+		case R_H8_PCREL16:
+			v -= dot + 2;
+			if ((ElfW(Sword))v > 0x7fff ||
+			    (ElfW(Sword))v < -(ElfW(Sword))0x8000)
+				ret = obj_reloc_overflow;
+			else
+				*(unsigned short *)loc = v;
+			break;
+		case R_H8_PCREL8:
+			v -= dot + 1;
+			if ((ElfW(Sword))v > 0x7f ||
+			    (ElfW(Sword))v < -(ElfW(Sword))0x80)
+				ret = obj_reloc_overflow;
+			else
+				*(unsigned char *)loc = v;
 			break;
 
 #elif defined(__i386__)
@@ -1009,8 +1008,8 @@ arch_apply_relocation(struct obj_file *f,
 
 		case R_68K_PC8:
 			v -= dot;
-			if ((Elf32_Sword)v > 0x7f ||
-					(Elf32_Sword)v < -(Elf32_Sword)0x80) {
+			if ((ElfW(Sword))v > 0x7f ||
+					(ElfW(Sword))v < -(ElfW(Sword))0x80) {
 				ret = obj_reloc_overflow;
 			}
 			*(char *)loc = v;
@@ -1018,8 +1017,8 @@ arch_apply_relocation(struct obj_file *f,
 
 		case R_68K_PC16:
 			v -= dot;
-			if ((Elf32_Sword)v > 0x7fff ||
-					(Elf32_Sword)v < -(Elf32_Sword)0x8000) {
+			if ((ElfW(Sword))v > 0x7fff ||
+					(ElfW(Sword))v < -(ElfW(Sword))0x8000) {
 				ret = obj_reloc_overflow;
 			}
 			*(short *)loc = v;
@@ -1041,12 +1040,12 @@ arch_apply_relocation(struct obj_file *f,
 		case R_68K_GOT32:
 			goto bb_use_got;
 
-#ifdef R_68K_GOTOFF
+# ifdef R_68K_GOTOFF
 		case R_68K_GOTOFF:
 			assert(got != 0);
 			*loc += v - got;
 			break;
-#endif
+# endif
 
 #elif defined(__mips__)
 
@@ -1085,7 +1084,7 @@ arch_apply_relocation(struct obj_file *f,
 		case R_MIPS_LO16:
 			{
 				unsigned long insnlo = *loc;
-				Elf32_Addr val, vallo;
+				ElfW(Addr) val, vallo;
 
 				/* Sign extend the addend we extract from the lo insn.  */
 				vallo = ((insnlo & 0xffff) ^ 0x8000) - 0x8000;
@@ -1135,6 +1134,167 @@ arch_apply_relocation(struct obj_file *f,
 				break;
 			}
 
+#elif defined(__nios2__)
+
+		case R_NIOS2_NONE:
+			break;
+
+		case R_NIOS2_BFD_RELOC_32:
+			*loc += v;
+			break;
+
+		case R_NIOS2_BFD_RELOC_16:
+			if (v > 0xffff) {
+				ret = obj_reloc_overflow;
+			}
+			*(short *)loc = v;
+			break;
+
+		case R_NIOS2_BFD_RELOC_8:
+			if (v > 0xff) {
+				ret = obj_reloc_overflow;
+			}
+			*(char *)loc = v;
+			break;
+
+		case R_NIOS2_S16:
+			{
+				Elf32_Addr word;
+
+				if ((Elf32_Sword)v > 0x7fff ||
+				    (Elf32_Sword)v < -(Elf32_Sword)0x8000) {
+					ret = obj_reloc_overflow;
+				}
+
+				word = *loc;
+				*loc = ((((word >> 22) << 16) | (v & 0xffff)) << 6) |
+				       (word & 0x3f);
+			}
+			break;
+
+		case R_NIOS2_U16:
+			{
+				Elf32_Addr word;
+
+				if (v > 0xffff) {
+					ret = obj_reloc_overflow;
+				}
+
+				word = *loc;
+				*loc = ((((word >> 22) << 16) | (v & 0xffff)) << 6) |
+				       (word & 0x3f);
+			}
+			break;
+
+		case R_NIOS2_PCREL16:
+			{
+				Elf32_Addr word;
+
+				v -= dot + 4;
+				if ((Elf32_Sword)v > 0x7fff ||
+				    (Elf32_Sword)v < -(Elf32_Sword)0x8000) {
+					ret = obj_reloc_overflow;
+				}
+
+				word = *loc;
+				*loc = ((((word >> 22) << 16) | (v & 0xffff)) << 6) | (word & 0x3f);
+			}
+			break;
+
+		case R_NIOS2_GPREL:
+			{
+				Elf32_Addr word, gp;
+				/* get _gp */
+				gp = obj_symbol_final_value(f, obj_find_symbol(f, SPFX "_gp"));
+				v-=gp;
+				if ((Elf32_Sword)v > 0x7fff ||
+						(Elf32_Sword)v < -(Elf32_Sword)0x8000) {
+					ret = obj_reloc_overflow;
+				}
+
+				word = *loc;
+				*loc = ((((word >> 22) << 16) | (v & 0xffff)) << 6) | (word & 0x3f);
+			}
+			break;
+
+		case R_NIOS2_CALL26:
+			if (v & 3)
+				ret = obj_reloc_dangerous;
+			if ((v >> 28) != (dot >> 28))
+				ret = obj_reloc_overflow;
+			*loc = (*loc & 0x3f) | ((v >> 2) << 6);
+			break;
+
+		case R_NIOS2_IMM5:
+			{
+				Elf32_Addr word;
+
+				if (v > 0x1f) {
+					ret = obj_reloc_overflow;
+				}
+
+				word = *loc & ~0x7c0;
+				*loc = word | ((v & 0x1f) << 6);
+			}
+			break;
+
+		case R_NIOS2_IMM6:
+			{
+				Elf32_Addr word;
+
+				if (v > 0x3f) {
+					ret = obj_reloc_overflow;
+				}
+
+				word = *loc & ~0xfc0;
+				*loc = word | ((v & 0x3f) << 6);
+			}
+			break;
+
+		case R_NIOS2_IMM8:
+			{
+				Elf32_Addr word;
+
+				if (v > 0xff) {
+					ret = obj_reloc_overflow;
+				}
+
+				word = *loc & ~0x3fc0;
+				*loc = word | ((v & 0xff) << 6);
+			}
+			break;
+
+		case R_NIOS2_HI16:
+			{
+				Elf32_Addr word;
+
+				word = *loc;
+				*loc = ((((word >> 22) << 16) | ((v >>16) & 0xffff)) << 6) |
+				       (word & 0x3f);
+			}
+			break;
+
+		case R_NIOS2_LO16:
+			{
+				Elf32_Addr word;
+
+				word = *loc;
+				*loc = ((((word >> 22) << 16) | (v & 0xffff)) << 6) |
+				       (word & 0x3f);
+			}
+			break;
+
+		case R_NIOS2_HIADJ16:
+			{
+				Elf32_Addr word1, word2;
+
+				word1 = *loc;
+				word2 = ((v >> 16) + ((v >> 15) & 1)) & 0xffff;
+				*loc = ((((word1 >> 22) << 16) | word2) << 6) |
+				       (word1 & 0x3f);
+			}
+			break;
+
 #elif defined(__powerpc__)
 
 		case R_PPC_ADDR16_HA:
@@ -1158,6 +1318,93 @@ arch_apply_relocation(struct obj_file *f,
 
 		case R_PPC_ADDR32:
 			*loc = v;
+			break;
+
+#elif defined(__s390__)
+
+		case R_390_32:
+			*(unsigned int *) loc += v;
+			break;
+		case R_390_16:
+			*(unsigned short *) loc += v;
+			break;
+		case R_390_8:
+			*(unsigned char *) loc += v;
+			break;
+
+		case R_390_PC32:
+			*(unsigned int *) loc += v - dot;
+			break;
+		case R_390_PC16DBL:
+			*(unsigned short *) loc += (v - dot) >> 1;
+			break;
+		case R_390_PC16:
+			*(unsigned short *) loc += v - dot;
+			break;
+
+		case R_390_PLT32:
+		case R_390_PLT16DBL:
+			/* find the plt entry and initialize it.  */
+			assert(isym != NULL);
+			pe = (struct arch_single_entry *) &isym->pltent;
+			assert(pe->allocated);
+			if (pe->inited == 0) {
+				ip = (unsigned long *)(ifile->plt->contents + pe->offset);
+				ip[0] = 0x0d105810; /* basr 1,0; lg 1,10(1); br 1 */
+				ip[1] = 0x100607f1;
+				if (ELF_R_TYPE(rel->r_info) == R_390_PLT16DBL)
+					ip[2] = v - 2;
+				else
+					ip[2] = v;
+				pe->inited = 1;
+			}
+
+			/* Insert relative distance to target.  */
+			v = plt + pe->offset - dot;
+			if (ELF_R_TYPE(rel->r_info) == R_390_PLT32)
+				*(unsigned int *) loc = (unsigned int) v;
+			else if (ELF_R_TYPE(rel->r_info) == R_390_PLT16DBL)
+				*(unsigned short *) loc = (unsigned short) ((v + 2) >> 1);
+			break;
+
+		case R_390_GLOB_DAT:
+		case R_390_JMP_SLOT:
+			*loc = v;
+			break;
+
+		case R_390_RELATIVE:
+			*loc += f->baseaddr;
+			break;
+
+		case R_390_GOTPC:
+			assert(got != 0);
+			*(unsigned long *) loc += got - dot;
+			break;
+
+		case R_390_GOT12:
+		case R_390_GOT16:
+		case R_390_GOT32:
+			assert(isym != NULL);
+			assert(got != 0);
+			if (!isym->gotent.inited)
+			{
+				isym->gotent.inited = 1;
+				*(ElfW(Addr) *)(ifile->got->contents + isym->gotent.offset) = v;
+			}
+			if (ELF_R_TYPE(rel->r_info) == R_390_GOT12)
+				*(unsigned short *) loc |= (*(unsigned short *) loc + isym->gotent.offset) & 0xfff;
+			else if (ELF_R_TYPE(rel->r_info) == R_390_GOT16)
+				*(unsigned short *) loc += isym->gotent.offset;
+			else if (ELF_R_TYPE(rel->r_info) == R_390_GOT32)
+				*(unsigned int *) loc += isym->gotent.offset;
+			break;
+
+# ifndef R_390_GOTOFF32
+#  define R_390_GOTOFF32 R_390_GOTOFF
+# endif
+		case R_390_GOTOFF32:
+			assert(got != 0);
+			*loc += v - got;
 			break;
 
 #elif defined(__sh__)
@@ -1199,13 +1446,13 @@ arch_apply_relocation(struct obj_file *f,
 			*loc = v - got;
 			break;
 
-#if defined(__SH5__)
+# if defined(__SH5__)
 		case R_SH_IMM_MEDLOW16:
 		case R_SH_IMM_LOW16:
 			{
-				Elf32_Addr word;
+				ElfW(Addr) word;
 
-				if (ELF32_R_TYPE(rel->r_info) == R_SH_IMM_MEDLOW16)
+				if (ELF_R_TYPE(rel->r_info) == R_SH_IMM_MEDLOW16)
 					v >>= 16;
 
 				/*
@@ -1227,13 +1474,13 @@ arch_apply_relocation(struct obj_file *f,
 		case R_SH_IMM_MEDLOW16_PCREL:
 		case R_SH_IMM_LOW16_PCREL:
 			{
-				Elf32_Addr word;
+				ElfW(Addr) word;
 
 				word = *loc & ~0x3fffc00;
 
 				v -= dot;
 
-				if (ELF32_R_TYPE(rel->r_info) == R_SH_IMM_MEDLOW16_PCREL)
+				if (ELF_R_TYPE(rel->r_info) == R_SH_IMM_MEDLOW16_PCREL)
 					v >>= 16;
 
 				word |= (v & 0xffff) << 10;
@@ -1242,15 +1489,10 @@ arch_apply_relocation(struct obj_file *f,
 
 				break;
 			}
-#endif /* __SH5__ */
-#endif /* __sh__ */
+# endif /* __SH5__ */
 
-		default:
-			printf("Warning: unhandled reloc %d\n",(int)ELF32_R_TYPE(rel->r_info));
-			ret = obj_reloc_unhandled;
-			break;
+#elif defined (__v850e__)
 
-#if defined (__v850e__)
 		case R_V850_NONE:
 			break;
 
@@ -1266,49 +1508,84 @@ arch_apply_relocation(struct obj_file *f,
 
 		case R_V850_22_PCREL:
 			goto bb_use_plt;
-#endif
 
-#if defined (__cris__)
-		case R_CRIS_NONE:
+#elif defined(__x86_64__)
+
+		case R_X86_64_NONE:
 			break;
 
-		case R_CRIS_32:
-			/* CRIS keeps the relocation value in the r_addend field and
-			 * should not use whats in *loc at all
-			 */
+		case R_X86_64_64:
+			*loc += v;
+			break;
+
+		case R_X86_64_32:
+			*(unsigned int *) loc += v;
+			if (v > 0xffffffff)
+			{
+				ret = obj_reloc_overflow; /* Kernel module compiled without -mcmodel=kernel. */
+				/* error("Possibly is module compiled without -mcmodel=kernel!"); */
+			}
+			break;
+
+		case R_X86_64_32S:
+			*(signed int *) loc += v;
+			break;
+
+		case R_X86_64_16:
+			*(unsigned short *) loc += v;
+			break;
+
+		case R_X86_64_8:
+			*(unsigned char *) loc += v;
+			break;
+
+		case R_X86_64_PC32:
+			*(unsigned int *) loc += v - dot;
+			break;
+
+		case R_X86_64_PC16:
+			*(unsigned short *) loc += v - dot;
+			break;
+
+		case R_X86_64_PC8:
+			*(unsigned char *) loc += v - dot;
+			break;
+
+		case R_X86_64_GLOB_DAT:
+		case R_X86_64_JUMP_SLOT:
 			*loc = v;
 			break;
+
+		case R_X86_64_RELATIVE:
+			*loc += f->baseaddr;
+			break;
+
+		case R_X86_64_GOT32:
+		case R_X86_64_GOTPCREL:
+			goto bb_use_got;
+# if 0
+			assert(isym != NULL);
+			if (!isym->gotent.reloc_done)
+			{
+				isym->gotent.reloc_done = 1;
+				*(Elf64_Addr *)(ifile->got->contents + isym->gotent.offset) = v;
+			}
+			/* XXX are these really correct?  */
+			if (ELF64_R_TYPE(rel->r_info) == R_X86_64_GOTPCREL)
+				*(unsigned int *) loc += v + isym->gotent.offset;
+			else
+				*loc += isym->gotent.offset;
+			break;
+# endif
+
+#else
+# warning "no idea how to handle relocations on your arch"
 #endif
 
-#if defined(__H8300H__) || defined(__H8300S__)
-	        case R_H8_DIR24R8:
-			loc = (ElfW(Addr) *)((ElfW(Addr))loc - 1);
-			*loc = (*loc & 0xff000000) | ((*loc & 0xffffff) + v);
+		default:
+			printf("Warning: unhandled reloc %d\n",(int)ELF_R_TYPE(rel->r_info));
+			ret = obj_reloc_unhandled;
 			break;
-	        case R_H8_DIR24A8:
-			*loc += v;
-			break;
- 	        case R_H8_DIR32:
-	        case R_H8_DIR32A16:
-			*loc += v;
-			break;
-	        case R_H8_PCREL16:
-			v -= dot + 2;
-			if ((Elf32_Sword)v > 0x7fff || 
-			    (Elf32_Sword)v < -(Elf32_Sword)0x8000)
-				ret = obj_reloc_overflow;
-			else 
-				*(unsigned short *)loc = v;
-			break;
-	        case R_H8_PCREL8:
-			v -= dot + 1;
-			if ((Elf32_Sword)v > 0x7f || 
-			    (Elf32_Sword)v < -(Elf32_Sword)0x80)
-				ret = obj_reloc_overflow;
-			else 
-				*(unsigned char *)loc = v;
-			break;
-#endif
 
 #if defined(CONFIG_USE_PLT_ENTRIES)
 
@@ -1336,7 +1613,7 @@ bb_use_plt:
 #endif
 #if defined(__powerpc__)
 				ip[0] = 0x3d600000 + ((v + 0x8000) >> 16);  /* lis r11,sym@ha */
-				ip[1] = 0x396b0000 + (v & 0xffff);	      /* addi r11,r11,sym@l */
+				ip[1] = 0x396b0000 + (v & 0xffff);          /* addi r11,r11,sym@l */
 				ip[2] = 0x7d6903a6;			      /* mtctr r11 */
 				ip[3] = 0x4e800420;			      /* bctr */
 #endif
@@ -1356,7 +1633,7 @@ bb_use_plt:
 #if defined (__arm__) || defined (__powerpc__)
 			if ((int)v < -0x02000000 || (int)v >= 0x02000000)
 #elif defined (__v850e__)
-				if ((Elf32_Sword)v > 0x1fffff || (Elf32_Sword)v < (Elf32_Sword)-0x200000)
+				if ((ElfW(Sword))v > 0x1fffff || (ElfW(Sword))v < (ElfW(Sword))-0x200000)
 #endif
 					/* go via the plt */
 					v = plt + pe->offset - dot;
@@ -1513,7 +1790,7 @@ static void arch_create_got(struct obj_file *f)
 		strtab = (const char *) strsec->contents;
 
 		for (; rel < relend; ++rel) {
-			extsym = &symtab[ELF32_R_SYM(rel->r_info)];
+			extsym = &symtab[ELF_R_SYM(rel->r_info)];
 
 #if defined(CONFIG_USE_GOT_ENTRIES)
 			got_allocate = 0;
@@ -1522,7 +1799,7 @@ static void arch_create_got(struct obj_file *f)
 			plt_allocate = 0;
 #endif
 
-			switch (ELF32_R_TYPE(rel->r_info)) {
+			switch (ELF_R_TYPE(rel->r_info)) {
 #if defined(__arm__)
 				case R_ARM_PC24:
 				case R_ARM_PLT32:
@@ -1721,15 +1998,15 @@ obj_add_symbol(struct obj_file *f, const char *name,
 {
 	struct obj_symbol *sym;
 	unsigned long hash = f->symbol_hash(name) % HASH_BUCKETS;
-	int n_type = ELFW(ST_TYPE) (info);
-	int n_binding = ELFW(ST_BIND) (info);
+	int n_type = ELF_ST_TYPE(info);
+	int n_binding = ELF_ST_BIND(info);
 
 	for (sym = f->symtab[hash]; sym; sym = sym->next)
 		if (f->symbol_cmp(sym->name, name) == 0) {
 			int o_secidx = sym->secidx;
 			int o_info = sym->info;
-			int o_type = ELFW(ST_TYPE) (o_info);
-			int o_binding = ELFW(ST_BIND) (o_info);
+			int o_type = ELF_ST_TYPE(o_info);
+			int o_binding = ELF_ST_BIND(o_info);
 
 			/* A redefinition!  Is it legal?  */
 
@@ -1790,7 +2067,7 @@ obj_add_symbol(struct obj_file *f, const char *name,
 	f->symtab[hash] = sym;
 	sym->ksymidx = -1;
 
-	if (ELFW(ST_BIND)(info) == STB_LOCAL && symidx != -1) {
+	if (ELF_ST_BIND(info) == STB_LOCAL && symidx != -1) {
 		if (symidx >= f->local_symtab_size)
 			bb_error_msg("local symbol %s with index %ld exceeds local_symtab_size %ld",
 					name, (long) symidx, (long) f->local_symtab_size);
@@ -2004,14 +2281,14 @@ add_symbols_from( struct obj_file *f,
 #endif /* SYMBOL_PREFIX */
 
 		sym = obj_find_symbol(f, name);
-		if (sym && !(ELFW(ST_BIND) (sym->info) == STB_LOCAL)) {
+		if (sym && !(ELF_ST_BIND(sym->info) == STB_LOCAL)) {
 #ifdef SYMBOL_PREFIX
 			/* Put NAME_BUF into more permanent storage.  */
 			name = xmalloc (name_size);
 			strcpy (name, name_buf);
 #endif
 			sym = obj_add_symbol(f, name, -1,
-					ELFW(ST_INFO) (STB_GLOBAL,
+					ELF_ST_INFO(STB_GLOBAL,
 						STT_NOTYPE),
 					idx, s->value, 0);
 			/* Did our symbol just get installed?  If so, mark the
@@ -2472,7 +2749,7 @@ static int new_create_this_module(struct obj_file *f, const char *m_name)
 	memset(sec->contents, 0, sizeof(struct new_module));
 
 	obj_add_symbol(f, SPFX "__this_module", -1,
-			ELFW(ST_INFO) (STB_LOCAL, STT_OBJECT), sec->idx, 0,
+			ELF_ST_INFO(STB_LOCAL, STT_OBJECT), sec->idx, 0,
 			sizeof(struct new_module));
 
 	obj_string_patch(f, sec->idx, offsetof(struct new_module, name),
@@ -2561,7 +2838,7 @@ static int new_create_module_ksymtab(struct obj_file *f)
 		for (nsyms = i = 0; i < HASH_BUCKETS; ++i) {
 			struct obj_symbol *sym;
 			for (sym = f->symtab[i]; sym; sym = sym->next)
-				if (ELFW(ST_BIND) (sym->info) != STB_LOCAL
+				if (ELF_ST_BIND(sym->info) != STB_LOCAL
 						&& sym->secidx <= SHN_HIRESERVE
 						&& (sym->secidx >= SHN_LORESERVE
 							|| loaded[sym->secidx])) {
@@ -2718,7 +2995,7 @@ static int obj_check_undefineds(struct obj_file *f)
 		struct obj_symbol *sym;
 		for (sym = f->symtab[i]; sym; sym = sym->next)
 			if (sym->secidx == SHN_UNDEF) {
-				if (ELFW(ST_BIND) (sym->info) == STB_WEAK) {
+				if (ELF_ST_BIND(sym->info) == STB_WEAK) {
 					sym->secidx = SHN_ABS;
 					sym->value = 0;
 				} else {
@@ -2904,12 +3181,12 @@ static int obj_relocate(struct obj_file *f, ElfW(Addr) base)
 
 			/* Attempt to find a value to use for this relocation.  */
 
-			symndx = ELFW(R_SYM) (rel->r_info);
+			symndx = ELF_R_SYM(rel->r_info);
 			if (symndx) {
 				/* Note we've already checked for undefined symbols.  */
 
 				extsym = &symtab[symndx];
-				if (ELFW(ST_BIND) (extsym->st_info) == STB_LOCAL) {
+				if (ELF_ST_BIND(extsym->st_info) == STB_LOCAL) {
 					/* Local symbols we look up in the local table to be sure
 					   we get the one that is really intended.  */
 					intsym = f->local_symtab[symndx];
@@ -2930,7 +3207,7 @@ static int obj_relocate(struct obj_file *f, ElfW(Addr) base)
 #if defined(__alpha__) && defined(AXP_BROKEN_GAS)
 			/* Work around a nasty GAS bug, that is fixed as of 2.7.0.9.  */
 			if (!extsym || !extsym->st_name ||
-					ELFW(ST_BIND) (extsym->st_info) != STB_LOCAL)
+					ELF_ST_BIND(extsym->st_info) != STB_LOCAL)
 #endif
 				value += rel->r_addend;
 #endif
@@ -2952,11 +3229,11 @@ static int obj_relocate(struct obj_file *f, ElfW(Addr) base)
 bad_reloc:
 					if (extsym) {
 						bb_error_msg("%s of type %ld for %s", errmsg,
-								(long) ELFW(R_TYPE) (rel->r_info),
+								(long) ELF_R_TYPE(rel->r_info),
 								strtab + extsym->st_name);
 					} else {
 						bb_error_msg("%s of type %ld", errmsg,
-								(long) ELFW(R_TYPE) (rel->r_info));
+								(long) ELF_R_TYPE(rel->r_info));
 					}
 					ret = 0;
 					break;
@@ -3276,7 +3553,7 @@ static void hide_special_symbols(struct obj_file *f)
 	for (p = specials; *p; ++p)
 		if ((sym = obj_find_symbol(f, *p)) != NULL)
 			sym->info =
-				ELFW(ST_INFO) (STB_LOCAL, ELFW(ST_TYPE) (sym->info));
+				ELF_ST_INFO(STB_LOCAL, ELF_ST_TYPE(sym->info));
 }
 
 
@@ -3288,7 +3565,7 @@ static int obj_gpl_license(struct obj_file *f, const char **license)
 	 * linux/include/linux/module.h.  Checking for leading "GPL" will not
 	 * work, somebody will use "GPL sucks, this is proprietary".
 	 */
-	static const char *gpl_licenses[] = {
+	static const char * const gpl_licenses[] = {
 		"GPL",
 		"GPL v2",
 		"GPL and additional rights",
@@ -3324,7 +3601,7 @@ static int obj_gpl_license(struct obj_file *f, const char **license)
 #define TAINT_PROPRIETORY_MODULE        (1<<0)
 #define TAINT_FORCED_MODULE             (1<<1)
 #define TAINT_UNSAFE_SMP                (1<<2)
-#define TAINT_URL						"http://www.tux.org/lkml/#export-tainted"
+#define TAINT_URL                       "http://www.tux.org/lkml/#export-tainted"
 
 static void set_tainted(struct obj_file *f, int fd, char *m_name,
 		int kernel_has_tainted, int taint, const char *text1, const char *text2)
@@ -3480,7 +3757,7 @@ add_ksymoops_symbols(struct obj_file *f, const char *filename,
 				(int)(2*sizeof(statbuf.st_mtime)), statbuf.st_mtime,
 				version);
 		sym = obj_add_symbol(f, name, -1,
-				ELFW(ST_INFO) (STB_GLOBAL, STT_NOTYPE),
+				ELF_ST_INFO(STB_GLOBAL, STT_NOTYPE),
 				sec->idx, sec->header.sh_addr, 0);
 		if (use_ksymtab)
 			new_add_ksymtab(f, sym);
@@ -3498,7 +3775,7 @@ add_ksymoops_symbols(struct obj_file *f, const char *filename,
 		name = xmalloc(l);
 		snprintf(name, l, "%s%s_P%s",
 				symprefix, m_name, f->persist);
-		sym = obj_add_symbol(f, name, -1, ELFW(ST_INFO) (STB_GLOBAL, STT_NOTYPE),
+		sym = obj_add_symbol(f, name, -1, ELF_ST_INFO(STB_GLOBAL, STT_NOTYPE),
 				sec->idx, sec->header.sh_addr, 0);
 		if (use_ksymtab)
 			new_add_ksymtab(f, sym);
@@ -3520,7 +3797,7 @@ add_ksymoops_symbols(struct obj_file *f, const char *filename,
 			snprintf(name, l, "%s%s_S%s_L%ld",
 					symprefix, m_name, sec->name,
 					(long)sec->header.sh_size);
-			sym = obj_add_symbol(f, name, -1, ELFW(ST_INFO) (STB_GLOBAL, STT_NOTYPE),
+			sym = obj_add_symbol(f, name, -1, ELF_ST_INFO(STB_GLOBAL, STT_NOTYPE),
 					sec->idx, sec->header.sh_addr, 0);
 			if (use_ksymtab)
 				new_add_ksymtab(f, sym);
@@ -3610,7 +3887,7 @@ static void print_load_map(struct obj_file *f)
 			value = sym->value + sec->header.sh_addr;
 		}
 
-		if (ELFW(ST_BIND) (sym->info) == STB_LOCAL)
+		if (ELF_ST_BIND(sym->info) == STB_LOCAL)
 			type = tolower(type);
 
 		printf("%0*lx %c %s\n", (int) (2 * sizeof(void *)), value,
@@ -3730,10 +4007,10 @@ extern int insmod_main( int argc, char **argv)
 
 #if defined(CONFIG_FEATURE_2_6_MODULES)
 	if (k_version > 4)
-		bb_xasprintf(&m_fullName, "%s.ko", tmp);
+		m_fullName = bb_xasprintf("%s.ko", tmp);
 	else
 #endif
-		bb_xasprintf(&m_fullName, "%s.o", tmp);
+		m_fullName = bb_xasprintf("%s.o", tmp);
 
 	if (!m_name) {
 		m_name = tmp;
@@ -3793,7 +4070,7 @@ extern int insmod_main( int argc, char **argv)
 	} else
 		m_filename = bb_xstrdup(argv[optind]);
 
-	if (!flag_quiet)
+	if (flag_verbose)
 		printf("Using %s\n", m_filename);
 
 #ifdef CONFIG_FEATURE_2_6_MODULES
@@ -4022,7 +4299,7 @@ extern int insmod_ng_main( int argc, char **argv)
 
 	fstat(fd, &st);
 	len = st.st_size;
-	map = mmap(NULL, len, PROT_READ, MAP_SHARED, fd, 0);
+	map = mmap(NULL, len, PROT_READ, MAP_PRIVATE, fd, 0);
 	if (map == MAP_FAILED) {
 		bb_perror_msg_and_die("cannot mmap `%s'", filename);
 	}

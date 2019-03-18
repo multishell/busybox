@@ -23,10 +23,10 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <errno.h>
-#include <getopt.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <getopt.h> /* struct option */
 
 #include "busybox.h"
 #include "libcoreutils/coreutils.h"
@@ -51,7 +51,6 @@ static const struct option install_long_options[] = {
 
 extern int install_main(int argc, char **argv)
 {
-	struct stat statbuf;
 	mode_t mode;
 	uid_t uid;
 	gid_t gid;
@@ -59,27 +58,20 @@ extern int install_main(int argc, char **argv)
 	char *uid_str = "-1";
 	char *mode_str = "0755";
 	int copy_flags = FILEUTILS_DEREFERENCE | FILEUTILS_FORCE;
-	int ret = EXIT_SUCCESS;
-	int flags;
-	int i;
+	int ret = EXIT_SUCCESS, flags, i, isdir;
 
 	bb_applet_long_options = install_long_options;
-	bb_opt_complementaly = "s~d:d~s";
+	bb_opt_complementally = "?:s--d:d--s";
 	/* -c exists for backwards compatability, its needed */
 	flags = bb_getopt_ulflags(argc, argv, "cdpsg:m:o:", &gid_str, &mode_str, &uid_str);	/* 'a' must be 2nd */
-
-	/* Check valid options were given */
-	if(flags & BB_GETOPT_ERROR) {
-		bb_show_usage();
-	}
 
 	/* preserve access and modification time, this is GNU behaviour, BSD only preserves modification time */
 	if (flags & INSTALL_OPT_PRESERVE_TIME) {
 		copy_flags |= FILEUTILS_PRESERVE_STATUS;
 	}
 	bb_parse_mode(mode_str, &mode);
-	gid = get_ug_id(gid_str, my_getgrnam);
-	uid = get_ug_id(uid_str, my_getpwnam);
+	gid = get_ug_id(gid_str, bb_xgetgrnam);
+	uid = get_ug_id(uid_str, bb_xgetpwnam);
 	umask(0);
 
 	/* Create directories
@@ -117,15 +109,16 @@ extern int install_main(int argc, char **argv)
 		return(ret);
 	}
 
-	cp_mv_stat2(argv[argc - 1], &statbuf, lstat);
+	{
+		struct stat statbuf;
+		isdir = lstat(argv[argc - 1], &statbuf)<0
+					? 0 : S_ISDIR(statbuf.st_mode);
+	}
 	for (i = optind; i < argc - 1; i++) {
 		unsigned char *dest;
 
-		if (S_ISDIR(statbuf.st_mode)) {
-			dest = concat_path_file(argv[argc - 1], basename(argv[i]));
-		} else {
-			dest = argv[argc - 1];
-		}
+		dest = argv[argc - 1];
+		if (isdir) dest = concat_path_file(argv[argc - 1], basename(argv[i]));
 		ret |= copy_file(argv[i], dest, copy_flags);
 
 		/* Set the file mode */
@@ -145,6 +138,7 @@ extern int install_main(int argc, char **argv)
 				ret = EXIT_FAILURE;
 			}
 		}
+		if(ENABLE_FEATURE_CLEAN_UP && isdir) free(dest);
 	}
 
 	return(ret);

@@ -27,6 +27,7 @@
 
 #include "rt_names.h"
 #include "utils.h"
+#include "ip_common.h"
 
 #include "libbb.h"
 
@@ -48,7 +49,7 @@ static struct
 	struct rtnl_handle *rth;
 } filter;
 
-void print_link_flags(FILE *fp, unsigned flags, unsigned mdown)
+static void print_link_flags(FILE *fp, unsigned flags, unsigned mdown)
 {
 	fprintf(fp, "<");
 	flags &= ~IFF_RUNNING;
@@ -442,7 +443,7 @@ extern int ipaddr_list_or_flush(int argc, char **argv, int flush)
 	}
 
 	while (argc > 0) {
-		const unsigned short option_num = compare_string_array(option, *argv);
+		const int option_num = compare_string_array(option, *argv);
 		switch (option_num) {
 			case 0: /* to */
 				NEXT_ARG();
@@ -657,7 +658,7 @@ static int ipaddr_modify(int cmd, int argc, char **argv)
 	req.ifa.ifa_family = preferred_family;
 
 	while (argc > 0) {
-		const unsigned short option_num = compare_string_array(option, *argv);
+		const int option_num = compare_string_array(option, *argv);
 		switch (option_num) {
 			case 0: /* peer */
 			case 1: /* remote */
@@ -804,7 +805,7 @@ static int ipaddr_modify(int cmd, int argc, char **argv)
 extern int do_ipaddr(int argc, char **argv)
 {
 	const char *commands[] = { "add", "delete", "list", "show", "lst", "flush", 0 };
-	unsigned short command_num = 2;
+	int command_num = 2;
 
 	if (*argv) {
 		command_num = compare_string_array(commands, *argv);
