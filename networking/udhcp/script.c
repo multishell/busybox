@@ -55,7 +55,7 @@ static inline int upper_length(int length, int opt_index)
 }
 
 
-static int sprintip(char *dest, char *pre, unsigned char *ip)
+static int sprintip(char *dest, char *pre, uint8_t *ip)
 {
 	return sprintf(dest, "%s%d.%d.%d.%d", pre, ip[0], ip[1], ip[2], ip[3]);
 }
@@ -74,12 +74,12 @@ static int mton(struct in_addr *mask)
 
 
 /* Fill dest with the text of option 'option'. */
-static void fill_options(char *dest, unsigned char *option, struct dhcp_option *type_p)
+static void fill_options(char *dest, uint8_t *option, struct dhcp_option *type_p)
 {
 	int type, optlen;
-	u_int16_t val_u16;
+	uint16_t val_u16;
 	int16_t val_s16;
-	u_int32_t val_u32;
+	uint32_t val_u32;
 	int32_t val_s32;
 	int len = option[OPT_LEN - 2];
 
@@ -138,7 +138,7 @@ static char **fill_envp(struct dhcpMessage *packet)
 	int num_options = 0;
 	int i, j;
 	char **envp;
-	unsigned char *temp;
+	uint8_t *temp;
 	struct in_addr subnet;
 	char over = 0;
 
@@ -146,8 +146,11 @@ static char **fill_envp(struct dhcpMessage *packet)
 		num_options = 0;
 	else {
 		for (i = 0; dhcp_options[i].code; i++)
-			if (get_option(packet, dhcp_options[i].code))
+			if (get_option(packet, dhcp_options[i].code)) {
 				num_options++;
+				if (dhcp_options[i].code == DHCP_SUBNET)
+					num_options++; /* for mton */
+			}
 		if (packet->siaddr) num_options++;
 		if ((temp = get_option(packet, DHCP_OPTION_OVER)))
 			over = *temp;
@@ -165,7 +168,7 @@ static char **fill_envp(struct dhcpMessage *packet)
 	if (packet == NULL) return envp;
 
 	envp[j] = xmalloc(sizeof("ip=255.255.255.255"));
-	sprintip(envp[j++], "ip=", (unsigned char *) &packet->yiaddr);
+	sprintip(envp[j++], "ip=", (uint8_t *) &packet->yiaddr);
 
 
 	for (i = 0; dhcp_options[i].code; i++) {
@@ -183,7 +186,7 @@ static char **fill_envp(struct dhcpMessage *packet)
 	}
 	if (packet->siaddr) {
 		envp[j] = xmalloc(sizeof("siaddr=255.255.255.255"));
-		sprintip(envp[j++], "siaddr=", (unsigned char *) &packet->siaddr);
+		sprintip(envp[j++], "siaddr=", (uint8_t *) &packet->siaddr);
 	}
 	if (!(over & FILE_FIELD) && packet->file[0]) {
 		/* watch out for invalid packets */
@@ -194,7 +197,7 @@ static char **fill_envp(struct dhcpMessage *packet)
 		/* watch out for invalid packets */
 		packet->sname[sizeof(packet->sname) - 1] = '\0';
 		asprintf(&envp[j++], "sname=%s", packet->sname);
-	}	
+	}
 	return envp;
 }
 
@@ -208,6 +211,8 @@ void run_script(struct dhcpMessage *packet, const char *name)
 	if (client_config.script == NULL)
 		return;
 
+	DEBUG(LOG_INFO, "vforking and execle'ing %s", client_config.script);
+
 	/* call script */
 	pid = vfork();
 	if (pid) {
@@ -219,9 +224,6 @@ void run_script(struct dhcpMessage *packet, const char *name)
 		/* close fd's? */
 		
 		/* exec script */
-#ifndef __uClinux__
-		DEBUG(LOG_INFO, "execle'ing %s", client_config.script);
-#endif /* __uClinux__ */
 		execle(client_config.script, client_config.script,
 		       name, NULL, envp);
 		LOG(LOG_ERR, "script %s failed: %m", client_config.script);

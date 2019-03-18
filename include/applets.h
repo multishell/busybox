@@ -508,6 +508,9 @@
 #ifdef CONFIG_SED
 	APPLET(sed, sed_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_SEQ
+	APPLET(seq, seq_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
+#endif
 #ifdef CONFIG_SETKEYCODES
 	APPLET(setkeycodes, setkeycodes_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
@@ -552,6 +555,9 @@
 #endif
 #ifdef CONFIG_SYNC
 	APPLET(sync, sync_main, _BB_DIR_BIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_SYSCTL
+	APPLET(sysctl, sysctl_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_SYSLOGD
 	APPLET(syslogd, syslogd_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
@@ -679,4 +685,3 @@
 };
 
 #endif
-

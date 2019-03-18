@@ -39,60 +39,80 @@
 #define INSTALL_OPT_MODE  32
 #define INSTALL_OPT_OWNER  64
 
+static const struct option install_long_options[] = {
+	{ "directory",	0,	NULL,	'd' },
+	{ "preserve-timestamps",	0,	NULL,	'p' },
+	{ "strip",	0,	NULL,	's' },
+	{ "group",	0,	NULL,	'g' },
+	{ "mode", 	0,	NULL,	'm' },
+	{ "owner",	0,	NULL,	'o' },
+	{ 0,	0,	0,	0 }
+};
+	
 extern int install_main(int argc, char **argv)
 {
 	struct stat statbuf;
-	mode_t mode = 0755;
-	uid_t uid = -1;
-	gid_t gid = -1;
-	char *gid_str;
-	char *uid_str;
-	char *mode_str;
+	mode_t mode;
+	uid_t uid;
+	gid_t gid;
+	char *gid_str = "-1";
+	char *uid_str = "-1";
+	char *mode_str = "0755";
 	int copy_flags = FILEUTILS_DEREFERENCE | FILEUTILS_FORCE;
 	int ret = EXIT_SUCCESS;
 	int flags;
 	int i;
 
+	bb_applet_long_options = install_long_options;
+	bb_opt_complementaly = "s~d:d~s";
 	/* -c exists for backwards compatability, its needed */
 	flags = bb_getopt_ulflags(argc, argv, "cdpsg:m:o:", &gid_str, &mode_str, &uid_str);	/* 'a' must be 2nd */
+
+	/* Check valid options were given */
+	if(flags & 0x80000000UL) {
+		bb_show_usage();
+	}
 
 	/* preserve access and modification time, this is GNU behaviour, BSD only preserves modification time */
 	if (flags & INSTALL_OPT_PRESERVE_TIME) {
 		copy_flags |= FILEUTILS_PRESERVE_STATUS;
 	}
-	if (flags & INSTALL_OPT_GROUP) {
-		gid = get_ug_id(gid_str, my_getgrnam);
-	}
-	if (flags & INSTALL_OPT_MODE) {
-		bb_parse_mode(mode_str, &mode);
-	}
-	if (flags & INSTALL_OPT_OWNER) {
-		uid = get_ug_id(uid_str, my_getpwnam);
-	}
+	bb_parse_mode(mode_str, &mode);
+	gid = get_ug_id(gid_str, my_getgrnam);
+	uid = get_ug_id(uid_str, my_getpwnam);
+	umask(0);
 
-	/* Create directories */
+	/* Create directories
+	 * dont use bb_make_directory() as it cant change uid or gid
+	 * perhaps bb_make_directory() should be improved.
+	 */
 	if (flags & INSTALL_OPT_DIRECTORY) {
-	
 		for (argv += optind; *argv; argv++) {
-			unsigned char *dir_name = *argv;
-			unsigned char *argv_ptr;
-
-			ret |= bb_make_directory(dir_name, mode, FILEUTILS_RECUR);
+			char *old_argv_ptr = *argv + 1;
+			char *argv_ptr;
 			do {
-				argv_ptr = strrchr(dir_name, '/');
-
-				/* Skip the "." and ".." directories */
-				if ((dir_name[0] == '.') && ((dir_name[1] == '\0') || ((dir_name[1] == '.') && (dir_name[2] == '\0')))) {
-					break;
-				}
-				if (lchown(dir_name, uid, gid) == -1) {
-					bb_perror_msg("cannot change ownership of %s", argv_ptr);
-					ret |= EXIT_FAILURE;
-				}
+				argv_ptr = strchr(old_argv_ptr, '/');
+				old_argv_ptr = argv_ptr;
 				if (argv_ptr) {
 					*argv_ptr = '\0';
+					old_argv_ptr++;
 				}
-			} while (argv_ptr);
+				if (mkdir(*argv, mode) == -1) {
+					if (errno != EEXIST) {
+						bb_perror_msg("coulnt create %s", *argv);
+						ret = EXIT_FAILURE;
+						break;
+					}
+				}
+				else if (lchown(*argv, uid, gid) == -1) {
+					bb_perror_msg("cannot change ownership of %s", *argv);
+					ret = EXIT_FAILURE;
+					break;
+				}
+				if (argv_ptr) {
+					*argv_ptr = '/';
+				}
+			} while (old_argv_ptr);
 		}
 		return(ret);
 	}
@@ -111,18 +131,18 @@ extern int install_main(int argc, char **argv)
 		/* Set the file mode */
 		if (chmod(dest, mode) == -1) {
 			bb_perror_msg("cannot change permissions of %s", dest);
-			ret |= EXIT_FAILURE;
+			ret = EXIT_FAILURE;
 		}
 
 		/* Set the user and group id */
 		if (lchown(dest, uid, gid) == -1) {
 			bb_perror_msg("cannot change ownership of %s", dest);
-			ret |= EXIT_FAILURE;			
+			ret = EXIT_FAILURE;			
 		}
 		if (flags & INSTALL_OPT_STRIP) {
 			if (execlp("strip", "strip", dest, NULL) == -1) {
 				bb_error_msg("strip failed");
-				ret |= EXIT_FAILURE;			
+				ret = EXIT_FAILURE;			
 			}
 		}
 	}

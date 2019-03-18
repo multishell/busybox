@@ -119,7 +119,7 @@ static char *safe_fgets(char *s, int size, FILE *stream)
  *  oops... isn't something similar in uuencode.c?
  *  It would be better to use already existing code
  */
-char *base64enc(char *p, char *buf, int len) {
+char *base64enc(unsigned char *p, char *buf, int len) {
 
         char al[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
                     "0123456789+/";
@@ -320,7 +320,7 @@ int wget_main(int argc, char **argv)
 #endif
 				fprintf(sfp, format,
 					target.is_ftp ? "f" : "ht", target.host,
-					target.port, target.path);
+					ntohs(target.port), target.path);
 			} else {
 				fprintf(sfp, "GET /%s HTTP/1.1\r\n", target.path);
 			}
@@ -404,6 +404,9 @@ read_response:
 							server.host = target.host;
 							server.port = target.port;
 						}
+						bb_lookup_host(&s_in, server.host);
+						s_in.sin_port = server.port;
+						break;
 					}
 				}
 			}
@@ -537,11 +540,11 @@ void parse_url(char *url, struct host_info *h)
 	char *cp, *sp, *up, *pp;
 
 	if (strncmp(url, "http://", 7) == 0) {
-		h->port = bb_lookup_port("http", 80);
+		h->port = bb_lookup_port("http", "tcp", 80);
 		h->host = url + 7;
 		h->is_ftp = 0;
 	} else if (strncmp(url, "ftp://", 6) == 0) {
-		h->port = bb_lookup_port("ftp", 21);
+		h->port = bb_lookup_port("ftp", "tfp", 21);
 		h->host = url + 6;
 		h->is_ftp = 1;
 	} else
@@ -582,9 +585,8 @@ void parse_url(char *url, struct host_info *h)
 	cp = strchr(pp, ':');
 	if (cp != NULL) {
 		*cp++ = '\0';
-		h->port = atoi(cp);
+		h->port = htons(atoi(cp));
 	}
-
 }
 
 
@@ -835,7 +837,7 @@ progressmeter(int flag)
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	$Id: wget.c,v 1.63 2003/12/20 01:47:18 bug1 Exp $
+ *	$Id: wget.c,v 1.68 2004/01/31 08:08:57 bug1 Exp $
  */
 
 

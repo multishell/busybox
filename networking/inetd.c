@@ -131,47 +131,32 @@
 #include <stdarg.h>
 #include <time.h>
 
+#ifndef OPEN_MAX
+#define OPEN_MAX	64
+#endif
+
 #define _PATH_INETDCONF "/etc/inetd.conf"
 #define _PATH_INETDPID  "/var/run/inetd.pid"
 
-#ifndef MIN
-#define MIN(a, b)       ((a) < (b) ? (a) : (b))
-#endif
+#define TOOMANY		40		/* don't start more than TOOMANY */
+#define CNT_INTVL	60		/* servers in CNT_INTVL sec. */
+#define RETRYTIME	(60*10)	/* retry after bind or server fail */
+#define MAXARGV		20
 
-#define TOOMANY         40              /* don't start more than TOOMANY */
-#define CNT_INTVL       60              /* servers in CNT_INTVL sec. */
-#define RETRYTIME       (60*10)         /* retry after bind or server fail */
-
-#ifndef OPEN_MAX
-#define OPEN_MAX        64
-#endif
-
+#define se_ctrladdr		se_un.se_un_ctrladdr
+#define se_ctrladdr_in	se_un.se_un_ctrladdr_in
+#define se_ctrladdr_un	se_un.se_un_ctrladdr_un
 
 /* Reserve some descriptors, 3 stdio + at least: 1 log, 1 conf. file */
-#define FD_MARGIN       (8)
-static int     rlim_ofile_cur = OPEN_MAX;
-
-#ifdef RLIMIT_NOFILE
-static struct rlimit   rlim_ofile;
-#endif
-
-#define INETD_UNSUPPORT_BILTIN 1
+#define FD_MARGIN	(8)
 
 /* Check unsupporting builtin */
-#ifdef CONFIG_FEATURE_INETD_SUPPORT_BILTIN_ECHO
-#undef INETD_UNSUPPORT_BILTIN
-#endif
-#ifdef CONFIG_FEATURE_INETD_SUPPORT_BILTIN_DISCARD
-#undef INETD_UNSUPPORT_BILTIN
-#endif
-#ifdef CONFIG_FEATURE_INETD_SUPPORT_BILTIN_TIME
-#undef INETD_UNSUPPORT_BILTIN
-#endif
-#ifdef CONFIG_FEATURE_INETD_SUPPORT_BILTIN_DAYTIME
-#undef INETD_UNSUPPORT_BILTIN
-#endif
-#ifdef CONFIG_FEATURE_INETD_SUPPORT_BILTIN_CHARGEN
-#undef INETD_UNSUPPORT_BILTIN
+#if defined CONFIG_FEATURE_INETD_SUPPORT_BILTIN_ECHO || \
+	defined CONFIG_FEATURE_INETD_SUPPORT_BILTIN_DISCARD || \
+	defined CONFIG_FEATURE_INETD_SUPPORT_BILTIN_TIME || \
+	defined CONFIG_FEATURE_INETD_SUPPORT_BILTIN_DAYTIME || \
+	defined CONFIG_FEATURE_INETD_SUPPORT_BILTIN_CHARGEN
+# define INETD_FEATURE_ENABLED
 #endif
 
 static struct  servtab {
@@ -183,11 +168,10 @@ static struct  servtab {
 	short   se_checked;             /* looked at during merge */
 	char    *se_user;               /* user name to run as */
 	char    *se_group;              /* group name to run as */
-#ifndef INETD_UNSUPPORT_BILTIN
+#ifdef INETD_FEATURE_ENABLED
 	const struct  biltin *se_bi;    /* if built-in, description */
 #endif
 	char    *se_server;             /* server program */
-#define MAXARGV 20
 	char    *se_argv[MAXARGV+1];    /* program arguments */
 	int     se_fd;                  /* open descriptor */
 	union {
@@ -195,9 +179,6 @@ static struct  servtab {
 		struct  sockaddr_in se_un_ctrladdr_in;
 		struct  sockaddr_un se_un_ctrladdr_un;
 	} se_un;                        /* bound address */
-#define se_ctrladdr     se_un.se_un_ctrladdr
-#define se_ctrladdr_in  se_un.se_un_ctrladdr_in
-#define se_ctrladdr_un  se_un.se_un_ctrladdr_un
 	int     se_ctrladdr_size;
 	int     se_max;                 /* max # of instances of this service */
 	int     se_count;               /* number started since se_time */
@@ -205,21 +186,21 @@ static struct  servtab {
 	struct  servtab *se_next;
 } *servtab;
 
-/* Length of socket listen queue. Should be per-service probably. */
-static int      global_queuelen = 128;
+#ifdef INETD_FEATURE_ENABLED
+struct biltin {
+	const char *bi_service;         /* internally provided service name */
+	int bi_socktype;                /* type of socket supported */
+	short bi_fork;          /* 1 if should fork before call */
+	short bi_wait;          /* 1 if should wait for child */
+	void (*bi_fn)(int, struct servtab *); /* fn which performs it */
+};
 
-static int      nsock, maxsock;
-static fd_set   allsock;
-static int      timingout;
-static sigset_t blockmask, emptymask;
-
-
-       /* Echo received data */
+    /* Echo received data */
 #ifdef CONFIG_FEATURE_INETD_SUPPORT_BILTIN_ECHO
 static void echo_stream(int, struct servtab *);
 static void echo_dg(int, struct servtab *);
 #endif
-	/* Internet /dev/null */
+    /* Internet /dev/null */
 #ifdef CONFIG_FEATURE_INETD_SUPPORT_BILTIN_DISCARD
 static void discard_stream(int, struct servtab *);
 static void discard_dg(int, struct servtab *);
@@ -239,15 +220,6 @@ static void daytime_dg(int, struct servtab *);
 static void chargen_stream(int, struct servtab *);
 static void chargen_dg(int, struct servtab *);
 #endif
-
-#ifndef INETD_UNSUPPORT_BILTIN
-struct biltin {
-	const char *bi_service;         /* internally provided service name */
-	int bi_socktype;                /* type of socket supported */
-	short bi_fork;          /* 1 if should fork before call */
-	short bi_wait;          /* 1 if should wait for child */
-	void (*bi_fn)(int, struct servtab *); /* fn which performs it */
-};
 
 static const struct biltin biltins[] = {
 #ifdef CONFIG_FEATURE_INETD_SUPPORT_BILTIN_ECHO
@@ -277,12 +249,24 @@ static const struct biltin biltins[] = {
 #endif
 	{ NULL, 0, 0, 0, NULL }
 };
-#endif  /* INETD_UNSUPPORT_BILTIN */
+#endif  /* INETD_FEATURE_ENABLED */
 
-#define NUMINT  (sizeof(intab) / sizeof(struct inent))
+#ifdef RLIMIT_NOFILE
+static struct rlimit   rlim_ofile;
+#endif
+
+/* Length of socket listen queue. Should be per-service probably. */
+static int      global_queuelen = 128;
+
+static FILE *fconfig;
+static sigset_t	blockmask;
+static sigset_t	emptymask;
+static fd_set	allsock;
+static int	nsock;
+static int	maxsock;
+static int	timingout;
+static int	rlim_ofile_cur = OPEN_MAX;
 static const char *CONFIG = _PATH_INETDCONF;
-
-#define BCOPY(s, d, z) memcpy(d, s, z)
 
 static void
 syslog_err_and_discard_dg(int se_socktype, const char *msg, ...)
@@ -301,179 +285,152 @@ syslog_err_and_discard_dg(int se_socktype, const char *msg, ...)
 	_exit(1);
 }
 
-static FILE *fconfig;
-static char line[256];
-
-static FILE *
-setconfig(void)
-{
-	FILE *f = fconfig;
-
-	if (f != NULL) {
-		fseek(f, 0L, L_SET);
-	} else {
-		f = fconfig = fopen(CONFIG, "r");
-		if(f == NULL)
-			syslog(LOG_ERR, "%s: %m", CONFIG);
-	}
-	return f;
-}
-
-static char *
-nextline(void)
-{
-	char *cp;
-	FILE *fd = fconfig;
-
-	if (fgets(line, sizeof (line), fd) == NULL)
-		return ((char *)0);
-	cp = strchr(line, '\n');
-	if (cp)
-		*cp = '\0';
-	return (line);
-}
-
-static char *
-skip(char **cpp)
-{
-	char *cp = *cpp;
-	char *start;
-
-	if (*cpp == NULL)
-		return ((char *)0);
-
-again:
-	while (*cp == ' ' || *cp == '\t')
-		cp++;
-	if (*cp == '\0') {
-		int c;
-
-		c = getc(fconfig);
-		(void) ungetc(c, fconfig);
-		if (c == ' ' || c == '\t')
-			if ((cp = nextline()) != NULL)
-				goto again;
-		*cpp = NULL;
-		return NULL;
-	}
-	start = cp;
-	while (*cp && *cp != ' ' && *cp != '\t')
-		cp++;
-	if (*cp != '\0')
-		*cp++ = '\0';
-	*cpp = cp;
-	return (start);
-}
-
-static char *
-newstr(char *cp)
-{
-	cp = strdup(cp ? cp : "");
-	if (cp)
-		return(cp);
-
-	syslog_err_and_discard_dg(SOCK_STREAM, "strdup: %m");
-}
-
-
-static struct servtab *
-getconfigent(void)
+static struct servtab *getconfigent(void)
 {
 	static struct servtab serv;
 	struct servtab *sep = &serv;
 	int argc;
-	char *cp, *arg;
+	char *cp = NULL;
+	char *cp_ptr;
+	char *cp_ptr_ptr = NULL;
 
 more:
-	while ((cp = nextline()) && *cp == '#')
-		;
-	if (cp == NULL)
-		return ((struct servtab *)0);
-	memset((char *)sep, 0, sizeof *sep);
-	sep->se_service = newstr(skip(&cp));
-	arg = skip(&cp);
-	if (arg == NULL)
+	free(cp);
+	cp = bb_get_chomped_line_from_file(fconfig);
+	if (feof(fconfig)) {
+		free(cp);
+		return (NULL);
+	}
+	if ((cp == NULL) || (*cp == '#')) {
 		goto more;
+	}
+	printf("line is %s\n", cp);
 
-	if (strcmp(arg, "stream") == 0)
+	cp_ptr = strtok_r(cp, " \t", &cp_ptr_ptr);
+	if (cp_ptr == NULL) {
+		printf("error\n");
+		/* Error */
+		goto more;
+	}
+	sep->se_service = bb_xstrdup(cp_ptr);
+
+	cp_ptr = strtok_r(NULL, " \t", &cp_ptr_ptr);
+	if (cp_ptr == NULL) {
+		printf("error\n");
+		/* Error */
+		goto more;
+	}
+	if (strcmp(cp_ptr, "stream") == 0)
 		sep->se_socktype = SOCK_STREAM;
-	else if (strcmp(arg, "dgram") == 0)
+	else if (strcmp(cp_ptr, "dgram") == 0)
 		sep->se_socktype = SOCK_DGRAM;
-	else if (strcmp(arg, "rdm") == 0)
+	else if (strcmp(cp_ptr, "rdm") == 0)
 		sep->se_socktype = SOCK_RDM;
-	else if (strcmp(arg, "seqpacket") == 0)
+	else if (strcmp(cp_ptr, "seqpacket") == 0)
 		sep->se_socktype = SOCK_SEQPACKET;
-	else if (strcmp(arg, "raw") == 0)
+	else if (strcmp(cp_ptr, "raw") == 0)
 		sep->se_socktype = SOCK_RAW;
 	else
 		sep->se_socktype = -1;
 
-	sep->se_proto = newstr(skip(&cp));
-	if (strcmp(sep->se_proto, "unix") == 0) {
+	cp_ptr = strtok_r(NULL, " \t", &cp_ptr_ptr);
+	if (cp_ptr == NULL) {
+		printf("error\n");
+		/* error */
+		goto more;
+	}
+	if (strcmp(cp_ptr, "unix") == 0) {
 		sep->se_family = AF_UNIX;
 	} else {
-		sep->se_family = AF_INET;
-		if (strncmp(sep->se_proto, "rpc/", 4) == 0) {
+		if (strncmp(cp_ptr, "rpc/", 4) == 0) {
 			syslog(LOG_ERR, "%s: rpc services not suported",
 			    sep->se_service);
 			goto more;
 		}
+		sep->se_family = AF_INET;
 	}
-	arg = skip(&cp);
-	if (arg == NULL)
+	sep->se_proto = bb_xstrdup(cp_ptr);
+
+	cp_ptr = strtok_r(NULL, " \t", &cp_ptr_ptr);
+	if (cp_ptr == NULL) {
+		printf("error\n");
+		/* error */
 		goto more;
+	}
 	{
-		char    *s = strchr(arg, '.');
+		char *s = strchr(cp_ptr, '.');
 		if (s) {
 			*s++ = '\0';
 			sep->se_max = atoi(s);
 		} else
 			sep->se_max = TOOMANY;
 	}
-	sep->se_wait = strcmp(arg, "wait") == 0;
-	sep->se_user = newstr(skip(&cp));
-	sep->se_group = strchr(sep->se_user, '.');
-	if (sep->se_group) {
-		*sep->se_group++ = '\0';
+	sep->se_wait = strcmp(cp_ptr, "wait") == 0;
+
+	cp_ptr = strtok_r(NULL, " \t", &cp_ptr_ptr);
+	if (cp_ptr == NULL) {
+		printf("error\n");
+		/* error */
+		goto more;
 	}
-	sep->se_server = newstr(skip(&cp));
-	if (strcmp(sep->se_server, "internal") == 0) {
-#ifndef INETD_UNSUPPORT_BILTIN
+	{
+		char *cp_ptr2 = strchr(cp_ptr, '.');
+		if (cp_ptr2) {
+			*cp_ptr2++ = '\0';
+			sep->se_group = bb_xstrdup(cp_ptr2);
+		}
+	}
+	sep->se_user = bb_xstrdup(cp_ptr);
+
+	cp_ptr = strtok_r(NULL, " \t", &cp_ptr_ptr);
+	if (cp_ptr == NULL) {
+		printf("error\n");
+		/* error */
+		goto more;
+	}
+	if (strcmp(cp_ptr, "internal") == 0) {
+#ifdef INETD_FEATURE_ENABLED
 		const struct biltin *bi;
 
-		for (bi = biltins; bi->bi_service; bi++)
-			if (bi->bi_socktype == sep->se_socktype &&
-			    strcmp(bi->bi_service, sep->se_service) == 0)
+		for (bi = biltins; bi->bi_service; bi++) {
+			if ((bi->bi_socktype == sep->se_socktype) &&
+			    (strcmp(bi->bi_service, sep->se_service) == 0)) {
 				break;
+			}
+		}
 		if (bi->bi_service == 0) {
-			syslog(LOG_ERR, "internal service %s unknown",
-				sep->se_service);
+			syslog(LOG_ERR, "internal service %s unknown", sep->se_service);
 			goto more;
 		}
 		sep->se_bi = bi;
 		sep->se_wait = bi->bi_wait;
 #else
-		syslog(LOG_ERR, "internal service %s unknown",
-				sep->se_service);
-			goto more;
+		syslog(LOG_ERR, "internal service %s unknown", cp_ptr);
+		goto more;
 #endif
-	} else
-#ifndef INETD_UNSUPPORT_BILTIN
-		sep->se_bi = NULL
-#endif
-		;
-	argc = 0;
-	for (arg = skip(&cp); cp; arg = skip(&cp)) {
-		if (argc < MAXARGV)
-			sep->se_argv[argc++] = newstr(arg);
 	}
-	while (argc <= MAXARGV)
+#ifdef INETD_FEATURE_ENABLED
+	else {
+		sep->se_bi = NULL;
+	}
+#endif
+	sep->se_server = bb_xstrdup(cp_ptr);
+
+	argc = 0;
+	while ((cp_ptr = strtok_r(NULL, " \t", &cp_ptr_ptr)) != NULL) {
+		if (argc < MAXARGV) {
+			sep->se_argv[argc++] = cp_ptr;
+		}
+	}
+	while (argc <= MAXARGV) {
 		sep->se_argv[argc++] = NULL;
+	}
+
+	free(cp);
 	return (sep);
 }
 
-static void
-freeconfig(struct servtab *cp)
+static void freeconfig(struct servtab *cp)
 {
 	int i;
 
@@ -486,12 +443,11 @@ freeconfig(struct servtab *cp)
 		free(cp->se_argv[i]);
 }
 
-#ifndef INETD_UNSUPPORT_BILTIN
+#ifdef INETD_FEATURE_ENABLED
 static char **Argv;
 static char *LastArg;
 
-static void
-setproctitle(char *a, int s)
+static void setproctitle(char *a, int s)
 {
 	size_t size;
 	char *cp;
@@ -509,69 +465,10 @@ setproctitle(char *a, int s)
 	while (cp < LastArg)
 		*cp++ = ' ';
 }
-#endif  /* INETD_UNSUPPORT_BILTIN */
-
-static struct servtab *
-enter(struct servtab *cp)
-{
-	struct servtab *sep;
-	sigset_t oldmask;
-
-	sep = (struct servtab *)malloc(sizeof (*sep));
-	if (sep == NULL) {
-		syslog_err_and_discard_dg(SOCK_STREAM, bb_msg_memory_exhausted);
-	}
-	*sep = *cp;
-	sep->se_fd = -1;
-	sigprocmask(SIG_BLOCK, &blockmask, &oldmask);
-	sep->se_next = servtab;
-	servtab = sep;
-	sigprocmask(SIG_SETMASK, &oldmask, NULL);
-	return (sep);
-}
-
-static int
-bump_nofile(void)
-{
-#ifdef RLIMIT_NOFILE
-
-#define FD_CHUNK        32
-
-	struct rlimit rl;
-
-	if (getrlimit(RLIMIT_NOFILE, &rl) < 0) {
-		syslog(LOG_ERR, "getrlimit: %m");
-		return -1;
-	}
-	rl.rlim_cur = MIN(rl.rlim_max, rl.rlim_cur + FD_CHUNK);
-	if (rl.rlim_cur <= rlim_ofile_cur) {
-		syslog(LOG_ERR,
-#if _FILE_OFFSET_BITS == 64
-			"bump_nofile: cannot extend file limit, max = %lld",
-#else
-			"bump_nofile: cannot extend file limit, max = %ld",
-#endif
-			rl.rlim_cur);
-		return -1;
-	}
-
-	if (setrlimit(RLIMIT_NOFILE, &rl) < 0) {
-		syslog(LOG_ERR, "setrlimit: %m");
-		return -1;
-	}
-
-	rlim_ofile_cur = rl.rlim_cur;
-	return 0;
-
-#else
-	syslog(LOG_ERR, "bump_nofile: cannot extend file limit");
-	return -1;
-#endif
-}
+#endif  /* INETD_FEATURE_ENABLED */
 
 
-static void
-setup(struct servtab *sep)
+static void setup(struct servtab *sep)
 {
 	int on = 1;
 
@@ -601,21 +498,59 @@ setup(struct servtab *sep)
 	nsock++;
 	if (sep->se_fd > maxsock) {
 		maxsock = sep->se_fd;
-		if (maxsock > rlim_ofile_cur - FD_MARGIN)
-			bump_nofile();
+		if (maxsock > rlim_ofile_cur - FD_MARGIN) {
+#ifdef RLIMIT_NOFILE
+# define FD_CHUNK        32
+			struct rlimit rl;
+
+			if (getrlimit(RLIMIT_NOFILE, &rl) < 0) {
+				syslog(LOG_ERR, "getrlimit: %m");
+				return;
+			}
+			rl.rlim_cur = rl.rlim_max < (rl.rlim_cur + FD_CHUNK) ? rl.rlim_max : (rl.rlim_cur + FD_CHUNK);
+			if (rl.rlim_cur <= rlim_ofile_cur) {
+				syslog(LOG_ERR,
+# if _FILE_OFFSET_BITS == 64
+					"bump_nofile: cannot extend file limit, max = %lld",
+# else
+					"bump_nofile: cannot extend file limit, max = %ld",
+# endif
+					rl.rlim_cur);
+				return;
+			}
+
+			if (setrlimit(RLIMIT_NOFILE, &rl) < 0) {
+				syslog(LOG_ERR, "setrlimit: %m");
+				return;
+			}
+
+			rlim_ofile_cur = rl.rlim_cur;
+			return;
+#else
+			syslog(LOG_ERR, "bump_nofile: cannot extend file limit");
+			return;
+#endif	/* RLIMIT_NOFILE */
+		}
 	}
 }
 
-static void
-config(int signum)
+static void config(int signum)
 {
 	struct servtab *sep, *cp, **sepp;
 	sigset_t oldmask;
 	unsigned n;
 
 	(void)signum;
-	if (setconfig() == NULL)
-		return;
+
+	if (fconfig != NULL) {
+		fseek(fconfig, 0L, L_SET);
+	} else {
+		fconfig = fopen(CONFIG, "r");
+		if (fconfig == NULL) {
+			syslog(LOG_ERR, "%s: %m", CONFIG);
+			return;
+		}
+	}
 
 	for (sep = servtab; sep; sep = sep->se_next)
 		sep->se_checked = 0;
@@ -637,7 +572,7 @@ config(int signum)
 			 * wait.
 			 */
 			if (
-#ifndef INETD_UNSUPPORT_BILTIN
+#ifdef INETD_FEATURE_ENABLED
 			    cp->se_bi == 0 &&
 #endif
 			    (sep->se_wait == 1 || cp->se_wait == 0))
@@ -656,7 +591,13 @@ config(int signum)
 			sigprocmask(SIG_SETMASK, &oldmask, NULL);
 			freeconfig(cp);
 		} else {
-			sep = enter(cp);
+			sep = (struct servtab *)xmalloc(sizeof (*sep));
+			*sep = *cp;
+			sep->se_fd = -1;
+			sigprocmask(SIG_BLOCK, &blockmask, &oldmask);
+			sep->se_next = servtab;
+			servtab = sep;
+			sigprocmask(SIG_SETMASK, &oldmask, NULL);
 		}
 		sep->se_checked = 1;
 
@@ -678,19 +619,13 @@ config(int signum)
 			sep->se_ctrladdr_in.sin_family = AF_INET;
 			sep->se_ctrladdr_size = sizeof sep->se_ctrladdr_in;
 			{
-				u_short port = htons(atoi(sep->se_service));
+				u_short port = bb_lookup_port(sep->se_service, sep->se_proto, 0);
 
-				if (!port) {
-					struct servent *sp;
-					sp = getservbyname(sep->se_service,
-								sep->se_proto);
-					if (sp == 0) {
-						syslog(LOG_ERR,
-						    "%s/%s: unknown service",
-						    sep->se_service, sep->se_proto);
-						continue;
-					}
-					port = sp->s_port;
+				if (port == 0) {
+					syslog(LOG_ERR,
+					    "%s/%s: unknown service",
+					    sep->se_service, sep->se_proto);
+					continue;
 				}
 				if (port != sep->se_ctrladdr_in.sin_port) {
 					sep->se_ctrladdr_in.sin_port = port;
@@ -736,8 +671,7 @@ config(int signum)
 
 
 
-static void
-reapchild(int signum)
+static void reapchild(int signum)
 {
 	int status;
 	int pid;
@@ -765,8 +699,7 @@ reapchild(int signum)
 	}
 }
 
-static void
-retry(int signum)
+static void retry(int signum)
 {
 	struct servtab *sep;
 
@@ -784,8 +717,7 @@ retry(int signum)
 	}
 }
 
-static void
-goaway(int signum)
+static void goaway(int signum)
 {
 	struct servtab *sep;
 
@@ -799,11 +731,9 @@ goaway(int signum)
 
 
 
-extern int
-inetd_main(int argc, char *argv[])
+extern int inetd_main(int argc, char *argv[])
 {
 	struct servtab *sep;
-	struct passwd *pwd;
 	struct group *grp = NULL;
 	struct sigaction sa;
 	int pid;
@@ -811,17 +741,14 @@ inetd_main(int argc, char *argv[])
 	char *sq;
 	gid_t gid;
 
-#ifdef INETD_UNSUPPORT_BILTIN
-# define dofork 1
-#else
-	int dofork;
+#ifdef INETD_FEATURE_ENABLED
 	extern char **environ;
 #endif
 
 	gid = getgid();
 	setgroups(1, &gid);
 
-#ifndef INETD_UNSUPPORT_BILTIN
+#ifdef INETD_FEATURE_ENABLED
 	Argv = argv;
 	if (environ == 0 || *environ == 0)
 		environ = argv;
@@ -944,13 +871,12 @@ inetd_main(int argc, char *argv[])
 			ctrl = sep->se_fd;
 		sigprocmask(SIG_BLOCK, &blockmask, NULL);
 		pid = 0;
-#ifndef INETD_UNSUPPORT_BILTIN
-		dofork = (sep->se_bi == 0 || sep->se_bi->bi_fork);
+#ifdef INETD_FEATURE_ENABLED
+		if (sep->se_bi == 0 || sep->se_bi->bi_fork)
 #endif
-		if (dofork) {
+		{
 			if (sep->se_count++ == 0)
-			    (void)gettimeofday(&sep->se_time,
-				(struct timezone *)0);
+			    (void)gettimeofday(&sep->se_time, (struct timezone *)0);
 			else if (sep->se_count >= sep->se_max) {
 				struct timeval now;
 
@@ -978,29 +904,30 @@ inetd_main(int argc, char *argv[])
 				}
 			}
 			pid = fork();
-		}
-		if (pid < 0) {
-			syslog(LOG_ERR, "fork: %m");
-			if (sep->se_socktype == SOCK_STREAM)
-				close(ctrl);
-			sigprocmask(SIG_SETMASK, &emptymask, NULL);
-			sleep(1);
-			continue;
-		}
-		if (pid && sep->se_wait) {
-			sep->se_wait = pid;
-			FD_CLR(sep->se_fd, &allsock);
-			nsock--;
+			if (pid < 0) {
+				syslog(LOG_ERR, "fork: %m");
+				if (sep->se_socktype == SOCK_STREAM)
+					close(ctrl);
+				sigprocmask(SIG_SETMASK, &emptymask, NULL);
+				sleep(1);
+				continue;
+			}
+			if (pid && sep->se_wait) {
+				sep->se_wait = pid;
+				FD_CLR(sep->se_fd, &allsock);
+				nsock--;
+			}
 		}
 		sigprocmask(SIG_SETMASK, &emptymask, NULL);
 		if (pid == 0) {
-#ifndef INETD_UNSUPPORT_BILTIN
+#ifdef INETD_FEATURE_ENABLED
 			if (sep->se_bi)
 				(*sep->se_bi->bi_fn)(ctrl, sep);
 			else
 #endif
-			      {
-				if ((pwd = getpwnam(sep->se_user)) == NULL) {
+			{
+				struct passwd *pwd = getpwnam(sep->se_user);
+				if (pwd == NULL) {
 					syslog_err_and_discard_dg(
 						sep->se_socktype,
 						"getpwnam: %s: No such user",
@@ -1072,8 +999,7 @@ inetd_main(int argc, char *argv[])
 
 #ifdef CONFIG_FEATURE_INETD_SUPPORT_BILTIN_ECHO
 /* Echo service -- echo data back */
-static void
-echo_stream(int s, struct servtab *sep)
+static void echo_stream(int s, struct servtab *sep)
 {
 	char buffer[BUFSIZE];
 	int i;
@@ -1086,8 +1012,7 @@ echo_stream(int s, struct servtab *sep)
 }
 
 /* Echo service -- echo data back */
-static void
-echo_dg(int s, struct servtab *sep)
+static void echo_dg(int s, struct servtab *sep)
 {
 	char buffer[BUFSIZE];
 	int i;
@@ -1106,8 +1031,7 @@ echo_dg(int s, struct servtab *sep)
 
 #ifdef CONFIG_FEATURE_INETD_SUPPORT_BILTIN_DISCARD
 /* Discard service -- ignore data */
-static void
-discard_stream(int s, struct servtab *sep)
+static void discard_stream(int s, struct servtab *sep)
 {
 	char buffer[BUFSIZE];
 
@@ -1119,8 +1043,7 @@ discard_stream(int s, struct servtab *sep)
 }
 
 /* Discard service -- ignore data */
-static void
-discard_dg(int s, struct servtab *sep)
+static void discard_dg(int s, struct servtab *sep)
 {
 	char buffer[BUFSIZE];
 	(void)sep;
@@ -1135,8 +1058,7 @@ discard_dg(int s, struct servtab *sep)
 static char ring[128];
 static char *endring;
 
-static void
-initring(void)
+static void initring(void)
 {
 	int i;
 
@@ -1148,8 +1070,7 @@ initring(void)
 }
 
 /* Character generator */
-static void
-chargen_stream(int s, struct servtab *sep)
+static void chargen_stream(int s, struct servtab *sep)
 {
 	char *rs;
 	int len;
@@ -1166,10 +1087,10 @@ chargen_stream(int s, struct servtab *sep)
 	text[LINESIZ + 1] = '\n';
 	for (rs = ring;;) {
 		if ((len = endring - rs) >= LINESIZ)
-			BCOPY(rs, text, LINESIZ);
+			memcpy(rs, text, LINESIZ);
 		else {
-			BCOPY(rs, text, len);
-			BCOPY(ring, text + len, LINESIZ - len);
+			memcpy(rs, text, len);
+			memcpy(ring, text + len, LINESIZ - len);
 		}
 		if (++rs == endring)
 			rs = ring;
@@ -1180,8 +1101,7 @@ chargen_stream(int s, struct servtab *sep)
 }
 
 /* Character generator */
-static void
-chargen_dg(int s, struct servtab *sep)
+static void chargen_dg(int s, struct servtab *sep)
 {
 	struct sockaddr sa;
 	static char *rs;
@@ -1200,10 +1120,10 @@ chargen_dg(int s, struct servtab *sep)
 		return;
 
 	if ((len = endring - rs) >= LINESIZ)
-		BCOPY(rs, text, LINESIZ);
+		memcpy(rs, text, LINESIZ);
 	else {
-		BCOPY(rs, text, len);
-		BCOPY(ring, text + len, LINESIZ - len);
+		memcpy(rs, text, len);
+		memcpy(ring, text + len, LINESIZ - len);
 	}
 	if (++rs == endring)
 		rs = ring;
@@ -1223,8 +1143,7 @@ chargen_dg(int s, struct servtab *sep)
  * some seventy years Bell Labs was asleep.
  */
 
-static long
-machtime(void)
+static long machtime(void)
 {
 	struct timeval tv;
 
@@ -1235,8 +1154,7 @@ machtime(void)
 	return (htonl((long)tv.tv_sec + 2208988800UL));
 }
 
-static void
-machtime_stream(int s, struct servtab *sep)
+static void machtime_stream(int s, struct servtab *sep)
 {
 	long result;
 	(void)sep;
@@ -1245,8 +1163,7 @@ machtime_stream(int s, struct servtab *sep)
 	write(s, (char *) &result, sizeof(result));
 }
 
-static void
-machtime_dg(int s, struct servtab *sep)
+static void machtime_dg(int s, struct servtab *sep)
 {
 	long result;
 	struct sockaddr sa;
@@ -1264,16 +1181,14 @@ machtime_dg(int s, struct servtab *sep)
 
 #ifdef CONFIG_FEATURE_INETD_SUPPORT_BILTIN_DAYTIME
 /* Return human-readable time of day */
-static int
-human_readable_time_sprintf(char *buffer)
+static int human_readable_time_sprintf(char *buffer)
 {
 	time_t clocc = time(NULL);
 
 	return sprintf(buffer, "%.24s\r\n", ctime(&clocc));
 }
 
-static void
-daytime_stream(int s, struct servtab *sep)
+static void daytime_stream(int s, struct servtab *sep)
 {
 	char buffer[256];
 	size_t st = human_readable_time_sprintf(buffer);
@@ -1284,8 +1199,7 @@ daytime_stream(int s, struct servtab *sep)
 }
 
 /* Return human-readable time of day */
-static void
-daytime_dg(int s, struct servtab *sep)
+static void daytime_dg(int s, struct servtab *sep)
 {
 	char buffer[256];
 	struct sockaddr sa;

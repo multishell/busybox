@@ -52,7 +52,7 @@ static char *conf_expand_value(const char *in)
 char *conf_get_default_confname(void)
 {
 	struct stat buf;
-	static char fullname[4096+1];
+	static char fullname[PATH_MAX+1];
 	char *env, *name;
 
 	name = conf_expand_value(conf_defname);
@@ -292,16 +292,21 @@ int conf_write(const char *name)
 	fprintf(out, "#\n"
 		     "# Automatically generated make config: don't edit\n"
 		     "#\n");
-	if (out_h)
+	if (out_h) {
 		fprintf(out_h, "/*\n"
 			     " * Automatically generated header file: don't edit\n"
 			     " */\n\n"
 			     "#define AUTOCONF_INCLUDED\n\n"
 			     "/* Version Number */\n"
 			     "#define BB_VER \"%s\"\n"
-			     "#define BB_BT \"%s\"\n\n",
+			     "#define BB_BT \"%s\"\n",
 			     getenv("VERSION"),
 			     getenv("BUILDTIME"));
+		if (getenv("EXTRA_VERSION"))
+			fprintf(out_h, "#define BB_EXTRA_VERSION \"%s\"\n",
+				     getenv("EXTRA_VERSION"));
+		fprintf(out_h, "\n");
+	}
 
 	if (!sym_change_count)
 		sym_clear_all_valid();

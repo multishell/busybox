@@ -19,7 +19,7 @@
  */
 
 static const char vi_Version[] =
-	"$Id: vi.c,v 1.29 2003/09/15 08:33:36 andersen Exp $";
+	"$Id: vi.c,v 1.31 2004/01/21 10:59:45 bug1 Exp $";
 
 /*
  * To compile for standalone use:
@@ -1669,7 +1669,9 @@ static Byte find_range(Byte ** start, Byte ** stop, Byte c)
 		q = dot;
 	} else if (strchr("wW", c)) {
 		do_cmd(c);		// execute movement cmd
-		if (dot > text)
+		// if we are at the next word's first char
+		// step back one char
+		if (dot > text && isspace(dot[-1]))
 			dot--;		// move back off of next word
 		if (dot > text && *dot == '\n')
 			dot--;		// stay off NL
@@ -2113,10 +2115,8 @@ static void rawmode(void)
 	term_vi.c_lflag &= (~ICANON & ~ECHO);	// leave ISIG ON- allow intr's
 	term_vi.c_iflag &= (~IXON & ~ICRNL);
 	term_vi.c_oflag &= (~ONLCR);
-#ifndef linux
 	term_vi.c_cc[VMIN] = 1;
 	term_vi.c_cc[VTIME] = 0;
-#endif
 	erase_char = term_vi.c_cc[VERASE];
 	tcsetattr(0, TCSANOW, &term_vi);
 }
@@ -3197,7 +3197,7 @@ key_cmd_mode:
 		if (cmdcnt-- > 1) {
 			do_cmd(c);
 		}				// repeat cnt
-		dot = end_line(dot + 1);
+		dot = end_line(dot);
 		break;
 	case '%':			// %- find matching char of pair () [] {}
 		for (q = dot; q < end && *q != '\n'; q++) {
