@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 // This file defines the feature set to be compiled into busybox.
 // When you turn things off here, they won't be compiled in at all.
 //
@@ -12,7 +13,7 @@
 #define BB_CHROOT
 #define BB_CHVT
 #define BB_CLEAR
-#define BB_CP
+#define BB_CP_MV
 #define BB_DATE
 #define BB_DD
 #define BB_DEALLOCVT
@@ -58,8 +59,7 @@
 #define BB_MOUNT
 #define BB_NFSMOUNT
 //#define BB_MT
-//#define BB_MTAB
-#define BB_MV
+#define BB_NSLOOKUP
 #define BB_PING
 #define BB_POWEROFF
 //#define BB_PRINTF
@@ -94,11 +94,6 @@
 //
 //
 //
-// Don't turn BB_UTILITY off.  It contains support code 
-// that compiles to 0 if everything else if turned off.
-#define BB_UTILITY
-//
-//
 //
 // This is where feature definitions go.  Generally speaking,
 // turning this stuff off makes things a bit smaller (and less 
@@ -131,8 +126,32 @@
 #define BB_FEATURE_USE_INITTAB
 //
 //Enable init being called as /linuxrc
-#define BB_FEATURE_LINUXRC
+//#define BB_FEATURE_LINUXRC
+//
+//
+//Simple tail implementation (2k vs 6k for the full one).  Still
+//provides 'tail -f' support -- but for only one file at a time.
+#define BB_FEATURE_SIMPLE_TAIL
 //
 // Enable support for loop devices in mount
 #define BB_FEATURE_MOUNT_LOOP
+//
+// Enable support for a real /etc/mtab file instead of /proc/mounts
+#ifdef BB_MOUNT
+//#define BB_MTAB
+#endif
+//
+//
+// Enable support for remounting filesystems
+#define BB_FEATURE_REMOUNT
+//
+// Enable support for creation of tar files.
+//#define BB_FEATURE_TAR_CREATE
+//
+// Allow init to permenently chroot, and umount the old root fs
+// just like an initrd does.  Requires a kernel patch by Werner Almesberger. 
+// ftp://icaftp.epfl.ch/pub/people/almesber/misc/umount-root-*.tar.gz
+#ifdef BB_MOUNT
+#define BB_FEATURE_INIT_CHROOT
+#endif
 //
