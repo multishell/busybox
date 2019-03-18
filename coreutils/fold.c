@@ -5,7 +5,7 @@
    Copyright (C) 91, 1995-2002 Free Software Foundation, Inc.
 
    Modified for busybox based on coreutils v 5.0
-   Copyright (C) 2003 Glenn McGrath <bug1@iinet.net.au>
+   Copyright (C) 2003 Glenn McGrath
 
    Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
 */
@@ -38,7 +38,7 @@ static int adjust_column(int column, char c)
 	return column;
 }
 
-int fold_main(int argc, char **argv);
+int fold_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int fold_main(int argc, char **argv)
 {
 	char *line_out = NULL;
@@ -115,7 +115,7 @@ int fold_main(int argc, char **argv)
 						/* Found a blank.  Don't output the part after it. */
 						logical_end++;
 						fwrite(line_out, sizeof(char), (size_t) logical_end, stdout);
-						putchar('\n');
+						bb_putchar('\n');
 						/* Move the remainder to the beginning of the next line.
 						   The areas being copied here might overlap. */
 						memmove(line_out, line_out + logical_end, offset_out - logical_end);
@@ -145,7 +145,7 @@ int fold_main(int argc, char **argv)
 		}
 
 		if (ferror(istream) || fclose_if_not_stdin(istream)) {
-			bb_perror_msg("%s", *argv);	/* Avoid multibyte problems. */
+			bb_simple_perror_msg(*argv);	/* Avoid multibyte problems. */
 			errs |= EXIT_FAILURE;
 		}
 	} while (*++argv);

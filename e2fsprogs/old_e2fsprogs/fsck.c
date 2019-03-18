@@ -613,7 +613,7 @@ static int execute(const char *type, const char *device, const char *mntpt,
 		       mntpt ? mntpt : device);
 		for (i=0; i < argc; i++)
 			printf("%s ", argv[i]);
-		puts("");
+		bb_putchar('\n');
 	}
 
 	/* Fork and execute the correct program. */
@@ -626,7 +626,7 @@ static int execute(const char *type, const char *device, const char *mntpt,
 		if (!interactive)
 			close(0);
 		(void) execv(s, argv);
-		bb_perror_msg_and_die("%s", argv[0]);
+		bb_simple_perror_msg_and_die(argv[0]);
 	}
 
 	for (i = 1; i < argc; i++)
@@ -1321,7 +1321,7 @@ static void PRS(int argc, char **argv)
 	    max_running = atoi(tmp);
 }
 
-int fsck_main(int argc, char **argv);
+int fsck_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int fsck_main(int argc, char **argv)
 {
 	int i, status = 0;

@@ -31,7 +31,7 @@ static void EditFile(const char *user, const char *file);
 static int GetReplaceStream(const char *user, const char *file);
 static int ChangeUser(const char *user, short dochdir);
 
-int crontab_main(int ac, char **av);
+int crontab_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int crontab_main(int ac, char **av)
 {
 	enum { NONE, EDIT, LIST, REPLACE, DELETE } option = NONE;
@@ -324,7 +324,7 @@ static int ChangeUser(const char *user, short dochdir)
 
 	pas = getpwnam(user);
 	if (pas == NULL) {
-		bb_perror_msg_and_die("failed to get uid for %s", user);
+		bb_perror_msg_and_die("cannot get uid for %s", user);
 	}
 	setenv("USER", pas->pw_name, 1);
 	setenv("HOME", pas->pw_dir, 1);

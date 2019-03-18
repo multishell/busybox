@@ -54,6 +54,8 @@
 # define ATTRIBUTE_ALIGNED(m) __attribute__ ((__aligned__(m)))
 # if __GNUC_PREREQ (3,0)
 #  define ALWAYS_INLINE __attribute__ ((always_inline)) inline
+/* I've seen a toolchain where I needed __noinline__ instead of noinline */
+#  define NOINLINE      __attribute__((__noinline__))
 #  if !ENABLE_WERROR
 #   define ATTRIBUTE_DEPRECATED __attribute__ ((__deprecated__))
 #   define ATTRIBUTE_UNUSED_RESULT __attribute__ ((warn_unused_result))
@@ -62,7 +64,8 @@
 #   define ATTRIBUTE_UNUSED_RESULT /* n/a */
 #  endif
 # else
-#  define ALWAYS_INLINE inline
+#  define ALWAYS_INLINE inline /* n/a */
+#  define NOINLINE /* n/a */
 #  define ATTRIBUTE_DEPRECATED /* n/a */
 #  define ATTRIBUTE_UNUSED_RESULT /* n/a */
 # endif
@@ -70,9 +73,10 @@
 /* -fwhole-program makes all symbols local. The attribute externally_visible
    forces a symbol global.  */
 # if __GNUC_PREREQ (4,1)
-#  define ATTRIBUTE_EXTERNALLY_VISIBLE __attribute__ ((__externally_visible__))
+#  define EXTERNALLY_VISIBLE __attribute__(( visibility("default") ));
+//__attribute__ ((__externally_visible__))
 # else
-#  define ATTRIBUTE_EXTERNALLY_VISIBLE
+#  define EXTERNALLY_VISIBLE
 # endif /* GNUC >= 4.1 */
 
 /* We use __extension__ in some places to suppress -pedantic warnings

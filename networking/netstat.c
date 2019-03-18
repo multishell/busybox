@@ -464,7 +464,7 @@ static void do_info(const char *file, const char *name, void (*proc)(int, const 
 	procinfo = fopen(file, "r");
 	if (procinfo == NULL) {
 		if (errno != ENOENT) {
-			bb_perror_msg("%s", file);
+			bb_simple_perror_msg(file);
 		} else {
 			bb_error_msg("no support for '%s' on this system", name);
 		}
@@ -484,7 +484,7 @@ static void do_info(const char *file, const char *name, void (*proc)(int, const 
  * Our main function.
  */
 
-int netstat_main(int argc, char **argv);
+int netstat_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int netstat_main(int argc, char **argv)
 {
 	const char *net_conn_line_header = PRINT_NET_CONN_HEADER;

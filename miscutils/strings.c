@@ -16,7 +16,7 @@
 #define PRINT_OFFSET	4
 #define SIZE			8
 
-int strings_main(int argc, char **argv);
+int strings_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int strings_main(int argc, char **argv)
 {
 	int n, c, status = EXIT_SUCCESS;
@@ -56,7 +56,7 @@ int strings_main(int argc, char **argv)
 			c = fgetc(file);
 			if (isprint(c) || c == '\t') {
 				if (count > n) {
-					putchar(c);
+					bb_putchar(c);
 				} else {
 					string[count] = c;
 					if (count == n) {
@@ -72,7 +72,7 @@ int strings_main(int argc, char **argv)
 				}
 			} else {
 				if (count > n) {
-					putchar('\n');
+					bb_putchar('\n');
 				}
 				count = 0;
 			}

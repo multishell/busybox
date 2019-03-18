@@ -1,6 +1,6 @@
 VERSION = 1
-PATCHLEVEL = 7
-SUBLEVEL = 5
+PATCHLEVEL = 8
+SUBLEVEL = 0
 EXTRAVERSION =
 NAME = Unnamed
 
@@ -568,11 +568,13 @@ busybox-all  := $(core-y) $(libs-y)
 # Rule to link busybox - also used during CONFIG_KALLSYMS
 # May be overridden by arch/$(ARCH)/Makefile
 quiet_cmd_busybox__ ?= LINK    $@
-      cmd_busybox__ ?= $(srctree)/scripts/trylink $(CC) $(LDFLAGS) \
-      -o $@ -Wl,-Map -Wl,$@.map \
-      -Wl,--warn-common -Wl,--sort-common -Wl,--gc-sections \
-      -Wl,--start-group $(busybox-all) -Wl,--end-group \
-      $(LDLIBS)
+      cmd_busybox__ ?= $(srctree)/scripts/trylink \
+      "$@" \
+      "$(CC)" \
+      "$(LDFLAGS) $(EXTRA_LDFLAGS)" \
+      "$(core-y)" \
+      "$(libs-y)" \
+      "$(LDLIBS)"
 
 # Generate System.map
 quiet_cmd_sysmap = SYSMAP
@@ -968,7 +970,7 @@ distclean: mrproper
 	@find $(srctree) $(RCS_FIND_IGNORE) \
 	 	\( -name '*.orig' -o -name '*.rej' -o -name '*~' \
 		-o -name '*.bak' -o -name '#*#' -o -name '.*.orig' \
-	 	-o -name '.*.rej' -o -size 0 \
+	 	-o -name '.*.rej' -o -name '*.tmp' -o -size 0 \
 		-o -name '*%' -o -name '.*.cmd' -o -name 'core' \) \
 		-type f -print | xargs rm -f
 

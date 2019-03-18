@@ -179,7 +179,7 @@ static void message(int device, const char *fmt, ...)
 				bb_error_msg("can't log to %s", log_console);
 				device = L_CONSOLE;
 			} else {
-				fcntl(log_fd, F_SETFD, FD_CLOEXEC);
+				close_on_exec_on(log_fd);
 			}
 		}
 	}
@@ -436,10 +436,11 @@ static pid_t run(const struct init_action *a)
 		++cmdpath;
 
 		/* find the last component in the command pathname */
-		s = bb_get_last_path_component(cmdpath);
+		s = bb_get_last_path_component_nostrip(cmdpath);
 
 		/* make a new argv[0] */
-		if ((cmd[0] = malloc(strlen(s) + 2)) == NULL) {
+		cmd[0] = malloc(strlen(s) + 2);
+		if (cmd[0] == NULL) {
 			message(L_LOG | L_CONSOLE, bb_msg_memory_exhausted);
 			cmd[0] = cmdpath;
 		} else {
@@ -881,7 +882,7 @@ static void reload_signal(int sig ATTRIBUTE_UNUSED)
 }
 #endif  /* FEATURE_USE_INITTAB */
 
-int init_main(int argc, char **argv);
+int init_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int init_main(int argc, char **argv)
 {
 	struct init_action *a;

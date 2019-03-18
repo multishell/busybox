@@ -86,6 +86,15 @@ extern char **environ; /* This is in <unistd.h>, but protected with __USE_GNU */
 #include "busybox.h" /* for struct bb_applet */
 
 
+#if !BB_MMU
+/* A bit drastic. Can allow some simpler commands
+ * by analysing command in generate_stream_from_list()
+ */
+#undef ENABLE_HUSH_TICK
+#define ENABLE_HUSH_TICK 0
+#endif
+
+
 /* If you comment out one of these below, it will be #defined later
  * to perform debug printfs to stderr: */
 #define debug_printf(...)        do {} while (0)
@@ -237,7 +246,7 @@ struct redir_struct {
 	redir_type type;            /* type of redirection */
 	int fd;                     /* file descriptor being redirected */
 	int dup;                    /* -1, or file descriptor being duplicated */
-	glob_t word;                /* *word.gl_pathv is the filename */
+	char **glob_word;           /* *word.gl_pathv is the filename */
 };
 
 struct child_prog {
@@ -247,7 +256,7 @@ struct child_prog {
 	smallint subshell;          /* flag, non-zero if group must be forked */
 	smallint is_stopped;        /* is the program currently running? */
 	struct redir_struct *redirects; /* I/O redirections */
-	glob_t glob_result;         /* result of parameter globbing */
+	char **glob_result;         /* result of parameter globbing */
 	struct pipe *family;        /* pointer back to the child's parent pipe */
 	//sp counting seems to be broken... so commented out, grep for '//sp:'
 	//sp: int sp;               /* number of SPECIAL_VAR_SYMBOL */
@@ -277,11 +286,6 @@ struct pipe {
 	smallint res_word;          /* needed for if, for, while, until... */
 };
 
-struct close_me {
-	struct close_me *next;
-	int fd;
-};
-
 /* On program start, environ points to initial environment.
  * putenv adds new pointers into it, unsetenv removes them.
  * Neither of these (de)allocates the strings.
@@ -300,8 +304,8 @@ typedef struct {
 	char *data;
 	int length;
 	int maxlen;
-	int quote;
-	int nonnull;
+	smallint o_quote;
+	smallint nonnull;
 } o_string;
 #define NULL_O_STRING {NULL,0,0,0,0}
 /* used for initialization: o_string foo = NULL_O_STRING; */
@@ -362,7 +366,6 @@ struct globals {
 	int global_argc;
 	int last_return_code;
 	const char *ifs;
-	struct close_me *close_me_head;
 	const char *cwd;
 	unsigned last_bg_pid;
 	struct variable *top_var; /* = &shell_ver (set in main()) */
@@ -409,7 +412,6 @@ enum { run_list_level = 0 };
 #define last_return_code (G.last_return_code)
 #define ifs              (G.ifs             )
 #define fake_mode        (G.fake_mode       )
-#define close_me_head    (G.close_me_head   )
 #define cwd              (G.cwd             )
 #define last_bg_pid      (G.last_bg_pid     )
 #define top_var          (G.top_var         )
@@ -487,10 +489,6 @@ static int file_get(struct in_str *i);
 static int file_peek(struct in_str *i);
 static void setup_file_in_str(struct in_str *i, FILE *f);
 static void setup_string_in_str(struct in_str *i, const char *s);
-/*  close_me manipulations: */
-static void mark_open(int fd);
-static void mark_closed(int fd);
-static void close_all(void);
 /*  "run" the final data structures: */
 #if !defined(DEBUG_CLEAN)
 #define free_pipe_list(head, indent) free_pipe_list(head)
@@ -505,9 +503,9 @@ static void pseudo_exec_argv(char **argv) ATTRIBUTE_NORETURN;
 static void pseudo_exec(struct child_prog *child) ATTRIBUTE_NORETURN;
 static int run_pipe_real(struct pipe *pi);
 /*   extended glob support: */
-static int globhack(const char *src, int flags, glob_t *pglob);
+static char **globhack(const char *src, char **strings);
 static int glob_needed(const char *s);
-static int xglob(o_string *dest, int flags, glob_t *pglob);
+static int xglob(o_string *dest, char ***pglob);
 /*   variable assignment: */
 static int is_assignment(const char *s);
 /*   data structure manipulation: */
@@ -549,6 +547,58 @@ static char *expand_string_to_string(const char *str);
 static struct variable *get_local_var(const char *name);
 static int set_local_var(char *str, int flg_export);
 static void unset_local_var(const char *name);
+
+
+static char **add_strings_to_strings(int need_xstrdup, char **strings, char **add)
+{
+	int i;
+	unsigned count1;
+	unsigned count2;
+	char **v;
+
+	v = strings;
+	count1 = 0;
+	if (v) {
+		while (*v) {
+			count1++;
+			v++;
+		}
+	}
+	count2 = 0;
+	v = add;
+	while (*v) {
+		count2++;
+		v++;
+	}
+	v = xrealloc(strings, (count1 + count2 + 1) * sizeof(char*));
+	v[count1 + count2] = NULL;
+	i = count2;
+	while (--i >= 0)
+		v[count1 + i] = need_xstrdup ? xstrdup(add[i]) : add[i];
+	return v;
+}
+
+/* 'add' should be a malloced pointer */
+static char **add_string_to_strings(char **strings, char *add)
+{
+	char *v[2];
+
+	v[0] = add;
+	v[1] = NULL;
+
+	return add_strings_to_strings(0, strings, v);
+}
+
+static void free_strings(char **strings)
+{
+	if (strings) {
+		char **v = strings;
+		while (*v)
+			free(*v++);
+		free(strings);
+	}
+}
+
 
 /* Table of built-in functions.  They can be forked or not, depending on
  * context: within pipes, they fork.  As simple commands, they do not.
@@ -760,9 +810,11 @@ static int builtin_eval(char **argv)
 static int builtin_cd(char **argv)
 {
 	const char *newdir;
-	if (argv[1] == NULL)
+	if (argv[1] == NULL) {
+		// bash does nothing (exitcode 0) if HOME is ""; if it's unset,
+		// bash says "bash: cd: HOME not set" and does nothing (exitcode 1)
 		newdir = getenv("HOME") ? : "/";
-	else
+	} else
 		newdir = argv[1];
 	if (chdir(newdir)) {
 		printf("cd: %s: %s\n", newdir, strerror(errno));
@@ -997,14 +1049,13 @@ static int builtin_source(char **argv)
 		bb_error_msg("cannot open '%s'", argv[1]);
 		return EXIT_FAILURE;
 	}
+	close_on_exec_on(fileno(input));
 
 	/* Now run the file */
 	/* XXX argv and argc are broken; need to save old global_argv
 	 * (pointer only is OK!) on this stack frame,
 	 * set global_argv=argv+1, recurse, and restore. */
-	mark_open(fileno(input));
 	status = parse_and_run_file(input);
-	mark_closed(fileno(input));
 	fclose(input);
 	return status;
 }
@@ -1068,16 +1119,14 @@ static void b_reset(o_string *o)
 {
 	o->length = 0;
 	o->nonnull = 0;
-	if (o->data != NULL)
-		*o->data = '\0';
+	if (o->data)
+		o->data[0] = '\0';
 }
 
 static void b_free(o_string *o)
 {
-	b_reset(o);
 	free(o->data);
-	o->data = NULL;
-	o->maxlen = 0;
+	memset(o, 0, sizeof(*o));
 }
 
 /* My analysis of quoting semantics tells me that state information
@@ -1249,33 +1298,6 @@ static void setup_string_in_str(struct in_str *i, const char *s)
 	i->eof_flag = 0;
 }
 
-static void mark_open(int fd)
-{
-	struct close_me *new = xmalloc(sizeof(struct close_me));
-	new->fd = fd;
-	new->next = close_me_head;
-	close_me_head = new;
-}
-
-static void mark_closed(int fd)
-{
-	struct close_me *tmp;
-	if (close_me_head == NULL || close_me_head->fd != fd)
-		bb_error_msg_and_die("corrupt close_me");
-	tmp = close_me_head;
-	close_me_head = close_me_head->next;
-	free(tmp);
-}
-
-static void close_all(void)
-{
-	struct close_me *c;
-	for (c = close_me_head; c; c = c->next) {
-		close(c->fd);
-	}
-	close_me_head = NULL;
-}
-
 /* squirrel != NULL means we squirrel away copies of stdin, stdout,
  * and stderr if they are redirected. */
 static int setup_redirects(struct child_prog *prog, int squirrel[])
@@ -1284,13 +1306,13 @@ static int setup_redirects(struct child_prog *prog, int squirrel[])
 	struct redir_struct *redir;
 
 	for (redir = prog->redirects; redir; redir = redir->next) {
-		if (redir->dup == -1 && redir->word.gl_pathv == NULL) {
+		if (redir->dup == -1 && redir->glob_word == NULL) {
 			/* something went wrong in the parse.  Pretend it didn't happen */
 			continue;
 		}
 		if (redir->dup == -1) {
 			mode = redir_table[redir->type].mode;
-			openfd = open_or_warn(redir->word.gl_pathv[0], mode);
+			openfd = open_or_warn(redir->glob_word[0], mode);
 			if (openfd < 0) {
 			/* this could get lost if stderr has been redirected, but
 			   bash and ash both lose it as well (though zsh doesn't!) */
@@ -1305,7 +1327,7 @@ static int setup_redirects(struct child_prog *prog, int squirrel[])
 				squirrel[redir->fd] = dup(redir->fd);
 			}
 			if (openfd == -3) {
-				close(openfd);
+				//close(openfd); // close(-3) ??!
 			} else {
 				dup2(openfd, redir->fd);
 				if (redir->dup == -1)
@@ -1328,8 +1350,9 @@ static void restore_redirects(int squirrel[])
 	}
 }
 
-/* never returns */
-/* XXX no exit() here.  If you don't exec, use _exit instead.
+/* Called after [v]fork() in run_pipe_real(), or from builtin_exec().
+ * Never returns.
+ * XXX no exit() here.  If you don't exec, use _exit instead.
  * The at_exit handlers apparently confuse the calling process,
  * in particular stdin handling.  Not sure why? -- because of vfork! (vda) */
 static void pseudo_exec_argv(char **argv)
@@ -1376,10 +1399,9 @@ static void pseudo_exec_argv(char **argv)
 		const struct bb_applet *a = find_applet_by_name(argv[0]);
 		if (a) {
 			if (a->noexec) {
-				current_applet = a;
 				debug_printf_exec("running applet '%s'\n", argv[0]);
-// is it ok that run_current_applet_and_exit() does exit(), not _exit()?
-				run_current_applet_and_exit(argv);
+// is it ok that run_appletstruct_and_exit() does exit(), not _exit()?
+				run_appletstruct_and_exit(a, argv);
 			}
 			/* re-exec ourselves with the new arguments */
 			debug_printf_exec("re-execing applet '%s'\n", argv[0]);
@@ -1396,6 +1418,8 @@ static void pseudo_exec_argv(char **argv)
 	_exit(1);
 }
 
+/* Called after [v]fork() in run_pipe_real()
+ */
 static void pseudo_exec(struct child_prog *child)
 {
 // FIXME: buggy wrt NOMMU! Must not modify any global data
@@ -1407,7 +1431,9 @@ static void pseudo_exec(struct child_prog *child)
 	}
 
 	if (child->group) {
-	// FIXME: do not modify globals! Think vfork!
+#if !BB_MMU
+		bb_error_msg_and_exit("nested lists are not supported on NOMMU");
+#else
 #if ENABLE_HUSH_INTERACTIVE
 		debug_printf_exec("pseudo_exec: setting interactive_fd=0\n");
 		interactive_fd = 0;    /* crucial!!!! */
@@ -1417,6 +1443,7 @@ static void pseudo_exec(struct child_prog *child)
 		/* OK to leak memory by not calling free_pipe_list,
 		 * since this process is about to exit */
 		_exit(rcode);
+#endif
 	}
 
 	/* Can happen.  See what bash does with ">foo" by itself. */
@@ -1824,15 +1851,8 @@ static int run_pipe_real(struct pipe *pi)
 			}
 #endif
 			/* in non-interactive case fatal sigs are already SIG_DFL */
-			close_all();
-			if (nextin != 0) {
-				dup2(nextin, 0);
-				close(nextin);
-			}
-			if (nextout != 1) {
-				dup2(nextout, 1);
-				close(nextout);
-			}
+			xmove_fd(nextin, 0);
+			xmove_fd(nextout, 1);
 			if (pipefds[0] != -1) {
 				close(pipefds[0]);  /* opposite end of our output pipe */
 			}
@@ -2004,7 +2024,7 @@ static int run_list_real(struct pipe *pi)
 				insert_bg_job(pi);
 			} else {
 				/* ctrl-C. We just stop doing whatever we were doing */
-				putchar('\n');
+				bb_putchar('\n');
 			}
 			rcode = 0;
 			goto ret;
@@ -2053,6 +2073,7 @@ static int run_list_real(struct pipe *pi)
 #if ENABLE_HUSH_LOOPS
 		if (rword == RES_FOR && pi->num_progs) {
 			if (!for_lcur) {
+				/* first loop through for */
 				/* if no variable values after "in" we skip "for" */
 				if (!pi->next->progs->argv)
 					continue;
@@ -2065,17 +2086,16 @@ static int run_list_real(struct pipe *pi)
 			}
 			free(pi->progs->argv[0]);
 			if (!*for_lcur) {
+				/* for loop is over, clean up */
 				free(for_list);
 				for_lcur = NULL;
 				flag_rep = 0;
 				pi->progs->argv[0] = for_varname;
-				pi->progs->glob_result.gl_pathv[0] = pi->progs->argv[0];
 				continue;
 			}
 			/* insert next value from for_lcur */
 			/* vda: does it need escaping? */
 			pi->progs->argv[0] = xasprintf("%s=%s", for_varname, *for_lcur++);
-			pi->progs->glob_result.gl_pathv[0] = pi->progs->argv[0];
 		}
 		if (rword == RES_IN)
 			continue;
@@ -2178,8 +2198,8 @@ static int free_pipe(struct pipe *pi, int indent)
 			for (a = 0, p = child->argv; *p; a++, p++) {
 				debug_printf_clean("%s   argv[%d] = %s\n", indenter(indent), a, *p);
 			}
-			globfree(&child->glob_result);
-			child->argv = NULL;
+			free_strings(child->glob_result);
+			child->glob_result = NULL;
 		} else if (child->group) {
 			debug_printf_clean("%s   begin group (subshell:%d)\n", indenter(indent), child->subshell);
 			ret_code = free_pipe_list(child->group, indent+3);
@@ -2191,9 +2211,10 @@ static int free_pipe(struct pipe *pi, int indent)
 			debug_printf_clean("%s   redirect %d%s", indenter(indent), r->fd, redir_table[r->type].descrip);
 			if (r->dup == -1) {
 				/* guard against the case >$FOO, where foo is unset or blank */
-				if (r->word.gl_pathv) {
-					debug_printf_clean(" %s\n", *r->word.gl_pathv);
-					globfree(&r->word);
+				if (r->glob_word) {
+					debug_printf_clean(" %s\n", r->glob_word[0]);
+					free_strings(r->glob_word);
+					r->glob_word = NULL;
 				}
 			} else {
 				debug_printf_clean("&%d\n", r->dup);
@@ -2245,84 +2266,87 @@ static int run_list(struct pipe *pi)
 	return rcode;
 }
 
+/* Whoever decided to muck with glob internal data is AN IDIOT! */
+/* uclibc happily changed the way it works (and it has rights to do so!),
+   all hell broke loose (SEGVs) */
+
 /* The API for glob is arguably broken.  This routine pushes a non-matching
  * string into the output structure, removing non-backslashed backslashes.
  * If someone can prove me wrong, by performing this function within the
  * original glob(3) api, feel free to rewrite this routine into oblivion.
- * Return code (0 vs. GLOB_NOSPACE) matches glob(3).
  * XXX broken if the last character is '\\', check that before calling.
  */
-static int globhack(const char *src, int flags, glob_t *pglob)
+static char **globhack(const char *src, char **strings)
 {
-	int cnt = 0, pathc;
+	int cnt;
 	const char *s;
-	char *dest;
+	char *v, *dest;
+
 	for (cnt = 1, s = src; s && *s; s++) {
 		if (*s == '\\') s++;
 		cnt++;
 	}
-	dest = xmalloc(cnt);
-	if (!(flags & GLOB_APPEND)) {
-		pglob->gl_pathv = NULL;
-		pglob->gl_pathc = 0;
-		pglob->gl_offs = 0;
-		pglob->gl_offs = 0;
-	}
-	pathc = ++pglob->gl_pathc;
-	pglob->gl_pathv = xrealloc(pglob->gl_pathv, (pathc+1) * sizeof(*pglob->gl_pathv));
-	pglob->gl_pathv[pathc-1] = dest;
-	pglob->gl_pathv[pathc] = NULL;
+	v = dest = xmalloc(cnt);
 	for (s = src; s && *s; s++, dest++) {
 		if (*s == '\\') s++;
 		*dest = *s;
 	}
 	*dest = '\0';
-	return 0;
+
+	return add_string_to_strings(strings, v);
 }
 
 /* XXX broken if the last character is '\\', check that before calling */
 static int glob_needed(const char *s)
 {
 	for (; *s; s++) {
-		if (*s == '\\') s++;
-		if (strchr("*[?", *s)) return 1;
+		if (*s == '\\')
+			s++;
+		if (strchr("*[?", *s))
+			return 1;
 	}
 	return 0;
 }
 
-static int xglob(o_string *dest, int flags, glob_t *pglob)
+static int xglob(o_string *dest, char ***pglob)
 {
-	int gr;
-
 	/* short-circuit for null word */
 	/* we can code this better when the debug_printf's are gone */
 	if (dest->length == 0) {
 		if (dest->nonnull) {
 			/* bash man page calls this an "explicit" null */
-			gr = globhack(dest->data, flags, pglob);
+			*pglob = globhack(dest->data, *pglob);
+		}
+		return 0;
+	}
+
+	if (glob_needed(dest->data)) {
+		glob_t globdata;
+		int gr;
+
+		memset(&globdata, 0, sizeof(globdata));
+		gr = glob(dest->data, 0, NULL, &globdata);
+		debug_printf("glob returned %d\n", gr);
+		if (gr == GLOB_NOSPACE)
+			bb_error_msg_and_die("out of memory during glob");
+		if (gr == GLOB_NOMATCH) {
 			debug_printf("globhack returned %d\n", gr);
-		} else {
+			/* quote removal, or more accurately, backslash removal */
+			*pglob = globhack(dest->data, *pglob);
 			return 0;
 		}
-	} else if (glob_needed(dest->data)) {
-		gr = glob(dest->data, flags, NULL, pglob);
-		debug_printf("glob returned %d\n", gr);
-		if (gr == GLOB_NOMATCH) {
-			/* quote removal, or more accurately, backslash removal */
-			gr = globhack(dest->data, flags, pglob);
-			debug_printf("globhack returned %d\n", gr);
+		if (gr != 0) { /* GLOB_ABORTED ? */
+			bb_error_msg("glob(3) error %d", gr);
 		}
-	} else {
-		gr = globhack(dest->data, flags, pglob);
-		debug_printf("globhack returned %d\n", gr);
+		if (globdata.gl_pathv && globdata.gl_pathv[0])
+			*pglob = add_strings_to_strings(1, *pglob, globdata.gl_pathv);
+		/* globprint(glob_target); */
+		globfree(&globdata);
+		return gr;
 	}
-	if (gr == GLOB_NOSPACE)
-		bb_error_msg_and_die("out of memory during glob");
-	if (gr != 0) { /* GLOB_ABORTED ? */
-		bb_error_msg("glob(3) error %d", gr);
-	}
-	/* globprint(glob_target); */
-	return gr;
+
+	*pglob = globhack(dest->data, *pglob);
+	return 0;
 }
 
 /* expand_strvec_to_strvec() takes a list of strings, expands
@@ -2798,9 +2822,9 @@ static int setup_redirect(struct p_context *ctx, int fd, redir_type style,
 		last_redir = redir;
 		redir = redir->next;
 	}
-	redir = xmalloc(sizeof(struct redir_struct));
-	redir->next = NULL;
-	redir->word.gl_pathv = NULL;
+	redir = xzalloc(sizeof(struct redir_struct));
+	/* redir->next = NULL; */
+	/* redir->glob_word = NULL; */
 	if (last_redir) {
 		last_redir->next = redir;
 	} else {
@@ -2944,8 +2968,8 @@ static int reserved_word(o_string *dest, struct p_context *ctx)
 static int done_word(o_string *dest, struct p_context *ctx)
 {
 	struct child_prog *child = ctx->child;
-	glob_t *glob_target;
-	int gr, flags = 0;
+	char ***glob_target;
+	int gr;
 
 	debug_printf_parse("done_word entered: '%s' %p\n", dest->data, child);
 	if (dest->length == 0 && !dest->nonnull) {
@@ -2953,7 +2977,7 @@ static int done_word(o_string *dest, struct p_context *ctx)
 		return 0;
 	}
 	if (ctx->pending_redirect) {
-		glob_target = &ctx->pending_redirect->word;
+		glob_target = &ctx->pending_redirect->glob_word;
 	} else {
 		if (child->group) {
 			syntax(NULL);
@@ -2967,11 +2991,9 @@ static int done_word(o_string *dest, struct p_context *ctx)
 				return (ctx->res_w == RES_SNTX);
 			}
 		}
-		glob_target = &child->glob_result;
-		if (child->argv)
-			flags |= GLOB_APPEND;
+		glob_target = &child->argv;
 	}
-	gr = xglob(dest, flags, glob_target);
+	gr = xglob(dest, glob_target);
 	if (gr != 0) {
 		debug_printf_parse("done_word return 1: xglob returned %d\n", gr);
 		return 1;
@@ -2979,14 +3001,17 @@ static int done_word(o_string *dest, struct p_context *ctx)
 
 	b_reset(dest);
 	if (ctx->pending_redirect) {
-		ctx->pending_redirect = NULL;
-		if (glob_target->gl_pathc != 1) {
+		if (ctx->pending_redirect->glob_word
+		 && ctx->pending_redirect->glob_word[0]
+		 && ctx->pending_redirect->glob_word[1]
+		) {
+			/* more than one word resulted from globbing redir */
+			ctx->pending_redirect = NULL;
 			bb_error_msg("ambiguous redirect");
 			debug_printf_parse("done_word return 1: ambiguous redirect\n");
 			return 1;
 		}
-	} else {
-		child->argv = glob_target->gl_pathv;
+		ctx->pending_redirect = NULL;
 	}
 #if ENABLE_HUSH_LOOPS
 	if (ctx->res_w == RES_FOR) {
@@ -3031,7 +3056,7 @@ static int done_command(struct p_context *ctx)
 	/*child->argv = NULL;*/
 	/*child->is_stopped = 0;*/
 	/*child->group = NULL;*/
-	/*child->glob_result.gl_pathv = NULL;*/
+	/*child->glob_result = NULL;*/
 	child->family = pi;
 	//sp: /*child->sp = 0;*/
 	//pt: child->parse_type = ctx->parse_type;
@@ -3122,17 +3147,14 @@ static int redirect_opt_num(o_string *o)
 }
 
 #if ENABLE_HUSH_TICK
+/* NB: currently disabled on NOMMU */
 static FILE *generate_stream_from_list(struct pipe *head)
 {
 	FILE *pf;
 	int pid, channel[2];
 
 	xpipe(channel);
-#if BB_MMU
 	pid = fork();
-#else
-	pid = vfork();
-#endif
 	if (pid < 0) {
 		bb_perror_msg_and_die("fork");
 	} else if (pid == 0) {
@@ -3181,7 +3203,7 @@ static int process_command_subs(o_string *dest, struct p_context *ctx,
 
 	p = generate_stream_from_list(inner.list_head);
 	if (p == NULL) return 1;
-	mark_open(fileno(p));
+	close_on_exec_on(fileno(p));
 	setup_file_in_str(&pipe_str, p);
 
 	/* now send results of command back into original context */
@@ -3192,10 +3214,10 @@ static int process_command_subs(o_string *dest, struct p_context *ctx,
 			continue;
 		}
 		while (eol_cnt) {
-			b_addqchr(dest, '\n', dest->quote);
+			b_addqchr(dest, '\n', dest->o_quote);
 			eol_cnt--;
 		}
-		b_addqchr(dest, ch, dest->quote);
+		b_addqchr(dest, ch, dest->o_quote);
 	}
 
 	debug_printf("done reading from pipe, pclose()ing\n");
@@ -3204,7 +3226,6 @@ static int process_command_subs(o_string *dest, struct p_context *ctx,
 	 * to do better, by using wait(), and keeping track of background jobs
 	 * at the same time.  That would be a lot of work, and contrary
 	 * to the KISS philosophy of this program. */
-	mark_closed(fileno(p));
 	retcode = fclose(p);
 	free_pipe_list(inner.list_head, 0);
 	debug_printf("closed FILE from child, retcode=%d\n", retcode);
@@ -3257,7 +3278,7 @@ static const char *lookup_param(const char *src)
 static int handle_dollar(o_string *dest, struct p_context *ctx, struct in_str *input)
 {
 	int ch = b_peek(input);  /* first character after the $ */
-	unsigned char quote_mask = dest->quote ? 0x80 : 0;
+	unsigned char quote_mask = dest->o_quote ? 0x80 : 0;
 
 	debug_printf_parse("handle_dollar entered: ch='%c'\n", ch);
 	if (isalpha(ch)) {
@@ -3322,7 +3343,7 @@ static int handle_dollar(o_string *dest, struct p_context *ctx, struct in_str *i
 			return 1;
 			break;
 		default:
-			b_addqchr(dest, '$', dest->quote);
+			b_addqchr(dest, '$', dest->o_quote);
 	}
 	debug_printf_parse("handle_dollar return 0\n");
 	return 0;
@@ -3337,9 +3358,9 @@ static int parse_stream(o_string *dest, struct p_context *ctx,
 	redir_type redir_style;
 	int next;
 
-	/* Only double-quote state is handled in the state variable dest->quote.
+	/* Only double-quote state is handled in the state variable dest->o_quote.
 	 * A single-quote triggers a bypass of the main loop until its mate is
-	 * found.  When recursing, quote state is passed in via dest->quote. */
+	 * found.  When recursing, quote state is passed in via dest->o_quote. */
 
 	debug_printf_parse("parse_stream entered, end_trigger='%s'\n", end_trigger);
 
@@ -3353,16 +3374,16 @@ static int parse_stream(o_string *dest, struct p_context *ctx,
 				next = b_peek(input);
 		}
 		debug_printf_parse(": ch=%c (%d) m=%d quote=%d\n",
-						ch, ch, m, dest->quote);
+						ch, ch, m, dest->o_quote);
 		if (m == CHAR_ORDINARY
-		 || (m != CHAR_SPECIAL && dest->quote)
+		 || (m != CHAR_SPECIAL && dest->o_quote)
 		) {
 			if (ch == EOF) {
 				syntax("unterminated \"");
 				debug_printf_parse("parse_stream return 1: unterminated \"\n");
 				return 1;
 			}
-			b_addqchr(dest, ch, dest->quote);
+			b_addqchr(dest, ch, dest->o_quote);
 			continue;
 		}
 		if (m == CHAR_IFS) {
@@ -3380,7 +3401,7 @@ static int parse_stream(o_string *dest, struct p_context *ctx,
 			}
 		}
 		if ((end_trigger && strchr(end_trigger, ch))
-		 && !dest->quote && ctx->res_w == RES_NONE
+		 && !dest->o_quote && ctx->res_w == RES_NONE
 		) {
 			debug_printf_parse("parse_stream return 0: end_trigger char found\n");
 			return 0;
@@ -3389,7 +3410,7 @@ static int parse_stream(o_string *dest, struct p_context *ctx,
 			continue;
 		switch (ch) {
 		case '#':
-			if (dest->length == 0 && !dest->quote) {
+			if (dest->length == 0 && !dest->o_quote) {
 				while (1) {
 					ch = b_peek(input);
 					if (ch == EOF || ch == '\n')
@@ -3397,7 +3418,7 @@ static int parse_stream(o_string *dest, struct p_context *ctx,
 					b_getch(input);
 				}
 			} else {
-				b_addqchr(dest, ch, dest->quote);
+				b_addqchr(dest, ch, dest->o_quote);
 			}
 			break;
 		case '\\':
@@ -3406,8 +3427,8 @@ static int parse_stream(o_string *dest, struct p_context *ctx,
 				debug_printf_parse("parse_stream return 1: \\<eof>\n");
 				return 1;
 			}
-			b_addqchr(dest, '\\', dest->quote);
-			b_addqchr(dest, b_getch(input), dest->quote);
+			b_addqchr(dest, '\\', dest->o_quote);
+			b_addqchr(dest, b_getch(input), dest->o_quote);
 			break;
 		case '$':
 			if (handle_dollar(dest, ctx, input) != 0) {
@@ -3431,7 +3452,7 @@ static int parse_stream(o_string *dest, struct p_context *ctx,
 			break;
 		case '"':
 			dest->nonnull = 1;
-			dest->quote = !dest->quote;
+			dest->o_quote ^= 1; /* invert */
 			break;
 #if ENABLE_HUSH_TICK
 		case '`':
@@ -3594,7 +3615,7 @@ static int parse_and_run_stream(struct in_str *inp, int parse_flag)
 				b_reset(&temp);
 			}
 			temp.nonnull = 0;
-			temp.quote = 0;
+			temp.o_quote = 0;
 			inp->p = NULL;
 			free_pipe_list(ctx.list_head, 0);
 		}
@@ -3629,7 +3650,7 @@ static void setup_job_control(void)
 
 	saved_task_pgrp = shell_pgrp = getpgrp();
 	debug_printf_jobs("saved_task_pgrp=%d\n", saved_task_pgrp);
-	fcntl(interactive_fd, F_SETFD, FD_CLOEXEC);
+	close_on_exec_on(interactive_fd);
 
 	/* If we were ran as 'hush &',
 	 * sleep until we are in the foreground.  */
@@ -3654,7 +3675,7 @@ static void setup_job_control(void)
 }
 #endif
 
-int hush_main(int argc, char **argv);
+int hush_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int hush_main(int argc, char **argv)
 {
 	static const char version_str[] ALIGN1 = "HUSH_VERSION="HUSH_VER_STR;
@@ -3716,9 +3737,8 @@ int hush_main(int argc, char **argv)
 		debug_printf("sourcing /etc/profile\n");
 		input = fopen("/etc/profile", "r");
 		if (input != NULL) {
-			mark_open(fileno(input));
+			close_on_exec_on(fileno(input));
 			parse_and_run_file(input);
-			mark_closed(fileno(input));
 			fclose(input);
 		}
 	}

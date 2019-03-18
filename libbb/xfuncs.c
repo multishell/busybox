@@ -164,6 +164,11 @@ int ndelay_on(int fd)
 	return fcntl(fd, F_SETFL, fcntl(fd,F_GETFL) | O_NONBLOCK);
 }
 
+int close_on_exec_on(int fd)
+{
+        return fcntl(fd, F_SETFD, FD_CLOEXEC);
+}
+
 int ndelay_off(int fd)
 {
 	return fcntl(fd, F_SETFL, fcntl(fd,F_GETFL) & ~O_NONBLOCK);
@@ -284,37 +289,47 @@ void smart_ulltoa5(unsigned long long ul, char buf[5])
 {
 	const char *fmt;
 	char c;
-	unsigned v,idx = 0;
-	ul *= 10;
-	if (ul > 9999*10) { // do not scale if 9999 or less
-		while (ul >= 10000) {
+	unsigned v, u, idx = 0;
+
+	if (ul > 9999) { // do not scale if 9999 or less
+		ul *= 10;
+		do {
 			ul /= 1024;
 			idx++;
-		}
+		} while (ul >= 10000);
 	}
 	v = ul; // ullong divisions are expensive, avoid them
 
 	fmt = " 123456789";
-	if (!idx) {		// 9999 or less: use 1234 format
-		c = buf[0] = " 123456789"[v/10000];
+	u = v / 10;
+	v = v % 10;
+	if (!idx) {
+		// 9999 or less: use "1234" format
+		// u is value/10, v is last digit
+		c = buf[0] = " 123456789"[u/100];
 		if (c != ' ') fmt = "0123456789";
-		c = buf[1] = fmt[v/1000%10];
+		c = buf[1] = fmt[u/10%10];
 		if (c != ' ') fmt = "0123456789";
-		buf[2] = fmt[v/100%10];
-		buf[3] = "0123456789"[v/10%10];
+		buf[2] = fmt[u%10];
+		buf[3] = "0123456789"[v];
 	} else {
-		if (v >= 10*10) {	// scaled value is >=10: use 123M format
-			c = buf[0] = " 123456789"[v/1000];
+		// u is value, v is 1/10ths (allows for 9.2M format)
+		if (u >= 10) {
+			// value is >= 10: use "123M', " 12M" formats
+			c = buf[0] = " 123456789"[u/100];
 			if (c != ' ') fmt = "0123456789";
-			buf[1] = fmt[v/100%10];
-			buf[2] = "0123456789"[v/10%10];
-		} else {	// scaled value is <10: use 1.2M format
-			buf[0] = "0123456789"[v/10];
+			v = u % 10;
+			u = u / 10;
+			buf[1] = fmt[u%10];
+		} else {
+			// value is < 10: use "9.2M" format
+			buf[0] = "0123456789"[u];
 			buf[1] = '.';
-			buf[2] = "0123456789"[v%10];
 		}
+		buf[2] = "0123456789"[v];
 		// see http://en.wikipedia.org/wiki/Tera
-		buf[3] = " kMGTPEZY"[idx];
+		// (small letters stand out better versus numbers)
+		buf[3] = " kmgtpezy"[idx];
 	}
 	buf[4] = '\0';
 }
@@ -446,6 +461,14 @@ off_t fdlength(int fd)
 	return pos + 1;
 }
 
+int bb_putchar(int ch)
+{
+	/* time.c needs putc(ch, stdout), not putchar(ch).
+	 * it does "stdout = stderr;", but then glibc's putchar()
+	 * doesn't work as expected. bad glibc, bad */
+	return putc(ch, stdout);
+}
+
 // Die with an error message if we can't malloc() enough space and do an
 // sprintf() into that space.
 char *xasprintf(const char *format, ...)
@@ -470,7 +493,8 @@ char *xasprintf(const char *format, ...)
 	va_end(p);
 #endif
 
-	if (r < 0) bb_error_msg_and_die(bb_msg_memory_exhausted);
+	if (r < 0)
+		bb_error_msg_and_die(bb_msg_memory_exhausted);
 	return string_ptr;
 }
 
@@ -680,13 +704,13 @@ int bb_ioctl_or_warn(int fd, int request, void *argp, const char *ioctl_name)
 
 	ret = ioctl(fd, request, argp);
 	if (ret < 0)
-		bb_perror_msg("%s", ioctl_name);
+		bb_simple_perror_msg(ioctl_name);
 	return ret;
 }
 void bb_xioctl(int fd, int request, void *argp, const char *ioctl_name)
 {
 	if (ioctl(fd, request, argp) < 0)
-		bb_perror_msg_and_die("%s", ioctl_name);
+		bb_simple_perror_msg_and_die(ioctl_name);
 }
 #else
 int bb_ioctl_or_warn(int fd, int request, void *argp)

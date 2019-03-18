@@ -17,7 +17,7 @@
 static const char modes_chars[] ALIGN1 = { 'p', 'c', 'u', 'b', 0, 1, 1, 2 };
 static const mode_t modes_cubp[] = { S_IFIFO, S_IFCHR, S_IFBLK };
 
-int mknod_main(int argc, char **argv);
+int mknod_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int mknod_main(int argc, char **argv)
 {
 	mode_t mode;
@@ -44,7 +44,7 @@ int mknod_main(int argc, char **argv)
 			if (mknod(name, mode, dev) == 0) {
 				return EXIT_SUCCESS;
 			}
-			bb_perror_msg_and_die("%s", name);
+			bb_simple_perror_msg_and_die(name);
 		}
 	}
 	bb_show_usage();

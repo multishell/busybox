@@ -24,11 +24,18 @@ s     - suid type:
 */
 
 #if defined(PROTOTYPES)
-# define APPLET(name,l,s)                    int name##_main(int argc, char **argv);
-# define APPLET_NOUSAGE(name,main,l,s)       int main##_main(int argc, char **argv);
-# define APPLET_ODDNAME(name,main,l,s,name2) int main##_main(int argc, char **argv);
-# define APPLET_NOEXEC(name,main,l,s,name2)  int main##_main(int argc, char **argv);
-# define APPLET_NOFORK(name,main,l,s,name2)  int main##_main(int argc, char **argv);
+# define APPLET(name,l,s)                    int name##_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+# define APPLET_NOUSAGE(name,main,l,s)       int main##_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+# define APPLET_ODDNAME(name,main,l,s,name2) int main##_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+# define APPLET_NOEXEC(name,main,l,s,name2)  int main##_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+# define APPLET_NOFORK(name,main,l,s,name2)  int main##_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+
+#elif defined(NAME_MAIN_CNAME)
+# define APPLET(name,l,s)                    name name##_main name
+# define APPLET_NOUSAGE(name,main,l,s)       name main##_main name
+# define APPLET_ODDNAME(name,main,l,s,name2) name main##_main name2
+# define APPLET_NOEXEC(name,main,l,s,name2)  name main##_main name2
+# define APPLET_NOFORK(name,main,l,s,name2)  name main##_main name2
 
 #elif defined(MAKE_USAGE) && ENABLE_FEATURE_VERBOSE_USAGE
 # define APPLET(name,l,s)                    name##_trivial_usage "\n\n" name##_full_usage "\0"
@@ -81,6 +88,7 @@ USE_BBCONFIG(APPLET(bbconfig, _BB_DIR_BIN, _BB_SUID_NEVER))
 //USE_BBSH(APPLET(bbsh, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_BUNZIP2(APPLET(bunzip2, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
 USE_BUNZIP2(APPLET_ODDNAME(bzcat, bunzip2, _BB_DIR_USR_BIN, _BB_SUID_NEVER, bzcat))
+USE_BZIP2(APPLET(bzip2, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
 USE_CAL(APPLET(cal, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
 USE_CAT(APPLET_NOFORK(cat, cat, _BB_DIR_BIN, _BB_SUID_NEVER, cat))
 USE_CATV(APPLET(catv, _BB_DIR_BIN, _BB_SUID_NEVER))
@@ -194,6 +202,7 @@ USE_IPLINK(APPLET(iplink, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_IPROUTE(APPLET(iproute, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_IPRULE(APPLET(iprule, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_IPTUNNEL(APPLET(iptunnel, _BB_DIR_BIN, _BB_SUID_NEVER))
+USE_KBD_MODE(APPLET(kbd_mode, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
 USE_KILL(APPLET(kill, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_KILLALL(APPLET_ODDNAME(killall, kill, _BB_DIR_USR_BIN, _BB_SUID_NEVER, killall))
 USE_KILLALL5(APPLET_ODDNAME(killall5, kill, _BB_DIR_USR_BIN, _BB_SUID_NEVER, killall5))
@@ -223,6 +232,7 @@ USE_MATCHPATHCON(APPLET(matchpathcon, _BB_DIR_USR_SBIN, _BB_SUID_NEVER))
 USE_MD5SUM(APPLET_ODDNAME(md5sum, md5_sha1_sum, _BB_DIR_USR_BIN, _BB_SUID_NEVER, md5sum))
 USE_MDEV(APPLET(mdev, _BB_DIR_SBIN, _BB_SUID_NEVER))
 USE_MESG(APPLET(mesg, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
+USE_MICROCOM(APPLET(microcom, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
 USE_MKDIR(APPLET_NOFORK(mkdir, mkdir, _BB_DIR_BIN, _BB_SUID_NEVER, mkdir))
 //USE_MKE2FS(APPLET(mke2fs, _BB_DIR_SBIN, _BB_SUID_NEVER))
 USE_MKFIFO(APPLET(mkfifo, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
@@ -250,11 +260,13 @@ USE_OD(APPLET(od, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
 USE_OPENVT(APPLET(openvt, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
 USE_PASSWD(APPLET(passwd, _BB_DIR_USR_BIN, _BB_SUID_ALWAYS))
 USE_PATCH(APPLET(patch, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
+USE_PGREP(APPLET(pgrep, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
 USE_PIDOF(APPLET(pidof, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_PING(APPLET(ping, _BB_DIR_BIN, _BB_SUID_MAYBE))
 USE_PING6(APPLET(ping6, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_PIPE_PROGRESS(APPLET_NOUSAGE(pipe_progress, pipe_progress, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_PIVOT_ROOT(APPLET(pivot_root, _BB_DIR_SBIN, _BB_SUID_NEVER))
+USE_PKILL(APPLET_ODDNAME(pkill, pgrep, _BB_DIR_USR_BIN, _BB_SUID_NEVER, pkill))
 USE_HALT(APPLET_ODDNAME(poweroff, halt, _BB_DIR_SBIN, _BB_SUID_NEVER, poweroff))
 USE_PRINTENV(APPLET(printenv, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_PRINTF(APPLET(printf, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
@@ -293,6 +305,7 @@ USE_SETENFORCE(APPLET(setenforce, _BB_DIR_USR_SBIN, _BB_SUID_NEVER))
 USE_SETFILES(APPLET(setfiles, _BB_DIR_SBIN, _BB_SUID_NEVER))
 USE_SETKEYCODES(APPLET(setkeycodes, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
 USE_SETLOGCONS(APPLET(setlogcons, _BB_DIR_USR_SBIN, _BB_SUID_NEVER))
+USE_SETSEBOOL(APPLET(setsebool, _BB_DIR_USR_SBIN, _BB_SUID_NEVER))
 USE_SETSID(APPLET(setsid, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
 USE_SETUIDGID(APPLET_ODDNAME(setuidgid, chpst, _BB_DIR_USR_BIN, _BB_SUID_NEVER, setuidgid))
 USE_FEATURE_SH_IS_ASH(APPLET_NOUSAGE(sh, ash, _BB_DIR_BIN, _BB_SUID_NEVER))
@@ -370,7 +383,7 @@ USE_YES(APPLET_NOFORK(yes, yes, _BB_DIR_USR_BIN, _BB_SUID_NEVER, yes))
 USE_GUNZIP(APPLET_ODDNAME(zcat, gunzip, _BB_DIR_BIN, _BB_SUID_NEVER, zcat))
 USE_ZCIP(APPLET(zcip, _BB_DIR_SBIN, _BB_SUID_NEVER))
 
-#if !defined(PROTOTYPES) && !defined(MAKE_USAGE)
+#if !defined(PROTOTYPES) && !defined(NAME_MAIN_CNAME) && !defined(MAKE_USAGE)
 	{ NULL }
 };
 #endif

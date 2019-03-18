@@ -83,6 +83,15 @@ config HTTPD
 	help
 	  Serve web pages via an HTTP server.
 
+config FEATURE_HTTPD_RANGES
+	bool "Support 'Ranges:' header"
+	default n
+	depends on HTTPD
+	help
+	  Makes httpd emit "Accept-Ranges: bytes" header and understand
+	  "Range: bytes=NNN-[MMM]" header. Allows for resuming interrupted
+	  downloads, seeking in multimedia players etc.
+
 config FEATURE_HTTPD_USE_SENDFILE
 	bool "Use sendfile system call"
 	default n
@@ -183,6 +192,18 @@ config FEATURE_HTTPD_ERROR_PAGES
 	  '/path/e404.html' file instead of the terse '404 NOT FOUND'
 	  message.
 
+config FEATURE_HTTPD_PROXY
+	bool "Enable support for reverse proxy"
+	default n
+	depends on HTTPD
+	help
+	  This option allows you to define URLs that will be forwarded
+	  to another HTTP server. To setup add the following line to the
+	  configuration file
+	        P:/url/:http://hostname[:port]/new/path/
+	  Then a request to /url/myfile will be forwarded to
+	  http://hostname[:port]/new/path/myfile.
+
 config IFCONFIG
 	bool "ifconfig"
 	default n
@@ -249,6 +270,7 @@ config IFUPDOWN
 config IFUPDOWN_IFSTATE_PATH
 	string "Absolute path to ifstate file"
 	default "/var/run/ifstate"
+	depends on IFUPDOWN
 	help
 	  ifupdown keeps state information in a file called ifstate.
 	  Typically it is located in /var/run/ifstate, however
@@ -307,13 +329,13 @@ config FEATURE_IFUPDOWN_IPV6
 	  If you need support for IPv6, turn this option on.
 
 ### UNUSED
-### config FEATURE_IFUPDOWN_IPX
-### 	bool "Enable support for IPX"
-### 	default n
-### 	depends on IFUPDOWN
-### 	help
-### 	  If this option is selected you can use busybox to work with IPX
-### 	  networks.
+###config FEATURE_IFUPDOWN_IPX
+###	bool "Enable support for IPX"
+###	default n
+###	depends on IFUPDOWN
+###	help
+###	  If this option is selected you can use busybox to work with IPX
+###	  networks.
 
 config FEATURE_IFUPDOWN_MAPPING
 	bool "Enable mapping support"
@@ -440,6 +462,16 @@ config FEATURE_IP_SHORT_FORMS
 
 	  Say N unless you desparately need the short form of the ip
 	  object commands.
+
+config FEATURE_IP_RARE_PROTOCOLS
+	bool "Support displaying rarely used link types"
+	default n
+	depends on IP
+	help
+	  If you are not going to use links of type "frad", "econet",
+	  "bif" etc, you probably don't need to enable this.
+	  Ethernet, wireless, infrared, ppp/slip, ip tunnelling
+	  link types are supported without this option selected.
 
 config IPADDR
 	bool

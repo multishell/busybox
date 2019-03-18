@@ -21,12 +21,12 @@
 
 #include "libbb.h"
 
-
 #if ENABLE_FEATURE_TFTP_GET || ENABLE_FEATURE_TFTP_PUT
 
-#define TFTP_BLOCKSIZE_DEFAULT 512	/* according to RFC 1350, don't change */
-#define TFTP_TIMEOUT 5	/* seconds */
-#define TFTP_NUM_RETRIES 5 /* number of retries */
+#define TFTP_BLOCKSIZE_DEFAULT 512      /* according to RFC 1350, don't change */
+#define TFTP_TIMEOUT_MS         50
+#define TFTP_MAXTIMEOUT_MS    2000
+#define TFTP_NUM_RETRIES        12      /* number of backed-off retries */
 
 /* opcodes we support */
 #define TFTP_RRQ   1
@@ -114,9 +114,8 @@ static int tftp( USE_GETPUT(const int cmd,)
 		const char *remotefile, const int localfd,
 		unsigned port, int tftp_bufsize)
 {
-	struct timeval tv;
-	fd_set rfds;
-	int socketfd;
+	struct pollfd pfd[1];
+#define socketfd (pfd[0].fd)
 	int len;
 	int send_len;
 	USE_FEATURE_TFTP_BLOCKSIZE(smallint want_option_ack = 0;)
@@ -124,7 +123,7 @@ static int tftp( USE_GETPUT(const int cmd,)
 	uint16_t opcode;
 	uint16_t block_nr = 1;
 	uint16_t recv_blk;
-	int timeout = TFTP_NUM_RETRIES;
+	int retries, waittime_ms;
 	char *cp;
 
 	unsigned org_port;
@@ -206,6 +205,10 @@ static int tftp( USE_GETPUT(const int cmd,)
 		send_len = cp - xbuf;
 		/* NB: send_len value is preserved in code below
 		 * for potential resend */
+
+		retries = TFTP_NUM_RETRIES;	/* re-initialize */
+		waittime_ms = TFTP_TIMEOUT_MS;
+
  send_again:
 #if ENABLE_DEBUG_TFTP
 		fprintf(stderr, "sending %u bytes\n", send_len);
@@ -218,14 +221,11 @@ static int tftp( USE_GETPUT(const int cmd,)
 		if (finished && (opcode == TFTP_ACK))
 			goto ret;
 
-		timeout = TFTP_NUM_RETRIES;	/* re-initialize */
  recv_again:
 		/* Receive packet */
-		tv.tv_sec = TFTP_TIMEOUT;
-		tv.tv_usec = 0;
-		FD_ZERO(&rfds);
-		FD_SET(socketfd, &rfds);
-		switch (select(socketfd + 1, &rfds, NULL, NULL, &tv)) {
+		/*pfd[0].fd = socketfd;*/
+		pfd[0].events = POLLIN;
+		switch (safe_poll(pfd, 1, waittime_ms)) {
 			unsigned from_port;
 		case 1:
 			from->len = peer_lsa->len;
@@ -248,15 +248,21 @@ static int tftp( USE_GETPUT(const int cmd,)
 				goto recv_again;
 			goto process_pkt;
 		case 0:
-			timeout--;
-			if (timeout == 0) {
-				bb_error_msg("last timeout");
+			retries--;
+			if (retries == 0) {
+				bb_error_msg("timeout");
 				goto ret;
 			}
-			bb_error_msg("last timeout" + 5);
+
+			/* exponential backoff with limit */
+			waittime_ms += waittime_ms/2;
+			if (waittime_ms > TFTP_MAXTIMEOUT_MS) {
+				waittime_ms = TFTP_MAXTIMEOUT_MS;
+			}
+
 			goto send_again; /* resend last sent pkt */
 		default:
-			bb_perror_msg("select");
+			/*bb_perror_msg("poll"); - done in safe_poll */
 			goto ret;
 		}
  process_pkt:
@@ -385,7 +391,7 @@ static int tftp( USE_GETPUT(const int cmd,)
 	return finished == 0; /* returns 1 on failure */
 }
 
-int tftp_main(int argc, char **argv);
+int tftp_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int tftp_main(int argc, char **argv)
 {
 	len_and_sockaddr *peer_lsa;

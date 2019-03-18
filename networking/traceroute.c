@@ -346,10 +346,10 @@ static int optlen;                     /* length of ip options */
 
 
 struct globals {
-	/* last inbound (icmp) packet */
-	unsigned char packet[512];
 	struct sockaddr_storage whereto;        /* Who to try to reach */
 	struct sockaddr_storage wherefrom;      /* Who we are */
+	/* last inbound (icmp) packet */
+	unsigned char packet[512];
 #if ENABLE_FEATURE_TRACEROUTE_SOURCE_ROUTE
 	/* Maximum number of gateways (include room for one noop) */
 #define NGATEWAYS ((int)((MAX_IPOPTLEN - IPOPT_MINOFF - 1) / sizeof(uint32_t)))
@@ -359,7 +359,7 @@ struct globals {
 };
 
 #define G (*ptr_to_globals)
-
+#define INIT_G() PTR_TO_GLOBALS = xzalloc(sizeof(G))
 #define packet    (G.packet   )
 #define whereto   (G.whereto  )
 #define wherefrom (G.wherefrom)
@@ -537,21 +537,15 @@ findsaddr(const struct sockaddr_in *to, struct sockaddr_in *from)
 static int
 wait_for_reply(int sock, struct sockaddr_in *fromp)
 {
-	fd_set fds;
-	struct timeval tvwait;
+	struct pollfd pfd[1];
 	int cc = 0;
 	socklen_t fromlen = sizeof(*fromp);
 
-	FD_ZERO(&fds);
-	FD_SET(sock, &fds);
-
-	tvwait.tv_sec = waittime;
-	tvwait.tv_usec = 0;
-
-	if (select(sock + 1, &fds, NULL, NULL, &tvwait) > 0)
-		cc = recvfrom(sock, (char *)packet, sizeof(packet), 0,
+	pfd[0].fd = sock;
+	pfd[0].events = POLLIN;
+	if (safe_poll(pfd, 1, waittime * 1000) > 0)
+		cc = recvfrom(sock, packet, sizeof(packet), 0,
 			    (struct sockaddr *)fromp, &fromlen);
-
 	return cc;
 }
 
@@ -895,7 +889,7 @@ print_delta_ms(unsigned t1p, unsigned t2p)
 	printf("  %u.%03u ms", tt/1000, tt%1000);
 }
 
-int traceroute_main(int argc, char **argv);
+int traceroute_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int traceroute_main(int argc, char **argv)
 {
 	int code, n;
@@ -930,7 +924,7 @@ int traceroute_main(int argc, char **argv)
 	llist_t *source_route_list = NULL;
 #endif
 
-	PTR_TO_GLOBALS = xzalloc(sizeof(G));
+	INIT_G();
 	from = (struct sockaddr_in *)&wherefrom;
 	to = (struct sockaddr_in *)&whereto;
 
@@ -1328,7 +1322,7 @@ int traceroute_main(int argc, char **argv)
 				printf(" *");
 			(void)fflush(stdout);
 		}
-		putchar('\n');
+		bb_putchar('\n');
 		if (got_there ||
 		    (unreachable > 0 && unreachable >= nprobes - 1))
 			break;

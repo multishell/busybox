@@ -651,7 +651,7 @@ static void execute(const char *type, const char *device, const char *mntpt,
 					mntpt ? mntpt : device);
 		for (i = 0; i < argc; i++)
 			printf(" %s", argv[i]);
-		puts("");
+		bb_putchar('\n');
 	}
 
 	/* Fork and execute the correct program. */
@@ -659,7 +659,7 @@ static void execute(const char *type, const char *device, const char *mntpt,
 	if (!noexecute) {
 		pid = spawn(argv);
 		if (pid < 0)
-			bb_perror_msg("%s", argv[0]);
+			bb_simple_perror_msg(argv[0]);
 	}
 
 	for (i = num_args+1; i < argc; i++)
@@ -1153,7 +1153,7 @@ static void signal_cancel(int sig ATTRIBUTE_UNUSED)
 	cancel_requested = 1;
 }
 
-int fsck_main(int argc, char **argv);
+int fsck_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int fsck_main(int argc, char **argv)
 {
 	int i, status = 0;

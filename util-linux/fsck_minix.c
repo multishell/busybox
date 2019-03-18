@@ -307,12 +307,12 @@ static int ask(const char *string, int def)
 	int c;
 
 	if (!repair) {
-		puts("");
+		bb_putchar('\n');
 		errors_uncorrected = 1;
 		return 0;
 	}
 	if (automatic) {
-		puts("");
+		bb_putchar('\n');
 		if (!def)
 			errors_uncorrected = 1;
 		return def;
@@ -1249,7 +1249,7 @@ static void check2(void)
 void check2(void);
 #endif
 
-int fsck_minix_main(int argc, char **argv);
+int fsck_minix_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int fsck_minix_main(int argc, char **argv)
 {
 	struct termios tmp;

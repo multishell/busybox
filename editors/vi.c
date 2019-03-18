@@ -237,7 +237,8 @@ static char *yank_delete(char *, char *, int, int);	// yank text[] into register
 static void show_help(void);	// display some help info
 static void rawmode(void);	// set "raw" mode on tty
 static void cookmode(void);	// return to "cooked" mode on tty
-static int mysleep(int);	// sleep for 'h' 1/100 seconds
+// sleep for 'h' 1/100 seconds, return 1/0 if stdin is (ready for read)/(not ready)
+static int mysleep(int);
 static char readit(void);	// read (maybe cursor) key from stdin
 static char get_one_char(void);	// read 1 char from stdin
 static int file_size(const char *);   // what is the byte size of "fn"
@@ -310,7 +311,7 @@ static void write1(const char *out)
 	fputs(out, stdout);
 }
 
-int vi_main(int argc, char **argv);
+int vi_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int vi_main(int argc, char **argv)
 {
 	int c;
@@ -337,7 +338,7 @@ int vi_main(int argc, char **argv)
 	}
 #endif
 
-	vi_setops = VI_AUTOINDENT | VI_SHOWMATCH | VI_IGNORECASE | VI_ERR_METHOD;
+	vi_setops = VI_AUTOINDENT | VI_SHOWMATCH | VI_IGNORECASE;
 #if ENABLE_FEATURE_VI_YANKMARK
 	memset(reg, 0, sizeof(reg)); // init the yank regs
 #endif
@@ -867,13 +868,13 @@ static void colon(char * buf)
 			if (c == '\n') {
 				write1("$\r");
 			} else if (c < ' ' || c == 127) {
-				putchar('^');
+				bb_putchar('^');
 				if (c == 127)
 					c = '?';
 				else
 					c += '@';
 			}
-			putchar(c);
+			bb_putchar(c);
 			if (c_is_no_print)
 				standout_end();
 		}
@@ -1720,7 +1721,7 @@ static char *skip_thing(char * p, int linecnt, int dir, int type)
 }
 
 // find matching char of pair  ()  []  {}
-static char *find_pair(char * p, char c)
+static char *find_pair(char * p, const char c)
 {
 	char match, *q;
 	int dir, level;
@@ -1894,8 +1895,8 @@ static void show_help(void)
 	"\n\tLast command repeat with \'.\'"
 #endif
 #if ENABLE_FEATURE_VI_YANKMARK
-	"\n\tLine marking with  'x"
-	"\n\tNamed buffers with  \"x"
+	"\n\tLine marking with 'x"
+	"\n\tNamed buffers with \"x"
 #endif
 #if ENABLE_FEATURE_VI_READONLY
 	"\n\tReadonly if vi is called as \"view\""
@@ -2134,17 +2135,11 @@ static void catch_sig(int sig)
 
 static int mysleep(int hund)	// sleep for 'h' 1/100 seconds
 {
-	fd_set rfds;
-	struct timeval tv;
+	struct pollfd pfd[1];
 
-	// Don't hang- Wait 5/100 seconds-  1 Sec= 1000000
-	fflush(stdout);
-	FD_ZERO(&rfds);
-	FD_SET(0, &rfds);
-	tv.tv_sec = 0;
-	tv.tv_usec = hund * 10000;
-	select(1, &rfds, NULL, NULL, &tv);
-	return FD_ISSET(0, &rfds);
+	pfd[0].fd = 0;
+	pfd[0].events = POLLIN;
+	return safe_poll(pfd, 1, hund*10) > 0;
 }
 
 #define readbuffer bb_common_bufsiz1
@@ -2157,7 +2152,7 @@ static char readit(void)	// read (maybe cursor) key from stdin
 	char c;
 	int n;
 	struct esc_cmds {
-		const char *seq;
+		const char seq[4];
 		char val;
 	};
 
@@ -2183,6 +2178,7 @@ static char readit(void)	// read (maybe cursor) key from stdin
 		{"OQ", VI_K_FUN2},     // Function Key F2
 		{"OR", VI_K_FUN3},     // Function Key F3
 		{"OS", VI_K_FUN4},     // Function Key F4
+		// careful: these have no terminating NUL!
 		{"[15~", VI_K_FUN5},   // Function Key F5
 		{"[17~", VI_K_FUN6},   // Function Key F6
 		{"[18~", VI_K_FUN7},   // Function Key F7
@@ -2203,12 +2199,9 @@ static char readit(void)	// read (maybe cursor) key from stdin
 	n = readed_for_parse;
 	// get input from User- are there already input chars in Q?
 	if (n <= 0) {
- ri0:
 		// the Q is empty, wait for a typed char
-		n = read(0, readbuffer, MAX_LINELEN - 1);
+		n = safe_read(0, readbuffer, MAX_LINELEN - 1);
 		if (n < 0) {
-			if (errno == EINTR)
-				goto ri0;	// interrupted sys call
 			if (errno == EBADF || errno == EFAULT || errno == EINVAL
 					|| errno == EIO)
 				editing = 0;
@@ -2217,25 +2210,19 @@ static char readit(void)	// read (maybe cursor) key from stdin
 		if (n <= 0)
 			return 0;       // error
 		if (readbuffer[0] == 27) {
-			fd_set rfds;
-			struct timeval tv;
-
 			// This is an ESC char. Is this Esc sequence?
 			// Could be bare Esc key. See if there are any
 			// more chars to read after the ESC. This would
 			// be a Function or Cursor Key sequence.
-			FD_ZERO(&rfds);
-			FD_SET(0, &rfds);
-			tv.tv_sec = 0;
-			tv.tv_usec = 50000;	// Wait 5/100 seconds- 1 Sec=1000000
-
+			struct pollfd pfd[1];
+			pfd[0].fd = 0;
+			pfd[0].events = POLLIN;
 			// keep reading while there are input chars and room in buffer
-			while (select(1, &rfds, NULL, NULL, &tv) > 0 && n <= (MAX_LINELEN - 5)) {
+			while (safe_poll(pfd, 1, 0) > 0 && n <= (MAX_LINELEN - 5)) {
 				// read the rest of the ESC string
-				int r = read(0, (void *) (readbuffer + n), MAX_LINELEN - n);
-				if (r > 0) {
+				int r = safe_read(0, readbuffer + n, MAX_LINELEN - n);
+				if (r > 0)
 					n += r;
-				}
 			}
 		}
 		readed_for_parse = n;
@@ -2246,7 +2233,7 @@ static char readit(void)	// read (maybe cursor) key from stdin
 		const struct esc_cmds *eindex;
 
 		for (eindex = esccmds; eindex < &esccmds[ESCCMDS_COUNT]; eindex++) {
-			int cnt = strlen(eindex->seq);
+			int cnt = strnlen(eindex->seq, 4);
 
 			if (n <= cnt)
 				continue;
@@ -2347,7 +2334,7 @@ static char *get_input_line(const char * prompt) // get input line- use "status 
 		} else {
 			buf[i] = c;	// save char in buffer
 			buf[i + 1] = '\0';	// make sure buffer is null terminated
-			putchar(c);   // echo the char back to user
+			bb_putchar(c);   // echo the char back to user
 			i++;
 		}
 	}
@@ -2407,7 +2394,7 @@ static int file_insert(const char * fn, char *p
 	p = text_hole_make(p, size);
 	if (p == NULL)
 		goto fi0;
-	cnt = read(fd, p, size);
+	cnt = safe_read(fd, p, size);
 	if (cnt < 0) {
 		psbs("\"%s\" %s", fn, strerror(errno));
 		p = text_hole_delete(p, p + size - 1);	// un-do buffer insert
@@ -2870,7 +2857,7 @@ static void refresh(int full_screen)
 				char *out = sp + cs;
 
 				while (nic-- > 0) {
-					putchar(*out);
+					bb_putchar(*out);
 					out++;
 				}
 			}
@@ -3971,7 +3958,7 @@ static void crash_test()
 		printf("\n\n%d: \'%c\' %s\n\n\n%s[Hit return to continue]%s",
 			totalcmds, last_input_char, msg, SOs, SOn);
 		fflush(stdout);
-		while (read(0, d, 1) > 0) {
+		while (safe_read(0, d, 1) > 0) {
 			if (d[0] == '\n' || d[0] == '\r')
 				break;
 		}

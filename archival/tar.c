@@ -3,7 +3,7 @@
  * Mini tar implementation for busybox
  *
  * Modified to use common extraction code used by ar, cpio, dpkg-deb, dpkg
- *  Glenn McGrath <bug1@iinet.net.au>
+ *  by Glenn McGrath
  *
  * Note, that as of BusyBox-0.43, tar has been completely rewritten from the
  * ground up.  It still has remnants of the old code lying about, but it is
@@ -106,7 +106,7 @@ enum TarFileType {
 typedef enum TarFileType TarFileType;
 
 /* Might be faster (and bigger) if the dev/ino were stored in numeric order;) */
-static void addHardLinkInfo(HardLinkInfo ** hlInfoHeadPtr,
+static void addHardLinkInfo(HardLinkInfo **hlInfoHeadPtr,
 					struct stat *statbuf,
 					const char *fileName)
 {
@@ -122,7 +122,7 @@ static void addHardLinkInfo(HardLinkInfo ** hlInfoHeadPtr,
 	strcpy(hlInfo->name, fileName);
 }
 
-static void freeHardLinkInfo(HardLinkInfo ** hlInfoHeadPtr)
+static void freeHardLinkInfo(HardLinkInfo **hlInfoHeadPtr)
 {
 	HardLinkInfo *hlInfo;
 	HardLinkInfo *hlInfoNext;
@@ -139,7 +139,7 @@ static void freeHardLinkInfo(HardLinkInfo ** hlInfoHeadPtr)
 }
 
 /* Might be faster (and bigger) if the dev/ino were stored in numeric order;) */
-static HardLinkInfo *findHardLinkInfo(HardLinkInfo * hlInfo, struct stat *statbuf)
+static HardLinkInfo *findHardLinkInfo(HardLinkInfo *hlInfo, struct stat *statbuf)
 {
 	while (hlInfo) {
 		if ((statbuf->st_ino == hlInfo->ino) && (statbuf->st_dev == hlInfo->dev))
@@ -386,35 +386,7 @@ static int writeFileToTarball(const char *fileName, struct stat *statbuf,
 	const char *header_name;
 	int inputFileFd = -1;
 
-	/*
-	 * Check to see if we are dealing with a hard link.
-	 * If so -
-	 * Treat the first occurance of a given dev/inode as a file while
-	 * treating any additional occurances as hard links.  This is done
-	 * by adding the file information to the HardLinkInfo linked list.
-	 */
-	tbInfo->hlInfo = NULL;
-	if (statbuf->st_nlink > 1) {
-		tbInfo->hlInfo = findHardLinkInfo(tbInfo->hlInfoHead, statbuf);
-		if (tbInfo->hlInfo == NULL)
-			addHardLinkInfo(&tbInfo->hlInfoHead, statbuf, fileName);
-	}
-
-	/* It is against the rules to archive a socket */
-	if (S_ISSOCK(statbuf->st_mode)) {
-		bb_error_msg("%s: socket ignored", fileName);
-		return TRUE;
-	}
-
-	/* It is a bad idea to store the archive we are in the process of creating,
-	 * so check the device and inode to be sure that this particular file isn't
-	 * the new tarball */
-	if (tbInfo->statBuf.st_dev == statbuf->st_dev &&
-		tbInfo->statBuf.st_ino == statbuf->st_ino) {
-		bb_error_msg("%s: file is the archive; skipping", fileName);
-		return TRUE;
-	}
-
+	/* Strip leading '/' (must be before memorizing hardlink's name) */
 	header_name = fileName;
 	while (header_name[0] == '/') {
 		static smallint warned;
@@ -426,18 +398,48 @@ static int writeFileToTarball(const char *fileName, struct stat *statbuf,
 		header_name++;
 	}
 
+	if (header_name[0] == '\0')
+		return TRUE;
+
+	/* It is against the rules to archive a socket */
+	if (S_ISSOCK(statbuf->st_mode)) {
+		bb_error_msg("%s: socket ignored", fileName);
+		return TRUE;
+	}
+
+	/*
+	 * Check to see if we are dealing with a hard link.
+	 * If so -
+	 * Treat the first occurance of a given dev/inode as a file while
+	 * treating any additional occurances as hard links.  This is done
+	 * by adding the file information to the HardLinkInfo linked list.
+	 */
+	tbInfo->hlInfo = NULL;
+	if (statbuf->st_nlink > 1) {
+		tbInfo->hlInfo = findHardLinkInfo(tbInfo->hlInfoHead, statbuf);
+		if (tbInfo->hlInfo == NULL)
+			addHardLinkInfo(&tbInfo->hlInfoHead, statbuf, header_name);
+	}
+
+	/* It is a bad idea to store the archive we are in the process of creating,
+	 * so check the device and inode to be sure that this particular file isn't
+	 * the new tarball */
+	if (tbInfo->statBuf.st_dev == statbuf->st_dev
+	 && tbInfo->statBuf.st_ino == statbuf->st_ino
+	) {
+		bb_error_msg("%s: file is the archive; skipping", fileName);
+		return TRUE;
+	}
+
+	if (exclude_file(tbInfo->excludeList, header_name))
+		return SKIP;
+
 #if !ENABLE_FEATURE_TAR_GNU_EXTENSIONS
-	if (strlen(fileName) >= NAME_SIZE) {
+	if (strlen(header_name) >= NAME_SIZE) {
 		bb_error_msg("names longer than "NAME_SIZE_STR" chars not supported");
 		return TRUE;
 	}
 #endif
-
-	if (header_name[0] == '\0')
-		return TRUE;
-
-	if (exclude_file(tbInfo->excludeList, header_name))
-		return SKIP;
 
 	/* Is this a regular file? */
 	if (tbInfo->hlInfo == NULL && S_ISREG(statbuf->st_mode)) {
@@ -504,13 +506,21 @@ static int writeTarFile(const int tar_fd, const int verboseFlag,
 		bb_perror_msg_and_die("cannot stat tar file");
 
 	if ((ENABLE_FEATURE_TAR_GZIP || ENABLE_FEATURE_TAR_BZIP2) && gzip) {
-		int gzipDataPipe[2] = { -1, -1 };
-		int gzipStatusPipe[2] = { -1, -1 };
+// On Linux, vfork never unpauses parent early, although standard
+// allows for that. Do we want to waste bytes checking for it?
+#define WAIT_FOR_CHILD 0
+
 		volatile int vfork_exec_errno = 0;
+#if WAIT_FOR_CHILD
+		struct { int rd; int wr; } gzipStatusPipe;
+#endif
+		struct { int rd; int wr; } gzipDataPipe;
 		const char *zip_exec = (gzip == 1) ? "gzip" : "bzip2";
 
-		xpipe(gzipDataPipe);
-		xpipe(gzipStatusPipe);
+		xpipe(&gzipDataPipe.rd);
+#if WAIT_FOR_CHILD
+		xpipe(&gzipStatusPipe.rd);
+#endif
 
 		signal(SIGPIPE, SIG_IGN); /* we only want EPIPE on errors */
 
@@ -522,41 +532,45 @@ static int writeTarFile(const int tar_fd, const int verboseFlag,
 #endif
 
 		gzipPid = vfork();
+		if (gzipPid < 0)
+			bb_perror_msg_and_die("vfork gzip");
 
 		if (gzipPid == 0) {
-			dup2(gzipDataPipe[0], 0);
-			close(gzipDataPipe[1]);
-
-			dup2(tbInfo.tarFd, 1);
-
-			close(gzipStatusPipe[0]);
-			fcntl(gzipStatusPipe[1], F_SETFD, FD_CLOEXEC);	/* close on exec shows success */
-
+			/* child */
+			xmove_fd(tbInfo.tarFd, 1);
+			xmove_fd(gzipDataPipe.rd, 0);
+			close(gzipDataPipe.wr);
+#if WAIT_FOR_CHILD
+			close(gzipStatusPipe.rd);
+			fcntl(gzipStatusPipe.wr, F_SETFD, FD_CLOEXEC);
+#endif
+			/* exec gzip/bzip2 program/applet */
 			BB_EXECLP(zip_exec, zip_exec, "-f", NULL);
 			vfork_exec_errno = errno;
+			_exit(1);
+		}
 
-			close(gzipStatusPipe[1]);
-			exit(-1);
-		} else if (gzipPid > 0) {
-			close(gzipDataPipe[0]);
-			close(gzipStatusPipe[1]);
+		/* parent */
+		xmove_fd(gzipDataPipe.wr, tbInfo.tarFd);
+		close(gzipDataPipe.rd);
+#if WAIT_FOR_CHILD
+		close(gzipStatusPipe.wr);
+		while (1) {
+			char buf;
+			int n;
 
-			while (1) {
-				char buf;
+			/* Wait until child execs (or fails to) */
+			n = full_read(gzipStatusPipe.rd, &buf, 1);
+			if ((n < 0) && (/*errno == EAGAIN ||*/ errno == EINTR))
+				continue;	/* try it again */
 
-				int n = full_read(gzipStatusPipe[0], &buf, 1);
-
-				if (n == 0 && vfork_exec_errno != 0) {
-					errno = vfork_exec_errno;
-					bb_perror_msg_and_die("cannot exec %s", zip_exec);
-				} else if ((n < 0) && (errno == EAGAIN || errno == EINTR))
-					continue;	/* try it again */
-				break;
-			}
-			close(gzipStatusPipe[0]);
-
-			tbInfo.tarFd = gzipDataPipe[1];
-		} else bb_perror_msg_and_die("vfork gzip");
+		}
+		close(gzipStatusPipe.rd);
+#endif
+		if (vfork_exec_errno) {
+			errno = vfork_exec_errno;
+			bb_perror_msg_and_die("cannot exec %s", zip_exec);
+		}
 	}
 
 	tbInfo.excludeList = exclude;
@@ -651,7 +665,7 @@ static char get_header_tar_Z(archive_handle_t *archive_handle)
 	archive_handle->src_fd = open_transformer(archive_handle->src_fd, uncompress, "uncompress", "uncompress", "-cf", "-", NULL);
 	archive_handle->offset = 0;
 	while (get_header_tar(archive_handle) == EXIT_SUCCESS)
-		/* nothing */;
+		continue;
 
 	/* Can only do one file at a time */
 	return EXIT_FAILURE;
@@ -755,7 +769,7 @@ static const char tar_longopts[] ALIGN1 =
 	;
 #endif
 
-int tar_main(int argc, char **argv);
+int tar_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int tar_main(int argc, char **argv)
 {
 	char (*get_header_ptr)(archive_handle_t *) = get_header_tar;

@@ -56,7 +56,7 @@ static void new_group(char *group, gid_t gid)
 	/* add entry to group */
 	file = xfopen(bb_path_group_file, "a");
 	/* group:passwd:gid:userlist */
-	fprintf(file, "%s:x:%d:\n", group, gr.gr_gid);
+	fprintf(file, "%s:x:%u:\n", group, (unsigned)gr.gr_gid);
 	if (ENABLE_FEATURE_CLEAN_UP)
 		fclose(file);
 #if ENABLE_FEATURE_SHADOWPASSWDS
@@ -122,7 +122,7 @@ static void add_user_to_group(char **args,
  * If called with two non-option arguments, addgroup
  * will add an existing user to an existing group.
  */
-int addgroup_main(int argc, char **argv);
+int addgroup_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int addgroup_main(int argc, char **argv)
 {
 	char *group;

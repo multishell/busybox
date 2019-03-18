@@ -195,7 +195,7 @@ static int generate_output(char **argv, int argc, const char *optstr, const stru
 		printf(" --");
 		while (optind < argc)
 			printf(" %s", normalize(argv[optind++]));
-		puts("");
+		bb_putchar('\n');
 	}
 	return exit_code;
 }
@@ -279,8 +279,8 @@ static const char getopt_longopts[] ALIGN1 =
 	;
 #endif
 
-int getopt_main(int argc, char *argv[]);
-int getopt_main(int argc, char *argv[])
+int getopt_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int getopt_main(int argc, char **argv)
 {
 	char *optstr = NULL;
 	char *name = NULL;

@@ -100,18 +100,18 @@ int bb_echo(char **argv)
 					c = bb_process_escape_sequence(&arg);
 				}
 			}
-			putchar(c);
+			bb_putchar(c);
 		}
 
 		arg = *++argv;
 		if (!arg)
 			break;
-		putchar(' ');
+		bb_putchar(' ');
 	}
 
  newline_ret:
 	if (nflag) {
-		putchar('\n');
+		bb_putchar('\n');
 	}
  ret:
 	return fflush(stdout);
@@ -119,8 +119,8 @@ int bb_echo(char **argv)
 
 /* This is a NOFORK applet. Be very careful! */
 
-int echo_main(int argc, char** argv);
-int echo_main(int argc, char** argv)
+int echo_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int echo_main(int argc, char **argv)
 {
 	return bb_echo(argv);
 }

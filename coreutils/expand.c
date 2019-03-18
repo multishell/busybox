@@ -125,7 +125,7 @@ static void unexpand(FILE *file, unsigned int tab_size, unsigned opt)
 }
 #endif
 
-int expand_main(int argc, char **argv);
+int expand_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int expand_main(int argc, char **argv)
 {
 	/* Default 8 spaces for 1 tab */
@@ -192,7 +192,7 @@ int expand_main(int argc, char **argv)
 		/* Check and close the file */
 		/* We do want all of them to execute, thus | instead of || */
 		if (ferror(file) | fclose_if_not_stdin(file)) {
-			bb_perror_msg("%s", *argv);
+			bb_simple_perror_msg(*argv);
 			exit_status = EXIT_FAILURE;
 		}
 		/* If stdin also clear EOF */

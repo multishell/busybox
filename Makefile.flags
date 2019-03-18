@@ -3,6 +3,7 @@
 # ==========================================================================
 
 BB_VER = $(VERSION).$(PATCHLEVEL).$(SUBLEVEL)$(EXTRAVERSION)
+export BB_VER
 SKIP_STRIP = n
 
 # -std=gnu99 needed for [U]LLONG_MAX on some systems
@@ -55,30 +56,36 @@ ifeq ($(CONFIG_DEBUG),y)
 CFLAGS += $(call cc-option,-g)
 endif
 
+ifeq ($(CONFIG_BUILD_LIBBUSYBOX),y)
+# on i386: 14% smaller libbusybox.so
+# (code itself is 9% bigger, we save on relocs/PLT/GOT)
+CFLAGS += -fpic
+# and another 4% reduction of libbusybox.so:
+# (external entry points must be marked EXTERNALLY_VISIBLE)
+CFLAGS += $(call cc-option,-fvisibility=hidden)
+endif
+
 ifeq ($(CONFIG_STATIC),y)
 LDFLAGS += -static
 endif
 
-BBOX_LIB_LIST = m crypt
+LDLIBS += m crypt
 
 ifeq ($(CONFIG_PAM),y)
-BBOX_LIB_LIST += pam pam_misc
+LDLIBS += pam pam_misc
 endif
 
 ifeq ($(CONFIG_SELINUX),y)
-BBOX_LIB_LIST += selinux sepol
+LDLIBS += selinux sepol
 endif
 
 ifeq ($(CONFIG_EFENCE),y)
-BBOX_LIB_LIST += efence
+LDLIBS += efence
 endif
 
 ifeq ($(CONFIG_DMALLOC),y)
-BBOX_LIB_LIST += dmalloc
+LDLIBS += dmalloc
 endif
-
-# For scripts/trylink
-export BBOX_LIB_LIST
 
 #LDFLAGS += -nostdlib
 

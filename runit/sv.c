@@ -158,12 +158,22 @@ Exit Codes
 #include "libbb.h"
 #include "runit_lib.h"
 
-static const char *acts;
-static char **service;
-static unsigned rc;
+struct globals {
+	const char *acts;
+	char **service;
+	unsigned rc;
 /* "Bernstein" time format: unix + 0x400000000000000aULL */
-static uint64_t tstart, tnow;
-svstatus_t svstatus;
+	uint64_t tstart, tnow;
+	svstatus_t svstatus;
+};
+#define G (*(struct globals*)&bb_common_bufsiz1)
+#define acts         (G.acts        )
+#define service      (G.service     )
+#define rc           (G.rc          )
+#define tstart       (G.tstart      )
+#define tnow         (G.tnow        )
+#define svstatus     (G.svstatus    )
+#define INIT_G() do { } while (0)
 
 
 static void fatal_cannot(const char *m1) ATTRIBUTE_NORETURN;
@@ -179,7 +189,7 @@ static void out(const char *p, const char *m1)
 	if (errno) {
 		printf(": %s", strerror(errno));
 	}
-	puts(""); /* will also flush the output */
+	bb_putchar('\n'); /* will also flush the output */
 }
 
 #define WARN    "warning: "
@@ -300,7 +310,7 @@ static int status(const char *unused)
 		printf("; ");
 		svstatus_print("log");
 	}
-	puts(""); /* will also flush the output */
+	bb_putchar('\n'); /* will also flush the output */
 	return r;
 }
 
@@ -372,7 +382,7 @@ static int check(const char *a)
 	}
 	printf(OK);
 	svstatus_print(*service);
-	puts(""); /* will also flush the output */
+	bb_putchar('\n'); /* will also flush the output */
 	return 1;
 }
 
@@ -401,7 +411,7 @@ static int control(const char *a)
 	return 1;
 }
 
-int sv_main(int argc, char **argv);
+int sv_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int sv_main(int argc, char **argv)
 {
 	unsigned opt;
@@ -417,6 +427,8 @@ int sv_main(int argc, char **argv)
 	int (*act)(const char*);
 	int (*cbk)(const char*);
 	int curdir;
+
+	INIT_G();
 
 	xfunc_error_retval = 100;
 
@@ -571,7 +583,7 @@ int sv_main(int argc, char **argv)
 					svstatus_print(*service);
 					++rc;
 				}
-				puts(""); /* will also flush the output */
+				bb_putchar('\n'); /* will also flush the output */
 				if (kll)
 					control("k");
  nullify_service:

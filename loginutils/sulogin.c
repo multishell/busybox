@@ -9,45 +9,41 @@
 
 #include "libbb.h"
 
-static const char *const forbid[] = {
-	"ENV",
-	"BASH_ENV",
-	"HOME",
-	"IFS",
-	"PATH",
-	"SHELL",
-	"LD_LIBRARY_PATH",
-	"LD_PRELOAD",
-	"LD_TRACE_LOADED_OBJECTS",
-	"LD_BIND_NOW",
-	"LD_AOUT_LIBRARY_PATH",
-	"LD_AOUT_PRELOAD",
-	"LD_NOWARN",
-	"LD_KEEPDIR",
-	(char *) 0
-};
+static const char forbid[] ALIGN1 =
+	"ENV" "\0"
+	"BASH_ENV" "\0"
+	"HOME" "\0"
+	"IFS" "\0"
+	"PATH" "\0"
+	"SHELL" "\0"
+	"LD_LIBRARY_PATH" "\0"
+	"LD_PRELOAD" "\0"
+	"LD_TRACE_LOADED_OBJECTS" "\0"
+	"LD_BIND_NOW" "\0"
+	"LD_AOUT_LIBRARY_PATH" "\0"
+	"LD_AOUT_PRELOAD" "\0"
+	"LD_NOWARN" "\0"
+	"LD_KEEPDIR" "\0";
+
+//static void catchalarm(int ATTRIBUTE_UNUSED junk)
+//{
+//	exit(EXIT_FAILURE);
+//}
 
 
-static void catchalarm(int ATTRIBUTE_UNUSED junk)
-{
-	exit(EXIT_FAILURE);
-}
-
-
-int sulogin_main(int argc, char **argv);
+int sulogin_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int sulogin_main(int argc, char **argv)
 {
 	char *cp;
 	int timeout = 0;
 	char *timeout_arg;
-	const char *const *p;
+	const char *p;
 	struct passwd *pwd;
 	const char *shell;
 #if ENABLE_FEATURE_SHADOWPASSWDS
 	/* Using _r function to avoid pulling in static buffers */
 	char buffer[256];
 	struct spwd spw;
-	struct spwd *result;
 #endif
 
 	logmode = LOGMODE_BOTH;
@@ -71,10 +67,14 @@ int sulogin_main(int argc, char **argv)
 	}
 
 	/* Clear out anything dangerous from the environment */
-	for (p = forbid; *p; p++)
-		unsetenv(*p);
+	p = forbid;
+	do {
+		unsetenv(p);
+		p += strlen(p) + 1;
+	} while (*p);
 
-	signal(SIGALRM, catchalarm);
+// bb_askpass() already handles this
+//	signal(SIGALRM, catchalarm);
 
 	pwd = getpwuid(0);
 	if (!pwd) {
@@ -82,10 +82,16 @@ int sulogin_main(int argc, char **argv)
 	}
 
 #if ENABLE_FEATURE_SHADOWPASSWDS
-	if (getspnam_r(pwd->pw_name, &spw, buffer, sizeof(buffer), &result)) {
-		goto auth_error;
+	{
+		/* getspnam_r may return 0 yet set result to NULL.
+		 * At least glibc 2.4 does this. Be extra paranoid here. */
+		struct spwd *result = NULL;
+		int r = getspnam_r(pwd->pw_name, &spw, buffer, sizeof(buffer), &result);
+		if (r || !result) {
+			goto auth_error;
+		}
+		pwd->pw_passwd = result->sp_pwdp;
 	}
-	pwd->pw_passwd = spw.sp_pwdp;
 #endif
 
 	while (1) {
@@ -105,22 +111,23 @@ int sulogin_main(int argc, char **argv)
 		bb_error_msg("login incorrect");
 	}
 	memset(cp, 0, strlen(cp));
-	signal(SIGALRM, SIG_DFL);
+//	signal(SIGALRM, SIG_DFL);
 
 	bb_info_msg("System Maintenance Mode");
 
 	USE_SELINUX(renew_current_security_context());
 
 	shell = getenv("SUSHELL");
-	if (!shell) shell = getenv("sushell");
+	if (!shell)
+		shell = getenv("sushell");
 	if (!shell) {
 		shell = "/bin/sh";
 		if (pwd->pw_shell[0])
 			shell = pwd->pw_shell;
 	}
-	run_shell(shell, 1, 0, 0);
-	/* never returns */
+	/* Exec login shell with no additional parameters. Never returns. */
+	run_shell(shell, 1, NULL, NULL);
 
-auth_error:
-	bb_error_msg_and_die("no password entry for 'root'");
+ auth_error:
+	bb_error_msg_and_die("no password entry for root");
 }

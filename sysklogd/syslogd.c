@@ -472,7 +472,6 @@ static void do_syslogd(void)
 {
 	struct sockaddr_un sunx;
 	int sock_fd;
-	fd_set fds;
 	char *dev_log_name;
 
 	/* Set up signal handlers */
@@ -526,44 +525,36 @@ static void do_syslogd(void)
 			(char*)"syslogd started: BusyBox v" BB_VER, 0);
 
 	for (;;) {
-		FD_ZERO(&fds);
-		FD_SET(sock_fd, &fds);
+		size_t sz;
 
-		if (select(sock_fd + 1, &fds, NULL, NULL, NULL) < 0) {
-			if (errno == EINTR) {
-				/* alarm may have happened */
-				continue;
-			}
-			bb_perror_msg_and_die("select");
+		sz = safe_read(sock_fd, G.recvbuf, MAX_READ - 1);
+		if (sz <= 0) {
+			//if (sz == 0)
+			//	continue; /* EOF from unix socket??? */
+			bb_perror_msg_and_die("read from /dev/log");
 		}
 
-		if (FD_ISSET(sock_fd, &fds)) {
-			int i;
-			i = recv(sock_fd, G.recvbuf, MAX_READ - 1, 0);
-			if (i <= 0)
-				bb_perror_msg_and_die("UNIX socket error");
-			/* TODO: maybe suppress duplicates? */
+		/* TODO: maybe suppress duplicates? */
 #if ENABLE_FEATURE_REMOTE_LOG
-			/* We are not modifying log messages in any way before send */
-			/* Remote site cannot trust _us_ anyway and need to do validation again */
-			if (G.remoteAddr) {
-				if (-1 == G.remoteFD) {
-					G.remoteFD = socket(G.remoteAddr->sa.sa_family, SOCK_DGRAM, 0);
-				}
-				if (-1 != G.remoteFD) {
-					/* send message to remote logger, ignore possible error */
-					sendto(G.remoteFD, G.recvbuf, i, MSG_DONTWAIT,
-						&G.remoteAddr->sa, G.remoteAddr->len);
-				}
+		/* We are not modifying log messages in any way before send */
+		/* Remote site cannot trust _us_ anyway and need to do validation again */
+		if (G.remoteAddr) {
+			if (-1 == G.remoteFD) {
+				G.remoteFD = socket(G.remoteAddr->sa.sa_family, SOCK_DGRAM, 0);
 			}
+			if (-1 != G.remoteFD) {
+				/* send message to remote logger, ignore possible error */
+				sendto(G.remoteFD, G.recvbuf, sz, MSG_DONTWAIT,
+					&G.remoteAddr->sa, G.remoteAddr->len);
+			}
+		}
 #endif
-			G.recvbuf[i] = '\0';
-			split_escape_and_log(G.recvbuf, i);
-		} /* FD_ISSET() */
+		G.recvbuf[sz] = '\0';
+		split_escape_and_log(G.recvbuf, sz);
 	} /* for */
 }
 
-int syslogd_main(int argc, char **argv);
+int syslogd_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int syslogd_main(int argc, char **argv)
 {
 	char OPTION_DECL;

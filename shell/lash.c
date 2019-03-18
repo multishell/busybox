@@ -319,7 +319,7 @@ static int builtin_help(struct child_prog ATTRIBUTE_UNUSED *dummy)
 			continue;
 		printf("%s\t%s\n", x->cmd, x->descr);
 	}
-	putchar('\n');
+	bb_putchar('\n');
 	return EXIT_SUCCESS;
 }
 
@@ -455,8 +455,7 @@ static void free_job(struct job *cmd)
 	for (i = 0; i < cmd->num_progs; i++) {
 		free(cmd->progs[i].argv);
 #if ENABLE_LASH_PIPE_N_REDIRECTS
-		if (cmd->progs[i].redirects)
-			free(cmd->progs[i].redirects);
+		free(cmd->progs[i].redirects);
 #endif
 	}
 	free(cmd->progs);
@@ -577,7 +576,7 @@ static int setup_redirects(struct child_prog *prog, int squirrel[])
 		if (openfd != redir->fd) {
 			if (squirrel && redir->fd < 3) {
 				squirrel[redir->fd] = dup(redir->fd);
-				fcntl(squirrel[redir->fd], F_SETFD, FD_CLOEXEC);
+				close_on_exec_on(squirrel[redir->fd]);
 			}
 			dup2(openfd, redir->fd);
 			close(openfd);
@@ -677,7 +676,7 @@ static int get_command_bufsiz(FILE * source, char *command)
 
 	if (!fgets(command, BUFSIZ - 2, source)) {
 		if (source == stdin)
-			puts("");
+			bb_putchar('\n');
 		return 1;
 	}
 
@@ -1141,12 +1140,11 @@ static int pseudo_exec(struct child_prog *child)
 		}
 	}
 
-
 	/* Check if the command matches any busybox internal
 	 * commands ("applets") here.  Following discussions from
 	 * November 2000 on busybox@busybox.net, don't use
-	 * bb_get_last_path_component().  This way explicit (with
-	 * slashes) filenames will never be interpreted as an
+	 * bb_get_last_path_component_nostrip().  This way explicit
+	 * (with slashes) filenames will never be interpreted as an
 	 * applet, just like with builtins.  This way the user can
 	 * override an applet with an explicit filename reference.
 	 * The only downside to this change is that an explicit
@@ -1161,7 +1159,7 @@ static int pseudo_exec(struct child_prog *child)
 
 	/* Do not use bb_perror_msg_and_die() here, since we must not
 	 * call exit() but should call _exit() instead */
-	bb_perror_msg("%s", child->argv[0]);
+	bb_simple_perror_msg(child->argv[0]);
 	_exit(EXIT_FAILURE);
 }
 
@@ -1493,7 +1491,7 @@ static inline void setup_job_control(void)
 }
 #endif
 
-int lash_main(int argc_l, char **argv_l);
+int lash_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int lash_main(int argc_l, char **argv_l)
 {
 	unsigned opt;

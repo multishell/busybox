@@ -156,11 +156,12 @@ static unsigned ALWAYS_INLINE ms_rdelay(unsigned secs)
 /**
  * main program
  */
-int zcip_main(int argc, char **argv);
+int zcip_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int zcip_main(int argc, char **argv)
 {
 	int state = PROBE;
-	struct ether_addr eth_addr;
+	/* Prevent unaligned traps for ARM (see srand() below) */
+	struct ether_addr eth_addr __attribute__(( aligned(sizeof(unsigned)) ));
 	const char *why;
 	int fd;
 	char *r_opt;
@@ -252,7 +253,7 @@ int zcip_main(int argc, char **argv)
 	// the hardware address or else the last address we used.
 	// NOTE: the sequence of addresses we try changes only
 	// depending on when we detect conflicts.
-	srand(*(unsigned*)&ifr.ifr_hwaddr.sa_data);
+	srand(*(unsigned*)&eth_addr);
 	if (ip.s_addr == 0)
 		pick(&ip);
 
@@ -300,7 +301,12 @@ int zcip_main(int argc, char **argv)
 
 		VDBG("...wait %d %s nprobes=%u, nclaims=%u\n",
 				timeout_ms, intf, nprobes, nclaims);
-		switch (poll(fds, 1, timeout_ms)) {
+
+		switch (safe_poll(fds, 1, timeout_ms)) {
+
+		default:
+			/*bb_perror_msg("poll"); - done in safe_poll */
+			return EXIT_FAILURE;
 
 		// timeout
 		case 0:
@@ -388,6 +394,7 @@ int zcip_main(int argc, char **argv)
 				break;
 			} // switch (state)
 			break; // case 0 (timeout)
+
 		// packets arriving
 		case 1:
 			// We need to adjust the timeout in case we didn't receive
@@ -519,13 +526,9 @@ int zcip_main(int argc, char **argv)
 				nclaims = 0;
 				break;
 			} // switch state
-
 			break; // case 1 (packets arriving)
-		default:
-			why = "poll";
-			goto bad;
 		} // switch poll
-	}
+	} // while (1)
  bad:
 	bb_perror_msg("%s, %s", intf, why);
 	return EXIT_FAILURE;

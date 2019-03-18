@@ -6,6 +6,7 @@
 
 lib-y:=
 
+lib-y += appletlib.o
 lib-y += ask_confirmation.o
 lib-y += bb_askpass.o
 lib-y += bb_basename.o
@@ -71,6 +72,7 @@ lib-y += recursive_action.o
 lib-y += remove_file.o
 lib-y += restricted_shell.o
 lib-y += run_shell.o
+lib-y += safe_poll.o
 lib-y += safe_strncpy.o
 lib-y += safe_write.o
 lib-y += setup_environment.o
@@ -123,5 +125,7 @@ lib-$(CONFIG_GREP) += xregcomp.o
 lib-$(CONFIG_EXPR) += xregcomp.o
 lib-$(CONFIG_MDEV) += xregcomp.o
 lib-$(CONFIG_LESS) += xregcomp.o
+lib-$(CONFIG_PGREP) += xregcomp.o
+lib-$(CONFIG_PKILL) += xregcomp.o
 lib-$(CONFIG_DEVFSD) += xregcomp.o
 lib-$(CONFIG_FEATURE_FIND_REGEX) += xregcomp.o

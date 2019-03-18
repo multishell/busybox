@@ -12,7 +12,7 @@
 
 #include "libbb.h"
 
-int nohup_main(int argc, char **argv);
+int nohup_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int nohup_main(int argc, char **argv)
 {
 	int nullfd;
@@ -56,5 +56,5 @@ int nohup_main(int argc, char **argv)
 	BB_EXECVP(argv[1], argv+1);
 	if (ENABLE_FEATURE_CLEAN_UP && home)
 		free((char*)nohupout);
-	bb_perror_msg_and_die("%s", argv[1]);
+	bb_simple_perror_msg_and_die(argv[1]);
 }

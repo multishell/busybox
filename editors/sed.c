@@ -5,7 +5,7 @@
  * Copyright (C) 1999,2000,2001 by Lineo, inc. and Mark Whitley
  * Copyright (C) 1999,2000,2001 by Mark Whitley <markw@codepoet.org>
  * Copyright (C) 2002  Matt Kraai
- * Copyright (C) 2003 by Glenn McGrath <bug1@iinet.net.au>
+ * Copyright (C) 2003 by Glenn McGrath
  * Copyright (C) 2003,2004 by Rob Landley <rob@landley.net>
  *
  * MAINTAINER: Rob Landley <rob@landley.net>
@@ -157,7 +157,7 @@ static void sed_free_and_close_stuff(void)
 		sed_cmd = sed_cmd_next;
 	}
 
-	if (G.hold_space) free(G.hold_space);
+	free(G.hold_space);
 
 	while (G.current_input_file < G.input_file_count)
 		fclose(G.input_file_list[G.current_input_file++]);
@@ -1223,7 +1223,7 @@ static void add_cmd_block(char *cmdstr)
 	free(sv);
 }
 
-int sed_main(int argc, char **argv);
+int sed_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int sed_main(int argc, char **argv)
 {
 	enum {

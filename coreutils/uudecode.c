@@ -1,6 +1,6 @@
 /* vi: set sw=4 ts=4: */
 /*
- *  Copyright 2003, Glenn McGrath <bug1@iinet.net.au>
+ *  Copyright 2003, Glenn McGrath
  *
  *  Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  *
@@ -126,7 +126,7 @@ static void read_base64(FILE *src_stream, FILE *dst_stream)
 	}
 }
 
-int uudecode_main(int argc, char **argv);
+int uudecode_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int uudecode_main(int argc, char **argv)
 {
 	FILE *src_stream = stdin;

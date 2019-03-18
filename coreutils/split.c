@@ -55,7 +55,7 @@ enum { READ_BUFFER_SIZE = COMMON_BUFSIZE - 1 };
 #define SPLIT_OPT_b (1<<1)
 #define SPLIT_OPT_a (1<<2)
 
-int split_main(int argc, char **argv);
+int split_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int split_main(int argc, char **argv)
 {
 	unsigned suffix_len = 2;
@@ -104,7 +104,7 @@ int split_main(int argc, char **argv)
 		if (!bytes_read)
 			break;
 		if (bytes_read < 0)
-			bb_perror_msg_and_die("%s", argv[0]);
+			bb_simple_perror_msg_and_die(argv[0]);
 		src = read_buffer;
 		do {
 			if (!remaining) {

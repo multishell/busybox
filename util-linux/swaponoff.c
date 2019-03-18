@@ -31,7 +31,7 @@ static int swap_enable_disable(char *device)
 		status = swapoff(device);
 
 	if (status != 0) {
-		bb_perror_msg("%s", device);
+		bb_simple_perror_msg(device);
 		return 1;
 	}
 
@@ -58,7 +58,7 @@ static int do_em_all(void)
 	return err;
 }
 
-int swap_on_off_main(int argc, char **argv);
+int swap_on_off_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int swap_on_off_main(int argc, char **argv)
 {
 	int ret;

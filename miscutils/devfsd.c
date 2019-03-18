@@ -336,7 +336,7 @@ static unsigned int scan_dev_name(const char *d, unsigned int n, const char *ptr
 
 /*  Public functions follow  */
 
-int devfsd_main(int argc, char **argv);
+int devfsd_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int devfsd_main(int argc, char **argv)
 {
 	int print_version = FALSE;
@@ -371,10 +371,7 @@ int devfsd_main(int argc, char **argv)
 	xchdir(mount_point);
 
 	fd = xopen(".devfsd", O_RDONLY);
-
-	if (fcntl(fd, F_SETFD, FD_CLOEXEC) != 0)
-		bb_perror_msg_and_die("FD_CLOEXEC");
-
+	close_on_exec_on(fd);
 	xioctl(fd, DEVFSDIOC_GET_PROTO_REV, &proto_rev);
 
 	/*setup initial entries */

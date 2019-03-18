@@ -11,7 +11,7 @@
  */
 #include "libbb.h"
 
-int ttysize_main(int argc, char **argv);
+int ttysize_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int ttysize_main(int argc, char **argv)
 {
 	unsigned w,h;
@@ -39,6 +39,6 @@ int ttysize_main(int argc, char **argv)
 			fmt = "%u %u" + 2; /* " %u" */
 		}
 	}
-	putchar('\n');
+	bb_putchar('\n');
 	return 0;
 }

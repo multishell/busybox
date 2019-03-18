@@ -1,7 +1,7 @@
 /* vi: set sw=4 ts=4: */
 /*
  *  ifupdown for busybox
- *  Copyright (c) 2002 Glenn McGrath <bug1@iinet.net.au>
+ *  Copyright (c) 2002 Glenn McGrath
  *  Copyright (c) 2003-2004 Erik Andersen <andersen@codepoet.org>
  *
  *  Based on ifupdown v 0.6.4 by Anthony Towns
@@ -633,7 +633,7 @@ static const struct method_t *get_method(const struct address_family_t *af, char
 
 	if (!name)
 		return NULL;
-
+	/* TODO: use index_in_str_array() */
 	for (i = 0; i < af->n_methods; i++) {
 		if (strcmp(af->method[i].name, name) == 0) {
 			return &af->method[i];
@@ -1133,7 +1133,7 @@ static llist_t *read_iface_state(void)
 }
 
 
-int ifupdown_main(int argc, char **argv);
+int ifupdown_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int ifupdown_main(int argc, char **argv)
 {
 	int (*cmds)(struct interface_defn_t *) = NULL;
@@ -1259,7 +1259,7 @@ int ifupdown_main(int argc, char **argv)
 			iface_list = iface_list->link;
 		}
 		if (VERBOSE) {
-			puts("");
+			bb_putchar('\n');
 		}
 
 		if (!okay && !FORCE) {

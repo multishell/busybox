@@ -111,15 +111,15 @@ static void cmdedit_set_out_char(int next_char)
 #endif
 	{
 		if (initial_settings.c_lflag & ECHO)
-			putchar(c);
+			bb_putchar(c);
 	}
 	if (++cmdedit_x >= cmdedit_termw) {
 		/* terminal is scrolled down */
 		cmdedit_y++;
 		cmdedit_x = 0;
 		/* destroy "(auto)margin" */
-		putchar(next_char);
-		putchar('\b');
+		bb_putchar(next_char);
+		bb_putchar('\b');
 	}
 // Huh? What if command_ps[cursor] == '\0' (we are at the end already?)
 	cursor++;
@@ -137,7 +137,7 @@ static void goto_new_line(void)
 {
 	input_end();
 	if (cmdedit_x)
-		putchar('\n');
+		bb_putchar('\n');
 }
 
 
@@ -149,7 +149,7 @@ static void out1str(const char *s)
 
 static void beep(void)
 {
-	putchar('\007');
+	bb_putchar('\007');
 }
 
 /* Move back one character */
@@ -197,7 +197,7 @@ static void redraw(int y, int back_cursor)
 {
 	if (y > 0)                              /* up to start y */
 		printf("\033[%dA", y);
-	putchar('\r');
+	bb_putchar('\r');
 	put_prompt();
 	input_end();                            /* rewrite */
 	printf("\033[J");                       /* erase after cursor */
@@ -658,7 +658,7 @@ static int find_match(char *matchBuf, int *len_with_quotes)
 		j = pos_buf[i] + 1;
 	}
 	matchBuf[c] = 0;
-	/* old lenght matchBuf with quotes symbols */
+	/* old length matchBuf with quotes symbols */
 	*len_with_quotes = j ? j - pos_buf[0] : 0;
 
 	return command_mode;
@@ -700,7 +700,7 @@ static void showfiles(void)
 			printf("%s%-*s", matches[n],
 				(int)(column_width - strlen(matches[n])), "");
 		}
-		printf("%s\n", matches[n]);
+		puts(matches[n]);
 	}
 }
 
@@ -1259,7 +1259,7 @@ static void win_changed(int nsig)
  * 0  on ctrl-C,
  * >0 length of input string, including terminating '\n'
  */
-int read_line_input(const char* prompt, char* command, int maxsize, line_input_t *st)
+int read_line_input(const char *prompt, char *command, int maxsize, line_input_t *st)
 {
 	int lastWasTab = FALSE;
 	unsigned int ic;
@@ -1269,6 +1269,15 @@ int read_line_input(const char* prompt, char* command, int maxsize, line_input_t
 	smallint vi_cmdmode = 0;
 	smalluint prevc;
 #endif
+
+	getTermSettings(0, (void *) &initial_settings);
+	/* Happens when e.g. stty -echo was run before */
+	if (!(initial_settings.c_lflag & ECHO)) {
+		parse_prompt(prompt);
+		fflush(stdout);
+		fgets(command, maxsize, stdin);
+		return strlen(command);
+	}
 
 // FIXME: audit & improve this
 	if (maxsize > MAX_LINELEN)
@@ -1287,7 +1296,6 @@ int read_line_input(const char* prompt, char* command, int maxsize, line_input_t
 	command_ps = command;
 	command[0] = '\0';
 
-	getTermSettings(0, (void *) &initial_settings);
 	memcpy(&new_settings, &initial_settings, sizeof(new_settings));
 	new_settings.c_lflag &= ~ICANON;        /* unbuffered input */
 	/* Turn off echoing and CTRL-C, so we can trap it */
@@ -1585,8 +1593,8 @@ int read_line_input(const char* prompt, char* command, int maxsize, line_input_t
 				beep();
 			else {
 				*(command + cursor) = c;
-				putchar(c);
-				putchar('\b');
+				bb_putchar(c);
+				bb_putchar('\b');
 			}
 			break;
 #endif /* FEATURE_COMMAND_EDITING_VI */

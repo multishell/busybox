@@ -57,11 +57,11 @@ static int fileAction(const char *fileName, struct stat *statbuf,
 		return TRUE;
 	}
 	if (!OPT_QUIET)
-		bb_perror_msg("%s", fileName);	/* A filename can have % in it... */
+		bb_simple_perror_msg(fileName);	/* A filename can have % in it... */
 	return FALSE;
 }
 
-int chown_main(int argc, char **argv);
+int chown_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int chown_main(int argc, char **argv)
 {
 	int retval = EXIT_SUCCESS;

@@ -292,7 +292,7 @@ static int fuser_print_pid_list(pid_list *plist)
 			printf("%d ", curr->pid);
 		curr = curr->next;
 	}
-	puts("");
+	bb_putchar('\n');
 	return 1;
 }
 
@@ -316,7 +316,7 @@ static int fuser_kill_pid_list(pid_list *plist, int sig)
 	return success;
 }
 
-int fuser_main(int argc, char **argv);
+int fuser_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int fuser_main(int argc, char **argv)
 {
 	/*static -- huh???*/ int opt = 0; /* FUSER_OPT_ */

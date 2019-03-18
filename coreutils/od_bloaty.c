@@ -1183,7 +1183,7 @@ dump_strings(void)
 			case '\r': fputs("\\r", stdout); break;
 			case '\t': fputs("\\t", stdout); break;
 			case '\v': fputs("\\v", stdout); break;
-			default: putc(c, stdout);
+			default: bb_putchar(c);
 			}
 		}
 		putchar('\n');
@@ -1196,7 +1196,7 @@ dump_strings(void)
 	check_and_close();
 }
 
-int od_main(int argc, char **argv);
+int od_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int od_main(int argc, char **argv)
 {
 	static const struct suffix_mult bkm[] = {

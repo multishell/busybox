@@ -22,7 +22,7 @@ static void timeout(int signum)
 	bb_error_msg_and_die("timed out");
 }
 
-int nc_main(int argc, char **argv);
+int nc_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int nc_main(int argc, char **argv)
 {
 	/* sfd sits _here_ only because of "repeat" option (-l -l). */
@@ -113,7 +113,7 @@ int nc_main(int argc, char **argv)
 				lport = get_nport(&lsa->sa);
 				fdprintf(2, "%d\n", ntohs(lport));
 			}
-			fcntl(sfd, F_SETFD, FD_CLOEXEC);
+			close_on_exec_on(sfd);
  accept_again:
 			cfd = accept(sfd, NULL, 0);
 			if (cfd < 0)

@@ -1,7 +1,7 @@
 /* vi: set sw=4 ts=4: */
 /*
  *  busybox patch applet to handle the unified diff format.
- *  Copyright (C) 2003 Glenn McGrath <bug1@iinet.net.au>
+ *  Copyright (C) 2003 Glenn McGrath
  *
  *  Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  *
@@ -77,7 +77,7 @@ static int file_doesnt_exist(const char *filename)
 	return stat(filename, &statbuf);
 }
 
-int patch_main(int argc, char **argv);
+int patch_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int patch_main(int argc, char **argv)
 {
 	int patch_level = -1;

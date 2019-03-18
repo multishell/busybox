@@ -40,7 +40,7 @@ struct globals {
 
 static void gotsig(int sig)
 {
-	putchar('\n');
+	bb_putchar('\n');
 	setTermSettings(cin_fileno, &initial_settings);
 	exit(EXIT_FAILURE);
 }
@@ -52,7 +52,7 @@ static void gotsig(int sig)
 
 #define CONVERTED_TAB_SIZE 8
 
-int more_main(int argc, char **argv);
+int more_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int more_main(int argc, char **argv)
 {
 	int c = c; /* for gcc */
