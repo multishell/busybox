@@ -143,7 +143,7 @@ static int newfile(char *s);
 static char *findeq(char *cp);
 static char *cclass(char *p, int sub);
 static void initarea(void);
-extern int shell_main(int argc, char **argv);
+extern int msh_main(int argc, char **argv);
 
 
 struct	brkcon {
@@ -682,8 +682,7 @@ static void * brkaddr;
 
 
 #ifdef BB_FEATURE_COMMAND_EDITING
-char * current_prompt;
-unsigned int shell_context;
+static char * current_prompt;
 #endif
 
 
@@ -693,7 +692,7 @@ unsigned int shell_context;
  */
 
 
-extern int shell_main(int argc, char **argv)
+extern int msh_main(int argc, char **argv)
 {
 	register int f;
 	register char *s;
@@ -2867,7 +2866,6 @@ char *c, **v, **envp;
 		for (i = 0; (*tp++ = c[i++]) != '\0';)
 			;
 
-		fprintf(stderr, "calling exec\n");
 		execve(e.linep, v, envp);
 		switch (errno) {
 		case ENOEXEC:
@@ -3332,11 +3330,19 @@ void (*f)();
 int key;
 {
 	if (*wp != NULL) {
-		for (; *wp != NULL; wp++)
+		for (; *wp != NULL; wp++) {
+			if (isassign(*wp)) {
+				char *cp;
+				assign(*wp, COPYV);
+				for (cp = *wp; *cp != '='; cp++)
+					;
+				*cp = '\0';
+			}
 			if (checkname(*wp))
 				(*f)(lookup(*wp));
 			else
 				badid(*wp);
+		}
 	} else
 		putvlist(key, 1);
 }
@@ -4442,9 +4448,7 @@ register struct ioarg *ap;
 	  if ((i = ap->afid != bp->id) || bp->bufp == bp->ebufp) {
 	    if (i)
 	      lseek(ap->afile, ap->afpos, 0);
-	    do {
-	      i = read(ap->afile, bp->buf, sizeof(bp->buf));
-	    } while (i < 0 && errno == EINTR);
+	    i = safe_read(ap->afile, bp->buf, sizeof(bp->buf));
 	    if (i <= 0) {
 	      closef(ap->afile);
 	      return 0;
@@ -4463,7 +4467,6 @@ register struct ioarg *ap;
 
 	    while (size == 0 || position >= size) {
 		cmdedit_read_input(current_prompt, mycommand);
-		cmdedit_terminate();
 		size = strlen(mycommand);
 		position = 0;
 	    }
@@ -4473,9 +4476,7 @@ register struct ioarg *ap;
 	} else 
 #endif
 	{
-		do {
-			i = read(ap->afile, &c, sizeof(c));
-		} while (i < 0 && errno == EINTR);
+		i = safe_read(ap->afile, &c, sizeof(c));
 		return(i == sizeof(c)? c&0177: (closef(ap->afile), 0));
 	}
 }

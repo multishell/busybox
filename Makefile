@@ -18,7 +18,7 @@
 #
 
 PROG      := busybox
-VERSION   := 0.52
+VERSION   := 0.60.0
 BUILDTIME := $(shell TZ=UTC date -u "+%Y.%m.%d-%H:%M%z")
 export VERSION
 
@@ -227,7 +227,10 @@ ifneq ($(strip $(USE_SYSTEM_PWD_GRP)),true)
 	    fgetpwent.c __getgrent.c grent.c getgrnam.c getgrgid.c fgetgrent.c \
 	    initgroups.c setgroups.c
     PWD_OBJS=$(patsubst %.c,$(PWD_GRP)/%.o, $(PWD_CSRC))
-    PWD_CFLAGS = -I$(PWD_GRP_DIR)
+ifneq ($(strip $(BB_SRC_DIR)),)
+    PWD_CFLAGS = -I- -I.
+endif
+    PWD_CFLAGS += -I$(PWD_GRP_DIR)
 else
     CFLAGS    += -DUSE_SYSTEM_PWD_GRP
 endif
@@ -235,7 +238,7 @@ endif
 LIBBB	  = libbb
 LIBBB_LIB = libbb.a
 LIBBB_CSRC= ask_confirmation.c chomp.c concat_path_file.c copy_file.c \
-copy_file_chunk.c daemon.c device_open.c error_msg.c \
+copy_file_chunk.c libc5.c device_open.c error_msg.c \
 error_msg_and_die.c fgets_str.c find_mount_point.c find_pid_by_name.c \
 find_root_device.c full_read.c full_write.c get_console.c \
 get_last_path_component.c get_line_from_file.c gz_open.c human_readable.c \
@@ -247,17 +250,18 @@ safe_read.c safe_strncpy.c syscalls.c syslog_msg_with_name.c time_string.c \
 trim.c unzip.c vdprintf.c verror_msg.c vperror_msg.c wfopen.c xfuncs.c \
 xgetcwd.c xreadlink.c xregcomp.c interface.c remove_file.c last_char_is.c \
 copyfd.c vherror_msg.c herror_msg.c herror_msg_and_die.c xgethostbyname.c \
-dirname.c make_directory.c
+dirname.c make_directory.c create_icmp_socket.c u_signal_names.c arith.c
 LIBBB_OBJS=$(patsubst %.c,$(LIBBB)/%.o, $(LIBBB_CSRC))
-LIBBB_CFLAGS = -I$(LIBBB)
-ifneq ($(strip $(BB_SRC_DIR)),)
-    LIBBB_CFLAGS += -I$(BB_SRC_DIR)/$(LIBBB)
+ifeq ($(strip $(BB_SRC_DIR)),)
+    LIBBB_CFLAGS += -I$(LIBBB)
+else
+    LIBBB_CFLAGS = -I- -I. -I./$(LIBBB) -I$(BB_SRC_DIR)/$(LIBBB) -I$(BB_SRC_DIR)
 endif
 
 LIBBB_MSRC=libbb/messages.c
 LIBBB_MESSAGES= full_version name_too_long omitting_directory not_a_directory \
 memory_exhausted invalid_date invalid_option io_error dash_dash_help \
-write_error too_few_args name_longer_than_foo unknown
+write_error too_few_args name_longer_than_foo unknown can_not_create_raw_socket
 LIBBB_MOBJ=$(patsubst %,$(LIBBB)/%.o, $(LIBBB_MESSAGES))
 
 LIBBB_ARCSRC=libbb/unarchive.c
@@ -349,9 +353,13 @@ busybox.links: busybox.mkll Config.h applets.h
 	- $(SHELL) $^ >$@
 
 nfsmount.o cmdedit.o: %.o: %.h
-sh.o: cmdedit.h
+ash.o hush.o lash.o msh.o: cmdedit.h
 $(OBJECTS): %.o: %.c Config.h busybox.h applets.h Makefile
-	$(CC) -I- $(CFLAGS) -I. $(patsubst %,-I%,$(subst :, ,$(BB_SRC_DIR))) -c $< -o $*.o
+ifeq ($(strip $(BB_SRC_DIR)),)
+	$(CC) $(CFLAGS) -I. $(patsubst %,-I%,$(subst :, ,$(BB_SRC_DIR))) -c $< -o $*.o
+else
+	$(CC) $(CFLAGS) -I- -I. $(patsubst %,-I%,$(subst :, ,$(BB_SRC_DIR))) -c $< -o $*.o
+endif
 
 $(PWD_OBJS): %.o: %.c Config.h busybox.h applets.h Makefile
 	- mkdir -p $(PWD_GRP)
@@ -377,8 +385,6 @@ libbb.a:  $(LIBBB_MOBJ) $(LIBBB_AROBJS) $(LIBBB_OBJS)
 
 usage.o: usage.h
 
-sh.o: sh.c lash.c hush.c msh.c ash.c
-
 libbb/loop.o: libbb/loop.h
 
 libbb/loop.h: mk_loop_h.sh
@@ -396,7 +402,7 @@ clean:
 	    docs/busybox.lineo.com/BusyBox.html
 	- rm -f docs/busybox.txt docs/busybox.dvi docs/busybox.ps \
 	    docs/busybox.pdf docs/busybox.lineo.com/busybox.html
-	- rm -f multibuild.log Config.h.orig
+	- rm -f multibuild.log Config.h.orig *.gdb *.elf
 	- rm -rf docs/busybox _install libpwd.a libbb.a pod2htm*
 	- rm -f busybox.links libbb/loop.h *~ slist.mk core applet_source_list
 	- find -name \*.o -exec rm -f {} \;

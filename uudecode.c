@@ -201,12 +201,13 @@ static int decode (const char *inname,
                    const char *forced_outname)
 {
   struct passwd *pw;
-  register int n;
   register char *p;
-  int mode, n1;
+  int mode;
   char buf[2 * BUFSIZ];
   char *outname;
   int do_base64 = 0;
+  int res;
+  int dofre;
 
   /* Search for header line.  */
 
@@ -226,6 +227,7 @@ static int decode (const char *inname,
   }
 
   /* If the output file name is given on the command line this rules.  */
+  dofre = FALSE;
   if (forced_outname != NULL)
     outname = (char *) forced_outname;
   else {
@@ -246,12 +248,8 @@ static int decode (const char *inname,
         error_msg("%s: No user `%s'", inname, buf + 1);
         return FALSE;
       }
-      n = strlen (pw->pw_dir);
-      n1 = strlen (p);
-      outname = (char *) alloca ((size_t) (n + n1 + 2));
-      memcpy (outname + n + 1, p, (size_t) (n1 + 1));
-      memcpy (outname, pw->pw_dir, (size_t) n);
-      outname[n] = '/';
+      outname = concat_path_file(pw->pw_dir, p);
+      dofre = TRUE;
     }
   }
 
@@ -261,6 +259,8 @@ static int decode (const char *inname,
 	  || chmod (outname, mode & (S_IRWXU | S_IRWXG | S_IRWXO))
          )) {
     perror_msg("%s", outname); /* */
+    if (dofre)
+	free(outname);
     return FALSE;
   }
 
@@ -269,9 +269,12 @@ static int decode (const char *inname,
 
   /* For each input line:  */
   if (do_base64)
-    return read_base64 (inname);
+      res = read_base64 (inname);
   else
-    return read_stduu (inname);
+       res = read_stduu (inname);
+  if (dofre)
+      free(outname);
+  return res;
 }
 
 int uudecode_main (int argc,

@@ -447,9 +447,14 @@ Options:
 
 =item B<dpkg>
 
-dpkg [B<-i>|B<-r>|-B<-unpack>|-B<-configure>] my.deb
+dpkg B<-i> package_file
 
-WORK IN PROGRESS, only useful for debian-installer
+
+	-i	Install the package
+	-C	Configure an unpackaged package
+	-P	Purge all files of a package
+	-r	Remove all but the configuration files for a package
+	-u	Unpack a package, but dont configure it
 
 -------------------------------
 
@@ -1129,6 +1134,24 @@ Options:
 
 -------------------------------
 
+=item B<lash>
+
+lash [FILE]...
+or: sh B<-c> command [args]...
+
+lash: The BusyBox LAme SHell (command interpreter)
+
+This command does not yet have proper documentation.
+
+Use lash just as you would use any other shell.  It properly handles pipes,
+redirects, job control, can be used as the shell for scripts, and has a
+sufficient set of builtins to do what is needed.  It does not (yet) support
+Bourne Shell syntax.  If you need things like "if-then-else", "while", and such
+use ash or bash.  If you just need a very simple and extremely small shell,
+this will do the job.
+
+-------------------------------
+
 =item B<length>
 
 length STRING
@@ -1453,6 +1476,18 @@ Example:
 
 -------------------------------
 
+=item B<modprobe>
+
+modprobe [FILE ...]
+
+Used for hight level module loading and unloading.
+
+Example:
+
+	$ modprobe cdrom
+
+-------------------------------
+
 =item B<more>
 
 more [FILE ...]
@@ -1569,6 +1604,19 @@ Example:
 	
 	Name:       debian
 	Address:    127.0.0.1
+
+-------------------------------
+
+=item B<pidof>
+
+pidof process-name [process-name ...]
+
+Lists the PIDs of all processes with names that match the names on the command line
+
+Example:
+
+	$ pidof init
+	1
 
 -------------------------------
 
@@ -1816,24 +1864,6 @@ and KEYCODE is given in decimal
 Example:
 
 	$ setkeycodes e030 127
-
--------------------------------
-
-=item B<sh>
-
-sh [FILE]...
-or: sh B<-c> command [args]...
-
-lash: The BusyBox LAme SHell (command interpreter)
-
-This command does not yet have proper documentation.
-
-Use lash just as you would use any other shell.  It properly handles pipes,
-redirects, job control, can be used as the shell for scripts, and has a
-sufficient set of builtins to do what is needed.  It does not (yet) support
-Bourne Shell syntax.  If you need things like "if-then-else", "while", and such
-use ash or bash.  If you just need a very simple and extremely small shell,
-this will do the job.
 
 -------------------------------
 
@@ -2104,6 +2134,31 @@ Example:
 
 	$ echo "gdkkn vnqkc" | tr [a-y] [b-z]
 	hello world
+
+-------------------------------
+
+=item B<traceroute>
+
+traceroute [B<-dnrv>] [B<-m> max_ttl] [B<-p> port#] [B<-q> nqueries]
+	[B<-s> src_addr] [B<-t> tos] [B<-w> wait] host [data size]
+
+trace the route ip packets follow going to "host"
+Options:
+
+	-d	set SO_DEBUG options to socket
+	-n	Print hop addresses numerically rather than symbolically
+	-r	Bypass the normal routing tables and send directly to a host
+	-v	Verbose output
+	-m max_ttl	Set the max time-to-live (max number of hops)
+	-p port#	Set the base UDP port number used in probes
+		(default is 33434)
+	-q nqueries	Set the number of probes per ``ttl'' to nqueries
+		(default is 3)
+	-s src_addr	Use the following IP address as the source address
+	-t tos	Set the type-of-service in probe packets to the following value
+		(default 0)
+	-w wait	Set the time (in seconds) to wait for a response to a probe
+		(default 3 sec.).
 
 -------------------------------
 

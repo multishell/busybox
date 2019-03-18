@@ -1,3 +1,94 @@
+0.60.0
+
+    Note: 
+
+	For this release I have bumped the version number to 0.60.0.  This
+	reflects the fact that this release is intended to form a new stable
+	BusyBox release series.  If you need to rely on a stable version of
+	BusyBox, you should plan on using the stable 0.60.x series.  If bugs
+	show up then I will release 0.60.1, then 0.60.2, etc...  This is also
+	intended to deal with the fact that the BusyBox build system will be
+	getting a major overhaul for the next release and I don't want that to
+	break products that people are shipping.  To avoid that, the new build
+	system will be released as part of a new BusyBox development series
+	that will have some not-yet-decided-on odd version number.  Once things
+	stabablize and the new build system is working for everyone, then I
+	will release that as a new stable release series. 
+
+    Critical Bugfixes:
+	* Matt Kraai 
+	    -- Fixed wget output file opening (wget failed in 0.52).
+	    -- Fixed a memory leak in syslogd (found by Adam Slattery).
+	* Vladimir Oleynik, Matt Kraai, Erik Andersen
+	    -- several nasty bugs in ash and msh.  msh could not assign
+		any variables and had debug code still enabled.  ash
+		had several compile errors (depending on selected options)
+		and variable assignment problems as well.
+
+    New Applets:
+	* David McCullough <davidm@lineo.com> -- modprobe
+	* Vladimir Oleynik -- traceroute
+	* Erik Andersen -- pidof
+
+    New Scripts:
+	* David Schleef, Erik Andersen, Stuart Hughes -- depmod.pl
+	    This is a replacement for the depmod program from the modutils 
+	    package, but is fully cross platform and is designed to run on 
+	    your host system (not on the target).
+
+    Other Changes:
+	* Erik Andersen 
+	    -- fixed busybox.spec so it should now work on redhat systems
+	    -- fixed dos2unix and unix2dos so they should work once again
+	    -- Adjustments to make busybox more uClinux friendly.  Busybox
+		should now work on uClinux systems without needing and source
+		code changes (applets that won't work on uClinux systems are 
+		now automagicaly disabled).
+	    -- various things (cleanups, libc compatibility work, etc, etc)
+	* Jim Gleason <jimg@lineo.com>
+	    -- Fixed for sed, where it failed to preserve whether or not the 
+		line was previously altered when running a subst command.
+	* Matt Kraai 
+	    -- Made tar read 20 512byte blocks at a time (like GNU tar)
+	    -- Allow msh.c assignments with the export and readonly commands.
+	    -- Added BB_FEATURE_DEVFS to enable devfs device names.
+	    -- Better devfs support
+	    -- Don't save/restore vi readonly flag if vi is compiled read-only.
+	    -- Reworked rdate option handling (is now smaller).
+	    -- Size reduction in ping
+	    -- Always write dd counts to stderr
+	    -- Allow multiple shells to be enabled
+	* Aaron Lehmann 
+	    -- slimmed down md5sum 
+	    -- contributed a nice new (hand written, not lex/yacc) Posix math 
+		support for ash, which is once again a full posix shell.
+	* Felix von Leitner <leitner@convergence.de> -- patches to make busybox 
+	    work with dietlibc.
+	* David McCullough
+	    -- Adjustments to make busybox more uClinux friendly
+	* Glenn McGrath 
+	    -- Fixed gzip so when a filename is '-' it will use stdin/stdout
+	    -- dpkg rewrite.  Should now be compatable with the real dpkg, 
+		but needs more testing.
+	    -- Updates to archiving tools (gunzip/gzip/cpio/ar/etc) 
+	    -- Rewrote uuencode, will allow base64 encoding to be used by wget
+	* Vladimir Oleynik 
+	    -- Fixed tr to support 'tr a-z A-Z' syntax,
+	    -- Many ash corrections, optimizations, and cleanups.
+	    -- optimizations for traceroute, md5sum, chown, ping
+	    -- cmdedit updates and API change
+	    -- Namespace cleanup (i.e. adding 'static' private function calls)
+	    -- added "stopped jobs" warning to ash on exit
+	* Adam Slattery
+	    -- Fixed ping compile problem
+	* Robert J. Osborne <rj@resourceinternational.com>
+	    -- fixed a vi bug with delete and escape sequences on empty files.
+
+
+	 -Erik Andersen, 31 July 2001
+
+
+
 0.52
 	
     Critical Bugfixes:

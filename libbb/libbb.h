@@ -41,11 +41,13 @@
 #include "../busybox.h"
 #endif
 
-#if __GNU_LIBRARY__ < 5
+#if (__GNU_LIBRARY__ < 5) && (!defined __dietlibc__)
 /* libc5 doesn't define socklen_t */
 typedef unsigned int socklen_t;
 /* libc5 doesn't implement BSD 4.4 daemon() */
 extern int daemon (int nochdir, int noclose);
+/* libc5 doesn't implement strtok_r */
+char *strtok_r(char *s, const char *delim, char **ptrptr);
 #endif	
 
 /* Some useful definitions */
@@ -212,6 +214,8 @@ char *xreadlink(const char *path);
 char *concat_path_file(const char *path, const char *filename);
 char *last_char_is(const char *s, int c);
 
+extern long arith (const char *startbuf, int *errcode);
+
 typedef struct file_headers_s {
 	char *name;
 	char *link_name;
@@ -237,13 +241,15 @@ enum extract_functions_e {
 	extract_control_tar_gz = 128,
 	extract_unzip_only = 256,
 	extract_unconditional = 512,
-	extract_create_leading_dirs = 1024
+	extract_create_leading_dirs = 1024,
+	extract_quiet = 2048,
+	extract_exclude_list = 4096
 };
-char *unarchive(FILE *src_stream, file_header_t *(*get_header)(FILE *),
+char *unarchive(FILE *src_stream, FILE *out_stream, file_header_t *(*get_header)(FILE *),
 	const int extract_function, const char *prefix, char **extract_names);
 char *deb_extract(const char *package_filename, FILE *out_stream, const int extract_function,
 	const char *prefix, const char *filename);
-char *read_package_field(const char *package_buffer);
+int read_package_field(const char *package_buffer, char **field_name, char **field_value);
 char *fgets_str(FILE *file, const char *terminating_string);
 
 extern int unzip(FILE *l_in_file, FILE *l_out_file);
@@ -251,10 +257,13 @@ extern void gz_close(int gunzip_pid);
 extern FILE *gz_open(FILE *compressed_file, int *pid);
 
 extern struct hostent *xgethostbyname(const char *name);
+extern int create_icmp_socket(void);
 
 char *dirname (const char *path);
 
-int make_directory (char *path, mode_t mode, int flags);
+int make_directory (char *path, long mode, int flags);
+
+const char *u_signal_names(const char *str_sig, int *signo, int startnum);
 
 #define CT_AUTO	0
 #define CT_UNIX2DOS	1
@@ -283,5 +292,34 @@ extern const char * const write_error;
 extern const char * const too_few_args;
 extern const char * const name_longer_than_foo;
 extern const char * const unknown;
+extern const char * const can_not_create_raw_socket;
+
+#ifdef BB_FEATURE_DEVFS
+# define CURRENT_VC "/dev/vc/0"
+# define VC_1 "/dev/vc/1"
+# define VC_2 "/dev/vc/2"
+# define VC_3 "/dev/vc/3"
+# define VC_4 "/dev/vc/4"
+# define VC_5 "/dev/vc/5"
+# define SC_0 "/dev/tts/0"
+# define SC_1 "/dev/tts/1"
+# define VC_FORMAT "/dev/vc/%d"
+# define SC_FORMAT "/dev/tts/%d"
+#else
+# define CURRENT_VC "/dev/tty0"
+# define VC_1 "/dev/tty1"
+# define VC_2 "/dev/tty2"
+# define VC_3 "/dev/tty3"
+# define VC_4 "/dev/tty4"
+# define VC_5 "/dev/tty5"
+# define SC_0 "/dev/ttyS0"
+# define SC_1 "/dev/ttyS1"
+# define VC_FORMAT "/dev/tty%d"
+# define SC_FORMAT "/dev/ttyS%d"
+#endif
+
+/* The following devices are the same on devfs and non-devfs systems.  */
+#define CURRENT_TTY "/dev/tty"
+#define CONSOLE_DEV "/dev/console"
 
 #endif /* __LIBBB_H__ */

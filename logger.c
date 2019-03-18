@@ -36,17 +36,18 @@
 #include <sys/syslog.h>
 
 #else
-/* We have to do this since the header file defines static
- * structures.  Argh.... bad libc, bad, bad...
- */
 #include <sys/syslog.h>
-
-typedef struct _code {
-	char *c_name;
-	int c_val;
-} CODE;
-extern CODE prioritynames[];
-extern CODE facilitynames[];
+#  ifndef __dietlibc__
+	/* We have to do this since the header file defines static
+	 * structures.  Argh.... bad libc, bad, bad...
+	 */
+	typedef struct _code {
+		char *c_name;
+		int c_val;
+	} CODE;
+	extern CODE prioritynames[];
+	extern CODE facilitynames[];
+#  endif
 #endif
 
 /* Decode a symbolic name to a numeric value 
@@ -127,14 +128,20 @@ extern int logger_main(int argc, char **argv)
 		}
 	}
 
+	openlog(name, option, (pri | LOG_FACMASK));
 	if (optind == argc) {
-		/* read from stdin */
-		i = 0;
-		while ((c = getc(stdin)) != EOF && i < sizeof(buf)) {
-			buf[i++] = c;
-		}
-		buf[i++] = '\0';
-		message = buf;
+		do {
+			/* read from stdin */
+			i = 0;
+			while ((c = getc(stdin)) != EOF && c != '\n' && 
+					i < (sizeof(buf)-1)) {
+				buf[i++] = c;
+			}
+			if (i > 0) {
+				buf[i++] = '\0';
+				syslog(pri, "%s", buf);
+			}
+		} while (c != EOF);
 	} else {
 		len = 1; /* for the '\0' */
 		message=xcalloc(1, 1);
@@ -146,12 +153,10 @@ extern int logger_main(int argc, char **argv)
 			strcat(message, " ");
 		}
 		message[strlen(message)-1] = '\0';
+		syslog(pri, "%s", message);
 	}
 
-	/*openlog(name, option, (pri | LOG_FACMASK));
-	syslog(pri, "%s", message);
-	closelog();*/
-	syslog_msg_with_name(name,(pri | LOG_FACMASK),pri,message);
+	closelog();
 	return EXIT_SUCCESS;
 }
 

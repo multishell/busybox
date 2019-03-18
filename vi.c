@@ -18,8 +18,8 @@
  *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-char *vi_Version =
-	"$Id: vi.c,v 1.11 2001/07/02 18:06:14 andersen Exp $";
+static const char vi_Version[] =
+	"$Id: vi.c,v 1.15 2001/08/02 05:26:41 andersen Exp $";
 
 /*
  * To compile for standalone use:
@@ -1982,9 +1982,13 @@ static void colon(Byte * buf)
 		// read after current line- unless user said ":0r foo"
 		if (b != 0)
 			q = next_line(q);
+#ifdef BB_FEATURE_VI_READONLY
 		l= readonly;			// remember current files' status
+#endif
 		ch = file_insert(fn, q, file_size(fn));
+#ifdef BB_FEATURE_VI_READONLY
 		readonly= l;
+#endif
 		if (ch < 0)
 			goto vc1;	// nothing was inserted
 		// how many lines in text[]?
@@ -2636,12 +2640,12 @@ static Byte *char_insert(Byte * p, Byte c) // insert the char c at 'p'
 		cmdcnt = 0;
 		end_cmd_q();	// stop adding to q
 		strcpy((char *) status_buffer, " ");	// clear the status buffer
-		if (p[-1] != '\n') {
+		if ((p[-1] != '\n') && (dot>text)) {
 			p--;
 		}
 	} else if (c == erase_char) {	// Is this a BS
 		//     123456789
-		if (p[-1] != '\n') {
+		if ((p[-1] != '\n') && (dot>text)) {
 			p--;
 			p = text_hole_delete(p, p);	// shrink buffer 1 char
 #ifdef BB_FEATURE_VI_DOT_CMD
@@ -3554,7 +3558,7 @@ static int file_write(Byte * fn, Byte * first, Byte * last)
 	}
 	charcnt = 0;
 	// FIXIT- use the correct umask()
-	fd = open((char *) fn, (O_RDWR | O_CREAT | O_TRUNC), 0664);
+	fd = open((char *) fn, (O_WRONLY | O_CREAT | O_TRUNC), 0664);
 	if (fd < 0)
 		return (-1);
 	cnt = last - first + 1;

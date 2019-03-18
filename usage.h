@@ -272,9 +272,14 @@
 	"\t-d\toutput will be in DOS format"
 
 #define dpkg_trivial_usage \
-	"[-i|-r|--unpack|--configure] my.deb"
+	"-i package_file\n"
+	"[-CPru] package_name"
 #define dpkg_full_usage \
-	"WORK IN PROGRESS, only useful for debian-installer"
+	"\t-i\tInstall the package\n" \
+	"\t-C\tConfigure an unpackaged package\n" \
+	"\t-P\tPurge all files of a package\n" \
+	"\t-r\tRemove all but the configuration files for a package\n" \
+	"\t-u\tUnpack a package, but dont configure it\n"
 
 #define dpkg_deb_trivial_usage \
 	"[-cefItxX] FILE [argument]"
@@ -1079,6 +1084,13 @@
 	"$ ls -la /tmp/temp.mWiLjM\n" \
 	"-rw-------    1 andersen andersen        0 Apr 25 17:10 /tmp/temp.mWiLjM\n" 
 
+#define modprobe_trivial_usage \
+	"[FILE ...]"
+#define modprobe_full_usage \
+	"Used for hight level module loading and unloading."
+#define modprobe_example_usage \
+	"$ modprobe cdrom\n" 
+
 #define more_trivial_usage \
 	"[FILE ...]"
 #define more_full_usage \
@@ -1177,6 +1189,14 @@
 	"\n" \
 	"Name:       debian\n" \
 	"Address:    127.0.0.1\n" 
+
+#define pidof_trivial_usage \
+	"process-name [process-name ...]"
+#define pidof_full_usage \
+	"Lists the PIDs of all processes with names that match the names on the command line"
+#define pidof_example_usage \
+	"$ pidof init\n" \
+	"1\n"
 
 #ifndef BB_FEATURE_FANCY_PING
 #define ping_trivial_usage "host"
@@ -1345,12 +1365,12 @@
 #define setkeycodes_example_usage \
 	"$ setkeycodes e030 127\n"
 
-#define sh_trivial_usage \
+#define lash_trivial_usage \
 	"[FILE]...\n" \
 	"or: sh -c command [args]..."
-#define sh_full_usage \
+#define lash_full_usage \
 	"lash: The BusyBox LAme SHell (command interpreter)"
-#define sh_notes_usage \
+#define lash_notes_usage \
 "This command does not yet have proper documentation.\n" \
 "\n" \
 "Use lash just as you would use any other shell.  It properly handles pipes,\n" \
@@ -1592,6 +1612,28 @@
 #define tr_example_usage \
 	"$ echo "gdkkn vnqkc" | tr [a-y] [b-z]\n" \
 	"hello world\n" 
+
+#define traceroute_trivial_usage \
+	"[-dnrv] [-m max_ttl] [-p port#] [-q nqueries]\n\
+	[-s src_addr] [-t tos] [-w wait] host [data size]"
+#define traceroute_full_usage \
+	"trace the route ip packets follow going to \"host\"\n" \
+	"Options:\n" \
+	"\t-d\tset SO_DEBUG options to socket\n" \
+	"\t-n\tPrint hop addresses numerically rather than symbolically\n" \
+	"\t-r\tBypass the normal routing tables and send directly to a host\n" \
+	"\t-v\tVerbose output\n" \
+	"\t-m max_ttl\tSet the max time-to-live (max number of hops)\n" \
+	"\t-p port#\tSet the base UDP port number used in probes\n" \
+	"\t\t(default is 33434)\n" \
+	"\t-q nqueries\tSet the number of probes per ``ttl'' to nqueries\n" \
+	"\t\t(default is 3)\n" \
+	"\t-s src_addr\tUse the following IP address as the source address\n" \
+	"\t-t tos\tSet the type-of-service in probe packets to the following value\n" \
+	"\t\t(default 0)\n" \
+	"\t-w wait\tSet the time (in seconds) to wait for a response to a probe\n" \
+	"\t\t(default 3 sec.)."
+
 
 #define true_trivial_usage \
 	""

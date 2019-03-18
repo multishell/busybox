@@ -56,12 +56,12 @@ static void parse_url(char *url, struct host_info *h);
 static FILE *open_socket(char *host, int port);
 static char *gethdr(char *buf, size_t bufsiz, FILE *fp, int *istrunc);
 static int ftpcmd(char *s1, char *s2, FILE *fp, char *buf);
-static void progressmeter(int flag);
 
 /* Globals (can be accessed from signal handlers */
 static off_t filesize = 0;		/* content-length of the file */
 static int chunked = 0;			/* chunked transfer encoding */
 #ifdef BB_FEATURE_WGET_STATUSBAR
+static void progressmeter(int flag);
 static char *curfile;			/* Name of current file being transferred. */
 static struct timeval start;	/* Time a transfer started. */
 static volatile unsigned long statbytes = 0; /* Number of bytes transferred so far. */
@@ -195,7 +195,7 @@ int wget_main(int argc, char **argv)
 			++do_continue;
 			break;
 		case 'P':
-			dir_prefix = optarg;	
+			dir_prefix = optarg;
 			break;
 		case 'q':
 			quiet_flag = TRUE;
@@ -256,6 +256,8 @@ int wget_main(int argc, char **argv)
 #endif
 				"index.html";
 		}
+		if (dir_prefix != NULL)
+			fname_out = concat_path_file(dir_prefix, fname_out);
 #ifdef BB_FEATURE_WGET_STATUSBAR
 	} else {
 		curfile = get_last_path_component(fname_out);
@@ -272,7 +274,6 @@ int wget_main(int argc, char **argv)
 		output = stdout;
 		quiet_flag = TRUE;
 	} else {
-		fname_out = concat_path_file(dir_prefix, fname_out);
 		output = xfopen(fname_out, (do_continue ? "a" : "w"));
 	}
 
@@ -816,7 +817,7 @@ progressmeter(int flag)
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	$Id: wget.c,v 1.42 2001/06/21 19:45:06 andersen Exp $
+ *	$Id: wget.c,v 1.45 2001/07/19 22:28:01 andersen Exp $
  */
 
 

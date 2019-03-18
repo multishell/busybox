@@ -37,9 +37,12 @@
 /bin/mkdir
 /bin/mknod
 /sbin/mkswap
+/sbin/modprobe
 /bin/more
 /bin/mount
+/bin/msh
 /bin/mv
+/bin/pidof
 /sbin/poweroff
 /bin/ps
 /bin/pwd

@@ -1,6 +1,6 @@
 /* vi: set sw=4 ts=4: */
 /*
- * $Id: ping.c,v 1.43 2001/05/21 20:30:51 andersen Exp $
+ * $Id: ping.c,v 1.46 2001/07/17 01:12:36 andersen Exp $
  * Mini ping implementation for busybox
  *
  * Copyright (C) 1999 by Randolph Chung <tausq@debian.org>
@@ -191,11 +191,7 @@ static void ping(const char *host)
 	int pingsock, c;
 	char packet[DEFDATALEN + MAXIPLEN + MAXICMPLEN];
 
-	if ((pingsock = socket(AF_INET, SOCK_RAW, 1)) < 0)	/* 1 == ICMP */
-		perror_msg_and_die("creating a raw socket");
-
-	/* drop root privs if running setuid */
-	setuid(getuid());
+	pingsock = create_icmp_socket();
 
 	memset(&pingaddr, 0, sizeof(struct sockaddr_in));
 
@@ -420,25 +416,12 @@ static void unpack(char *buf, int sz, struct sockaddr_in *from)
 
 static void ping(const char *host)
 {
-	struct protoent *proto;
 	struct hostent *h;
 	char buf[MAXHOSTNAMELEN];
 	char packet[datalen + MAXIPLEN + MAXICMPLEN];
 	int sockopt;
 
-	proto = getprotobyname("icmp");
-	/* if getprotobyname failed, just silently force 
-	 * proto->p_proto to have the correct value for "icmp" */
-	if ((pingsock = socket(AF_INET, SOCK_RAW,
-						   (proto ? proto->p_proto : 1))) < 0) {	/* 1 == ICMP */
-		if (errno == EPERM)
-			error_msg_and_die("permission denied. (are you root?)");
-		else
-			perror_msg_and_die("creating a raw socket");
-	}
-
-	/* drop root privs if running setuid */
-	setuid(getuid());
+	pingsock = create_icmp_socket();
 
 	memset(&pingaddr, 0, sizeof(struct sockaddr_in));
 
@@ -447,7 +430,6 @@ static void ping(const char *host)
 	if (h->h_addrtype != AF_INET)
 		error_msg_and_die("unknown address type; only AF_INET is currently supported.");
 
-	pingaddr.sin_family = AF_INET;	/* h->h_addrtype */
 	memcpy(&pingaddr.sin_addr, h->h_addr, sizeof(pingaddr.sin_addr));
 	strncpy(buf, h->h_name, sizeof(buf) - 1);
 	hostname = buf;

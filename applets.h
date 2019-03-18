@@ -52,6 +52,9 @@
 #ifdef BB_AR
 	APPLET(ar, ar_main, _BB_DIR_USR_BIN)
 #endif
+#ifdef BB_ASH
+	APPLET_NOUSAGE("ash", ash_main, _BB_DIR_BIN)
+#endif
 #ifdef BB_BASENAME
 	APPLET(basename, basename_main, _BB_DIR_USR_BIN)
 #endif
@@ -185,6 +188,9 @@
 #ifdef BB_HOSTNAME
 	APPLET(hostname, hostname_main, _BB_DIR_BIN)
 #endif
+#ifdef BB_HUSH
+	APPLET_NOUSAGE("hush", hush_main, _BB_DIR_BIN)
+#endif
 #ifdef BB_ID
 	APPLET(id, id_main, _BB_DIR_USR_BIN)
 #endif
@@ -205,6 +211,9 @@
 #endif
 #ifdef BB_KLOGD
 	APPLET(klogd, klogd_main, _BB_DIR_SBIN)
+#endif
+#ifdef BB_LASH
+	APPLET(lash, lash_main, _BB_DIR_BIN)
 #endif
 #ifdef BB_LENGTH
 	APPLET(length, length_main, _BB_DIR_USR_BIN)
@@ -263,11 +272,17 @@
 #ifdef BB_MKTEMP
 	APPLET(mktemp, mktemp_main, _BB_DIR_BIN)
 #endif
+#ifdef BB_MODPROBE
+	APPLET(modprobe, modprobe_main, _BB_DIR_SBIN)
+#endif
 #ifdef BB_MORE
 	APPLET(more, more_main, _BB_DIR_BIN)
 #endif
 #ifdef BB_MOUNT
 	APPLET(mount, mount_main, _BB_DIR_BIN)
+#endif
+#ifdef BB_MSH
+	APPLET_NOUSAGE("msh", msh_main, _BB_DIR_BIN)
 #endif
 #ifdef BB_MT
 	APPLET(mt, mt_main, _BB_DIR_BIN)
@@ -280,6 +295,9 @@
 #endif
 #ifdef BB_NSLOOKUP
 	APPLET(nslookup, nslookup_main, _BB_DIR_USR_BIN)
+#endif
+#ifdef BB_PIDOF
+	APPLET(pidof, pidof_main, _BB_DIR_BIN)
 #endif
 #ifdef BB_PING
 	APPLET(ping, ping_main, _BB_DIR_BIN)
@@ -338,8 +356,14 @@
 #ifdef BB_SETKEYCODES
 	APPLET(setkeycodes, setkeycodes_main, _BB_DIR_USR_BIN)
 #endif
-#ifdef BB_SH
-	APPLET(sh, shell_main, _BB_DIR_BIN)
+#if defined(BB_FEATURE_SH_IS_ASH) && defined(BB_ASH)
+	APPLET_NOUSAGE("sh", ash_main, _BB_DIR_BIN)
+#elif defined(BB_FEATURE_SH_IS_HUSH) && defined(BB_HUSH)
+	APPLET_NOUSAGE("sh", hush_main, _BB_DIR_BIN)
+#elif defined(BB_FEATURE_SH_IS_LASH) && defined(BB_LASH)
+	APPLET_NOUSAGE("sh", lash_main, _BB_DIR_BIN)
+#elif defined(BB_FEATURE_SH_IS_MSH) && defined(BB_MSH)
+	APPLET_NOUSAGE("sh", msh_main, _BB_DIR_BIN)
 #endif
 #ifdef BB_SLEEP
 	APPLET(sleep, sleep_main, _BB_DIR_BIN)
@@ -386,6 +410,9 @@
 #ifdef BB_TR
 	APPLET(tr, tr_main, _BB_DIR_USR_BIN)
 #endif
+#ifdef BB_TRACEROUTE
+	APPLET(traceroute, traceroute_main, _BB_DIR_USR_BIN)
+#endif
 #ifdef BB_TRUE_FALSE
 	APPLET(true, true_main, _BB_DIR_BIN)
 #endif
@@ -402,7 +429,7 @@
 	APPLET(uniq, uniq_main, _BB_DIR_USR_BIN)
 #endif
 #ifdef BB_UNIX2DOS
-	APPLET(unix2dos, unix2dos_main, _BB_DIR_USR_BIN)
+	APPLET(unix2dos, dos2unix_main, _BB_DIR_USR_BIN)
 #endif
 #ifdef BB_UPDATE
 	APPLET(update, update_main, _BB_DIR_SBIN)

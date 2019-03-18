@@ -61,6 +61,7 @@ enum {
 #include <stdlib.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <termios.h>
 #include <sys/ioctl.h>
 #include "busybox.h"
 
@@ -303,6 +304,7 @@ static struct dnode **dnalloc(int num)
 	return(p);
 }
 
+#ifdef BB_FEATURE_LS_RECURSIVE
 static void dfree(struct dnode **dnp)
 {
 	struct dnode *cur, *next;
@@ -318,6 +320,7 @@ static void dfree(struct dnode **dnp)
 	}
 	free(dnp);	/* free the array holding the dnode pointers */
 }
+#endif
 
 static struct dnode **splitdnarray(struct dnode **dn, int nfiles, int which)
 {
@@ -634,7 +637,7 @@ static int list_single(struct dnode *dn)
 				my_getpwuid(scratch, dn->dstat.st_uid);
 				printf("%-8.8s ", scratch);
 				my_getgrgid(scratch, dn->dstat.st_gid);
-				printf("%-8.8s ", scratch);
+				printf("%-8.8s", scratch);
 				column += 17;
 				break;
 #endif

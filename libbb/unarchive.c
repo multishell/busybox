@@ -82,8 +82,11 @@ char *extract_archive(FILE *src_stream, FILE *out_stream, const file_header_t *f
 		/* strip leading '/' in filename to extract as prefix may not be dir */
 		/* Cant use concat_path_file here as prefix might not be a directory */
 		char *path = file_entry->name;
-		if (*path == '/') {
-			path++;
+		if (strncmp("./", path, 2) == 0) {
+			path += 2;
+			if (strlen(path) == 0) {
+				return(NULL);
+			}
 		}
 		full_name = xmalloc(strlen(prefix) + strlen(path) + 1);
 		strcpy(full_name, prefix);
@@ -91,7 +94,6 @@ char *extract_archive(FILE *src_stream, FILE *out_stream, const file_header_t *f
 	} else {
 		full_name = file_entry->name;
 	}
-
 	if (function & extract_to_stdout) {
 		if (S_ISREG(file_entry->mode)) {
 			copy_file_chunk(src_stream, out_stream, file_entry->size);			
@@ -102,6 +104,7 @@ char *extract_archive(FILE *src_stream, FILE *out_stream, const file_header_t *f
 		if (S_ISREG(file_entry->mode)) {
 			buffer = (char *) xmalloc(file_entry->size + 1);
 			fread(buffer, 1, file_entry->size, src_stream);
+			buffer[file_entry->size] = '\0';
 			archive_offset += file_entry->size;
 			return(buffer);
 		}
@@ -116,15 +119,19 @@ char *extract_archive(FILE *src_stream, FILE *out_stream, const file_header_t *f
 					unlink(full_name); /* Directories might not be empty etc */
 				}
 			} else {
-				error_msg("%s not created: newer or same age file exists", file_entry->name);
-					seek_sub_file(src_stream, file_entry->size);
+				if ((function & extract_quiet) != extract_quiet) {
+					error_msg("%s not created: newer or same age file exists", file_entry->name);
+				}
+				seek_sub_file(src_stream, file_entry->size);
 				return (NULL);
 			}
 		}
 		if (function & extract_create_leading_dirs) { /* Create leading directories with default umask */
 			char *parent = dirname(full_name);
 			if (make_directory (parent, -1, FILEUTILS_RECUR) != 0) {
-				error_msg("couldn't create leading directories");
+				if ((function & extract_quiet) != extract_quiet) {
+					error_msg("couldn't create leading directories");
+				}
 			}
 			free (parent);
 		}
@@ -132,8 +139,10 @@ char *extract_archive(FILE *src_stream, FILE *out_stream, const file_header_t *f
 			case S_IFREG:
 				if (file_entry->link_name) { /* Found a cpio hard link */
 					if (link(file_entry->link_name, full_name) != 0) {
-						perror_msg("Cannot link from %s to '%s'",
-							file_entry->name, file_entry->link_name);
+						if ((function & extract_quiet) != extract_quiet) {
+							perror_msg("Cannot link from %s to '%s'",
+								file_entry->name, file_entry->link_name);
+						}
 					}
 				} else {
 					if ((dst_stream = wfopen(full_name, "w")) == NULL) {
@@ -148,13 +157,17 @@ char *extract_archive(FILE *src_stream, FILE *out_stream, const file_header_t *f
 			case S_IFDIR:
 				if (stat_res != 0) {
 					if (mkdir(full_name, file_entry->mode) < 0) {
-						perror_msg("extract_archive: ");
+						if ((function & extract_quiet) != extract_quiet) {
+							perror_msg("extract_archive: ");
+						}
 					}
 				}
 				break;
 			case S_IFLNK:
 				if (symlink(file_entry->link_name, full_name) < 0) {
-					perror_msg("Cannot create symlink from %s to '%s'", file_entry->name, file_entry->link_name); 
+					if ((function & extract_quiet) != extract_quiet) {
+						perror_msg("Cannot create symlink from %s to '%s'", file_entry->name, file_entry->link_name);
+					}
 					return NULL;
 				}
 				break;
@@ -163,7 +176,9 @@ char *extract_archive(FILE *src_stream, FILE *out_stream, const file_header_t *f
 			case S_IFCHR:
 			case S_IFIFO:
 				if (mknod(full_name, file_entry->mode, file_entry->device) == -1) {
-					perror_msg("Cannot create node %s", file_entry->name);
+					if ((function & extract_quiet) != extract_quiet) {
+						perror_msg("Cannot create node %s", file_entry->name);
+					}
 					return NULL;
 				}
 				break;
@@ -173,7 +188,7 @@ char *extract_archive(FILE *src_stream, FILE *out_stream, const file_header_t *f
 		 * file pointed to, so dont try and change the date or mode, lchown does
 		 * does the right thing, but isnt available in older versions of libc */
 		if (S_ISLNK(file_entry->mode)) {
-#if (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 1)
+#if (__GLIBC__ > 2) && (__GLIBC_MINOR__ > 1)
 			lchown(full_name, file_entry->uid, file_entry->gid);
 #endif
 		} else {
@@ -211,7 +226,7 @@ char *extract_archive(FILE *src_stream, FILE *out_stream, const file_header_t *f
 #endif
 
 #ifdef L_unarchive
-char *unarchive(FILE *src_stream, file_header_t *(*get_headers)(FILE *),
+char *unarchive(FILE *src_stream, FILE *out_stream, file_header_t *(*get_headers)(FILE *),
 	const int extract_function, const char *prefix, char **extract_names)
 {
 	file_header_t *file_entry;
@@ -222,19 +237,22 @@ char *unarchive(FILE *src_stream, file_header_t *(*get_headers)(FILE *),
 	archive_offset = 0;
 	while ((file_entry = get_headers(src_stream)) != NULL) {
 		found = FALSE;
-		if (extract_names[0] != NULL) {
+		if (extract_names == NULL) {
+			found = TRUE;
+		} else {
 			for(i = 0; extract_names[i] != 0; i++) {
 				if (strcmp(extract_names[i], file_entry->name) == 0) {
 					found = TRUE;
 				}
 			}
-			if (!found) {
-				/* seek past the data entry */
-				seek_sub_file(src_stream, file_entry->size);
-				continue;
-			}
 		}
-		buffer = extract_archive(src_stream, stdout, file_entry, extract_function, prefix);
+
+		if (found) {
+			buffer = extract_archive(src_stream, out_stream, file_entry, extract_function, prefix);
+		} else {
+			/* seek past the data entry */
+			seek_sub_file(src_stream, file_entry->size);
+		}
 	}
 	return(buffer);
 }
@@ -259,7 +277,6 @@ file_header_t *get_header_ar(FILE *src_stream)
 	static char *ar_long_names;
 
 	if (fread(ar.raw, 1, 60, src_stream) != 60) {
-		free (ar_long_names);
 		return(NULL);
 	}
 	archive_offset += 60;
@@ -375,7 +392,8 @@ file_header_t *get_header_cpio(FILE *src_stream)
 			case '1': /* "newc" header format */
 				cpio_entry = (file_header_t *) xcalloc(1, sizeof(file_header_t));
 				sscanf(cpio_header, "%6c%8x%8x%8x%8x%8x%8lx%8lx%16c%8x%8x%8x%8c",
-					dummy, &inode, &cpio_entry->mode, &cpio_entry->uid, &cpio_entry->gid,
+					dummy, &inode, (unsigned int*)&cpio_entry->mode, 
+					(unsigned int*)&cpio_entry->uid, (unsigned int*)&cpio_entry->gid,
 					&nlink, &cpio_entry->mtime, &cpio_entry->size,
 					dummy, &major, &minor, &namesize, dummy);
 
@@ -478,7 +496,9 @@ file_header_t *get_header_tar(FILE *tar_stream)
 	}
 
 	if (fread(tar.raw, 1, 512, tar_stream) != 512) {
-		error_msg("Couldnt read header");
+		/* Unfortunatly its common for tar files to have all sorts of
+		 * trailing garbage, fail silently */
+//		error_msg("Couldnt read header");
 		return(NULL);
 	}
 	archive_offset += 512;
@@ -529,16 +549,18 @@ char *deb_extract(const char *package_filename, FILE *out_stream,
 	FILE *deb_stream;
 	FILE *uncompressed_stream = NULL;
 	file_header_t *ar_header = NULL;
+	char **file_list = NULL;
 	char *output_buffer = NULL;
 	char *ared_file = NULL;
 	char ar_magic[8];
-	char **file_list;
 	int gunzip_pid;
 
-	file_list = malloc(sizeof(char *));
-	file_list[0] = xstrdup(filename);
-	file_list[1] = NULL;
-
+	if (filename != NULL) {
+		file_list = xmalloc(sizeof(char *) * 2);
+		file_list[0] = xstrdup(filename);
+		file_list[1] = NULL;
+	}
+	
 	if (extract_function & extract_control_tar_gz) {
 		ared_file = xstrdup("control.tar.gz");
 	}
@@ -548,6 +570,11 @@ char *deb_extract(const char *package_filename, FILE *out_stream,
 
 	/* open the debian package to be worked on */
 	deb_stream = wfopen(package_filename, "r");
+	if (deb_stream == NULL) {
+		return(NULL);
+	}
+	/* set the buffer size */
+	setvbuf(deb_stream, NULL, _IOFBF, 0x8000);
 
 	/* check ar magic */
 	fread(ar_magic, 1, 8, deb_stream);
@@ -561,7 +588,7 @@ char *deb_extract(const char *package_filename, FILE *out_stream,
 			/* open a stream of decompressed data */
 			uncompressed_stream = gz_open(deb_stream, &gunzip_pid);
 			archive_offset = 0;
-			output_buffer = unarchive(uncompressed_stream, get_header_tar, extract_function, prefix, file_list);
+			output_buffer = unarchive(uncompressed_stream, out_stream, get_header_tar, extract_function, prefix, file_list);
 		}
 		seek_sub_file(deb_stream, ar_header->size);
 	}

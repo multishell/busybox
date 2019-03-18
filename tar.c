@@ -284,6 +284,10 @@ extern int tar_main(int argc, char **argv)
 		/* unzip tarFd in a seperate process */
 		if (unzipFlag == TRUE) {
 			comp_file = fdopen(tarFd, "r");
+
+			/* set the buffer size */
+			setvbuf(comp_file, NULL, _IOFBF, 0x8000);
+
 			if ((tarFd = fileno(gz_open(comp_file, &pid))) == EXIT_FAILURE) {
 				error_msg_and_die("Couldnt unzip file");
 			}
@@ -330,7 +334,7 @@ tarExtractRegularFile(TarInfo *header, int extractFlag, int tostdoutFlag)
 	size_t  writeSize;
 	size_t  readSize;
 	size_t  actualWriteSz;
-	char    buffer[BUFSIZ];
+	char    buffer[20 * TAR_BLOCK_SIZE];
 	size_t  size = header->size;
 	int outFd=fileno(stdout);
 
@@ -354,9 +358,9 @@ tarExtractRegularFile(TarInfo *header, int extractFlag, int tostdoutFlag)
 		if ( size > sizeof(buffer) )
 			writeSize = readSize = sizeof(buffer);
 		else {
-			int mod = size % 512;
+			int mod = size % TAR_BLOCK_SIZE;
 			if ( mod != 0 )
-				readSize = size + (512 - mod);
+				readSize = size + (TAR_BLOCK_SIZE - mod);
 			else
 				readSize = size;
 			writeSize = size;

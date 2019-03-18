@@ -3,7 +3,7 @@
  * Termios command line History and Editting.
  *
  * Copyright (c) 1986-2001 may safely be consumed by a BSD or GPL license.
- * Written by:   Vladimir Oleynik <vodz@usa.net>
+ * Written by:   Vladimir Oleynik <dzo@simtreas.ru>
  *
  * Used ideas:
  *      Adam Rogoyski    <rogoyski@cs.utexas.edu>
@@ -123,9 +123,8 @@ volatile int handlers_sets = 0;	/* Set next bites: */
 enum {
 	SET_ATEXIT = 1,		/* when atexit() has been called 
 				   and get euid,uid,gid to fast compare */
-	SET_TERM_HANDLERS = 2,	/* set many terminates signal handlers */
-	SET_WCHG_HANDLERS = 4,	/* winchg signal handler */
-	SET_RESET_TERM = 8,	/* if the terminal needs to be reset upon exit */
+	SET_WCHG_HANDLERS = 2,  /* winchg signal handler */
+	SET_RESET_TERM = 4,     /* if the terminal needs to be reset upon exit */
 };
 
 
@@ -141,10 +140,6 @@ static
 	const
 #endif
 char *cmdedit_prompt;		/* --- "" - - "" - -"- --""-- --""--- */
-
-/* Link into lash to reset context to 0 on ^C and such */
-extern unsigned int shell_context;
-
 
 #ifdef BB_FEATURE_GETUSERNAME_AND_HOMEDIR
 static char *user_buf = "";
@@ -169,13 +164,17 @@ static int my_gid;
 
 #endif	/* BB_FEATURE_COMMAND_TAB_COMPLETION */
 
+/* It seems that libc5 doesn't know what a sighandler_t is... */
+#if (__GLIBC__ <= 2) && (__GLIBC_MINOR__ < 1)
+typedef void (*sighandler_t) (int);
+#endif
 
 static void cmdedit_setwidth(int w, int redraw_flg);
 
 static void win_changed(int nsig)
 {
 	struct winsize win = { 0, 0, 0, 0 };
-	static __sighandler_t previous_SIGWINCH_handler;	/* for reset */
+	static sighandler_t previous_SIGWINCH_handler;	/* for reset */
 
 	/*   emulate      || signal call */
 	if (nsig == -SIGWINCH || nsig == SIGWINCH) {
@@ -319,6 +318,7 @@ static void put_prompt(void)
 	out1str(cmdedit_prompt);
 	cmdedit_x = cmdedit_prmt_len;	/* count real x terminal position */
 	cursor = 0;
+	cmdedit_y = 0;                  /* new quasireal y */
 }
 
 #ifndef BB_FEATURE_SH_FANCY_PROMPT
@@ -456,7 +456,6 @@ static void redraw(int y, int back_cursor)
 {
 	if (y > 0)				/* up to start y */
 		printf("\033[%dA", y);
-	cmdedit_y = 0;				/* new quasireal y */
 	putchar('\r');
 	put_prompt();
 	input_end();				/* rewrite */
@@ -497,14 +496,6 @@ static void input_forward(void)
 }
 
 
-static void clean_up_and_die(int sig)
-{
-	goto_new_line();
-	if (sig != SIGINT)
-		exit(EXIT_SUCCESS);	/* cmdedit_reset_term() called in atexit */
-	cmdedit_reset_term();
-}
-
 static void cmdedit_setwidth(int w, int redraw_flg)
 {
 	cmdedit_termw = cmdedit_prmt_len + 2;
@@ -525,7 +516,7 @@ static void cmdedit_setwidth(int w, int redraw_flg)
 	} 
 }
 
-extern void cmdedit_init(void)
+static void cmdedit_init(void)
 {
 	cmdedit_prmt_len = 0;
 	if ((handlers_sets & SET_WCHG_HANDLERS) == 0) {
@@ -556,14 +547,6 @@ extern void cmdedit_init(void)
 #endif	/* BB_FEATURE_COMMAND_TAB_COMPLETION */
 		handlers_sets |= SET_ATEXIT;
 		atexit(cmdedit_reset_term);	/* be sure to do this only once */
-	}
-
-	if ((handlers_sets & SET_TERM_HANDLERS) == 0) {
-		signal(SIGKILL, clean_up_and_die);
-		signal(SIGINT, clean_up_and_die);
-		signal(SIGQUIT, clean_up_and_die);
-		signal(SIGTERM, clean_up_and_die);
-		handlers_sets |= SET_TERM_HANDLERS;
 	}
 }
 
@@ -1174,7 +1157,8 @@ enum {
  *
  */
  
-extern void cmdedit_read_input(char *prompt, char command[BUFSIZ])
+
+int cmdedit_read_input(char *prompt, char command[BUFSIZ])
 {
 
 	int break_out = 0;
@@ -1187,25 +1171,21 @@ extern void cmdedit_read_input(char *prompt, char command[BUFSIZ])
 	len = 0;
 	command_ps = command;
 
-	if (new_settings.c_cc[VERASE] == 0) {     /* first call */
-
-		getTermSettings(0, (void *) &initial_settings);
-		memcpy(&new_settings, &initial_settings, sizeof(struct termios));
-		new_settings.c_lflag &= ~ICANON;        /* unbuffered input */
-		/* Turn off echoing and CTRL-C, so we can trap it */
-		new_settings.c_lflag &= ~(ECHO | ECHONL | ISIG);
+	getTermSettings(0, (void *) &initial_settings);
+	memcpy(&new_settings, &initial_settings, sizeof(struct termios));
+	new_settings.c_lflag &= ~ICANON;        /* unbuffered input */
+	/* Turn off echoing and CTRL-C, so we can trap it */
+	new_settings.c_lflag &= ~(ECHO | ECHONL | ISIG);
 #ifndef linux
-		/* Hmm, in linux c_cc[] not parsed if set ~ICANON */
-		new_settings.c_cc[VMIN] = 1;
-		new_settings.c_cc[VTIME] = 0;
-		/* Turn off CTRL-C, so we can trap it */
+	/* Hmm, in linux c_cc[] not parsed if set ~ICANON */
+	new_settings.c_cc[VMIN] = 1;
+	new_settings.c_cc[VTIME] = 0;
+	/* Turn off CTRL-C, so we can trap it */
 #       ifndef _POSIX_VDISABLE
 #               define _POSIX_VDISABLE '\0'
 #       endif
-		new_settings.c_cc[VINTR] = _POSIX_VDISABLE;	
+	new_settings.c_cc[VINTR] = _POSIX_VDISABLE;	
 #endif
-	}
-
 	command[0] = 0;
 
 	setTermSettings(0, (void *) &new_settings);
@@ -1220,7 +1200,7 @@ extern void cmdedit_read_input(char *prompt, char command[BUFSIZ])
 
 		fflush(stdout);			/* buffered out to fast */
 
-		if (read(0, &c, 1) < 1)
+		if (safe_read(0, &c, 1) < 1)
 			/* if we can't read input then exit */
 			goto prepare_to_die;
 
@@ -1241,22 +1221,26 @@ extern void cmdedit_read_input(char *prompt, char command[BUFSIZ])
 			break;
 		case 3:
 			/* Control-c -- stop gathering input */
-
-			/* Link into lash to reset context to 0 on ^C and such */
-			shell_context = 0;
-
-			/* Go to the next line */
 			goto_new_line();
 			command[0] = 0;
-
-			return;
+			len = 0;
+			lastWasTab = FALSE;
+			put_prompt();
+			break;
 		case 4:
 			/* Control-d -- Delete one character, or exit
 			 * if the len=0 and no chars to delete */
 			if (len == 0) {
 prepare_to_die:
+#if !defined(BB_ASH)
 				printf("exit");
-				clean_up_and_die(0);
+				goto_new_line();
+				/* cmdedit_reset_term() called in atexit */
+				exit(EXIT_SUCCESS);
+#else
+				break_out = -1; /* for control stoped jobs */
+				break;
+#endif
 			} else {
 				input_delete();
 			}
@@ -1307,12 +1291,12 @@ prepare_to_die:
 
 		case ESC:{
 			/* escape sequence follows */
-			if (read(0, &c, 1) < 1)
-				return;
+			if (safe_read(0, &c, 1) < 1)
+				goto prepare_to_die;
 			/* different vt100 emulations */
 			if (c == '[' || c == 'O') {
-				if (read(0, &c, 1) < 1)
-					return;
+				if (safe_read(0, &c, 1) < 1)
+					goto prepare_to_die;
 			}
 			switch (c) {
 #ifdef BB_FEATURE_COMMAND_TAB_COMPLETION
@@ -1376,8 +1360,8 @@ prepare_to_die:
 			}
 			if (c >= '1' && c <= '9')
 				do
-					if (read(0, &c, 1) < 1)
-						return;
+					if (safe_read(0, &c, 1) < 1)
+						goto prepare_to_die;
 				while (c != '~');
 			break;
 		}
@@ -1386,8 +1370,8 @@ prepare_to_die:
 #ifdef BB_FEATURE_NONPRINTABLE_INVERSE_PUT
 			/* Control-V -- Add non-printable symbol */
 			if (c == 22) {
-				if (read(0, &c, 1) < 1)
-					return;
+				if (safe_read(0, &c, 1) < 1)
+					goto prepare_to_die;
 				if (c == 0) {
 					beep();
 					break;
@@ -1477,31 +1461,21 @@ prepare_to_die:
 		num_ok_lines++;
 #endif
 	}
+	if(break_out>0) {
 	command[len++] = '\n';		/* set '\n' */
 	command[len] = 0;
+	}
 #if defined(BB_FEATURE_CLEAN_UP) && defined(BB_FEATURE_COMMAND_TAB_COMPLETION)
 	input_tab(0);				/* strong free */
 #endif
 #if defined(BB_FEATURE_SH_FANCY_PROMPT)
 	free(cmdedit_prompt);
 #endif
-	return;
-}
-
-
-/* Undo the effects of cmdedit_init(). */
-extern void cmdedit_terminate(void)
-{
 	cmdedit_reset_term();
-	if ((handlers_sets & SET_TERM_HANDLERS) != 0) {
-		signal(SIGKILL, SIG_DFL);
-		signal(SIGINT, SIG_DFL);
-		signal(SIGQUIT, SIG_DFL);
-		signal(SIGTERM, SIG_DFL);
-		signal(SIGWINCH, SIG_DFL);
-		handlers_sets &= ~SET_TERM_HANDLERS;
-	}
+	return len;
 }
+
+
 
 #endif	/* BB_FEATURE_COMMAND_EDITING */
 
@@ -1514,8 +1488,6 @@ const char *memory_exhausted = "Memory exhausted";
 #ifdef BB_FEATURE_NONPRINTABLE_INVERSE_PUT
 #include <locale.h>
 #endif
-
-unsigned int shell_context;
 
 int main(int argc, char **argv)
 {
@@ -1532,15 +1504,16 @@ int main(int argc, char **argv)
 #ifdef BB_FEATURE_NONPRINTABLE_INVERSE_PUT
 	setlocale(LC_ALL, "");
 #endif
-	shell_context = 1;
-	do {
+	while(1) {
 		int l;
 		cmdedit_read_input(prompt, buff);
 		l = strlen(buff);
+		if(l==0)
+			break;
 		if(l > 0 && buff[l-1] == '\n')
 			buff[l-1] = 0;
 		printf("*** cmdedit_read_input() returned line =%s=\n", buff);
-	} while (shell_context);
+	}
 	printf("*** cmdedit_read_input() detect ^C\n");
 	return 0;
 }

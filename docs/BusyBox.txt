@@ -7,70 +7,65 @@ SYNTAX
      <function> [arguments...]          # if symlinked
 
 DESCRIPTION
-    BusyBox combines tiny versions of many common UNIX utilities
-    into a single small executable. It provides minimalist
-    replacements for most of the utilities you usually find in
-    fileutils, shellutils, findutils, textutils, grep, gzip, tar,
-    etc. BusyBox provides a fairly complete POSIX environment for
-    any small or embedded system. The utilities in BusyBox generally
-    have fewer options than their full-featured GNU cousins;
-    however, the options that are included provide the expected
+    BusyBox combines tiny versions of many common UNIX utilities into a
+    single small executable. It provides minimalist replacements for most of
+    the utilities you usually find in fileutils, shellutils, findutils,
+    textutils, grep, gzip, tar, etc. BusyBox provides a fairly complete
+    POSIX environment for any small or embedded system. The utilities in
+    BusyBox generally have fewer options than their full-featured GNU
+    cousins; however, the options that are included provide the expected
     functionality and behave very much like their GNU counterparts.
 
-    BusyBox has been written with size-optimization and limited
-    resources in mind. It is also extremely modular so you can
-    easily include or exclude commands (or features) at compile
-    time. This makes it easy to customize your embedded systems. To
-    create a working system, just add a kernel, a shell (such as
-    ash), and an editor (such as elvis-tiny or ae).
+    BusyBox has been written with size-optimization and limited resources in
+    mind. It is also extremely modular so you can easily include or exclude
+    commands (or features) at compile time. This makes it easy to customize
+    your embedded systems. To create a working system, just add a kernel, a
+    shell (such as ash), and an editor (such as elvis-tiny or ae).
 
 USAGE
-    When you create a link to BusyBox for the function you wish to
-    use, when BusyBox is called using that link it will behave as if
-    the command itself has been invoked.
+    When you create a link to BusyBox for the function you wish to use, when
+    BusyBox is called using that link it will behave as if the command
+    itself has been invoked.
 
     For example, entering
 
             ln -s ./BusyBox ls
             ./ls
 
-    will cause BusyBox to behave as 'ls' (if the 'ls' command has
-    been compiled into BusyBox).
+    will cause BusyBox to behave as 'ls' (if the 'ls' command has been
+    compiled into BusyBox).
 
-    You can also invoke BusyBox by issuing the command as an
-    argument on the command line. For example, entering
+    You can also invoke BusyBox by issuing the command as an argument on the
+    command line. For example, entering
 
             ./BusyBox ls
 
     will also cause BusyBox to behave as 'ls'.
 
 COMMON OPTIONS
-    Most BusyBox commands support the -h option to provide a terse
-    runtime description of their behavior.
+    Most BusyBox commands support the -h option to provide a terse runtime
+    description of their behavior.
 
 COMMANDS
     Currently defined functions include:
 
-    adjtimex, ar, basename, busybox, cat, chgrp, chmod, chown,
-    chroot, chvt, clear, cmp, cp, cpio, cut, date, dc, dd,
-    deallocvt, df, dirname, dmesg, dos2unix, dpkg, dpkg-deb, du,
-    dumpkmap, dutmp, echo, expr, false, fbset, fdflush, find, free,
-    freeramdisk, fsck.minix, getopt, grep, gunzip, gzip, halt, head,
-    hostid, hostname, id, ifconfig, init, insmod, kill, killall,
-    klogd, length, ln, loadacm, loadfont, loadkmap, logger, logname,
-    ls, lsmod, makedevs, md5sum, mkdir, mkfifo, mkfs.minix, mknod,
-    mkswap, mktemp, more, mount, mt, mv, nc, nslookup, ping,
-    pivot_root, poweroff, printf, ps, pwd, rdate, readlink, reboot,
-    renice, reset, rm, rmdir, rmmod, route, rpm2cpio, rpmunpack,
-    sed, setkeycodes, sh, sleep, sort, stty, swapoff, swapon, sync,
-    syslogd, tail, tar, tee, telnet, test, tftp, touch, tr, true,
-    tty, umount, uname, uniq, unix2dos, update, uptime, usleep,
-    uudecode, uuencode, watchdog, wc, wget, which, whoami, xargs,
-    yes, zcat, [
+    adjtimex, ar, basename, busybox, cat, chgrp, chmod, chown, chroot, chvt,
+    clear, cmp, cp, cpio, cut, date, dc, dd, deallocvt, df, dirname, dmesg,
+    dos2unix, dpkg, dpkg-deb, du, dumpkmap, dutmp, echo, expr, false, fbset,
+    fdflush, find, free, freeramdisk, fsck.minix, getopt, grep, gunzip,
+    gzip, halt, head, hostid, hostname, id, ifconfig, init, insmod, kill,
+    killall, klogd, length, ln, loadacm, loadfont, loadkmap, logger,
+    logname, ls, lsmod, makedevs, md5sum, mkdir, mkfifo, mkfs.minix, mknod,
+    mkswap, mktemp, more, mount, mt, mv, nc, nslookup, ping, pivot_root,
+    poweroff, printf, ps, pwd, rdate, readlink, reboot, renice, reset, rm,
+    rmdir, rmmod, route, rpm2cpio, rpmunpack, sed, setkeycodes, sh, sleep,
+    sort, stty, swapoff, swapon, sync, syslogd, tail, tar, tee, telnet,
+    test, tftp, touch, tr, true, tty, umount, uname, uniq, unix2dos, update,
+    uptime, usleep, uudecode, uuencode, watchdog, wc, wget, which, whoami,
+    xargs, yes, zcat, [
 
     adjtimex
-        adjtimex [-q] [-o offset] [-f frequency] [-p timeconstant]
-        [-t tick]
+        adjtimex [-q] [-o offset] [-f frequency] [-p timeconstant] [-t tick]
 
         Reads and optionally sets system timebase parameters. See
         adjtimex(2).
@@ -103,8 +98,8 @@ COMMANDS
     basename
         basename FILE [SUFFIX]
 
-        Strips directory path and suffixes from FILE. If specified,
-        also removes any trailing SUFFIX.
+        Strips directory path and suffixes from FILE. If specified, also
+        removes any trailing SUFFIX.
 
         Example:
 
@@ -150,8 +145,8 @@ COMMANDS
     chmod
         chmod [-R] MODE[,MODE]... FILE...
 
-        Each MODE is one or more of the letters ugoa, one of the
-        symbols +-= and one or more of the letters rwxst.
+        Each MODE is one or more of the letters ugoa, one of the symbols +-=
+        and one or more of the letters rwxst.
 
         Options:
 
@@ -173,8 +168,7 @@ COMMANDS
     chown
         chown [ -Rh ]... OWNER[<.|:>[GROUP]] FILE...
 
-        Change the owner and/or group of each FILE to OWNER and/or
-        GROUP.
+        Change the owner and/or group of each FILE to OWNER and/or GROUP.
 
         Options:
 
@@ -246,8 +240,7 @@ COMMANDS
     cpio
         cpio -[dimtuv][F cpiofile]
 
-        Extract or list files from a cpio archive Main operation
-        mode:
+        Extract or list files from a cpio archive Main operation mode:
 
                 d               make leading directories
                 i               extract
@@ -259,8 +252,7 @@ COMMANDS
 
     cut cut [OPTION]... [FILE]...
 
-        Prints selected fields from each input FILE to standard
-        output.
+        Prints selected fields from each input FILE to standard output.
 
         Options:
 
@@ -283,8 +275,8 @@ COMMANDS
     date
         date [OPTION]... [+FORMAT]
 
-        Displays the current time in the given FORMAT, or sets the
-        system date.
+        Displays the current time in the given FORMAT, or sets the system
+        date.
 
         Options:
 
@@ -303,8 +295,8 @@ COMMANDS
     dc  dc expression ...
 
         This is a Tiny RPN calculator that understands the following
-        operations: +, -, /, *, and, or, not, eor. i.e., 'dc 2 2
-        add' -> 4, and 'dc 8 8 \* 2 2 + /' -> 16
+        operations: +, -, /, *, and, or, not, eor. i.e., 'dc 2 2 add' -> 4,
+        and 'dc 8 8 \* 2 2 + /' -> 16
 
         Example:
 
@@ -335,9 +327,9 @@ COMMANDS
                 conv=notrunc    don't truncate output file
                 conv=sync       pad blocks with zeros
 
-        Numbers may be suffixed by c (x1), w (x2), b (x512), kD
-        (x1000), k (x1024), MD (x1000000), M (x1048576), GD
-        (x1000000000) or G (x1073741824).
+        Numbers may be suffixed by c (x1), w (x2), b (x512), kD (x1000), k
+        (x1024), MD (x1000000), M (x1048576), GD (x1000000000) or G
+        (x1073741824).
 
         Example:
 
@@ -406,10 +398,9 @@ COMMANDS
     dos2unix
         dos2unix [option] [FILE]
 
-        Converts FILE from dos format to unix format. When no option
-        is given, the input is converted to the opposite output
-        format. When no file is given, uses stdin for input and
-        stdout for output.
+        Converts FILE from dos format to unix format. When no option is
+        given, the input is converted to the opposite output format. When no
+        file is given, uses stdin for input and stdout for output.
 
         Options:
 
@@ -419,9 +410,13 @@ COMMANDS
         -------------------------------
 
     dpkg
-        dpkg [-i|-r|--unpack|--configure] my.deb
+        dpkg -i package_file
 
-        WORK IN PROGRESS, only useful for debian-installer
+                -i      Install the package
+                -C      Configure an unpackaged package
+                -P      Purge all files of a package
+                -r      Remove all but the configuration files for a package
+                -u      Unpack a package, but dont configure it
 
         -------------------------------
 
@@ -448,8 +443,8 @@ COMMANDS
 
     du  du [-lshmk] [FILE]...
 
-        Summarizes disk space used for each FILE and/or directory.
-        Disk space is printed in units of 1024 bytes.
+        Summarizes disk space used for each FILE and/or directory. Disk
+        space is printed in units of 1024 bytes.
 
         Options:
 
@@ -478,8 +473,7 @@ COMMANDS
     dumpkmap
         dumpkmap > keymap
 
-        Prints out a binary keyboard translation table to standard
-        output.
+        Prints out a binary keyboard translation table to standard output.
 
         Example:
 
@@ -490,8 +484,8 @@ COMMANDS
     dutmp
         dutmp [FILE]
 
-        Dump utmp file format (pipe delimited) from FILE or stdin to
-        stdout. (i.e., 'dutmp /var/run/utmp')
+        Dump utmp file format (pipe delimited) from FILE or stdin to stdout.
+        (i.e., 'dutmp /var/run/utmp')
 
         Example:
 
@@ -532,8 +526,8 @@ COMMANDS
 
     env env [-iu] [-] [name=value]... [command]
 
-        Prints the current environment or runs a program after
-        setting up the specified environment.
+        Prints the current environment or runs a program after setting up
+        the specified environment.
 
         Options:
 
@@ -573,11 +567,11 @@ COMMANDS
                                             operator like `/'
                 ( EXPRESSION )              value of EXPRESSION
 
-        Beware that many operators need to be escaped or quoted for
-        shells. Comparisons are arithmetic if both ARGs are numbers,
-        else lexicographical. Pattern matches return the string
-        matched between \( and \) or null; if \( and \) are not
-        used, they return the number of characters matched or 0.
+        Beware that many operators need to be escaped or quoted for shells.
+        Comparisons are arithmetic if both ARGs are numbers, else
+        lexicographical. Pattern matches return the string matched between
+        \( and \) or null; if \( and \) are not used, they return the number
+        of characters matched or 0.
 
         -------------------------------
 
@@ -622,8 +616,8 @@ COMMANDS
     find
         find [PATH...] [EXPRESSION]
 
-        Search for files in a directory hierarchy. The default PATH
-        is the current directory; default EXPRESSION is '-print'
+        Search for files in a directory hierarchy. The default PATH is the
+        current directory; default EXPRESSION is '-print'
 
         EXPRESSION may consist of:
 
@@ -774,8 +768,8 @@ COMMANDS
     gzip
         gzip [OPTION]... FILE
 
-        Compress FILE with maximum compression. When FILE is '-',
-        reads standard input. Implies -c.
+        Compress FILE with maximum compression. When FILE is '-', reads
+        standard input. Implies -c.
 
         Options:
 
@@ -802,10 +796,9 @@ COMMANDS
     head
         head [OPTION] [FILE]...
 
-        Print first 10 lines of each FILE to standard output. With
-        more than one FILE, precede each with a header giving the
-        file name. With no FILE, or when FILE is -, read standard
-        input.
+        Print first 10 lines of each FILE to standard output. With more than
+        one FILE, precede each with a header giving the file name. With no
+        FILE, or when FILE is -, read standard input.
 
         Options:
 
@@ -829,9 +822,8 @@ COMMANDS
     hostname
         hostname [OPTION] {hostname | -F FILE}
 
-        Get or set the hostname or DNS domain name. If a hostname is
-        given (or FILE with the -F parameter), the host name will be
-        set.
+        Get or set the hostname or DNS domain name. If a hostname is given
+        (or FILE with the -F parameter), the host name will be set.
 
         Options:
 
@@ -888,16 +880,14 @@ COMMANDS
 
         Init is the parent of all processes.
 
-        This version of init is designed to be run only by the
-        kernel.
+        This version of init is designed to be run only by the kernel.
 
-        BusyBox init doesn't support multiple runlevels. The
-        runlevels field of the /etc/inittab file is completely
-        ignored by BusyBox init. If you want runlevels, use
-        sysvinit.
+        BusyBox init doesn't support multiple runlevels. The runlevels field
+        of the /etc/inittab file is completely ignored by BusyBox init. If
+        you want runlevels, use sysvinit.
 
-        BusyBox init works just fine without an inittab. If no
-        inittab is found, it has the following default behavior:
+        BusyBox init works just fine without an inittab. If no inittab is
+        found, it has the following default behavior:
 
                 ::sysinit:/etc/init.d/rcS
                 ::askfirst:/bin/sh
@@ -905,15 +895,15 @@ COMMANDS
                 ::shutdown:/sbin/swapoff -a
                 ::shutdown:/bin/umount -a -r
 
-        if it detects that /dev/console is _not_ a serial console,
-        it will also run:
+        if it detects that /dev/console is _not_ a serial console, it will
+        also run:
 
                 tty2::askfirst:/bin/sh
                 tty3::askfirst:/bin/sh
                 tty4::askfirst:/bin/sh
 
-        If you choose to use an /etc/inittab file, the inittab entry
-        format is as follows:
+        If you choose to use an /etc/inittab file, the inittab entry format
+        is as follows:
 
                 <id>:<runlevels>:<action>:<process>
 
@@ -982,7 +972,7 @@ COMMANDS
                 # This is run first except when booting in single-user mode.
                 #
                 ::sysinit:/etc/init.d/rcS
-                
+        
                 # /bin/sh invocations on selected ttys
                 #
                 # Start an "askfirst" shell on the console (whatever that may be)
@@ -991,13 +981,12 @@ COMMANDS
                 tty2::askfirst:-/bin/sh
                 tty3::askfirst:-/bin/sh
                 tty4::askfirst:-/bin/sh
-                
+        
                 # /sbin/getty invocations for selected ttys
                 #
                 tty4::respawn:/sbin/getty 38400 tty5
                 tty5::respawn:/sbin/getty 38400 tty6
-                
-                
+        
                 # Example of how to put a getty on a serial line (for a terminal)
                 #
                 #::respawn:/sbin/getty -L ttyS0 9600 vt100
@@ -1005,7 +994,7 @@ COMMANDS
                 #
                 # Example how to put a getty on a modem line.
                 #::respawn:/sbin/getty 57600 ttyS2
-                
+        
                 # Stuff to do before rebooting
                 ::ctrlaltdel:/sbin/reboot
                 ::shutdown:/bin/umount -a -r
@@ -1031,8 +1020,7 @@ COMMANDS
     kill
         kill [-signal] process-id [process-id ...]
 
-        Send a signal (default is SIGTERM) to the specified
-        process(es).
+        Send a signal (default is SIGTERM) to the specified process(es).
 
         Options:
 
@@ -1054,8 +1042,7 @@ COMMANDS
     killall
         killall [-signal] process-name [process-name ...]
 
-        Send a signal (default is SIGTERM) to the specified
-        process(es).
+        Send a signal (default is SIGTERM) to the specified process(es).
 
         Options:
 
@@ -1076,6 +1063,22 @@ COMMANDS
 
         -------------------------------
 
+    lash
+        lash [FILE]... or: sh -c command [args]...
+
+        lash: The BusyBox LAme SHell (command interpreter)
+
+        This command does not yet have proper documentation.
+
+        Use lash just as you would use any other shell. It properly handles
+        pipes, redirects, job control, can be used as the shell for scripts,
+        and has a sufficient set of builtins to do what is needed. It does
+        not (yet) support Bourne Shell syntax. If you need things like
+        "if-then-else", "while", and such use ash or bash. If you just need
+        a very simple and extremely small shell, this will do the job.
+
+        -------------------------------
+
     length
         length STRING
 
@@ -1090,11 +1093,10 @@ COMMANDS
 
     ln  ln [OPTION] TARGET... LINK_NAME|DIRECTORY
 
-        Create a link named LINK_NAME or DIRECTORY to the specified
-        TARGET
+        Create a link named LINK_NAME or DIRECTORY to the specified TARGET
 
-        You may use '--' to indicate that all following arguments
-        are non-options.
+        You may use '--' to indicate that all following arguments are
+        non-options.
 
         Options:
 
@@ -1135,8 +1137,7 @@ COMMANDS
     loadkmap
         loadkmap < keymap
 
-        Loads a binary keyboard translation table from standard
-        input.
+        Loads a binary keyboard translation table from standard input.
 
         Example:
 
@@ -1147,8 +1148,7 @@ COMMANDS
     logger
         logger [OPTION]... [MESSAGE]
 
-        Write MESSAGE to the system log. If MESSAGE is omitted, log
-        stdin.
+        Write MESSAGE to the system log. If MESSAGE is omitted, log stdin.
 
         Options:
 
@@ -1235,10 +1235,10 @@ COMMANDS
                 c or u: Make a character (un-buffered) device.
                 p:      Make a named pipe. MAJOR and MINOR are ignored for named pipes.
 
-        FIRST specifies the number appended to NAME to create the
-        first device. LAST specifies the number of the last item
-        that should be created. If 's' is the last argument, the
-        base device is created as well.
+        FIRST specifies the number appended to NAME to create the first
+        device. LAST specifies the number of the last item that should be
+        created. If 's' is the last argument, the base device is created as
+        well.
 
         For example:
 
@@ -1259,16 +1259,14 @@ COMMANDS
 
         Print or check MD5 checksums.
 
-        Options: With no FILE, or when FILE is -, read standard
-        input.
+        Options: With no FILE, or when FILE is -, read standard input.
 
                 -b      read files in binary mode
                 -c      check MD5 sums against given list
                 -t      read files in text mode (default)
                 -g      read a string
 
-        The following two options are useful only when verifying
-        checksums:
+        The following two options are useful only when verifying checksums:
 
                 -s      don't output anything, status code shows success
                 -w      warn about improperly formated MD5 checksum lines
@@ -1319,8 +1317,7 @@ COMMANDS
         -------------------------------
 
     mkfs_minix
-        mkfs_minix [-c | -l filename] [-nXX] [-iXX] /dev/name
-        [blocks]
+        mkfs_minix [-c | -l filename] [-nXX] [-iXX] /dev/name [blocks]
 
         Make a MINIX filesystem.
 
@@ -1374,8 +1371,8 @@ COMMANDS
     mktemp
         mktemp [-q] TEMPLATE
 
-        Creates a temporary file with its name based on TEMPLATE.
-        TEMPLATE is any name with six `Xs' (i.e., /tmp/temp.XXXXXX).
+        Creates a temporary file with its name based on TEMPLATE. TEMPLATE
+        is any name with six `Xs' (i.e., /tmp/temp.XXXXXX).
 
         Example:
 
@@ -1383,6 +1380,17 @@ COMMANDS
                 /tmp/temp.mWiLjM
                 $ ls -la /tmp/temp.mWiLjM
                 -rw-------    1 andersen andersen        0 Apr 25 17:10 /tmp/temp.mWiLjM
+
+        -------------------------------
+
+    modprobe
+        modprobe [FILE ...]
+
+        Used for hight level module loading and unloading.
+
+        Example:
+
+                $ modprobe cdrom
 
         -------------------------------
 
@@ -1424,9 +1432,8 @@ COMMANDS
                 ro/rw:          Mount for read-only / read-write.
                 bind:           Use the linux 2.4.x "bind" feature.
 
-        There are EVEN MORE flags that are specific to each
-        filesystem. You'll have to see the written documentation for
-        those filesystems.
+        There are EVEN MORE flags that are specific to each filesystem.
+        You'll have to see the written documentation for those filesystems.
 
         Example:
 
@@ -1445,10 +1452,10 @@ COMMANDS
 
         Available Opcodes:
 
-        bsf bsfm bsr bss datacompression drvbuffer eof eom erase fsf
-        fsfm fsr fss load lock mkpart nop offline ras1 ras2 ras3
-        reset retension rew rewoffline seek setblk setdensity
-        setpart tell unload unlock weof wset
+        bsf bsfm bsr bss datacompression drvbuffer eof eom erase fsf fsfm
+        fsr fss load lock mkpart nop offline ras1 ras2 ras3 reset retension
+        rew rewoffline seek setblk setdensity setpart tell unload unlock
+        weof wset
 
         -------------------------------
 
@@ -1490,9 +1497,22 @@ COMMANDS
                 $ nslookup localhost
                 Server:     default
                 Address:    default
-                
+        
                 Name:       debian
                 Address:    127.0.0.1
+
+        -------------------------------
+
+    pidof
+        pidof process-name [process-name ...]
+
+        Lists the PIDs of all processes with names that match the names on
+        the command line
+
+        Example:
+
+                $ pidof init
+                1
 
         -------------------------------
 
@@ -1513,7 +1533,7 @@ COMMANDS
                 $ ping localhost
                 PING slag (127.0.0.1): 56 data bytes
                 64 bytes from 127.0.0.1: icmp_seq=0 ttl=255 time=20.1 ms
-                
+        
                 --- debian ping statistics ---
                 1 packets transmitted, 1 packets received, 0% packet loss
                 round-trip min/avg/max = 20.1/20.1/20.1 ms
@@ -1523,24 +1543,23 @@ COMMANDS
     pivot_root
         pivot_root NEW_ROOT PUT_OLD
 
-        Move the current root file system to PUT_OLD and make
-        NEW_ROOT the new root file system.
+        Move the current root file system to PUT_OLD and make NEW_ROOT the
+        new root file system.
 
         -------------------------------
 
     poweroff
         poweroff
 
-        Halt the system and request that the kernel shut off the
-        power.
+        Halt the system and request that the kernel shut off the power.
 
         -------------------------------
 
     printf
         printf FORMAT [ARGUMENT...]
 
-        Formats and prints ARGUMENT(s) according to FORMAT, Where
-        FORMAT controls the output exactly as in C printf.
+        Formats and prints ARGUMENT(s) according to FORMAT, Where FORMAT
+        controls the output exactly as in C printf.
 
         Example:
 
@@ -1585,8 +1604,7 @@ COMMANDS
     rdate
         rdate [OPTION] HOST
 
-        Get and possibly set the system date and time from a remote
-        HOST.
+        Get and possibly set the system date and time from a remote HOST.
 
         Options:
 
@@ -1612,10 +1630,9 @@ COMMANDS
     renice
         renice priority pid [pid ...]
 
-        Changes priority of running processes. Allowed priorities
-        range from 20 (the process runs only when nothing else is
-        running) to 0 (default priority) to -20 (almost nothing else
-        ever gets to run).
+        Changes priority of running processes. Allowed priorities range from
+        20 (the process runs only when nothing else is running) to 0
+        (default priority) to -20 (almost nothing else ever gets to run).
 
         -------------------------------
 
@@ -1628,8 +1645,8 @@ COMMANDS
 
     rm  rm [OPTION]... FILE...
 
-        Remove (unlink) the FILE(s). You may use '--' to indicate
-        that all following arguments are non-options.
+        Remove (unlink) the FILE(s). You may use '--' to indicate that all
+        following arguments are non-options.
 
         Options:
 
@@ -1697,10 +1714,10 @@ COMMANDS
                 -e script       add the script to the commands to be executed
                 -f scriptfile   add the contents of script-file to the commands to be executed
 
-        If no -e or -f is given, the first non-option argument is
-        taken as the sed script to interpret. All remaining
-        arguments are names of input files; if no input files are
-        specified, then the standard input is read.
+        If no -e or -f is given, the first non-option argument is taken as
+        the sed script to interpret. All remaining arguments are names of
+        input files; if no input files are specified, then the standard
+        input is read.
 
         Example:
 
@@ -1712,31 +1729,15 @@ COMMANDS
     setkeycodes
         setkeycodes SCANCODE KEYCODE ...
 
-        Set entries into the kernel's scancode-to-keycode map,
-        allowing unusual keyboards to generate usable keycodes.
+        Set entries into the kernel's scancode-to-keycode map, allowing
+        unusual keyboards to generate usable keycodes.
 
-        SCANCODE may be either xx or e0xx (hexadecimal), and KEYCODE
-        is given in decimal
+        SCANCODE may be either xx or e0xx (hexadecimal), and KEYCODE is
+        given in decimal
 
         Example:
 
                 $ setkeycodes e030 127
-
-        -------------------------------
-
-    sh  sh [FILE]... or: sh -c command [args]...
-
-        lash: The BusyBox LAme SHell (command interpreter)
-
-        This command does not yet have proper documentation.
-
-        Use lash just as you would use any other shell. It properly
-        handles pipes, redirects, job control, can be used as the
-        shell for scripts, and has a sufficient set of builtins to
-        do what is needed. It does not (yet) support Bourne Shell
-        syntax. If you need things like "if-then-else", "while", and
-        such use ash or bash. If you just need a very simple and
-        extremely small shell, this will do the job.
 
         -------------------------------
 
@@ -1778,8 +1779,8 @@ COMMANDS
     stty
         stty [-a|g] [-F DEVICE] [SETTING]...
 
-        Without arguments, prints baud rate, line discipline, and
-        deviations from stty sane.
+        Without arguments, prints baud rate, line discipline, and deviations
+        from stty sane.
 
         Options:
 
@@ -1822,8 +1823,8 @@ COMMANDS
     syslogd
         syslogd [OPTION]...
 
-        Linux system and kernel logging utility. Note that this
-        version of syslogd ignores /etc/syslog.conf.
+        Linux system and kernel logging utility. Note that this version of
+        syslogd ignores /etc/syslog.conf.
 
         Options:
 
@@ -1843,10 +1844,9 @@ COMMANDS
     tail
         tail [OPTION]... [FILE]...
 
-        Print last 10 lines of each FILE to standard output. With
-        more than one FILE, precede each with a header giving the
-        file name. With no FILE, or when FILE is -, read standard
-        input.
+        Print last 10 lines of each FILE to standard output. With more than
+        one FILE, precede each with a header giving the file name. With no
+        FILE, or when FILE is -, read standard input.
 
         Options:
 
@@ -1857,10 +1857,10 @@ COMMANDS
                 -s SEC          wait SEC seconds between reads with -f
                 -v              always output headers giving file names
 
-        If the first character of N (bytes or lines) is a '+',
-        output begins with the Nth item from the start of each file,
-        otherwise, print the last N items in the file. N bytes may
-        be suffixed by k (x1024), b (x512), or m (1024^2).
+        If the first character of N (bytes or lines) is a '+', output begins
+        with the Nth item from the start of each file, otherwise, print the
+        last N items in the file. N bytes may be suffixed by k (x1024), b
+        (x512), or m (1024^2).
 
         Example:
 
@@ -1898,8 +1898,7 @@ COMMANDS
 
     tee tee [OPTION]... [FILE]...
 
-        Copy standard input to each FILE, and also to standard
-        output.
+        Copy standard input to each FILE, and also to standard output.
 
         Options:
 
@@ -1916,8 +1915,8 @@ COMMANDS
     telnet
         telnet HOST [PORT]
 
-        Telnet is used to establish interactive communication with
-        another computer over a network using the TELNET protocol.
+        Telnet is used to establish interactive communication with another
+        computer over a network using the TELNET protocol.
 
         -------------------------------
 
@@ -1979,8 +1978,8 @@ COMMANDS
 
     tr  tr [-cds] STRING1 [STRING2]
 
-        Translate, squeeze, and/or delete characters from standard
-        input, writing to standard output.
+        Translate, squeeze, and/or delete characters from standard input,
+        writing to standard output.
 
         Options:
 
@@ -1992,6 +1991,29 @@ COMMANDS
 
                 $ echo "gdkkn vnqkc" | tr [a-y] [b-z]
                 hello world
+
+        -------------------------------
+
+    traceroute
+        traceroute [-dnrv] [-m max_ttl] [-p port#] [-q nqueries] [-s
+        src_addr] [-t tos] [-w wait] host [data size]
+
+        trace the route ip packets follow going to "host" Options:
+
+                -d      set SO_DEBUG options to socket
+                -n      Print hop addresses numerically rather than symbolically
+                -r      Bypass the normal routing tables and send directly to a host
+                -v      Verbose output
+                -m max_ttl      Set the max time-to-live (max number of hops)
+                -p port#        Set the base UDP port number used in probes
+                        (default is 33434)
+                -q nqueries     Set the number of probes per ``ttl'' to nqueries
+                        (default is 3)
+                -s src_addr     Use the following IP address as the source address
+                -t tos  Set the type-of-service in probe packets to the following value
+                        (default 0)
+                -w wait Set the time (in seconds) to wait for a response to a probe
+                        (default 3 sec.).
 
         -------------------------------
 
@@ -2010,8 +2032,7 @@ COMMANDS
 
     tty tty
 
-        Print the file name of the terminal connected to standard
-        input.
+        Print the file name of the terminal connected to standard input.
 
         Options:
 
@@ -2046,8 +2067,7 @@ COMMANDS
     uname
         uname [OPTION]...
 
-        Print certain system information. With no OPTION, same as -
-        s.
+        Print certain system information. With no OPTION, same as -s.
 
         Options:
 
@@ -2069,8 +2089,8 @@ COMMANDS
     uniq
         uniq [OPTION]... [INPUT [OUTPUT]]
 
-        Discard all but one of successive identical lines from INPUT
-        (or standard input), writing to OUTPUT (or standard output).
+        Discard all but one of successive identical lines from INPUT (or
+        standard input), writing to OUTPUT (or standard output).
 
         Options:
 
@@ -2090,10 +2110,9 @@ COMMANDS
     unix2dos
         unix2dos [option] [FILE]
 
-        Converts FILE from unix format to dos format. When no option
-        is given, the input is converted to the opposite output
-        format. When no file is given, uses stdin for input and
-        stdout for output. Options:
+        Converts FILE from unix format to dos format. When no option is
+        given, the input is converted to the opposite output format. When no
+        file is given, uses stdin for input and stdout for output. Options:
 
                 -u      output will be in UNIX format
                 -d      output will be in DOS format
@@ -2192,9 +2211,8 @@ COMMANDS
 
     wc  wc [OPTION]... [FILE]...
 
-        Print line, word, and byte counts for each FILE, and a total
-        line if more than one FILE is specified. With no FILE, read
-        standard input.
+        Print line, word, and byte counts for each FILE, and a total line if
+        more than one FILE is specified. With no FILE, read standard input.
 
         Options:
 
@@ -2211,8 +2229,8 @@ COMMANDS
         -------------------------------
 
     wget
-        wget [-c|--continue] [-q|--quiet] [-O|--output-document
-        file] [--header 'header: value'] [-P DIR] url
+        wget [-c|--continue] [-q|--quiet] [-O|--output-document file]
+        [--header 'header: value'] [-P DIR] url
 
         wget retrieves files via HTTP or FTP
 
@@ -2240,8 +2258,7 @@ COMMANDS
     whoami
         whoami
 
-        Prints the user name associated with the current effective
-        user id.
+        Prints the user name associated with the current effective user id.
 
         -------------------------------
 
@@ -2259,8 +2276,7 @@ COMMANDS
 
     yes yes [OPTION]... [STRING]...
 
-        Repeatedly outputs a line with all specified STRING(s), or
-        'y'.
+        Repeatedly outputs a line with all specified STRING(s), or 'y'.
 
         -------------------------------
 
@@ -2272,20 +2288,19 @@ COMMANDS
         -------------------------------
 
 LIBC NSS
-    GNU Libc uses the Name Service Switch (NSS) to configure the
-    behavior of the C library for the local environment, and to
-    configure how it reads system data, such as passwords and group
-    information. BusyBox has made it Policy that it will never use
-    NSS, and will never use and libc calls that make use of NSS.
-    This allows you to run an embedded system without the need for
-    installing an /etc/nsswitch.conf file and without and
+    GNU Libc uses the Name Service Switch (NSS) to configure the behavior of
+    the C library for the local environment, and to configure how it reads
+    system data, such as passwords and group information. BusyBox has made
+    it Policy that it will never use NSS, and will never use and libc calls
+    that make use of NSS. This allows you to run an embedded system without
+    the need for installing an /etc/nsswitch.conf file and without and
     /lib/libnss_* libraries installed.
 
     If you are using a system that is using a remote LDAP server for
-    authentication via GNU libc NSS, and you want to use BusyBox,
-    then you will need to adjust the BusyBox source. Chances are
-    though, that if you have enough space to install of that stuff
-    on your system, then you probably want the full GNU utilities.
+    authentication via GNU libc NSS, and you want to use BusyBox, then you
+    will need to adjust the BusyBox source. Chances are though, that if you
+    have enough space to install of that stuff on your system, then you
+    probably want the full GNU utilities.
 
 SEE ALSO
     textutils(1), shellutils(1), etc...
@@ -2294,8 +2309,8 @@ MAINTAINER
     Erik Andersen <andersee@debian.org> <andersen@lineo.com>
 
 AUTHORS
-    The following people have contributed code to BusyBox whether
-    they know it or not.
+    The following people have contributed code to BusyBox whether they know
+    it or not.
 
     Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
 
@@ -2310,9 +2325,7 @@ AUTHORS
     Edward Betts <edward@debian.org>
 
         expr, hostid, logname, tty, wc, whoami, yes
-     
-    =for html <br>
-
+ 
     Brian Candler <B.Candler@pobox.com>
 
         tiny-ls(ls)
