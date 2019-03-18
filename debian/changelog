@@ -1,3 +1,78 @@
+busybox (1:0.60.2-1) unstable; urgency=low
+  
+  * New version released.  See Changelog for non-Debian specific details.
+  * dpkg.c now uses an int for getopt (closes: #118975)
+  * s390 console reboot msg is now appropriate (closes: #118859)
+  * the manpage is no longer empty (closes: #117013)
+  * no more .o files in the source tarball (closes: #112046)
+  * the .udeb contents are exactly as Joey wants them (closes: #105352)
+  * busybox ash is the default shell for the -static package,
+    so it can cope with /etc/profile just fine (closes: #95745)
+
+ -- Erik Andersen <andersee@debian.org>  Tue, 20 Nov 2001 03:41:29 -0700
+
+busybox (1:0.60.1-8) unstable; urgency=low
+  
+  * Adjusted some apps for the debian installer's .udeb package.
+    Enabled ifconfig, route.  
+    Disabled chgrp, clear, date, dd, du, gzip, halt, head, killall,
+    loadkmap, logger, mkswap, more, poweroff, reset, sleep, sort, 
+    swapon, swapoff, touch, tty, uniq, uname, uptime, vi, wc, which,
+    whoami, xargs, and yes.
+
+ -- Erik Andersen <andersee@debian.org>  Thu, 18 Oct 2001 22:59:06 -0600
+
+busybox (1:0.60.1-7) unstable; urgency=low
+  
+  * Re-enable wget's status bar for today's dbootstrap change. (closes: #115717)
+  * Enable initrd support (even if they are a bad idea). (closes: #114727)
+
+ -- Erik Andersen <andersee@debian.org>  Mon, 15 Oct 2001 20:45:57 -0600
+
+busybox (1:0.60.1-6) unstable; urgency=low
+  
+  * Re-enable wc, gzip, tty, and expr. (closes: #114906)
+
+ -- Erik Andersen <andersee@debian.org>  Wed, 10 Oct 2001 02:47:50 -0600
+
+busybox (1:0.60.1-5) unstable; urgency=low
+  
+  * Time to make this official.  This enables several applets, such
+    as ifconfig and route, and disables several others.
+  * Revert ash to the version in the busybox stable branch.  For the 
+    -3 non-release, I tried the one from busybox unstable (which lived 
+    up to its name).  (closes: #112503)
+  * Enable id, disable ash (closes: #114260, #113698)
+  * Backport several bugfixes from unstable
+
+ -- Erik Andersen <andersee@debian.org>  Fri,  5 Oct 2001 23:03:15 -0600
+
+busybox (1:0.60.1-4) unstable; urgency=low
+  
+  * Doh!  With busybox ash, we need test and echo enabled...
+
+ -- Erik Andersen <andersee@debian.org>  Wed, 26 Sep 2001 00:05:04 -0600
+
+busybox (1:0.60.1-3) unstable; urgency=low
+
+  * This upload is to test whether disabling several applets, and
+    enabling several others will help.  Enabled is ifconfig, route,
+    and ash.  Disabled is basename, date, echo, env, expr, gzip, 
+    lsmod, and wc.
+
+ -- Erik Andersen <andersee@debian.org>  Tue, 25 Sep 2001 17:45:16 -0600
+
+busybox (1:0.60.1-2) unstable; urgency=low
+
+  * Disabled several applets to make busybox be a bit thinner, since the 
+    powerpc boot floppies are _very_ tight on space (closes: #112503)
+  * Teach 'mount' about usbdevfs (closes: #111055) 
+  * Busybox supports full online help, but due to space constraints on
+    the boot floppies, it will not be enabled.  People can read the 
+    busybox documentation if they need full details. (closes: #111350) 
+
+ -- Erik Andersen <andersee@debian.org>  Sun, 23 Sep 2001 23:32:15 -0600
+
 busybox (1:0.60.1-1) unstable; urgency=low
 
   * New stable version released.  See changelog for details.

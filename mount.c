@@ -24,7 +24,7 @@
  *
  * 1999-04-17	Dave Cinege...Rewrote -t auto. Fixed ro mtab.
  *
- * 1999-10-07	Erik Andersen <andersen@lineo.com>, <andersee@debian.org>.
+ * 1999-10-07	Erik Andersen <andersee@debian.org>.
  *              Rewrite of a lot of code. Removed mtab usage (I plan on
  *              putting it back as a compile-time option some time), 
  *              major adjustments to option parsing, and some serious 
@@ -240,8 +240,9 @@ mount_one(char *blockDevice, char *directory, char *filesystemType,
 {
 	int status = 0;
 
+#if defined BB_FEATURE_USE_DEVPS_PATCH
 	if (strcmp(filesystemType, "auto") == 0) {
-		static const char *noauto_array[] = { "tmpfs", "shm", "proc", "ramfs", "devpts", "devfs", 0 };
+		static const char *noauto_array[] = { "tmpfs", "shm", "proc", "ramfs", "devpts", "devfs", "usbdevfs", 0 };
 		const char **noauto_fstype;
 		const int num_of_filesystems = sysfs(3, 0, 0);
 		char buf[255];
@@ -264,7 +265,35 @@ mount_one(char *blockDevice, char *directory, char *filesystemType,
 					break;
 			}
 		}
-	} else {
+	} 
+#else
+	if (strcmp(filesystemType, "auto") == 0) {
+		char buf[255];
+		FILE *f = xfopen("/proc/filesystems", "r");
+
+		while (fgets(buf, sizeof(buf), f) != NULL) {
+			filesystemType = buf;
+			if (*filesystemType == '\t') {	// Not a nodev filesystem
+
+				// Add NULL termination to each line
+				while (*filesystemType && *filesystemType != '\n')
+					filesystemType++;
+				*filesystemType = '\0';
+
+				filesystemType = buf;
+				filesystemType++;	// hop past tab
+
+				status = do_mount(blockDevice, directory, filesystemType,
+								  flags | MS_MGC_VAL, string_flags,
+								  useMtab, fakeIt, mtab_opts, mount_all);
+				if (status == TRUE)
+					break;
+			}
+		}
+		fclose(f);
+	}
+#endif
+	else {
 		status = do_mount(blockDevice, directory, filesystemType,
 				flags | MS_MGC_VAL, string_flags, useMtab,
 				fakeIt, mtab_opts, mount_all);
@@ -279,7 +308,7 @@ mount_one(char *blockDevice, char *directory, char *filesystemType,
 	return (TRUE);
 }
 
-void show_mounts()
+void show_mounts(void)
 {
 #if defined BB_FEATURE_USE_DEVPS_PATCH
 	int fd, i, numfilesystems;

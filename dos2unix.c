@@ -30,7 +30,9 @@
 #include <string.h>
 #include <getopt.h>
 #include <unistd.h>
+#if (__GNU_LIBRARY__ > 5)
 #include <stdint.h>
+#endif
 #include <fcntl.h>
 #include <sys/time.h>
 #include "busybox.h"

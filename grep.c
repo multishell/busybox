@@ -1,8 +1,8 @@
 /*
  * Mini grep implementation for busybox using libc regex.
  *
- * Copyright (C) 1999,2000,2001 by Lineo, inc.
- * Written by Mark Whitley <markw@lineo.com>, <markw@codepoet.org>
+ * Copyright (C) 1999,2000 by Lineo, inc. and Mark Whitley
+ * Copyright (C) 1999,2000,2001 by Mark Whitley <markw@codepoet.org> 
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,7 +30,6 @@
 
 
 extern int optind; /* in unistd.h */
-extern int errno;  /* for use with strerror() */
 extern void xregcomp(regex_t *preg, const char *regex, int cflags); /* in busybox.h */
 
 /* options */
@@ -156,7 +155,7 @@ static void grep_file(FILE *file)
 				if(lines_before) {
 					if(before_buf[curpos])
 						free(before_buf[curpos]);
-					before_buf[curpos] = strdup(line);
+					before_buf[curpos] = xstrdup(line);
 					curpos = (curpos + 1) % lines_before;
 				}
 			}
@@ -224,9 +223,10 @@ static void destroy_regexes()
 
 	/* destroy all the elments in the array */
 	while (--nregexes >= 0) {
-		regfree(&regexes[nregexes]);
-		free(&regexes[nregexes]);
+		regfree(&(regexes[nregexes]));
 	}
+	if (regexes)
+	    free(regexes);
 }
 #endif
 
@@ -240,14 +240,22 @@ extern int grep_main(int argc, char **argv)
 
 #ifdef BB_FEATURE_CLEAN_UP
 	/* destroy command strings on exit */
-	if (atexit(destroy_regexes) == -1)
-		perror_msg_and_die("atexit");
+	atexit(destroy_regexes);
+#endif
+
+#ifdef BB_FEATURE_GREP_EGREP_ALIAS
+	junk = get_last_path_component(argv[0]);
+	if (junk && strcmp(junk, "egrep") == 0)
+		reflags |= REG_EXTENDED;
 #endif
 
 	/* do normal option parsing */
 	while ((opt = getopt(argc, argv, "iHhlnqvsce:f:"
 #ifdef BB_FEATURE_GREP_CONTEXT
 "A:B:C:"
+#endif
+#ifdef BB_FEATURE_GREP_EGREP_ALIAS
+"E"
 #endif
 )) > 0) {
 		switch (opt) {
@@ -281,6 +289,11 @@ extern int grep_main(int argc, char **argv)
 			case 'e':
 				add_regex(optarg);
 				break;
+#ifdef BB_FEATURE_GREP_EGREP_ALIAS
+			case 'E':
+				reflags |= REG_EXTENDED;
+				break;
+#endif
 			case 'f':
 				load_regexes_from_file(optarg);
 				break;
@@ -294,13 +307,13 @@ extern int grep_main(int argc, char **argv)
 				lines_before = strtoul(optarg, &junk, 10);
 				if(*junk != '\0')
 					error_msg_and_die("invalid context length argument");
-				before_buf = (char **)calloc(lines_before, sizeof(char *));
+				before_buf = (char **)xcalloc(lines_before, sizeof(char *));
 				break;
 			case 'C':
 				lines_after = lines_before = strtoul(optarg, &junk, 10);
 				if(*junk != '\0')
 					error_msg_and_die("invalid context length argument");
-				before_buf = (char **)calloc(lines_before, sizeof(char *));
+				before_buf = (char **)xcalloc(lines_before, sizeof(char *));
 				break;
 #endif /* BB_FEATURE_GREP_CONTEXT */
 			default:

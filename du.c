@@ -2,9 +2,8 @@
 /*
  * Mini du implementation for busybox
  *
- *
- * Copyright (C) 1999,2000,2001 by Lineo, inc.
- * Written by John Beppu <beppu@lineo.com>
+ * Copyright (C) 1999,2000 by Lineo, inc. and John Beppu
+ * Copyright (C) 1999,2000,2001 by John Beppu <beppu@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -247,7 +246,7 @@ int du_main(int argc, char **argv)
 	return status;
 }
 
-/* $Id: du.c,v 1.50 2001/06/30 17:54:20 andersen Exp $ */
+/* $Id: du.c,v 1.51 2001/11/19 23:34:17 andersen Exp $ */
 /*
 Local Variables:
 c-file-style: "linux"

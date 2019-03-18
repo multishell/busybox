@@ -1,6 +1,6 @@
 %define name	busybox
 %define epoch   0
-%define version	0.60.1
+%define version	0.60.2
 %define release	%(date -I | sed -e 's/-/_/g')
 %define serial  1
 
@@ -15,7 +15,7 @@ Summary: BusyBox is a tiny suite of Unix utilities in a multi-call binary.
 URL:	 http://busybox.lineo.com/
 Source:	 ftp://oss.lineo.com/busybox/%{name}-%{version}.tar.gz
 Buildroot: /var/tmp/%{name}-%{version}
-Packager : Erik Andersen <andersen@lineo.com>
+Packager : Erik Andersen <andersen@codepoet.org>
 
 %Description
 BusyBox combines tiny versions of many common UNIX utilities into a single

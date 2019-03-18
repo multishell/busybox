@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 # vi: set ts=4:
 # Copyright (c) 2001 David Schleef <ds@schleef.org>
-# Copyright (c) 2001 Erik Andersen <andersen@lineo.com>
+# Copyright (c) 2001 Erik Andersen <andersen@codepoet.org>
 # Copyright (c) 2001 Stuart Hughes <stuarth@lineo.com>
 # This program is free software; you can redistribute it and/or modify it 
 # under the same terms as Perl itself.
@@ -212,7 +212,7 @@ Be verbose (not implemented)
 =head1 COPYRIGHT
 
 Copyright (c) 2001 David Schleef <ds@schleef.org>
-Copyright (c) 2001 Erik Andersen <andersen@lineo.com>
+Copyright (c) 2001 Erik Andersen <andersen@codepoet.org>
 Copyright (c) 2001 Stuart Hughes <stuarth@lineo.com>
 This program is free software; you can redistribute it and/or modify it 
 under the same terms as Perl itself.
@@ -223,5 +223,5 @@ David Schleef <ds@schleef.org>
 
 =cut
 
-# $Id: depmod.pl,v 1.1 2001/07/30 19:32:03 andersen Exp $
+# $Id: depmod.pl,v 1.2 2001/11/19 23:57:54 andersen Exp $
 

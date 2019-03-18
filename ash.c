@@ -79,6 +79,7 @@
 /* These are here to work with glibc -- Don't change these... */
 #undef FNMATCH_BROKEN
 #undef GLOB_BROKEN
+#define IFS_BROKEN
 
 #include <assert.h>
 #include <ctype.h>
@@ -360,9 +361,10 @@ static int stacknleft = MINSIZE;
 
 #ifdef DEBUG
 #define TRACE(param)    trace param
+typedef union node unode;
 static void trace (const char *, ...);
 static void trargs (char **);
-static void showtree (union node *);
+static void showtree (unode *);
 static void trputc (int);
 static void trputs (const char *);
 static void opentrace (void);
@@ -6941,7 +6943,11 @@ forkshell(struct job *jp, const union node *n, int mode)
 	TRACE(("forkshell(%%%d, 0x%lx, %d) called\n", jp - jobtab, (long)n,
 	    mode));
 	INTOFF;
+#if !defined(__UCLIBC__) || defined(__UCLIBC_HAS_MMU__)
 	pid = fork();
+#else
+	pid = vfork();
+#endif
 	if (pid == -1) {
 		TRACE(("Fork failed, errno=%d\n", errno));
 		INTON;
@@ -7853,6 +7859,7 @@ dotcmd(argc, argv)
 	char **argv;
 {
 	struct strlist *sp;
+	volatile struct shparam saveparam;
 	exitstatus = 0;
 
 	for (sp = cmdenviron; sp ; sp = sp->next)
@@ -7864,10 +7871,24 @@ dotcmd(argc, argv)
 
 		setstackmark(&smark);
 		fullname = find_dot_file(argv[1]);
+
+		if (argc>2) {
+			saveparam = shellparam;
+			shellparam.malloc = 0;
+			shellparam.nparam = argc - 2;
+			shellparam.p = argv + 2;
+		};
+
 		setinputfile(fullname, 1);
 		commandname = fullname;
 		cmdloop(0);
 		popfile();
+
+		if (argc>2) {
+			freeparam(&shellparam);
+			shellparam = saveparam;
+		};
+
 		popstackmark(&smark);
 	}
 	return exitstatus;
@@ -9537,6 +9558,14 @@ command() {
 	n1 = NULL;
 	rpp = &redir;
 
+	/* Check for redirection which may precede command */
+	while (readtoken() == TREDIR) {
+		*rpp = n2 = redirnode;
+		rpp = &n2->nfile.next;
+		parsefname();
+	}
+	tokpushback++;
+
 	switch (readtoken()) {
 	case TIF:
 		n1 = (union node *)stalloc(sizeof (struct nif));
@@ -9706,7 +9735,6 @@ TRACE(("expecting DO got %s %s\n", tokname[got], got == TWORD ? wordtext : ""));
 		if (!redir)
 			synexpect(-1);
 	case TWORD:
-	case TREDIR:
 		tokpushback++;
 		n1 = simplecmd();
 		return n1;
@@ -11601,7 +11629,7 @@ static void trstring (char *);
 
 static void
 showtree(n)
-	union node *n;
+	union *n;
 {
 	trputs("showtree called\n");
 	shtree(n, 1, NULL, stdout);
@@ -12785,7 +12813,7 @@ findvar(struct var **vpp, const char *name)
 /*
  * Copyright (c) 1999 Herbert Xu <herbert@debian.org>
  * This file contains code for the times builtin.
- * $Id: ash.c,v 1.17.2.1 2001/08/10 18:22:14 andersen Exp $
+ * $Id: ash.c,v 1.31 2001/11/10 12:28:42 andersen Exp $
  */
 static int timescmd (int argc, char **argv)
 {

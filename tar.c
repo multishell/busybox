@@ -6,8 +6,8 @@
  * ground up.  It still has remnents of the old code lying about, but it is
  * very different now (i.e., cleaner, less global variables, etc.)
  *
- * Copyright (C) 1999,2000,2001 by Lineo, inc.
- * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
+ * Copyright (C) 1999,2000 by Lineo, inc. and Erik Andersen
+ * Copyright (C) 1999,2000,2001 by Erik Andersen <andersee@debian.org>
  *
  * Based in part in the tar implementation in sash
  *  Copyright (c) 1999 by David I. Bell
@@ -342,9 +342,11 @@ tarExtractRegularFile(TarInfo *header, int extractFlag, int tostdoutFlag)
 	if (extractFlag==TRUE && tostdoutFlag==FALSE) {
 		/* Create the path to the file, just in case it isn't there...
 		 * This should not screw up path permissions or anything. */
-		char *dir = dirname (header->name);
+		char *buf, *dir;
+		buf = xstrdup (header->name);
+		dir = dirname (buf);
 		make_directory (dir, -1, FILEUTILS_RECUR);
-		free (dir);
+		free (buf);
 		if ((outFd=open(header->name, O_CREAT|O_TRUNC|O_WRONLY, 
 						header->mode & ~S_IFMT)) < 0) {
 			error_msg(io_error, header->name, strerror(errno)); 
@@ -529,6 +531,7 @@ readTarHeader(struct TarHeader *rawHeader, struct TarInfo *header)
 	return( FALSE);
 }
 
+#if defined BB_FEATURE_TAR_EXCLUDE
 static int exclude_file(char **excluded_files, const char *file)
 {
 	int i;
@@ -555,6 +558,7 @@ static int exclude_file(char **excluded_files, const char *file)
 
 	return 0;
 }
+#endif
 
 static int extract_file(char **extract_files, const char *file)
 {

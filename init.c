@@ -75,6 +75,12 @@ struct serial_struct {
 };
 
 
+#if (__GNU_LIBRARY__ > 5) || defined(__dietlibc__) 
+  #include <sys/reboot.h>
+  #define init_reboot(magic) reboot(magic)
+#else
+  #define init_reboot(magic) reboot(0xfee1dead, 672274793, magic)
+#endif
 
 #ifndef RB_HALT_SYSTEM
 static const int RB_HALT_SYSTEM = 0xcdef0123;
@@ -84,17 +90,9 @@ static const int RB_DISABLE_CAD = 0;
 static const int RB_AUTOBOOT = 0x01234567;
 #endif
 
-#if (__GNU_LIBRARY__ > 5) || defined(__dietlibc__) 
-  #include <sys/reboot.h>
-  #define init_reboot(magic) reboot(magic)
-#else
-  #define init_reboot(magic) reboot(0xfee1dead, 672274793, magic)
-#endif
-
 #ifndef _PATH_STDPATH
 #define _PATH_STDPATH	"/usr/bin:/bin:/usr/sbin:/sbin"
 #endif
-
 
 #if defined BB_FEATURE_INIT_COREDUMPS
 /*
@@ -116,7 +114,6 @@ static const int RB_AUTOBOOT = 0x01234567;
 	extern int bdflush (int func, long int data);
 #endif
 
-
 #define SHELL        "/bin/sh"	     /* Default shell */
 #define LOGIN_SHELL  "-" SHELL	     /* Default login shell */
 #define INITTAB      "/etc/inittab"  /* inittab file location */
@@ -128,6 +125,11 @@ static const int RB_AUTOBOOT = 0x01234567;
 //static const int MAXENV = 16;	/* Number of env. vars */
 static const int LOG = 0x1;
 static const int CONSOLE = 0x2;
+#if defined BB_FEATURE_EXTRA_QUIET
+static const int MAYBE_CONSOLE = 0x0;
+#else
+#define MAYBE_CONSOLE	CONSOLE
+#endif
 
 /* Allowed init action types */
 typedef enum {
@@ -187,6 +189,11 @@ static void loop_forever()
 
 /* Print a message to the specified device.
  * Device may be bitwise-or'd from LOG | CONSOLE */
+#ifdef DEBUG_INIT
+static inline messageND(int device, char *fmt, ...) { }
+#else 
+#define messageND message
+#endif
 static void message(int device, char *fmt, ...)
 		   __attribute__ ((format (printf, 2, 3)));
 static void message(int device, char *fmt, ...)
@@ -220,7 +227,7 @@ static void message(int device, char *fmt, ...)
 			device = CONSOLE;
 		} else if ((log_fd = device_open(log, O_RDWR|O_NDELAY)) < 0) {
 			log_fd = -2;
-			fprintf(stderr, "Bummer, can't write to log on %s!\r\n", log);
+			fprintf(stderr, "Bummer, can't write to log on %s!\n", log);
 			log = NULL;
 			device = CONSOLE;
 		}
@@ -384,7 +391,7 @@ static void console_init()
 			if (strcmp( termType, "TERM=linux" ) == 0)
 				safe_strncpy(termType, "TERM=vt102", sizeof(termType));
 			message(LOG | CONSOLE,
-					"serial console detected.  Disabling virtual terminals.\r\n");
+					"serial console detected.  Disabling virtual terminals.\n");
 		}
 		close(fd);
 	}
@@ -397,7 +404,7 @@ static void fixup_argv(int argc, char **argv, char *new_argv0)
 	/* Fix up argv[0] to be certain we claim to be init */
 	len = strlen(argv[0]);
 	memset(argv[0], 0, len);
-	strncpy(argv[0], new_argv0, len);
+	safe_strncpy(argv[0], new_argv0, len + 1);
 
 	/* Wipe argv[1]-argv[N] so they don't clutter the ps listing */
 	len = 1;
@@ -427,7 +434,7 @@ static pid_t run(char *command, char *terminal, int get_enter)
 	char *environment[MAXENV+1] = {
 		termType,
 		"HOME=/",
-		"PATH=/usr/bin:/bin:/usr/sbin:/sbin",
+		"PATH=" _PATH_STDPATH,
 		"SHELL=" SHELL,
 		"USER=root",
 		NULL
@@ -446,7 +453,12 @@ static pid_t run(char *command, char *terminal, int get_enter)
 		}
 	}
 
-	if ((pid = fork()) == 0) {
+#if !defined(__UCLIBC__) || defined(__UCLIBC_HAS_MMU__)
+	if ((pid = fork()) == 0) 
+#else
+	if ((pid = vfork()) == 0) 
+#endif
+	{
 		/* Clean up */
 		ioctl(0, TIOCNOTTY, 0);
 		close(0);
@@ -467,7 +479,7 @@ static pid_t run(char *command, char *terminal, int get_enter)
 						terminal);
 				exit(1);
 			}
-			message(LOG | CONSOLE, "Bummer, can't open %s\r\n", terminal);
+			message(LOG | CONSOLE, "Bummer, can't open %s\n", terminal);
 			exit(1);
 		}
 		dup2(fd, 0);
@@ -482,13 +494,16 @@ static pid_t run(char *command, char *terminal, int get_enter)
 			cmd[0] = SHELL;
 			cmd[1] = "-c";
 			strcpy(buf, "exec ");
-			strncat(buf, command, sizeof(buf) - strlen(buf) - 1);
+			safe_strncpy(buf + sizeof("exec "), command, 
+					sizeof(buf) - sizeof("exec "));
 			cmd[2] = buf;
 			cmd[3] = NULL;
 		} else {
 			/* Convert command (char*) into cmd (char**, one word per string) */
-			for (tmpCmd = command, i = 0;
-					(tmpCmd = strsep(&command, " \t")) != NULL;) {
+			safe_strncpy(buf, command, sizeof(buf));
+			s = buf;
+			for (tmpCmd = buf, i = 0;
+					(tmpCmd = strsep(&s, " \t")) != NULL;) {
 				if (*tmpCmd != '\0') {
 					cmd[i] = tmpCmd;
 					tmpCmd++;
@@ -534,19 +549,15 @@ static pid_t run(char *command, char *terminal, int get_enter)
 			 * be allowed to start a shell or whatever an init script 
 			 * specifies.
 			 */
-#ifdef DEBUG_INIT
-			message(LOG, "Waiting for enter to start '%s' (pid %d, console %s)\r\n",
+			messageND(LOG, "Waiting for enter to start '%s' (pid %d, console %s)\n",
 					cmd[0], getpid(), terminal);
-#endif
 			write(fileno(stdout), press_enter, sizeof(press_enter) - 1);
 			getc(stdin);
 		}
 
-#ifdef DEBUG_INIT
 		/* Log the process name and args */
-		message(LOG, "Starting pid %d, console %s: '%s'\r\n",
+		messageND(LOG, "Starting pid %d, console %s: '%s'\n",
 				getpid(), terminal, command);
-#endif
 
 #if defined BB_FEATURE_INIT_COREDUMPS
 		if (stat (CORE_ENABLE_FLAG_FILE, &sb) == 0) {
@@ -594,6 +605,7 @@ static void check_memory()
 	if (check_free_memory() > 1000)
 		return;
 
+#if !defined(__UCLIBC__) || defined(__UCLIBC_HAS_MMU__)
 	if (stat("/etc/fstab", &statBuf) == 0) {
 		/* swapon -a requires /proc typically */
 		waitfor("mount proc /proc -t proc", console, FALSE);
@@ -604,10 +616,11 @@ static void check_memory()
 	} else
 		goto goodnight;
 	return;
+#endif
 
   goodnight:
 	message(CONSOLE,
-			"Sorry, your computer does not have enough memory.\r\n");
+			"Sorry, your computer does not have enough memory.\n");
 	loop_forever();
 }
 
@@ -628,23 +641,31 @@ static void run_actions(initActionEnum action)
 #ifndef DEBUG_INIT
 static void shutdown_system(void)
 {
+	sigset_t block_signals;
 
-	/* first disable our SIGHUP signal */
-	signal(SIGHUP, SIG_DFL);
+	/* first disable all our signals */
+	sigemptyset(&block_signals);
+	sigaddset(&block_signals, SIGHUP);
+	sigaddset(&block_signals, SIGCHLD);
+	sigaddset(&block_signals, SIGUSR1);
+	sigaddset(&block_signals, SIGUSR2);
+	sigaddset(&block_signals, SIGINT);
+	sigaddset(&block_signals, SIGTERM);
+	sigprocmask(SIG_BLOCK, &block_signals, NULL);
 
 	/* Allow Ctrl-Alt-Del to reboot system. */
 	init_reboot(RB_ENABLE_CAD);
 
-	message(CONSOLE|LOG, "\r\nThe system is going down NOW !!\r\n");
+	message(CONSOLE|LOG, "\nThe system is going down NOW !!\n");
 	sync();
 
 	/* Send signals to every process _except_ pid 1 */
-	message(CONSOLE|LOG, "Sending SIGTERM to all processes.\r\n");
+	message(CONSOLE|LOG, "Sending SIGTERM to all processes.\n");
 	kill(-1, SIGTERM);
 	sleep(1);
 	sync();
 
-	message(CONSOLE|LOG, "Sending SIGKILL to all processes.\r\n");
+	message(CONSOLE|LOG, "Sending SIGKILL to all processes.\n");
 	kill(-1, SIGKILL);
 	sleep(1);
 
@@ -663,9 +684,15 @@ static void halt_signal(int sig)
 {
 	shutdown_system();
 	message(CONSOLE|LOG,
-			"The system is halted. Press %s or turn off power\r\n",
-			(secondConsole == NULL)	/* serial console */
-			? "Reset" : "CTRL-ALT-DEL");
+#if #cpu(s390)
+			/* Seems the s390 console is Wierd(tm). */
+			"The system is halted. You may reboot now.\n",
+#else
+			/* secondConsole is NULL for a serial console */
+			"The system is halted. Press %s or turn off power\n",
+			(secondConsole == NULL)? "Reset" : "CTRL-ALT-DEL"
+#endif
+		   );
 	sync();
 
 	/* allow time for last message to reach serial console */
@@ -682,7 +709,7 @@ static void halt_signal(int sig)
 static void reboot_signal(int sig)
 {
 	shutdown_system();
-	message(CONSOLE|LOG, "Please stand by while rebooting the system.\r\n");
+	message(CONSOLE|LOG, "Please stand by while rebooting the system.\n");
 	sync();
 
 	/* allow time for last message to reach serial console */
@@ -725,9 +752,9 @@ static void new_initAction(initActionEnum action, char *process, char *cons)
 	}
 	newAction->nextPtr = initActionList;
 	initActionList = newAction;
-	strncpy(newAction->process, process, 255);
+	safe_strncpy(newAction->process, process, 255);
 	newAction->action = action;
-	strncpy(newAction->console, cons, 255);
+	safe_strncpy(newAction->console, cons, 255);
 	newAction->pid = 0;
 //    message(LOG|CONSOLE, "process='%s' action='%d' console='%s'\n",
 //      newAction->process, newAction->action, newAction->console);
@@ -773,8 +800,10 @@ static void parse_inittab(void)
 #endif
 		/* Reboot on Ctrl-Alt-Del */
 		new_initAction(CTRLALTDEL, "/sbin/reboot", console);
+#if !defined(__UCLIBC__) || defined(__UCLIBC_HAS_MMU__)
 		/* Swapoff on halt/reboot */
 		new_initAction(SHUTDOWN, "/sbin/swapoff -a", console);
+#endif
 		/* Umount all filesystems on halt/reboot */
 		new_initAction(SHUTDOWN, "/bin/umount -a -r", console);
 		/* Askfirst shell on tty1 */
@@ -900,13 +929,14 @@ extern int init_main(int argc, char **argv)
 	/* Figure out what kernel this is running */
 	kernelVersion = get_kernel_revision();
 
-	/* Figure out where the default console should be */
-	console_init();
-
 	/* Close whatever files are open, and reset the console. */
 	close(0);
 	close(1);
 	close(2);
+
+	/* Figure out where the default console should be */
+	console_init();
+
 	set_term(0);
 	chdir("/");
 	setsid();
@@ -915,22 +945,7 @@ extern int init_main(int argc, char **argv)
 	putenv("PATH="_PATH_STDPATH);
 
 	/* Hello world */
-#ifndef DEBUG_INIT
-	message(
-#if ! defined BB_FEATURE_EXTRA_QUIET
-			CONSOLE|
-#endif
-			LOG,
-			"init started:  %s\r\n", full_version);
-#else
-	message(
-#if ! defined BB_FEATURE_EXTRA_QUIET
-			CONSOLE|
-#endif
-			LOG,
-			"init(%d) started:  %s\r\n", getpid(), full_version);
-#endif
-
+	message(MAYBE_CONSOLE|LOG, "init started:  %s\n", full_version);
 
 	/* Make sure there is enough memory to do something useful. */
 	check_memory();

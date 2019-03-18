@@ -8,14 +8,14 @@ incorect, _please_ let me know.
 
 -----------
 
-Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
+Erik Andersen <andersee@debian.org>
     Tons of new stuff, major rewrite of most of the
     core apps, tons of new apps as noted in header files.
 
 Edward Betts <edward@debian.org>
     expr, hostid, logname, tty, wc, whoami, yes
  
-John Beppu <beppu@lineo.com>
+John Beppu <beppu@codepoet.org>
     du, head, nslookup, sort, tee, uniq
 
 Brian Candler <B.Candler@pobox.com>
@@ -64,7 +64,7 @@ Gyepi Sam <gyepi@praxis-sw.com>
 Linus Torvalds <torvalds@transmeta.com>
     mkswap, fsck.minix, mkfs.minix
 
-Mark Whitley <markw@lineo.com> <markw@codepoet.org>
+Mark Whitley <markw@codepoet.org>
     grep, sed, cut, xargs, style-guide, new-applet-HOWTO, bug fixes, etc.
 
 Charles P. Wright <cpwright@villagenet.com>

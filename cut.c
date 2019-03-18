@@ -1,8 +1,8 @@
 /*
  * cut.c - minimalist version of cut
  *
- * Copyright (C) 1999,2000,2001 by Lineo, inc.
- * Written by Mark Whitley <markw@lineo.com>, <markw@codepoet.org>
+ * Copyright (C) 1999,2000 by Lineo, inc. and Mark Whitley
+ * Copyright (C) 1999,2000,2001 by Mark Whitley <markw@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

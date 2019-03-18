@@ -342,13 +342,10 @@
 	APPLET(rmmod, rmmod_main, _BB_DIR_SBIN)
 #endif
 #ifdef BB_ROUTE
- 	APPLET(route, route_main, _BB_DIR_USR_BIN)
+ 	APPLET(route, route_main, _BB_DIR_SBIN)
 #endif
 #ifdef BB_RPM2CPIO
 	APPLET(rpm2cpio, rpm2cpio_main, _BB_DIR_USR_BIN)
-#endif
-#ifdef BB_RPMUNPACK
-	APPLET(rpmunpack, rpmunpack_main, _BB_DIR_USR_BIN)
 #endif
 #ifdef BB_SED
 	APPLET(sed, sed_main, _BB_DIR_BIN)

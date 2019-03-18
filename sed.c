@@ -1,8 +1,8 @@
 /*
  * sed.c - very minimalist version of sed
  *
- * Copyright (C) 1999,2000,2001 by Lineo, inc.
- * Written by Mark Whitley <markw@lineo.com>, <markw@codepoet.org>
+ * Copyright (C) 1999,2000 by Lineo, inc. and Mark Whitley
+ * Copyright (C) 1999,2000,2001 by Mark Whitley <markw@codepoet.org> 
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -104,6 +104,8 @@ static int ncmds = 0; /* number of sed commands */
 
 /*static char *cur_file = NULL;*/ /* file currently being processed XXX: do I need this? */
 
+const char * const semicolon_whitespace = "; \n\r\t\v\0";
+
 #ifdef BB_FEATURE_CLEAN_UP
 static void destroy_cmd_strs()
 {
@@ -144,8 +146,21 @@ static void destroy_cmd_strs()
  */
 static int index_of_next_unescaped_regexp_delim(struct sed_cmd *sed_cmd, const char *str, int idx)
 {
+	int bracket = -1;
+	int escaped = 0;
+
 	for ( ; str[idx]; idx++) {
-		if (str[idx] == sed_cmd->delimiter && str[idx-1] != '\\')
+		if (bracket != -1) {
+			if (str[idx] == ']' && !(bracket == idx - 1 ||
+									 (bracket == idx - 2 && str[idx-1] == '^')))
+				bracket = -1;
+		} else if (escaped)
+			escaped = 0;
+		else if (str[idx] == '\\')
+			escaped = 1;
+		else if (str[idx] == '[')
+			bracket = idx;
+		else if (str[idx] == sed_cmd->delimiter)
 			return idx;
 	}
 
@@ -195,7 +210,7 @@ static int get_address(struct sed_cmd *sed_cmd, const char *str, int *linenum, r
 	return idx;
 }
 
-static int parse_subst_cmd(struct sed_cmd *sed_cmd, const char *substr)
+static int parse_subst_cmd(struct sed_cmd * const sed_cmd, const char *substr)
 {
 	int oldidx, cflags = REG_NEWLINE;
 	char *match;
@@ -273,6 +288,13 @@ out:
 
 	return idx;
 }
+
+#if 0
+static void move_back(char *str, int offset)
+{
+    memmove(str, str + offset, strlen(str + offset) + 1);
+}
+#endif
 
 static int parse_edit_cmd(struct sed_cmd *sed_cmd, const char *editstr)
 {
@@ -386,7 +408,7 @@ static int parse_file_cmd(struct sed_cmd *sed_cmd, const char *filecmdstr)
 }
 
 
-static char *parse_cmd_str(struct sed_cmd *sed_cmd, const char *cmdstr)
+static char *parse_cmd_str(struct sed_cmd * const sed_cmd, const char *const cmdstr)
 {
 	int idx = 0;
 
@@ -576,8 +598,8 @@ static int do_subst_command(const struct sed_cmd *sed_cmd, char **line)
 
 	/* and now, as long as we've got a line to try matching and if we can match
 	 * the search string, we make substitutions */
-	while (*hackline && (regexec(sed_cmd->sub_match, hackline,
-					sed_cmd->num_backrefs+1, regmatch, 0) == 0) ) {
+	while ((*hackline || !altered) && (regexec(sed_cmd->sub_match, hackline,
+					sed_cmd->num_backrefs+1, regmatch, 0) != REG_NOMATCH) ) {
 		int i;
 
 		/* print everything before the match */

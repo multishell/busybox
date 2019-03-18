@@ -2,8 +2,8 @@
 /*
  * some system calls possibly missing from libc
  *
- * Copyright (C) 1999,2000,2001 by Lineo, inc.
- * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
+ * Copyright (C) 1999,2000 by Lineo, inc. and Erik Andersen
+ * Copyright (C) 1999,2000,2001 by Erik Andersen <andersee@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@
 #include "libbb.h"
 
 
-#if __GNU_LIBRARY__ < 5
+#if __GNU_LIBRARY__ < 5 || ((__GLIBC__ <= 2) && (__GLIBC_MINOR__ < 1))
 /* These syscalls are not included as part of libc5 */
 _syscall1(int, delete_module, const char *, name);
 _syscall1(int, get_kernel_syms, __ptr_t, ks);

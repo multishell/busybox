@@ -9,14 +9,16 @@
  *
  * Credits:
  *      The parser routines proper are all original material, first
- *      written Dec 2000 and Jan 2001 by Larry Doolittle.
- *      The execution engine, the builtins, and much of the underlying
- *      support has been adapted from busybox-0.49pre's lash,
- *      which is Copyright (C) 2000 by Lineo, Inc., and
- *      written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>.
- *      That, in turn, is based in part on ladsh.c, by Michael K. Johnson and
- *      Erik W. Troan, which they placed in the public domain.  I don't know
- *      how much of the Johnson/Troan code has survived the repeated rewrites.
+ *      written Dec 2000 and Jan 2001 by Larry Doolittle.  The
+ *      execution engine, the builtins, and much of the underlying
+ *      support has been adapted from busybox-0.49pre's lash, which is
+ *      Copyright (C) 1999,2000 by Lineo, inc. and Erik Andersen
+ *      written by Erik Andersen <andersee@debian.org>.  That, in turn,
+ *      is based in part on ladsh.c, by Michael K. Johnson and Erik W.
+ *      Troan, which they placed in the public domain.  I don't know
+ *      how much of the Johnson/Troan code has survived the repeated
+ *      rewrites.
+ *
  * Other credits:
  *      simple_itoa() was lifted from boa-0.93.15
  *      b_addchr() derived from similar w_addchar function in glibc-2.2
@@ -1402,7 +1404,12 @@ static int run_pipe_real(struct pipe *pi)
 		}
 
 		/* XXX test for failed fork()? */
-		if (!(child->pid = fork())) {
+#if !defined(__UCLIBC__) || defined(__UCLIBC_HAS_MMU__)
+		if (!(child->pid = fork()))
+#else
+		if (!(child->pid = vfork())) 
+#endif
+		{
 			/* Set the handling for job control signals back to the default.  */
 			signal(SIGINT, SIG_DFL);
 			signal(SIGQUIT, SIG_DFL);
@@ -2117,7 +2124,11 @@ FILE *generate_stream_from_list(struct pipe *head)
 #if 1
 	int pid, channel[2];
 	if (pipe(channel)<0) perror_msg_and_die("pipe");
+#if !defined(__UCLIBC__) || defined(__UCLIBC_HAS_MMU__)
 	pid=fork();
+#else
+	pid=vfork();
+#endif
 	if (pid<0) {
 		perror_msg_and_die("fork");
 	} else if (pid==0) {

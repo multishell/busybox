@@ -6,8 +6,8 @@
  * and MIPS.
  *
  *
- * Copyright (C) 1999,2000,2001 by Lineo, inc.
- * Written by Erik Andersen <andersen@lineo.com>
+ * Copyright (C) 1999,2000 by Lineo, inc. and Erik Andersen
+ * Written by Erik Andersen <andersee@debian.org>
  * and Ron Alder <alder@lineo.com>
  *
  * Modified by Bryan Rittmeyer <bryan@ixiacom.com> to support SH4

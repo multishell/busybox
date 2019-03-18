@@ -7,13 +7,13 @@
  * Originally adjusted for busybox by Sven Rudolph <sr1@inf.tu-dresden.de>
  * based on gzip sources
  *
- * Adjusted further by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
- * to support files as well as stdin/stdout, and to generally behave itself wrt
+ * Adjusted further by Erik Andersen <andersee@debian.org> to support
+ * files as well as stdin/stdout, and to generally behave itself wrt
  * command line handling.
  *
- * General cleanup to better adhere to the style guide and make use of standard
- * busybox functions by Glenn McGrath <bug1@optushome.com.au>
- * 
+ * General cleanup to better adhere to the style guide and make use of
+ * standard busybox functions by Glenn McGrath <bug1@optushome.com.au>
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or

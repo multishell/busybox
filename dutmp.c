@@ -9,16 +9,16 @@
  * little endian on x86.
  * 
  * Modified to support all sorts of libcs by 
- * Erik Andersen <andersen@lineo.com>
+ * Erik Andersen <andersen@codepoet.org>
  */
 
 #include <sys/types.h>
 #include <fcntl.h>
-
 #include <errno.h>
 #include <utmp.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <time.h>
 #include "busybox.h"
 
 extern int dutmp_main(int argc, char **argv)

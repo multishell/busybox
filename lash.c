@@ -2,8 +2,8 @@
 /*
  * lash -- the BusyBox Lame-Ass SHell
  *
- * Copyright (C) 1999,2000,2001 by Lineo, inc.
- * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
+ * Copyright (C) 1999,2000 by Lineo, inc. and Erik Andersen
+ * Copyright (C) 1999,2000,2001 by Erik Andersen <andersee@debian.org>
  *
  * Based in part on ladsh.c by Michael K. Johnson and Erik W. Troan, which is
  * under the following liberal license: "We have placed this source code in the
@@ -1226,7 +1226,7 @@ static int pseudo_exec(struct child_prog *child)
 #ifdef BB_FEATURE_SH_STANDALONE_SHELL
 	/* Check if the command matches any busybox internal
 	 * commands ("applets") here.  Following discussions from
-	 * November 2000 on busybox@opensource.lineo.com, don't use
+	 * November 2000 on busybox@oss.lineo.com, don't use
 	 * get_last_path_component().  This way explicit (with
 	 * slashes) filenames will never be interpreted as an
 	 * applet, just like with builtins.  This way the user can
@@ -1345,7 +1345,12 @@ static int run_command(struct job *newjob, int inbg, int outpipe[2])
 			}
 		}
 
-		if (!(child->pid = fork())) {
+#if !defined(__UCLIBC__) || defined(__UCLIBC_HAS_MMU__)
+		if (!(child->pid = fork())) 
+#else
+		if (!(child->pid = vfork())) 
+#endif
+		{
 			/* Set the handling for job control signals back to the default.  */
 			signal(SIGINT, SIG_DFL);
 			signal(SIGQUIT, SIG_DFL);
@@ -1524,9 +1529,15 @@ void free_memory(void)
  * we don't fight over who gets the foreground */
 static void setup_job_control()
 {
+	int status;
+	
 	/* Loop until we are in the foreground.  */
-	while (tcgetpgrp (shell_terminal) != (shell_pgrp = getpgrp ()))
+	while ((status = tcgetpgrp (shell_terminal)) >= 0) {
+		if (status == (shell_pgrp = getpgrp ())) {
+			break;
+		}
 		kill (- shell_pgrp, SIGTTIN);
+	}
 
 	/* Ignore interactive and job-control signals.  */
 	signal(SIGINT, SIG_IGN);

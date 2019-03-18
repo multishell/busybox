@@ -6,8 +6,8 @@
  * Changes: Made this a standalone busybox module which uses standalone
  * 					syslog() client interface.
  *
- * Copyright (C) 1999,2000,2001 by Lineo, inc.
- * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
+ * Copyright (C) 1999,2000 by Lineo, inc. and Erik Andersen
+ * Copyright (C) 1999,2000,2001 by Erik Andersen <andersee@debian.org>
  *
  * Copyright (C) 2000 by Karl M. Hegbloom <karlheg@debian.org>
  *
@@ -136,8 +136,12 @@ extern int klogd_main(int argc, char **argv)
 	}
 
 	if (doFork == TRUE) {
+#if !defined(__UCLIBC__) || defined(__UCLIBC_HAS_MMU__)
 		if (daemon(0, 1) < 0)
 			perror_msg_and_die("daemon");
+#else
+			error_msg_and_die("daemon not supported");
+#endif
 	}
 	doKlogd();
 	

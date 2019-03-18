@@ -9,7 +9,7 @@
  *		only standard in to standard out with -9 compression.  It also requires
  *		the zcat module for some important functions."
  *
- * Adjusted further by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
+ * Adjusted further by Erik Andersen <andersee@debian.org>
  * to support files as well as stdin/stdout, and to generally behave itself wrt
  * command line handling.
  *

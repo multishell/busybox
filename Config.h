@@ -408,13 +408,7 @@
 #if defined __UCLIBC__ && ! defined __UCLIBC_HAS_MMU__
 	#undef BB_RPM2CPIO		/* Uses gz_open(), which uses fork() */
 	#undef BB_DPKG_DEB		/* Uses gz_open(), which uses fork() */
-	#undef BB_ASH			/* Uses fork() */
-	#undef BB_HUSH			/* Uses fork() */
-	#undef BB_LASH			/* Uses fork() */
-	#undef BB_INIT			/* Uses fork() */
 	#undef BB_FEATURE_TAR_GZIP	/* Uses fork() */
-	#undef BB_SYSLOGD		/* Uses daemon() */
-	#undef BB_KLOGD			/* Uses daemon() */
 	#undef BB_UPDATE		/* Uses daemon() */
 #endif
 #if defined BB_ASH || defined BB_HUSH || defined BB_LASH || defined BB_MSH
@@ -430,6 +424,10 @@
 	#undef BB_FEATURE_SH_APPLETS_ALWAYS_WIN
 	#undef BB_FEATURE_SH_STANDALONE_SHELL
 	#undef BB_FEATURE_SH_FANCY_PROMPT
+#endif
+//
+#if (defined BB_ASH || defined BB_HUSH || defined BB_MSH) && ! defined BB_TEST
+	#define BB_TEST
 #endif
 //
 #ifdef BB_KILLALL

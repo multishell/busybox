@@ -20,7 +20,7 @@ textutils(1), shellutils(1), etc...
 
 =head1 MAINTAINER
 
-Erik Andersen <andersee@debian.org> <andersen@lineo.com>
+Erik Andersen <andersee@debian.org> <andersen@codepoet.org>
 
 =head1 AUTHORS
 
@@ -30,14 +30,14 @@ they know it or not.
 
 =for html <br>
 
-Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
+Erik Andersen <andersee@debian.org> <andersen@codepoet.org>
 
     Tons of new stuff, major rewrite of most of the
     core apps, tons of new apps as noted in header files.
 
 =for html <br>
 
-John Beppu <beppu@lineo.com>
+John Beppu <beppu@codepoet.org>
 
     du, head, nslookup, sort, tee, uniq (so Kraai could rewrite them ;-),
     documentation
@@ -148,7 +148,7 @@ Linus Torvalds <torvalds@transmeta.com>
 
 =for html <br>
 
-Mark Whitley <markw@lineo.com>
+Mark Whitley <markw@codepoet.org>
 
     sed remix, bug fixes, style-guide, etc.
 
@@ -166,4 +166,4 @@ Enrique Zanardi <ezanardi@ull.es>
 
 =cut
 
-# $Id: busybox_footer.pod,v 1.4 2001/04/17 17:09:34 beppu Exp $
+# $Id: busybox_footer.pod,v 1.5 2001/11/19 23:57:54 andersen Exp $

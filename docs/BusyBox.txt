@@ -58,11 +58,11 @@ COMMANDS
     logname, ls, lsmod, makedevs, md5sum, mkdir, mkfifo, mkfs.minix, mknod,
     mkswap, mktemp, more, mount, mt, mv, nc, nslookup, ping, pivot_root,
     poweroff, printf, ps, pwd, rdate, readlink, reboot, renice, reset, rm,
-    rmdir, rmmod, route, rpm2cpio, rpmunpack, sed, setkeycodes, sh, sleep,
-    sort, stty, swapoff, swapon, sync, syslogd, tail, tar, tee, telnet,
-    test, tftp, touch, tr, true, tty, umount, uname, uniq, unix2dos, update,
-    uptime, usleep, uudecode, uuencode, watchdog, wc, wget, which, whoami,
-    xargs, yes, zcat, [
+    rmdir, rmmod, route, rpm2cpio, sed, setkeycodes, sh, sleep, sort, stty,
+    swapoff, swapon, sync, syslogd, tail, tar, tee, telnet, test, tftp,
+    touch, tr, true, tty, umount, uname, uniq, unix2dos, update, uptime,
+    usleep, uudecode, uuencode, watchdog, wc, wget, which, whoami, xargs,
+    yes, zcat, [
 
     adjtimex
         adjtimex [-q] [-o offset] [-f frequency] [-p timeconstant] [-t tick]
@@ -1699,13 +1699,6 @@ COMMANDS
 
         -------------------------------
 
-    rpmunpack
-        rpmunpack < package.rpm | gunzip | cpio -idmuv
-
-        Extracts an rpm archive.
-
-        -------------------------------
-
     sed sed [-nef] pattern [files...]
 
         Options:
@@ -1944,16 +1937,17 @@ COMMANDS
         -------------------------------
 
     tftp
-        tftp command SOURCE DEST
+        tftp [OPTION]... HOST [PORT]
 
         Transfers a file from/to a tftp server using "octet" mode.
 
-        Commands:
+        Options:
 
-                get     Get file from server SOURCE and store to local DEST.
-                put     Put local file SOURCE to server DEST.
-
-        When naming a server, use the syntax "server:file".
+                -b SIZE Transfer blocks of SIZE octets.
+                -g      Get file.
+                -l FILE Transfer local FILE.
+                -p      Put file.
+                -r FILE Transfer remote FILE.
 
         -------------------------------
 
@@ -2306,18 +2300,18 @@ SEE ALSO
     textutils(1), shellutils(1), etc...
 
 MAINTAINER
-    Erik Andersen <andersee@debian.org> <andersen@lineo.com>
+    Erik Andersen <andersee@debian.org> <andersen@codepoet.org>
 
 AUTHORS
     The following people have contributed code to BusyBox whether they know
     it or not.
 
-    Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
+    Erik Andersen <andersee@debian.org> <andersen@codepoet.org>
 
         Tons of new stuff, major rewrite of most of the
         core apps, tons of new apps as noted in header files.
 
-    John Beppu <beppu@lineo.com>
+    John Beppu <beppu@codepoet.org>
 
         du, head, nslookup, sort, tee, uniq (so Kraai could rewrite them ;-),
         documentation
@@ -2392,7 +2386,7 @@ AUTHORS
 
         mkswap, fsck.minix, mkfs.minix
 
-    Mark Whitley <markw@lineo.com>
+    Mark Whitley <markw@codepoet.org>
 
         sed remix, bug fixes, style-guide, etc.
 

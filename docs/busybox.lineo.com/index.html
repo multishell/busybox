@@ -48,12 +48,9 @@ features) at compile time. This makes it easy to customize your embedded
 systems. To create a working system, just add /dev, /etc, and a kernel.
 <p>
 
-BusyBox is now maintained by 
+BusyBox is maintained by 
 <a href="http://codepoet.org/andersen/erik/erik.html">
-Erik Andersen</a>, and its ongoing development is being sponsored by 
-<a href="http://www.lineo.com/">Lineo</a>. 
-<p>
-BusyBox is licensed under the 
+Erik Andersen</a>, and licensed under the 
 <a href="http://www.gnu.org/copyleft/gpl.html">GNU GENERAL PUBLIC LICENSE</a>.
 <p>
 
@@ -80,6 +77,82 @@ To subscribe, go and visit <a href="http://opensource.lineo.com/mailman/listinfo
 <TR><TD BGCOLOR="#eeeee0">
 
 <ul>
+
+    <li> <b>20 November 2001 -- BusyBox 0.60.2 released</b>
+    <p>
+
+    I am very pleased to announce that the BusyBox 0.60.2 (stable)
+    is now released to the world.  This one is primarily a bugfix
+    release for the stable series, and it believe it should take care
+    of most everyone's needs till we can get the nice new stuff we have
+    been working on in CVS (with the wonderful new buildsystem) ready 
+    to release.  The biggest change in this release (beyond bugfixes)
+    is the fact that msh (the minix shell) has been re-worked by
+    Vladimir N. Oleynik (vodz) and so it no longer crashes when told to
+    do complex things with backticks.
+    <p>
+    
+    I've personally tested this release out
+    on x86, ARM, and powerpc using glibc 2.2.4, libc5, and uClibc, so
+    it should work with just about any Linux system you throw it at.  
+    See the <a href="ftp://oss.lineo.com/busybox/Changelog">changelog</a> 
+    for <small>most of</small> the details.  The last release was
+    <em>very</em> solid for people, and this one should be even better.
+    <p>
+    As usual BusyBox 0.60.2 can be downloaded from 
+	     <a href="ftp://oss.lineo.com/busybox">ftp://oss.lineo.com/busybox</a>.
+    <p>
+    And please read the news item for the 18th as well.  Have Fun.<br> -Erik
+    <p>
+
+    <li> <b>18 November 2001 -- Help us buy busybox.net!</b>
+    
+    <!-- Begin PayPal Logo -->
+    <center>
+    Click here to help buy busybox.net!
+    <form action="https://www.paypal.com/cgi-bin/webscr" method="post">
+	<input type="hidden" name="cmd" value="_xclick">
+	<input type="hidden" name="business" value="andersen@codepoet.org">
+	<input type="hidden" name="item_name" value="Support Busybox/Buy busybox.net">
+	<input type="hidden" name="image_url" value="https://https://busybox.lineo.com/images/busybox2.jpg">
+	<input type="hidden" name="no_shipping" value="1">
+	<input type="image" src="http://images.paypal.com/images/x-click-butcc-donate.gif" border="0" name="submit" alt="Make payments with PayPal - it's fast, free and secure!">
+    </form>
+    </center>
+    <!-- End PayPal Logo -->
+
+    I've contacted the current owner of busybox.net and he is willing
+    to sell the domain name -- for $250.  He also owns busybox.org but
+    will not part with it...  I will then need to pay the registry fee
+    for a couple of years and start paying for bandwidth, so this will
+    initially cost about $300.  I would like to host busybox.net on my
+    home machine (codepoet.org) so I have full control over the system,
+    but to do that would require that I increase the level of bandwidth 
+    I am paying for.  Did you know that for the month far this month, there
+    have been over 1.4 Gigabytes of busybox ftp downloads?  I don't
+    even <em>know</em> how much CVS bandwidth it requires.  For the
+    time being, Lineo has continued to graciously provide this
+    bandwidth, despite the fact that I no longer work for them.  If I 
+    start running this all on my home machine, paying for the needed bandwidth 
+    will start costing some money.
+    <p>
+
+    I was going to pay it all myself, but my wife didn't like that
+    idea at all (big surprise).   It turns out &lt;insert argument
+    where she wins and I don't&gt; she has better ideas 
+    about what we should spend our money on that don't involve
+    busybox.  She suggested I should ask for contributions on the
+    mailing list and web page.  So...
+    <p>
+
+    I am hoping that if everyone could contribute a bit, we could pick
+    up the busybox.net domain name and cover the bandwidth costs.  I
+    know that busybox is being used by a lot of companies as well as
+    individuals -- hopefully people and companies that are willing to 
+    contribute back a bit.  So if everyone could please help out, that 
+    would be wonderful!
+    <p>
+
 
     <li> <b>23 August 2001 -- BusyBox 0.60.1 released</b>
     <br>
@@ -281,12 +354,6 @@ Current documentation for BusyBox includes:
     <li> <a href="http://opensource.lineo.com/software.html">Other cool embedded software</a>.
     <p>
 
-    <li> <a href="http://opensource.lineo.com/">opensource.lineo.com</a>.
-    <p>
-
-    <li> <A HREF="http://www.lineo.com/">Lineo</A> is sponsoring BusyBox development.
-    <p>
-
 </ul>
 
 
@@ -303,8 +370,9 @@ Current documentation for BusyBox includes:
 listed in the order I happen to add them to the web page:
 
 <ul>
-    <li> <a href="http://www.lineo.com/products/embedix_linux/">Lineo Embedix Linux</a>
     <li> <a href="http://cvs.debian.org/boot-floppies/">Debian installer (boot floppies) project</a>
+    <li> <a href="http://redhat.com/">Red Hat 7.2 installer</a>
+    <li> <a href="http://distro.ibiblio.org/pub/Linux/distributions/slackware/source/rootdsks/">Slackware Installer</a>
     <li> <a href="http://www.linuxrouter.org/">Linux Router Project </a>
     <li> <a href="http://linux-embedded.org/">LEM</a>
     <li> <a href="http://www.toms.net/rb/">tomsrtbt</a>
@@ -331,6 +399,9 @@ listed in the order I happen to add them to the web page:
 
     <li> <a href="http://www.ltsp.org/">Linux Terminal Server Project</a>
     <li> <a href="http://www.devil-linux.org/">Devil-Linux</a>
+    <li> <a href="http://dutnux.sourceforge.net/">DutNux</a>
+    <li> <a href="http://www.cachier.com/">Cachier</a>
+    <li> <a href="http://www.microwerks.net/~hugo/mindi/">Mindi</a>
 
 </ul>
 
@@ -353,7 +424,7 @@ you.
 	<TD>
 	    <font size="-1" face="arial, helvetica, sans-serif">
 	    Mail all comments, insults, suggestions and bribes to 
-	    <a href="mailto:andersen@lineo.com">Erik Andersen</a><BR>
+	    <a href="mailto:andersen@codepoet.org">Erik Andersen</a><BR>
 	    The Busybox logo is copyright 1999,2000,2001, Erik Andersen.
 	    </font>
 	</TD>

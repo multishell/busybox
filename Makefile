@@ -18,7 +18,7 @@
 #
 
 PROG      := busybox
-VERSION   := 0.60.1
+VERSION   := 0.60.2
 BUILDTIME := $(shell TZ=UTC date -u "+%Y.%m.%d-%H:%M%z")
 export VERSION
 
@@ -74,7 +74,7 @@ DOLFS = false
 
 # If you have a "pristine" source directory, point BB_SRC_DIR to it.
 # Experimental and incomplete; tell the mailing list
-# <busybox@opensource.lineo.com> if you do or don't like it so far.
+# <busybox@oss.lineo.com> if you do or don't like it so far.
 BB_SRC_DIR =
 
 # If you are running a cross compiler, you may want to set this
@@ -86,7 +86,7 @@ STRIPTOOL = $(CROSS)strip
 
 # To compile vs uClibc, just use the compiler wrapper built by uClibc...
 # Everything should compile and work as expected these days...
-#CC = ../uClibc/extra/gcc-uClibc/i386-uclibc-gcc
+#CC=/usr/i386-linux-uclibc/usr/bin/i386-uclibc-gcc
 
 # To compile vs some other alternative libc, you may need to use/adjust
 # the following lines to meet your needs...
@@ -124,8 +124,8 @@ ARFLAGS = -r
 # 
 
 ifeq ($(strip $(DOLFS)),true)
-    # For large file summit support
-    CFLAGS+=-D_FILE_OFFSET_BITS=64
+    # For large file support
+    CFLAGS+=-D_FILE_OFFSET_BITS=64 -D__USE_FILE_OFFSET64
 endif
 ifeq ($(strip $(DODMALLOC)),true)
     # For testing mem leaks with dmalloc
@@ -279,7 +279,7 @@ CFLAGS += $(CFLAGS_EXTRA)
 all: applet_source_list busybox busybox.links doc
 
 applet_source_list: busybox.sh Config.h
-	(echo -n "APPLET_SOURCES := "; BB_SRC_DIR=$(BB_SRC_DIR) $(SHELL) $^) > $@
+	(echo -n "APPLET_SOURCES := "; CC="$(CC)" BB_SRC_DIR="$(BB_SRC_DIR)" $(SHELL) $^) > $@
 
 doc: olddoc
 
@@ -408,8 +408,8 @@ clean:
 	- find -name \*.o -exec rm -f {} \;
 
 distclean: clean
-	- rm -f busybox applet_source_list
 	- cd tests && $(MAKE) distclean
+	- rm -f busybox applet_source_list
 
 install: install.sh busybox busybox.links
 	$(SHELL) $< $(PREFIX)

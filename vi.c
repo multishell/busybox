@@ -19,7 +19,7 @@
  */
 
 static const char vi_Version[] =
-	"$Id: vi.c,v 1.15 2001/08/02 05:26:41 andersen Exp $";
+	"$Id: vi.c,v 1.17 2001/11/17 07:15:43 andersen Exp $";
 
 /*
  * To compile for standalone use:
@@ -324,7 +324,7 @@ extern int vi_main(int argc, char **argv)
 #ifdef BB_FEATURE_VI_CRASHME
 	(void) srand((long) getpid());
 #endif							/* BB_FEATURE_VI_CRASHME */
-	status_buffer = (Byte *) malloc(200);	// hold messages to user
+	status_buffer = (Byte *) xmalloc(200);	// hold messages to user
 #ifdef BB_FEATURE_VI_READONLY
 	vi_readonly = readonly = FALSE;
 	if (strncmp(argv[0], "view", 4) == 0) {
@@ -789,6 +789,20 @@ static void do_cmd(Byte c)
 	cnt = yf = dir = 0;	// quiet the compiler
 	p = q = save_dot = msg = buf;	// quiet the compiler
 	memset(buf, '\0', 9);	// clear buf
+	
+	/* if this is a cursor key, skip these checks */
+	switch (c) {
+		case VI_K_UP:
+		case VI_K_DOWN:
+		case VI_K_LEFT:
+		case VI_K_RIGHT:
+		case VI_K_HOME:
+		case VI_K_END:
+		case VI_K_PAGEUP:
+		case VI_K_PAGEDOWN:
+			goto key_cmd_mode;
+	}
+
 	if (cmd_mode == 2) {
 		// we are 'R'eplacing the current *dot with new char
 		if (*dot == '\n') {
@@ -813,6 +827,7 @@ static void do_cmd(Byte c)
 		goto dc1;
 	}
 
+key_cmd_mode:
 	switch (c) {
 		//case 0x01:	// soh
 		//case 0x09:	// ht
@@ -2492,7 +2507,7 @@ static Byte *new_screen(int ro, int co)
 	if (screen != 0)
 		free(screen);
 	screensize = ro * co + 8;
-	screen = (Byte *) malloc(screensize);
+	screen = (Byte *) xmalloc(screensize);
 	// initialize the new screen. assume this will be a empty file.
 	screen_erase();
 	//   non-existant text[] lines start with a tilde (~).
@@ -2510,7 +2525,7 @@ static Byte *new_text(int size)
 		//text -= 4;
 		free(text);
 	}
-	text = (Byte *) malloc(size + 8);
+	text = (Byte *) xmalloc(size + 8);
 	memset(text, '\0', size);	// clear new text[]
 	//text += 4;		// leave some room for "oops"
 	textend = text + size - 1;
@@ -3028,7 +3043,7 @@ static void start_new_cmd_q(Byte c)
 	if (last_modifying_cmd != 0)
 		free(last_modifying_cmd);
 	// get buffer for new cmd
-	last_modifying_cmd = (Byte *) malloc(BUFSIZ);
+	last_modifying_cmd = (Byte *) xmalloc(BUFSIZ);
 	memset(last_modifying_cmd, '\0', BUFSIZ);	// clear new cmd queue
 	// if there is a current cmd count put it in the buffer first
 	if (cmdcnt > 0)
@@ -3084,7 +3099,7 @@ static Byte *text_yank(Byte * p, Byte * q, int dest)	// copy text into a registe
 	if (t != 0) {		// if already a yank register
 		free(t);		//   free it
 	}
-	t = (Byte *) malloc(cnt + 1);	// get a new register
+	t = (Byte *) xmalloc(cnt + 1);	// get a new register
 	memset(t, '\0', cnt + 1);	// clear new text[]
 	strncpy((char *) t, (char *) p, cnt);	// copy text[] into bufer
 	reg[dest] = t;

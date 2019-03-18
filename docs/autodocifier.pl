@@ -193,8 +193,8 @@ Currently, the same content has to be duplicated in 3 places in
 slightly different formats -- F<usage.h>, F<docs/busybox.pod>, and
 F<docs/busybox.sgml>.  This is tedious, so Perl has come to the rescue.
 
-This script was based on a script by Erik Andersen <andersen@lineo.com>
-which was in turn based on a script by Mark Whitley <markw@lineo.com>
+This script was based on a script by Erik Andersen <andersee@debian.org>
+which was in turn based on a script by Mark Whitley <markw@codepoet.org>
 
 =head1 OPTIONS
 
@@ -280,8 +280,8 @@ terms as Perl itself.
 
 =head1 AUTHOR
 
-John BEPPU <beppu@lineo.com>
+John BEPPU <beppu@codepoet.org>
 
 =cut
 
-# $Id: autodocifier.pl,v 1.21 2001/04/17 17:09:34 beppu Exp $
+# $Id: autodocifier.pl,v 1.22 2001/11/19 23:57:54 andersen Exp $

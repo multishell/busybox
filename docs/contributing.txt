@@ -43,7 +43,7 @@ know.
 
 Archives can be found here:
 
-	http://opensource.lineo.com/lists/busybox/
+	http://oss.lineo.com/lists/busybox/
 
 If you have a serious interest in Busybox, i.e., you are using it day-to-day or
 as part of an embedded project, it would be a good idea to join the mailing
@@ -51,7 +51,7 @@ list.
 
 A web-based sign-up form can be found here:
 
-	http://opensource.lineo.com/mailman/listinfo/busybox
+	http://oss.lineo.com/mailman/listinfo/busybox
 
 
 Coordinate with the Applet Maintainer

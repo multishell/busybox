@@ -2,8 +2,8 @@
 /*
  * Mini syslogd implementation for busybox
  *
- * Copyright (C) 1999,2000,2001 by Lineo, inc.
- * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
+ * Copyright (C) 1999,2000 by Lineo, inc. and Erik Andersen
+ * Copyright (C) 1999,2000,2001 by Erik Andersen <andersee@debian.org>
  *
  * Copyright (C) 2000 by Karl M. Hegbloom <karlheg@debian.org>
  *
@@ -78,8 +78,15 @@ static int doRemoteLog = FALSE;
 static int local_logging = FALSE;
 #endif
 
+
+
 /* circular buffer variables/structures */
 #ifdef BB_FEATURE_IPC_SYSLOG
+#if __GNU_LIBRARY__ < 5
+#error Sorry.  Looks like you are using libc5.
+#error libc5 shm support isnt good enough.
+#error Please disable BB_FEATURE_IPC_SYSLOG
+#endif
 
 #include <sys/ipc.h>
 #include <sys/sem.h>
@@ -583,11 +590,11 @@ extern int syslogd_main(int argc, char **argv)
 				doFork = FALSE;
 				break;
 			case 'O':
-				logFilePath = strdup(optarg);
+				logFilePath = xstrdup(optarg);
 				break;
 #ifdef BB_FEATURE_REMOTE_LOG
 			case 'R':
-				RemoteHost = strdup(optarg);
+				RemoteHost = xstrdup(optarg);
 				if ( (p = strchr(RemoteHost, ':'))){
 					RemotePort = atoi(p+1);
 					*p = '\0';
@@ -624,8 +631,12 @@ extern int syslogd_main(int argc, char **argv)
 	umask(0);
 
 	if (doFork == TRUE) {
+#if !defined(__UCLIBC__) || defined(__UCLIBC_HAS_MMU__)
 		if (daemon(0, 1) < 0)
 			perror_msg_and_die("daemon");
+#else
+			error_msg_and_die("daemon not supported");
+#endif
 	}
 	doSyslogd();
 

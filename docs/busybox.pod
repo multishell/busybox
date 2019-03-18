@@ -63,13 +63,14 @@ hostname, id, ifconfig, init, insmod, kill, killall, klogd, length, ln,
 loadacm, loadfont, loadkmap, logger, logname, ls, lsmod, makedevs, md5sum,
 mkdir, mkfifo, mkfs.minix, mknod, mkswap, mktemp, more, mount, mt, mv, nc,
 nslookup, ping, pivot_root, poweroff, printf, ps, pwd, rdate, readlink, reboot,
-renice, reset, rm, rmdir, rmmod, route, rpm2cpio, rpmunpack, sed, setkeycodes,
+renice, reset, rm, rmdir, rmmod, route, rpm2cpio, sed, setkeycodes,
 sh, sleep, sort, stty, swapoff, swapon, sync, syslogd, tail, tar, tee, telnet,
 test, tftp, touch, tr, true, tty, umount, uname, uniq, unix2dos, update, uptime,
 usleep, uudecode, uuencode, watchdog, wc, wget, which, whoami, xargs, yes, zcat,
 [
 
 =over 4
+
 
 =item B<adjtimex>
 
@@ -1822,14 +1823,6 @@ Outputs a cpio archive of the rpm file.
 
 -------------------------------
 
-=item B<rpmunpack>
-
-rpmunpack < package.rpm | gunzip | cpio B<-idmuv>
-
-Extracts an rpm archive.
-
--------------------------------
-
 =item B<sed>
 
 sed [B<-nef>] pattern [files...]
@@ -2084,16 +2077,17 @@ Example:
 
 =item B<tftp>
 
-tftp command SOURCE DEST
+tftp [OPTION]... HOST [PORT]
 
 Transfers a file from/to a tftp server using "octet" mode.
 
-Commands:
+Options:
 
-	get	Get file from server SOURCE and store to local DEST.
-	put	Put local file SOURCE to server DEST.
-
-When naming a server, use the syntax "server:file".
+	-b SIZE	Transfer blocks of SIZE octets.
+	-g	Get file.
+	-l FILE	Transfer local FILE.
+	-p	Put file.
+	-r FILE	Transfer remote FILE.
 
 -------------------------------
 
@@ -2479,7 +2473,7 @@ textutils(1), shellutils(1), etc...
 
 =head1 MAINTAINER
 
-Erik Andersen <andersee@debian.org> <andersen@lineo.com>
+Erik Andersen <andersee@debian.org> <andersen@codepoet.org>
 
 =head1 AUTHORS
 
@@ -2489,14 +2483,14 @@ they know it or not.
 
 =for html <br>
 
-Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
+Erik Andersen <andersee@debian.org> <andersen@codepoet.org>
 
     Tons of new stuff, major rewrite of most of the
     core apps, tons of new apps as noted in header files.
 
 =for html <br>
 
-John Beppu <beppu@lineo.com>
+John Beppu <beppu@codepoet.org>
 
     du, head, nslookup, sort, tee, uniq (so Kraai could rewrite them ;-),
     documentation
@@ -2607,7 +2601,7 @@ Linus Torvalds <torvalds@transmeta.com>
 
 =for html <br>
 
-Mark Whitley <markw@lineo.com>
+Mark Whitley <markw@codepoet.org>
 
     sed remix, bug fixes, style-guide, etc.
 
@@ -2625,4 +2619,4 @@ Enrique Zanardi <ezanardi@ull.es>
 
 =cut
 
-# $Id: busybox_footer.pod,v 1.4 2001/04/17 17:09:34 beppu Exp $
+# $Id: busybox_footer.pod,v 1.5 2001/11/19 23:57:54 andersen Exp $

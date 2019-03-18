@@ -31,15 +31,15 @@
 
 #include <netdb.h>
 
+#ifndef _BB_INTERNAL_H_
+#include "../busybox.h"
+#endif
+
 #ifdef DMALLOC
 #include "dmalloc.h"
 #endif
 
 #include <features.h>
-
-#ifndef _BB_INTERNAL_H_
-#include "../busybox.h"
-#endif
 
 #if (__GNU_LIBRARY__ < 5) && (!defined __dietlibc__)
 /* libc5 doesn't define socklen_t */
@@ -259,7 +259,7 @@ extern FILE *gz_open(FILE *compressed_file, int *pid);
 extern struct hostent *xgethostbyname(const char *name);
 extern int create_icmp_socket(void);
 
-char *dirname (const char *path);
+char *dirname (char *path);
 
 int make_directory (char *path, long mode, int flags);
 

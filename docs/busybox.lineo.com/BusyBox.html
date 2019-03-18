@@ -84,7 +84,7 @@ hostname, id, ifconfig, init, insmod, kill, killall, klogd, length, ln,
 loadacm, loadfont, loadkmap, logger, logname, ls, lsmod, makedevs, md5sum,
 mkdir, mkfifo, mkfs.minix, mknod, mkswap, mktemp, more, mount, mt, mv, nc,
 nslookup, ping, pivot_root, poweroff, printf, ps, pwd, rdate, readlink, reboot,
-renice, reset, rm, rmdir, rmmod, route, rpm2cpio, rpmunpack, sed, setkeycodes,
+renice, reset, rm, rmdir, rmmod, route, rpm2cpio, sed, setkeycodes,
 sh, sleep, sort, stty, swapoff, swapon, sync, syslogd, tail, tar, tee, telnet,
 test, tftp, touch, tr, true, tty, umount, uname, uniq, unix2dos, update, uptime,
 usleep, uudecode, uuencode, watchdog, wc, wget, which, whoami, xargs, yes, zcat,
@@ -1540,12 +1540,6 @@ rpm2cpio package.rpm
 <P>Outputs a cpio archive of the rpm file.</P>
 <P>-------------------------------</P>
 <P></P>
-<DT><STRONG><A NAME="item_rpmunpack"><STRONG>rpmunpack</STRONG></A></STRONG><BR>
-<DD>
-rpmunpack &lt; package.rpm | gunzip | cpio <STRONG>-idmuv</STRONG>
-<P>Extracts an rpm archive.</P>
-<P>-------------------------------</P>
-<P></P>
 <DT><STRONG><A NAME="item_sed"><STRONG>sed</STRONG></A></STRONG><BR>
 <DD>
 sed [<STRONG>-nef</STRONG>] pattern [files...]
@@ -1751,13 +1745,15 @@ code determined by the value of EXPRESSION.</P>
 <P></P>
 <DT><STRONG><A NAME="item_tftp"><STRONG>tftp</STRONG></A></STRONG><BR>
 <DD>
-tftp command SOURCE DEST
+tftp [OPTION]... HOST [PORT]
 <P>Transfers a file from/to a tftp server using ``octet'' mode.</P>
-<P>Commands:</P>
+<P>Options:</P>
 <PRE>
-        get     Get file from server SOURCE and store to local DEST.
-        put     Put local file SOURCE to server DEST.</PRE>
-<P>When naming a server, use the syntax ``server:file''.</P>
+        -b SIZE Transfer blocks of SIZE octets.
+        -g      Get file.
+        -l FILE Transfer local FILE.
+        -p      Put file.
+        -r FILE Transfer remote FILE.</PRE>
 <P>-------------------------------</P>
 <P></P>
 <DT><STRONG><A NAME="item_touch"><STRONG>touch</STRONG></A></STRONG><BR>
@@ -2068,17 +2064,17 @@ of that stuff on your system, then you probably want the full GNU utilities.</P>
 <P>
 <HR>
 <H1><A NAME="maintainer">MAINTAINER</A></H1>
-<P>Erik Andersen &lt;<A HREF="mailto:andersee@debian.org">andersee@debian.org</A>&gt; &lt;<A HREF="mailto:andersen@lineo.com">andersen@lineo.com</A>&gt;</P>
+<P>Erik Andersen &lt;<A HREF="mailto:andersee@debian.org">andersee@debian.org</A>&gt; &lt;<A HREF="mailto:andersen@codepoet.org">andersen@codepoet.org</A>&gt;</P>
 <P>
 <HR>
 <H1><A NAME="authors">AUTHORS</A></H1>
 <P>The following people have contributed code to BusyBox whether
 they know it or not.</P>
-<br><P>Erik Andersen &lt;<A HREF="mailto:andersen@lineo.com">andersen@lineo.com</A>&gt;, &lt;<A HREF="mailto:andersee@debian.org">andersee@debian.org</A>&gt;</P>
+<br><P>Erik Andersen &lt;<A HREF="mailto:andersee@debian.org">andersee@debian.org</A>&gt; &lt;<A HREF="mailto:andersen@codepoet.org">andersen@codepoet.org</A>&gt;</P>
 <PRE>
     Tons of new stuff, major rewrite of most of the
     core apps, tons of new apps as noted in header files.</PRE>
-<br><P>John Beppu &lt;<A HREF="mailto:beppu@lineo.com">beppu@lineo.com</A>&gt;</P>
+<br><P>John Beppu &lt;<A HREF="mailto:beppu@codepoet.org">beppu@codepoet.org</A>&gt;</P>
 <PRE>
     du, head, nslookup, sort, tee, uniq (so Kraai could rewrite them ;-),
     documentation</PRE>
@@ -2139,7 +2135,7 @@ they know it or not.</P>
 <br><P>Linus Torvalds &lt;<A HREF="mailto:torvalds@transmeta.com">torvalds@transmeta.com</A>&gt;</P>
 <PRE>
     mkswap, fsck.minix, mkfs.minix</PRE>
-<br><P>Mark Whitley &lt;<A HREF="mailto:markw@lineo.com">markw@lineo.com</A>&gt;</P>
+<br><P>Mark Whitley &lt;<A HREF="mailto:markw@codepoet.org">markw@codepoet.org</A>&gt;</P>
 <PRE>
     sed remix, bug fixes, style-guide, etc.</PRE>
 <br><P>Charles P. Wright &lt;<A HREF="mailto:cpwright@villagenet.com">cpwright@villagenet.com</A>&gt;</P>
