@@ -30,14 +30,13 @@
  *      redirected input has been read from stdin
 */
 
+#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
 #include <ctype.h>
-
-#include "busybox.h"
 
 #ifdef CONFIG_FEATURE_LESS_REGEXP
 #include "xregex.h"
@@ -69,9 +68,6 @@
 
 /* Maximum number of lines in a file */
 #define MAXLINES 10000
-
-/* Get height and width of terminal */
-#define tty_width_height()              get_terminal_width_height(0, &width, &height)
 
 static int height;
 static int width;
@@ -210,7 +206,7 @@ static void data_readlines(void)
 	char current_line[256];
 	FILE *fp;
 
-	fp = (inp_stdin) ? stdin : bb_xfopen(filename, "rt");
+	fp = (inp_stdin) ? stdin : bb_xfopen(filename, "r");
 	flines = NULL;
 	for (i = 0; (feof(fp)==0) && (i <= MAXLINES); i++) {
 		strcpy(current_line, "");
@@ -1136,7 +1132,7 @@ int less_main(int argc, char **argv) {
 	}
 
 	strcpy(filename, (inp_stdin) ? bb_msg_standard_input : files[0]);
-	tty_width_height();
+	get_terminal_width_height(0, &width, &height);
 	data_readlines();
 	tcgetattr(fileno(inp), &term_orig);
 	term_vi = term_orig;

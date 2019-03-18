@@ -1,16 +1,10 @@
-
+/* vi: set sw=4 ts=4: */
 /*
  * Sysctl 1.01 - A utility to read and manipulate the sysctl parameters
  *
+ * Copyright 1999 George Staikos
  *
- * "Copyright 1999 George Staikos
- * This file may be used subject to the terms and conditions of the
- * GNU General Public License Version 2, or any later version
- * at your option, as published by the Free Software Foundation.
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details."
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  *
  * Changelog:
  *	v1.01:
@@ -20,6 +14,7 @@
  *
  */
 
+#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -29,7 +24,6 @@
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
-#include "busybox.h"
 
 /*
  *    Function Prototypes
@@ -57,7 +51,6 @@ static const char ERR_UNKNOWN_READING[] =
 	"error: unknown error %d reading key '%s'\n";
 static const char ERR_PERMISSION_DENIED[] =
 	"error: permission denied on key '%s'\n";
-static const char ERR_OPENING_DIR[] = "error: unable to open directory '%s'\n";
 static const char ERR_PRELOAD_FILE[] =
 	"error: unable to open preload file '%s'\n";
 static const char WARN_BAD_LINE[] =
@@ -153,7 +146,7 @@ int sysctl_preload_file(const char *filename, int output)
 		if (*ptr == '#' || *ptr == ';')
 			continue;
 
-		if (bb_strlen(ptr) < 2)
+		if (strlen(ptr) < 2)
 			continue;
 
 		name = strtok(ptr, "=");
@@ -316,8 +309,7 @@ int sysctl_display_all(const char *path, int output, int show_table)
 	char *tmpdir;
 	struct stat ts;
 
-	if (!(dp = opendir(path))) {
-		bb_perror_msg(ERR_OPENING_DIR, path);
+	if (!(dp = bb_opendir(path))) {
 		retval = -1;
 	} else {
 		while ((de = readdir(dp)) != NULL) {
@@ -331,7 +323,7 @@ int sysctl_display_all(const char *path, int output, int show_table)
 					sysctl_display_all(tmpdir, output, show_table);
 				} else
 					retval |=
-						sysctl_read_setting(tmpdir + bb_strlen(PROC_PATH),
+						sysctl_read_setting(tmpdir + strlen(PROC_PATH),
 											output);
 
 			}
@@ -342,11 +334,3 @@ int sysctl_display_all(const char *path, int output, int show_table)
 
 	return retval;
 }						/* end sysctl_display_all() */
-
-#ifdef STANDALONE_SYSCTL
-int main(int argc, char **argv)
-{
-	return sysctl_main(argc, argv);
-}
-const char *bb_applet_name = "sysctl";
-#endif

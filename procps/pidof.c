@@ -7,7 +7,7 @@
  * Licensed under the GPL v2, see the file LICENSE in this tarball.
  */
 
-
+#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -17,7 +17,6 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include "busybox.h"
 
 #if ENABLE_FEATURE_PIDOF_SINGLE
 #define _SINGLE_COMPL(a) a
@@ -65,14 +64,9 @@ int pidof_main(int argc, char **argv)
 		while (omits_p) {
 			/* are we asked to exclude the parent's process ID?  */
 			if (!strncmp(omits_p->data, "%PPID", 5)) {
-				omits_p = llist_free_one(omits_p);
+				llist_pop(&omits_p);
 				snprintf(getppid_str, sizeof(getppid_str), "%d", getppid());
-				omits_p = llist_add_to(omits_p, getppid_str);
-#if 0
-			} else {
-				bb_error_msg_and_die("illegal omit pid value (%s)!\n",
-						omits_p->data);
-#endif
+				llist_add_to(&omits_p, getppid_str);
 			}
 			omits_p = omits_p->link;
 		}
@@ -117,7 +111,7 @@ int pidof_main(int argc, char **argv)
 
 #if ENABLE_FEATURE_PIDOF_OMIT
 	if (ENABLE_FEATURE_CLEAN_UP)
-		llist_free(omits);
+		llist_free(omits, NULL);
 #endif
 	return fail ? EXIT_FAILURE : EXIT_SUCCESS;
 }

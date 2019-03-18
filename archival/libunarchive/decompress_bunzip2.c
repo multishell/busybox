@@ -1,13 +1,12 @@
 /* vi: set sw=4 ts=4: */
-/*	Small bzip2 deflate implementation, by Rob Landley (rob@landley.net).
+/* Small bzip2 deflate implementation, by Rob Landley (rob@landley.net).
 
-	Based on bzip2 decompression code by Julian R Seward (jseward@acm.org),
-	which also acknowledges contributions by Mike Burrows, David Wheeler,
-	Peter Fenwick, Alistair Moffat, Radford Neal, Ian H. Witten,
-	Robert Sedgewick, and Jon L. Bentley.
+   Based on bzip2 decompression code by Julian R Seward (jseward@acm.org),
+   which also acknowledges contributions by Mike Burrows, David Wheeler,
+   Peter Fenwick, Alistair Moffat, Radford Neal, Ian H. Witten,
+   Robert Sedgewick, and Jon L. Bentley.
 
-	This code is licensed under the LGPLv2:
-		LGPL http://www.gnu.org/copyleft/lgpl.html
+   Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
 */
 
 /*
@@ -24,7 +23,7 @@
 	I would ask that anyone benefiting from this work, especially those
 	using it in commercial products, consider making a donation to my local
 	non-profit hospice organization (www.hospiceacadiana.com) in the name of
-   	the woman I loved, Toni W. Hagan, who passed away Feb. 12, 2003.
+	the woman I loved, Toni W. Hagan, who passed away Feb. 12, 2003.
 
 	Manuel
  */
@@ -37,6 +36,8 @@
 #include <limits.h>
 
 #include "libbb.h"
+
+#include "unarchive.h"
 
 /* Constants for Huffman coding */
 #define MAX_GROUPS			6
@@ -82,8 +83,8 @@ typedef struct {
 
 	/* The CRC values stored in the block header and calculated from the data */
 
-	unsigned int crc32Table[256],headerCRC, totalCRC, writeCRC;
-
+	uint32_t headerCRC, totalCRC, writeCRC;
+	uint32_t *crc32Table;
 	/* Intermediate buffer and its size (in bytes) */
 
 	unsigned int *dbuf, dbufSize;
@@ -618,7 +619,7 @@ decode_next_byte:
 		bd->writeCount=previous;
 		return (previous!=RETVAL_LAST_BLOCK) ? previous : gotcount;
 	}
-	bd->writeCRC=0xffffffffUL;
+	bd->writeCRC=~0;
 	pos=bd->writePos;
 	current=bd->writeCurrent;
 	goto decode_next_byte;
@@ -632,7 +633,7 @@ static int start_bunzip(bunzip_data **bdp, int in_fd, unsigned char *inbuf,
 						int len)
 {
 	bunzip_data *bd;
-	unsigned int i,j,c;
+	unsigned int i;
 	const unsigned int BZh0=(((unsigned int)'B')<<24)+(((unsigned int)'Z')<<16)
 							+(((unsigned int)'h')<<8)+(unsigned int)'0';
 
@@ -643,8 +644,7 @@ static int start_bunzip(bunzip_data **bdp, int in_fd, unsigned char *inbuf,
 
 	/* Allocate bunzip_data.  Most fields initialize to zero. */
 
-	bd=*bdp=xmalloc(i);
-	memset(bd,0,sizeof(bunzip_data));
+	bd=*bdp=xzalloc(i);
 
 	/* Setup input buffer */
 
@@ -655,12 +655,7 @@ static int start_bunzip(bunzip_data **bdp, int in_fd, unsigned char *inbuf,
 
 	/* Init the CRC32 table (big endian) */
 
-	for(i=0;i<256;i++) {
-		c=i<<24;
-		for(j=8;j;j--)
-			c=c&0x80000000 ? (c<<1)^0x04c11db7 : (c<<1);
-		bd->crc32Table[i]=c;
-	}
+	bd->crc32Table = bb_crc32_filltable(1);
 
 	/* Setup for I/O error handling via longjmp */
 

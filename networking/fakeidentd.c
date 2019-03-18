@@ -6,45 +6,25 @@
  * Original Author: Tomi Ollila <too@iki.fi>
  *                  http://www.guru-group.fi/~too/sw/
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
+#include "busybox.h"
+
 #include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdarg.h>
 #include <string.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/syslog.h>
 
 #include <pwd.h>
-#include <netdb.h>
 
 #include <sys/syslog.h>
-#include <sys/types.h>
-#include <sys/time.h>
 #include <time.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
 #include <errno.h>
-#include <arpa/inet.h>
 #include <sys/uio.h>
 
-#include "busybox.h"
 
 #define IDENT_PORT  113
 #define MAXCONNS    20
@@ -117,8 +97,7 @@ static void inetbind(void)
 	else
 		port = se->s_port;
 
-	if ((s = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-		bb_perror_msg_and_die("Cannot create server socket");
+	s = bb_xsocket(AF_INET, SOCK_STREAM, 0);
 
 	setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
 
@@ -127,11 +106,8 @@ static void inetbind(void)
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(port);
 
-	if (bind(s, (struct sockaddr *)&addr, len) < 0)
-		bb_perror_msg_and_die("Cannot bind() port %i", IDENT_PORT);
-
-	if (listen(s, 5) < 0)
-		bb_perror_msg_and_die("Cannot listen() on port %i", IDENT_PORT);
+	bb_xbind(s, (struct sockaddr *)&addr, len);
+	bb_xlisten(s, 5);
 
 	movefd(s, 0);
 }

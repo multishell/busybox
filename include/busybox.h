@@ -9,25 +9,9 @@
 
 #include "bb_config.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdarg.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-
-#if __GNU_LIBRARY__ < 5 && \
-    !defined(__dietlibc__) && \
-    !defined(_NEWLIB_VERSION)
-#error "Sorry, this libc version is not supported :("
-#endif
-
-extern const char BB_BANNER[];
-
-#include <features.h>
-
-/* Pull in the utility routines from libbb */
 #include "libbb.h"
 
+/* order matters:  used as index into "install_dir[]" in busybox.c */
 enum Location {
 	_BB_DIR_ROOT = 0,
 	_BB_DIR_BIN,
@@ -61,40 +45,5 @@ extern const struct BB_applet applets[];
 #define PROTOTYPES
 #include "applets.h"
 #undef PROTOTYPES
-
-#ifdef CONFIG_FEATURE_BUFFERS_GO_ON_STACK
-#define RESERVE_CONFIG_BUFFER(buffer,len)           char buffer[len]
-#define RESERVE_CONFIG_UBUFFER(buffer,len) unsigned char buffer[len]
-#define RELEASE_CONFIG_BUFFER(buffer)      ((void)0)
-#else
-#ifdef CONFIG_FEATURE_BUFFERS_GO_IN_BSS
-#define RESERVE_CONFIG_BUFFER(buffer,len)  static          char buffer[len]
-#define RESERVE_CONFIG_UBUFFER(buffer,len) static unsigned char buffer[len]
-#define RELEASE_CONFIG_BUFFER(buffer)      ((void)0)
-#else
-#define RESERVE_CONFIG_BUFFER(buffer,len)           char *buffer=xmalloc(len)
-#define RESERVE_CONFIG_UBUFFER(buffer,len) unsigned char *buffer=xmalloc(len)
-#define RELEASE_CONFIG_BUFFER(buffer)      free (buffer)
-#endif
-#endif
-
-
-#ifndef RB_POWER_OFF
-/* Stop system and switch power off if possible.  */
-#define RB_POWER_OFF   0x4321fedc
-#endif
-
-/* Try to pull in PATH_MAX */
-#include <limits.h>
-
-/* for PATH_MAX on systems that don't have it in limits.h */
-#include <sys/param.h>
-#ifndef PATH_MAX
-#define  PATH_MAX         256
-#endif
-
-#ifdef DMALLOC
-#include <dmalloc.h>
-#endif
 
 #endif							/* _BB_INTERNAL_H_ */

@@ -7,22 +7,10 @@
  * Reworked by David Douthitt <n9ubh@callsign.net> and
  *  Matt Kraai <kraai@alumni.carnegiemellon.edu>.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
+#include "busybox.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <dirent.h>
@@ -31,13 +19,11 @@
 #include <fnmatch.h>
 #include <time.h>
 #include <ctype.h>
-#include "busybox.h"
-
-//XXX just found out about libbb/messages.c . maybe move stuff there ? - ghoz
-static const char msg_req_arg[] = "option `%s' requires an argument";
-static const char msg_invalid_arg[] = "invalid argument `%s' to `%s'";
 
 static char *pattern;
+#ifdef CONFIG_FEATURE_FIND_PRINT0
+static char printsep = '\n';
+#endif
 
 #ifdef CONFIG_FEATURE_FIND_TYPE
 static int type_mask = 0;
@@ -159,7 +145,11 @@ static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
 	}
 #endif
 
+#ifdef CONFIG_FEATURE_FIND_PRINT0
+	printf("%s%c", fileName, printsep);
+#else
 	puts(fileName);
+#endif
 no_match:
 	return (TRUE);
 }
@@ -194,7 +184,7 @@ static int find_type(char *type)
 	}
 
 	if (mask == 0 || type[1] != '\0')
-		bb_error_msg_and_die(msg_invalid_arg, type, "-type");
+		bb_error_msg_and_die(bb_msg_invalid_arg, type, "-type");
 
 	return mask;
 }
@@ -217,24 +207,28 @@ int find_main(int argc, char **argv)
 		else if (strcmp(argv[i], "-print") == 0) {
 			;
 			}
+#ifdef CONFIG_FEATURE_FIND_PRINT0
+		else if (strcmp(argv[i], "-print0") == 0)
+			printsep = '\0';
+#endif
 		else if (strcmp(argv[i], "-name") == 0) {
 			if (++i == argc)
-				bb_error_msg_and_die(msg_req_arg, "-name");
+				bb_error_msg_and_die(bb_msg_requires_arg, "-name");
 			pattern = argv[i];
 #ifdef CONFIG_FEATURE_FIND_TYPE
 		} else if (strcmp(argv[i], "-type") == 0) {
 			if (++i == argc)
-				bb_error_msg_and_die(msg_req_arg, "-type");
+				bb_error_msg_and_die(bb_msg_requires_arg, "-type");
 			type_mask = find_type(argv[i]);
 #endif
 #ifdef CONFIG_FEATURE_FIND_PERM
 		} else if (strcmp(argv[i], "-perm") == 0) {
 			char *end;
 			if (++i == argc)
-				bb_error_msg_and_die(msg_req_arg, "-perm");
+				bb_error_msg_and_die(bb_msg_requires_arg, "-perm");
 			perm_mask = strtol(argv[i], &end, 8);
 			if ((end[0] != '\0') || (perm_mask > 07777))
-				bb_error_msg_and_die(msg_invalid_arg, argv[i], "-perm");
+				bb_error_msg_and_die(bb_msg_invalid_arg, argv[i], "-perm");
 			if ((perm_char = argv[i][0]) == '-')
 				perm_mask = -perm_mask;
 #endif
@@ -242,10 +236,10 @@ int find_main(int argc, char **argv)
 		} else if (strcmp(argv[i], "-mtime") == 0) {
 			char *end;
 			if (++i == argc)
-				bb_error_msg_and_die(msg_req_arg, "-mtime");
+				bb_error_msg_and_die(bb_msg_requires_arg, "-mtime");
 			mtime_days = strtol(argv[i], &end, 10);
 			if (end[0] != '\0')
-				bb_error_msg_and_die(msg_invalid_arg, argv[i], "-mtime");
+				bb_error_msg_and_die(bb_msg_invalid_arg, argv[i], "-mtime");
 			if ((mtime_char = argv[i][0]) == '-')
 				mtime_days = -mtime_days;
 #endif
@@ -253,10 +247,10 @@ int find_main(int argc, char **argv)
 		} else if (strcmp(argv[i], "-mmin") == 0) {
 			char *end;
 			if (++i == argc)
-				bb_error_msg_and_die(msg_req_arg, "-mmin");
+				bb_error_msg_and_die(bb_msg_requires_arg, "-mmin");
 			mmin_mins = strtol(argv[i], &end, 10);
 			if (end[0] != '\0')
-				bb_error_msg_and_die(msg_invalid_arg, argv[i], "-mmin");
+				bb_error_msg_and_die(bb_msg_invalid_arg, argv[i], "-mmin");
 			if ((mmin_char = argv[i][0]) == '-')
 				mmin_mins = -mmin_mins;
 #endif
@@ -283,7 +277,7 @@ int find_main(int argc, char **argv)
 		} else if (strcmp(argv[i], "-newer") == 0) {
 			struct stat stat_newer;
 			if (++i == argc)
-				bb_error_msg_and_die(msg_req_arg, "-newer");
+				bb_error_msg_and_die(bb_msg_requires_arg, "-newer");
 			xstat (argv[i], &stat_newer);
 			newer_mtime = stat_newer.st_mtime;
 #endif
@@ -291,10 +285,10 @@ int find_main(int argc, char **argv)
 		} else if (strcmp(argv[i], "-inum") == 0) {
 			char *end;
 			if (++i == argc)
-				bb_error_msg_and_die(msg_req_arg, "-inum");
+				bb_error_msg_and_die(bb_msg_requires_arg, "-inum");
 			inode_num = strtol(argv[i], &end, 10);
 			if (end[0] != '\0')
-				bb_error_msg_and_die(msg_invalid_arg, argv[i], "-inum");
+				bb_error_msg_and_die(bb_msg_invalid_arg, argv[i], "-inum");
 #endif
 #ifdef CONFIG_FEATURE_FIND_EXEC
 		} else if (strcmp(argv[i], "-exec") == 0) {
@@ -303,14 +297,14 @@ int find_main(int argc, char **argv)
 
 			while (i++) {
 				if (i == argc)
-					bb_error_msg_and_die(msg_req_arg, "-exec");
+					bb_error_msg_and_die(bb_msg_requires_arg, "-exec");
 				if (*argv[i] == ';')
 					break;
 				cmd_string = bb_xasprintf("%s %s", cmd_string, argv[i]);
 			}
 
 			if (*cmd_string == 0)
-				bb_error_msg_and_die(msg_req_arg, "-exec");
+				bb_error_msg_and_die(bb_msg_requires_arg, "-exec");
 			cmd_string++;
 			exec_str = xmalloc(sizeof(char *));
 

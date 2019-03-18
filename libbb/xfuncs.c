@@ -9,6 +9,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -33,6 +34,15 @@ void *xrealloc(void *ptr, size_t size)
 	ptr = realloc(ptr, size);
 	if (ptr == NULL && size != 0)
 		bb_error_msg_and_die(bb_msg_memory_exhausted);
+	return ptr;
+}
+#endif
+
+#ifdef L_xzalloc
+void *xzalloc(size_t size)
+{
+	void *ptr = xmalloc(size);
+	memset(ptr, 0, size);
 	return ptr;
 }
 #endif
@@ -70,7 +80,7 @@ char * bb_xstrndup (const char *s, int n)
 {
 	char *t;
 
-	if (s == NULL)
+	if (ENABLE_DEBUG && s == NULL)
 		bb_error_msg_and_die("bb_xstrndup bug");
 
 	t = xmalloc(++n);
@@ -92,10 +102,17 @@ FILE *bb_xfopen(const char *path, const char *mode)
 #ifdef L_xopen
 int bb_xopen(const char *pathname, int flags)
 {
+	return bb_xopen3(pathname, flags, 0777);
+}
+#endif
+
+#ifdef L_xopen3
+int bb_xopen3(const char *pathname, int flags, int mode)
+{
 	int ret;
 
-	ret = open(pathname, flags, 0777);
-	if (ret == -1) {
+	ret = open(pathname, flags, mode);
+	if (ret < 0) {
 		bb_perror_msg_and_die("%s", pathname);
 	}
 	return ret;
@@ -108,7 +125,7 @@ ssize_t bb_xread(int fd, void *buf, size_t count)
 	ssize_t size;
 
 	size = read(fd, buf, count);
-	if (size == -1) {
+	if (size < 0) {
 		bb_perror_msg_and_die(bb_msg_read_error);
 	}
 	return(size);
@@ -167,20 +184,49 @@ void bb_xfflush_stdout(void)
 }
 #endif
 
-// GCC forces inlining of strlen everywhere, which is generally a byte
-// larger than calling a function, and it's called a lot so it adds up.
-#ifdef L_strlen
-size_t bb_strlen(const char *string)
+#ifdef L_spawn
+// This does a fork/exec in one call, using vfork().
+pid_t bb_spawn(char **argv)
 {
-	    return(__builtin_strlen(string));
+	static int failed;
+	pid_t pid;
+	void *app = find_applet_by_name(argv[0]);
+
+	// Be nice to nommu machines.
+	failed = 0;
+	pid = vfork();
+	if (pid < 0) return pid;
+	if (!pid) {
+		execvp(app ? CONFIG_BUSYBOX_EXEC_PATH : *argv, argv);
+
+		// We're sharing a stack with blocked parent, let parent know we failed
+		// and then exit to unblock parent (but don't run atexit() stuff, which
+		// would screw up parent.)
+
+		failed = -1;
+		_exit(0);
+	}
+	return failed ? failed : pid;
 }
 #endif
 
-/* END CODE */
-/*
-Local Variables:
-c-file-style: "linux"
-c-basic-offset: 4
-tab-width: 4
-End:
-*/
+#ifdef L_xspawn
+pid_t bb_xspawn(char **argv)
+{
+	pid_t pid = bb_spawn(argv);
+	if (pid < 0) bb_perror_msg_and_die("%s", *argv);
+	return pid;
+}
+#endif
+
+#ifdef L_wait4
+int wait4pid(int pid)
+{
+	int status;
+
+	if (pid == -1 || waitpid(pid, &status, 0) == -1) return -1;
+	if (WIFEXITED(status)) return WEXITSTATUS(status);
+	if (WIFSIGNALED(status)) return WTERMSIG(status);
+	return 0;
+}
+#endif	

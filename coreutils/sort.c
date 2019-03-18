@@ -74,9 +74,7 @@ static char *get_key(char *str, struct sort_key *key, int flags)
 			for(i=1;i<key->range[2*j]+j;i++) {
 				/* Skip leading blanks or first separator */
 				if(str[end]) {
-					if(key_separator) {
-						if(str[end]==key_separator) end++;
-					} else if(isspace(str[end]))
+					if(!key_separator && isspace(str[end]))
 						while(isspace(str[end])) end++;
 				}
 				/* Skip body of key */
@@ -176,12 +174,14 @@ static int compare_keys(const void *xarg, const void *yarg)
 				/* not numbers < NaN < -infinity < numbers < +infinity) */
 				if(x==xx) retval=(y==yy ? 0 : -1);
 				else if(y==yy) retval=1;
-				else if(isnan(dx)) retval=isnan(dy) ? 0 : -1;
-				else if(isnan(dy)) retval=1;
-				else if(isinf(dx)) {
-					if(dx<0) retval=((isinf(dy) && dy<0) ? 0 : -1);
-					else retval=((isinf(dy) && dy>0) ? 0 : 1);
-				} else if(isinf(dy)) retval=dy<0 ? 1 : -1;
+				/* Check for isnan */
+				else if(dx != dx) retval = (dy != dy) ? 0 : -1;
+				else if(dy != dy) retval = 1;
+				/* Check for infinity.  Could underflow, but it avoids libm. */
+				else if(1.0/dx == 0.0) {
+					if(dx<0) retval=((1.0/dy == 0.0 && dy<0) ? 0 : -1);
+					else retval=((1.0/dy == 0.0 && dy>0) ? 0 : 1);
+				} else if(1.0/dy == 0.0) retval=dy<0 ? 1 : -1;
 				else retval=dx>dy ? 1 : (dx<dy ? -1 : 0);
 				break;
 			}
@@ -236,7 +236,7 @@ int sort_main(int argc, char **argv)
 	bb_default_error_retval = 2;
 	/* Parse command line options */
 	while((c=getopt(argc,argv,optlist))>0) {
-		line=index(optlist,c);
+		line=strchr(optlist,c);
 		if(!line) bb_show_usage();
 		switch(*line) {
 #ifdef CONFIG_FEATURE_SORT_BIG
@@ -267,7 +267,7 @@ int sort_main(int argc, char **argv)
 							break;
 						} /* no else needed: fall through to syntax error
 							 because comma isn't in optlist */
-						temp2=index(optlist,*temp);
+						temp2=strchr(optlist,*temp);
 						flag=(1<<(temp2-optlist));
 						if(!temp2 || (flag>FLAG_M && flag<FLAG_b))
 							bb_error_msg_and_die("Unknown key option.");

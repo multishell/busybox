@@ -7,15 +7,26 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
+#include "busybox.h"
 #include <signal.h>
 #include <sys/reboot.h>
-#include "busybox.h"
-
 #include <unistd.h>
 
 int halt_main(int argc, char *argv[])
 {
-	static const int magic[] = {RB_HALT_SYSTEM, RB_POWER_OFF, RB_AUTOBOOT};
+	static const int magic[] = {
+#ifdef RB_HALT_SYSTEM
+RB_HALT_SYSTEM,
+#elif defined RB_HALT
+RB_HALT,
+#endif
+#ifdef RB_POWER_OFF
+RB_POWER_OFF,
+#elif defined RB_POWERDOWN
+RB_POWERDOWN,
+#endif
+RB_AUTOBOOT
+	};
 	static const int signals[] = {SIGUSR1, SIGUSR2, SIGTERM};
 
 	char *delay = "hpr";
@@ -28,7 +39,7 @@ int halt_main(int argc, char *argv[])
 	flags = bb_getopt_ulflags(argc, argv, "d:nf", &delay);
 	if (flags&1) sleep(atoi(delay));
 	if (!(flags&2)) sync();
-	
+
 	/* Perform action. */
 	if (ENABLE_INIT && !(flags & 4)) {
 		if (ENABLE_FEATURE_INITRD) {

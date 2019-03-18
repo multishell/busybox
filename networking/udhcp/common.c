@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /* common.c
  *
  * Functions for debugging and logging as well as some other
@@ -6,19 +7,7 @@
  * Russ Dill <Russ.Dill@asu.edu> 2001-2003
  * Rewritten by Vladimir Oleynik <dzo@simtreas.ru> (C) 2003
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
 #include <fcntl.h>
@@ -53,13 +42,15 @@ long uptime(void)
 static inline void sanitize_fds(void)
 {
 	int zero;
-	if ((zero = open(_PATH_DEVNULL, O_RDWR, 0)) < 0) return;
-	while (zero < 3) zero = dup(zero);
+	if ((zero = open(bb_dev_null, O_RDWR, 0)) < 0)
+		return;
+	while (zero < 3)
+		zero = dup(zero);
 	close(zero);
 }
 
 
-void background(const char *pidfile)
+void udhcp_background(const char *pidfile)
 {
 #ifdef __uClinux__
 	LOG(LOG_ERR, "Cannot background in uclinux (yet)");
@@ -68,7 +59,7 @@ void background(const char *pidfile)
 
 	/* hold lock during fork. */
 	pid_fd = pidfile_acquire(pidfile);
-	if (daemon(0, 0) == -1) {
+	if (daemon(0, 0) == -1) { /* bb_xdaemon? */
 		perror("fork");
 		exit(1);
 	}
@@ -78,7 +69,8 @@ void background(const char *pidfile)
 }
 
 
-#ifdef UDHCP_SYSLOG
+#ifdef CONFIG_FEATURE_UDHCP_SYSLOG
+
 void udhcp_logging(int level, const char *fmt, ...)
 {
 	va_list p;
@@ -86,33 +78,13 @@ void udhcp_logging(int level, const char *fmt, ...)
 
 	va_start(p, fmt);
 	__va_copy(p2, p);
-	if(!daemonized) {
+	if (!daemonized) {
 		vprintf(fmt, p);
 		putchar('\n');
 	}
 	vsyslog(level, fmt, p2);
 	va_end(p);
 }
-
-
-void start_log_and_pid(const char *client_server, const char *pidfile)
-{
-	int pid_fd;
-
-	/* Make sure our syslog fd isn't overwritten */
-	sanitize_fds();
-
-	/* do some other misc startup stuff while we are here to save bytes */
-	pid_fd = pidfile_acquire(pidfile);
-	pidfile_write_release(pid_fd);
-
-	/* equivelent of doing a fflush after every \n */
-	setlinebuf(stdout);
-
-	openlog(client_server, LOG_PID | LOG_CONS, LOG_LOCAL0);
-	udhcp_logging(LOG_INFO, "%s (v%s) started", client_server, VERSION);
-}
-
 
 #else
 
@@ -133,16 +105,17 @@ void udhcp_logging(int level, const char *fmt, ...)
 	va_list p;
 
 	va_start(p, fmt);
-	if(!daemonized) {
+	if (!daemonized) {
 		printf("%s, ", syslog_level_msg[level]);
 		vprintf(fmt, p);
 		putchar('\n');
 	}
 	va_end(p);
 }
+#endif
 
 
-void start_log_and_pid(const char *client_server, const char *pidfile)
+void udhcp_start_log_and_pid(const char *client_server, const char *pidfile)
 {
 	int pid_fd;
 
@@ -156,7 +129,8 @@ void start_log_and_pid(const char *client_server, const char *pidfile)
 	/* equivelent of doing a fflush after every \n */
 	setlinebuf(stdout);
 
-	udhcp_logging(LOG_INFO, "%s (v%s) started", client_server, VERSION);
-}
-#endif
+	if (ENABLE_FEATURE_UDHCP_SYSLOG)
+		openlog(client_server, LOG_PID | LOG_CONS, LOG_LOCAL0);
 
+	udhcp_logging(LOG_INFO, "%s (v%s) started", client_server, BB_VER);
+}

@@ -25,6 +25,7 @@ my $kernelsyms="";
 my $stdout=0;
 my $verbose=0;
 my $help=0;
+my $nm = $ENV{'NM'} || "nm";
 
 # more globals
 my (@liblist) = ();
@@ -104,7 +105,7 @@ foreach my $obj ( @liblist ){
     warn "\nMODULE = $tgtname\n" if $verbose;
 
     # get a list of symbols
-	my @output=`nm $obj`;
+	my @output=`$nm $obj`;
 
     build_ref_tables($tgtname, \@output, $exp, $dep);
 }
@@ -112,12 +113,12 @@ foreach my $obj ( @liblist ){
 
 # vmlinux is a special name that is only used to resolve symbols
 my $tgtname = 'vmlinux';
-my @output = $kernelsyms ? `cat $kernelsyms` : `nm $kernel`;
+my @output = $kernelsyms ? `cat $kernelsyms` : `$nm $kernel`;
 warn "\nMODULE = $tgtname\n" if $verbose;
 build_ref_tables($tgtname, \@output, $exp, $dep);
 
-# resolve the dependancies for each module
-# reduce dependancies: remove unresolvable and resolved from vmlinux/System.map
+# resolve the dependencies for each module
+# reduce dependencies: remove unresolvable and resolved from vmlinux/System.map
 # remove duplicates
 foreach my $module (keys %$dep) {
     warn "reducing module: $module\n" if $verbose;
@@ -225,7 +226,7 @@ Example:
 =head1 DESCRIPTION
 
 The purpose of this script is to automagically generate a list of of kernel
-module dependancies.  This script produces dependancy lists that should be
+module dependencies.  This script produces dependency lists that should be
 identical to the depmod program from the modutils package.  Unlike the depmod
 binary, however, depmod.pl is designed to be run on your host system, not
 on your target system.
@@ -286,6 +287,3 @@ under the same terms as Perl itself.
 David Schleef <ds@schleef.org>
 
 =cut
-
-# $Id: depmod.pl,v 1.4 2004/03/15 08:28:33 andersen Exp $
-

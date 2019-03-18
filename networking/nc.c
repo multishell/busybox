@@ -10,19 +10,7 @@
     19990512 Uses Select. Charles P. Wright
     19990513 Fixes stdin stupidity and uses buffers.  Charles P. Wright
 
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+    Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
 */
 
 #include <stdio.h>
@@ -36,7 +24,6 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <sys/time.h>
 #include <sys/ioctl.h>
 #include "busybox.h"
 
@@ -48,8 +35,6 @@ static void timeout(int signum)
 int nc_main(int argc, char **argv)
 {
 	int do_listen = 0, lport = 0, delay = 0, wsecs = 0, tmpfd, opt, sfd, x;
-
-#define buf bb_common_bufsiz1
 
 #ifdef CONFIG_NC_GAPING_SECURITY_HOLE
 	char *pr00gie = NULL;
@@ -87,8 +72,7 @@ int nc_main(int argc, char **argv)
 	if ((do_listen && optind != argc) || (!do_listen && optind + 2 != argc))
 		bb_show_usage();
 
-	if ((sfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-		bb_perror_msg_and_die("socket");
+	sfd = bb_xsocket(AF_INET, SOCK_STREAM, 0);
 	x = 1;
 	if (setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, &x, sizeof (x)) == -1)
 		bb_perror_msg_and_die("reuseaddr");
@@ -103,16 +87,13 @@ int nc_main(int argc, char **argv)
 		memset(&address.sin_addr, 0, sizeof(address.sin_addr));
 		address.sin_port = lport;
 
-		if (bind(sfd, (struct sockaddr *) &address, sizeof(address)) < 0)
-			bb_perror_msg_and_die("bind");
+		bb_xbind(sfd, (struct sockaddr *) &address, sizeof(address));
 	}
 
 	if (do_listen) {
 		socklen_t addrlen = sizeof(address);
 
-		if (listen(sfd, 1) < 0)
-			bb_perror_msg_and_die("listen");
-
+		bb_xlisten(sfd, 1);
 		if ((tmpfd = accept(sfd, (struct sockaddr *) &address, &addrlen)) < 0)
 			bb_perror_msg_and_die("accept");
 
@@ -162,8 +143,11 @@ int nc_main(int argc, char **argv)
 
 		for (fd = 0; fd < FD_SETSIZE; fd++) {
 			if (FD_ISSET(fd, &testfds)) {
-				if ((nread = safe_read(fd, buf, sizeof(buf))) < 0)
+				if ((nread = safe_read(fd, bb_common_bufsiz1,
+					sizeof(bb_common_bufsiz1))) < 0)
+				{
 					bb_perror_msg_and_die(bb_msg_read_error);
+				}
 
 				if (fd == sfd) {
 					if (nread == 0)
@@ -178,7 +162,7 @@ int nc_main(int argc, char **argv)
 					ofd = sfd;
 				}
 
-				if (bb_full_write(ofd, buf, nread) < 0)
+				if (bb_full_write(ofd, bb_common_bufsiz1, nread) < 0)
 					bb_perror_msg_and_die(bb_msg_write_error);
 				if (delay > 0) {
 					sleep(delay);

@@ -1,32 +1,9 @@
-/* vi: set sw=8 ts=8: */
+/* vi: set sw=4 ts=4: */
 /*
  * tiny vi.c: A small 'vi' clone
  * Copyright (C) 2000, 2001 Sterling Huxley <sterling@europa.com>
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
- */
-
-static const char vi_Version[] =
-	"$Id: vi.c,v 1.38 2004/08/19 19:15:06 andersen Exp $";
-
-/*
- * To compile for standalone use:
- *	gcc -Wall -Os -s -DSTANDALONE -o vi vi.c
- *	  or
- *	gcc -Wall -Os -s -DSTANDALONE -DCONFIG_FEATURE_VI_CRASHME -o vi vi.c		# include testing features
- *	strip vi
+ * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
 /*
@@ -45,47 +22,20 @@ static const char vi_Version[] =
  *	An "ex" line oriented mode- maybe using "cmdedit"
  */
 
-//----  Feature --------------  Bytes to implement
-#ifdef STANDALONE
-#define vi_main			main
-#define CONFIG_FEATURE_VI_COLON	// 4288
-#define CONFIG_FEATURE_VI_YANKMARK	// 1408
-#define CONFIG_FEATURE_VI_SEARCH	// 1088
-#define CONFIG_FEATURE_VI_USE_SIGNALS	// 1056
-#define CONFIG_FEATURE_VI_DOT_CMD	//  576
-#define CONFIG_FEATURE_VI_READONLY	//  128
-#define CONFIG_FEATURE_VI_SETOPTS	//  576
-#define CONFIG_FEATURE_VI_SET	//  224
-#define CONFIG_FEATURE_VI_WIN_RESIZE	//  256  WIN_RESIZE
-// To test editor using CRASHME:
-//    vi -C filename
-// To stop testing, wait until all to text[] is deleted, or
-//    Ctrl-Z and kill -9 %1
-// while in the editor Ctrl-T will toggle the crashme function on and off.
-//#define CONFIG_FEATURE_VI_CRASHME		// randomly pick commands to execute
-#endif							/* STANDALONE */
 
-#include <stdio.h>
-#include <stdlib.h>
+#include "busybox.h"
 #include <string.h>
-#include <termios.h>
+#include <strings.h>
 #include <unistd.h>
 #include <sys/ioctl.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 #include <time.h>
 #include <fcntl.h>
 #include <signal.h>
 #include <setjmp.h>
 #include <regex.h>
 #include <ctype.h>
-#include <assert.h>
 #include <errno.h>
-#include <stdarg.h>
-#ifndef STANDALONE
-#include "busybox.h"
-#endif							/* STANDALONE */
+#define vi_Version BB_VER " " BB_BT
 
 #ifdef CONFIG_LOCALE_SUPPORT
 #define Isprint(c) isprint((c))
@@ -93,10 +43,6 @@ static const char vi_Version[] =
 #define Isprint(c) ( (c) >= ' ' && (c) != 127 && (c) != ((unsigned char)'\233') )
 #endif
 
-#ifndef TRUE
-#define TRUE			((int)1)
-#define FALSE			((int)0)
-#endif							/* TRUE */
 #define MAX_SCR_COLS		BUFSIZ
 
 // Misc. non-Ascii keys that report an escape sequence
@@ -300,7 +246,6 @@ static void colon(Byte *);	// execute the "colon" mode cmds
 static void winch_sig(int);	// catch window size changes
 static void suspend_sig(int);	// catch ctrl-Z
 static void catch_sig(int);     // catch ctrl-C and alarm time-outs
-static void core_sig(int);	// catch a core dump signal
 #endif							/* CONFIG_FEATURE_VI_USE_SIGNALS */
 #ifdef CONFIG_FEATURE_VI_DOT_CMD
 static void start_new_cmd_q(Byte);	// new queue for command
@@ -308,15 +253,12 @@ static void end_cmd_q(void);	// stop saving input chars
 #else							/* CONFIG_FEATURE_VI_DOT_CMD */
 #define end_cmd_q()
 #endif							/* CONFIG_FEATURE_VI_DOT_CMD */
-#ifdef CONFIG_FEATURE_VI_WIN_RESIZE
-static void window_size_get(int);	// find out what size the window is
-#endif							/* CONFIG_FEATURE_VI_WIN_RESIZE */
 #ifdef CONFIG_FEATURE_VI_SETOPTS
 static void showmatching(Byte *);	// show the matching pair ()  []  {}
 #endif							/* CONFIG_FEATURE_VI_SETOPTS */
-#if defined(CONFIG_FEATURE_VI_YANKMARK) || defined(CONFIG_FEATURE_VI_COLON) || defined(CONFIG_FEATURE_VI_CRASHME)
+#if defined(CONFIG_FEATURE_VI_YANKMARK) || (defined(CONFIG_FEATURE_VI_COLON) && defined(CONFIG_FEATURE_VI_SEARCH)) || defined(CONFIG_FEATURE_VI_CRASHME)
 static Byte *string_insert(Byte *, Byte *);	// insert the string at 'p'
-#endif							/* CONFIG_FEATURE_VI_YANKMARK || CONFIG_FEATURE_VI_COLON || CONFIG_FEATURE_VI_CRASHME */
+#endif							/* CONFIG_FEATURE_VI_YANKMARK || CONFIG_FEATURE_VI_SEARCH || CONFIG_FEATURE_VI_CRASHME */
 #ifdef CONFIG_FEATURE_VI_YANKMARK
 static Byte *text_yank(Byte *, Byte *, int);	// save copy of "p" into a register
 static Byte what_reg(void);		// what is letter of current YDreg
@@ -417,14 +359,6 @@ int vi_main(int argc, char **argv)
 	return (0);
 }
 
-#ifdef CONFIG_FEATURE_VI_WIN_RESIZE
-//----- See what the window size currently is --------------------
-static inline void window_size_get(int fd)
-{
-	get_terminal_width_height(fd, &columns, &rows);
-}
-#endif							/* CONFIG_FEATURE_VI_WIN_RESIZE */
-
 static void edit_file(Byte * fn)
 {
 	Byte c;
@@ -441,9 +375,8 @@ static void edit_file(Byte * fn)
 	rows = 24;
 	columns = 80;
 	ch= -1;
-#ifdef CONFIG_FEATURE_VI_WIN_RESIZE
-	window_size_get(0);
-#endif							/* CONFIG_FEATURE_VI_WIN_RESIZE */
+	if (ENABLE_FEATURE_VI_WIN_RESIZE)
+		get_terminal_width_height(0, &columns, &rows);
 	new_screen(rows, columns);	// get memory for virtual screen
 
 	cnt = file_size(fn);	// file size
@@ -473,29 +406,10 @@ static void edit_file(Byte * fn)
 
 #ifdef CONFIG_FEATURE_VI_USE_SIGNALS
 	catch_sig(0);
-	core_sig(0);
 	signal(SIGWINCH, winch_sig);
 	signal(SIGTSTP, suspend_sig);
 	sig = setjmp(restart);
 	if (sig != 0) {
-		const char *msg = "";
-
-		if (sig == SIGWINCH)
-			msg = "(window resize)";
-		if (sig == SIGHUP)
-			msg = "(hangup)";
-		if (sig == SIGINT)
-			msg = "(interrupt)";
-		if (sig == SIGTERM)
-			msg = "(terminate)";
-		if (sig == SIGBUS)
-			msg = "(bus error)";
-		if (sig == SIGSEGV)
-			msg = "(I tried to touch invalid memory)";
-		if (sig == SIGALRM)
-			msg = "(alarm)";
-
-		psbs("-- caught signal %d %s--", sig, msg);
 		screenbegin = dot = text;
 	}
 #endif							/* CONFIG_FEATURE_VI_USE_SIGNALS */
@@ -1084,9 +998,10 @@ static void colon(Byte * buf)
 #endif							/* CONFIG_FEATURE_VI_SEARCH */
 	} else if (strncasecmp((char *) cmd, "version", i) == 0) {	// show software version
 		psb("%s", vi_Version);
-	} else if ((strncasecmp((char *) cmd, "write", i) == 0) ||	// write text to file
-			   (strncasecmp((char *) cmd, "wq", i) == 0) ||
-			   (strncasecmp((char *) cmd, "x", i) == 0)) {
+	} else if (strncasecmp((char *) cmd, "write", i) == 0		// write text to file
+			|| strncasecmp((char *) cmd, "wq", i) == 0
+			|| strncasecmp((char *) cmd, "wn", i) == 0
+			|| strncasecmp((char *) cmd, "x", i) == 0) {
 		// is there a file name to write to?
 		if (strlen((char *) args) > 0) {
 			fn = args;
@@ -1123,7 +1038,9 @@ static void colon(Byte * buf)
 				file_modified = 0;
 				last_file_modified = -1;
 			}
-			if ((cmd[0] == 'x' || cmd[1] == 'q') && l == ch) {
+			if ((cmd[0] == 'x' || cmd[1] == 'q' || cmd[1] == 'n' ||
+			     cmd[0] == 'X' || cmd[1] == 'Q' || cmd[1] == 'N')
+			     && l == ch) {
 				editing = 0;
 			}
 		}
@@ -1171,13 +1088,12 @@ static void Hit_Return(void)
 //----- Synchronize the cursor to Dot --------------------------
 static void sync_cursor(Byte * d, int *row, int *col)
 {
-	Byte *beg_cur, *end_cur;	// begin and end of "d" line
+	Byte *beg_cur;				// begin and end of "d" line
 	Byte *beg_scr, *end_scr;	// begin and end of screen
 	Byte *tp;
 	int cnt, ro, co;
 
 	beg_cur = begin_line(d);	// first char of cur line
-	end_cur = end_line(d);	// last char of cur line
 
 	beg_scr = end_scr = screenbegin;	// first char of screen
 	end_scr = end_screen();	// last char of screen
@@ -2017,7 +1933,7 @@ static void end_cmd_q(void)
 }
 #endif							/* CONFIG_FEATURE_VI_DOT_CMD */
 
-#if defined(CONFIG_FEATURE_VI_YANKMARK) || defined(CONFIG_FEATURE_VI_COLON) || defined(CONFIG_FEATURE_VI_CRASHME)
+#if defined(CONFIG_FEATURE_VI_YANKMARK) || (defined(CONFIG_FEATURE_VI_COLON) && defined(CONFIG_FEATURE_VI_SEARCH)) || defined(CONFIG_FEATURE_VI_CRASHME)
 static Byte *string_insert(Byte * p, Byte * s) // insert the string at 'p'
 {
 	int cnt, i;
@@ -2140,9 +2056,8 @@ static void cookmode(void)
 static void winch_sig(int sig ATTRIBUTE_UNUSED)
 {
 	signal(SIGWINCH, winch_sig);
-#ifdef CONFIG_FEATURE_VI_WIN_RESIZE
-	window_size_get(0);
-#endif							/* CONFIG_FEATURE_VI_WIN_RESIZE */
+	if (ENABLE_FEATURE_VI_WIN_RESIZE)
+	   get_terminal_width_height(0, &columns, &rows);
 	new_screen(rows, columns);	// get memory for virtual screen
 	redraw(TRUE);		// re-draw the screen
 }
@@ -2174,33 +2089,9 @@ static void suspend_sig(int sig ATTRIBUTE_UNUSED)
 //----- Come here when we get a signal ---------------------------
 static void catch_sig(int sig)
 {
-	signal(SIGHUP, catch_sig);
 	signal(SIGINT, catch_sig);
-	signal(SIGTERM, catch_sig);
-	signal(SIGALRM, catch_sig);
 	if(sig)
 		longjmp(restart, sig);
-}
-
-//----- Come here when we get a core dump signal -----------------
-static void core_sig(int sig)
-{
-	signal(SIGQUIT, core_sig);
-	signal(SIGILL, core_sig);
-	signal(SIGTRAP, core_sig);
-	signal(SIGIOT, core_sig);
-	signal(SIGABRT, core_sig);
-	signal(SIGFPE, core_sig);
-	signal(SIGBUS, core_sig);
-	signal(SIGSEGV, core_sig);
-#ifdef SIGSYS
-	signal(SIGSYS, core_sig);
-#endif
-
-	if(sig) {       // signaled
-		dot = bound_dot(dot);	// make sure "dot" is valid
-		longjmp(restart, sig);
-	}
 }
 #endif							/* CONFIG_FEATURE_VI_USE_SIGNALS */
 
@@ -2860,9 +2751,8 @@ static void refresh(int full_screen)
 	int last_li= -2;				// last line that changed- for optimizing cursor movement
 #endif							/* CONFIG_FEATURE_VI_OPTIMIZE_CURSOR */
 
-#ifdef CONFIG_FEATURE_VI_WIN_RESIZE
-	window_size_get(0);
-#endif							/* CONFIG_FEATURE_VI_WIN_RESIZE */
+	if (ENABLE_FEATURE_VI_WIN_RESIZE)
+		get_terminal_width_height(0, &columns, &rows);
 	sync_cursor(dot, &crow, &ccol);	// where cursor will be (on "dot")
 	tp = screenbegin;	// index into text[] of top line
 
@@ -3432,9 +3322,10 @@ key_cmd_mode:
 			} else {
 				editing = 0;
 			}
-		} else if (strncasecmp((char *) p, "write", cnt) == 0 ||
-				   strncasecmp((char *) p, "wq", cnt) == 0 ||
-				   strncasecmp((char *) p, "x", cnt) == 0) {
+		} else if (strncasecmp((char *) p, "write", cnt) == 0
+				|| strncasecmp((char *) p, "wq", cnt) == 0
+				|| strncasecmp((char *) p, "wn", cnt) == 0
+				|| strncasecmp((char *) p, "x", cnt) == 0) {
 			cnt = file_write(cfn, text, end - 1);
 			if (cnt < 0) {
 				if (cnt == -1)
@@ -3443,7 +3334,8 @@ key_cmd_mode:
 				file_modified = 0;
 				last_file_modified = -1;
 				psb("\"%s\" %dL, %dC", cfn, count_lines(text, end - 1), cnt);
-				if (p[0] == 'x' || p[1] == 'q') {
+				if (p[0] == 'x' || p[1] == 'q' || p[1] == 'n' ||
+				    p[0] == 'X' || p[1] == 'Q' || p[1] == 'N') {
 					editing = 0;
 				}
 			}
@@ -3624,12 +3516,13 @@ key_cmd_mode:
 			indicate_error(c);
 			break;
 		}
-		if (file_modified
+		if (file_modified) {
 #ifdef CONFIG_FEATURE_VI_READONLY
-			&& ! vi_readonly
-			&& ! readonly
-#endif							/* CONFIG_FEATURE_VI_READONLY */
-			) {
+			if (vi_readonly || readonly) {
+			    psbs("\"%s\" File is read only", cfn);
+			    break;
+			}
+#endif		/* CONFIG_FEATURE_VI_READONLY */
 			cnt = file_write(cfn, text, end - 1);
 			if (cnt < 0) {
 				if (cnt == -1)

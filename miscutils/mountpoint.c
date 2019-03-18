@@ -4,16 +4,16 @@
  *
  * Copyright (C) 2005 Bernhard Fischer
  *
- * Licensed under the GPL v2, see the file LICENSE in this tarball.
+ * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  *
  * Based on sysvinit's mountpoint
  */
 
+#include "busybox.h"
 #include <sys/stat.h>
 #include <errno.h> /* errno */
 #include <string.h> /* strerror */
 #include <getopt.h> /* optind */
-#include "busybox.h"
 
 int mountpoint_main(int argc, char **argv)
 {
@@ -64,7 +64,7 @@ int mountpoint_main(int argc, char **argv)
 			}
 		}
 		if (!(opt & OPT_q))
-			bb_perror_msg(arg);
+			bb_perror_msg("%s", arg);
 		return EXIT_FAILURE;
 	}
 }

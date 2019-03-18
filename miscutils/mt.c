@@ -1,10 +1,10 @@
 /* vi: set sw=4 ts=4: */
+#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mtio.h>
-#include <sys/fcntl.h>
-#include "busybox.h"
+#include <fcntl.h>
 
 struct mt_opcodes {
 	char *name;
@@ -101,8 +101,7 @@ int mt_main(int argc, char **argv)
 			break;
 	}
 
-	if ((fd = open(file, mode, 0)) < 0)
-		bb_perror_msg_and_die("%s", file);
+	fd = bb_xopen3(file, mode, 0);
 
 	switch (code->value) {
 		case MTTELL:

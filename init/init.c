@@ -9,11 +9,7 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-/* Turn this on to disable all the dangerous
-   rebooting stuff when debugging.
-#define DEBUG_INIT
-*/
-
+#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -24,12 +20,11 @@
 #include <termios.h>
 #include <unistd.h>
 #include <limits.h>
-#include <sys/fcntl.h>
+#include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/reboot.h>
-#include "busybox.h"
 
 #include "init_shared.h"
 
@@ -37,6 +32,11 @@
 #ifdef CONFIG_SYSLOGD
 # include <sys/syslog.h>
 #endif
+
+
+#ifdef CONFIG_SELINUX
+# include <selinux/selinux.h>
+#endif /* CONFIG_SELINUX */
 
 
 #define INIT_BUFFS_SIZE 256
@@ -86,7 +86,6 @@ struct serial_struct {
  */
 #define CORE_ENABLE_FLAG_FILE "/.init_enable_core"
 #include <sys/resource.h>
-#include <sys/time.h>
 #endif
 
 #define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))
@@ -139,12 +138,14 @@ struct init_action {
 
 /* Static variables */
 static struct init_action *init_action_list = NULL;
-static char console[CONSOLE_BUFF_SIZE] = _PATH_CONSOLE;
+static char console[CONSOLE_BUFF_SIZE] = CONSOLE_DEV;
 
 #ifndef CONFIG_SYSLOGD
 static char *log_console = VC_5;
 #endif
+#if !ENABLE_DEBUG_INIT
 static sig_atomic_t got_cont = 0;
+#endif
 
 enum {
 	LOG = 0x1,
@@ -157,7 +158,7 @@ enum {
 #endif
 
 #ifndef RB_HALT_SYSTEM
-	RB_HALT_SYSTEM = 0xcdef0123,
+	RB_HALT_SYSTEM = 0xcdef0123, /* FIXME: this overflows enum */
 	RB_ENABLE_CAD = 0x89abcdef,
 	RB_DISABLE_CAD = 0,
 	RB_POWER_OFF = 0x4321fedc,
@@ -175,9 +176,10 @@ static const char * const environment[] = {
 
 /* Function prototypes */
 static void delete_init_action(struct init_action *a);
-static int waitfor(const struct init_action *a);
-static void halt_signal(int sig);
-
+static int waitfor(const struct init_action *a, pid_t pid);
+#if !ENABLE_DEBUG_INIT
+static void shutdown_signal(int sig);
+#endif
 
 static void loop_forever(void)
 {
@@ -187,13 +189,13 @@ static void loop_forever(void)
 
 /* Print a message to the specified device.
  * Device may be bitwise-or'd from LOG | CONSOLE */
-#ifndef DEBUG_INIT
-static inline void messageD(int ATTRIBUTE_UNUSED device, 
+#if ENABLE_DEBUG_INIT
+#define messageD message
+#else
+static inline void messageD(int ATTRIBUTE_UNUSED device,
 				const char ATTRIBUTE_UNUSED *fmt, ...)
 {
 }
-#else
-#define messageD message
 #endif
 static void message(int device, const char *fmt, ...)
 	__attribute__ ((format(printf, 2, 3)));
@@ -201,14 +203,14 @@ static void message(int device, const char *fmt, ...)
 {
 	va_list arguments;
 	int l;
-	char msg[1024];
+	RESERVE_CONFIG_BUFFER(msg, 1024);
 #ifndef CONFIG_SYSLOGD
 	static int log_fd = -1;
 #endif
 
 	msg[0] = '\r';
 		va_start(arguments, fmt);
-	l = vsnprintf(msg + 1, sizeof(msg) - 2, fmt, arguments) + 1;
+	l = vsnprintf(msg + 1, 1024 - 2, fmt, arguments) + 1;
 		va_end(arguments);
 
 #ifdef CONFIG_SYSLOGD
@@ -243,13 +245,13 @@ static void message(int device, const char *fmt, ...)
 #endif
 
 	if (device & CONSOLE) {
-		int fd = device_open(_PATH_CONSOLE,
+		int fd = device_open(CONSOLE_DEV,
 					O_WRONLY | O_NOCTTY | O_NONBLOCK);
 		/* Always send console messages to /dev/console so people will see them. */
 		if (fd >= 0) {
 			bb_full_write(fd, msg, l);
 			close(fd);
-#ifdef DEBUG_INIT
+#if ENABLE_DEBUG_INIT
 		/* all descriptors may be closed */
 		} else {
 			bb_error_msg("Bummer, can't print: ");
@@ -259,14 +261,15 @@ static void message(int device, const char *fmt, ...)
 #endif
 		}
 	}
+	RELEASE_CONFIG_BUFFER(msg);
 }
 
 /* Set terminal settings to reasonable defaults */
-static void set_term(int fd)
+static void set_term(void)
 {
 	struct termios tty;
 
-	tcgetattr(fd, &tty);
+	tcgetattr(STDIN_FILENO, &tty);
 
 	/* set control chars */
 	tty.c_cc[VINTR] = 3;	/* C-c */
@@ -296,7 +299,7 @@ static void set_term(int fd)
 	tty.c_lflag =
 		ISIG | ICANON | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE | IEXTEN;
 
-	tcsetattr(fd, TCSANOW, &tty);
+	tcsetattr(STDIN_FILENO, TCSANOW, &tty);
 }
 
 static void console_init(void)
@@ -309,7 +312,7 @@ static void console_init(void)
 
 	if ((s = getenv("CONSOLE")) != NULL || (s = getenv("console")) != NULL) {
 		safe_strncpy(console, s, sizeof(console));
-#if #cpu(sparc)
+#if 0 /* #cpu(sparc) */
 	/* sparc kernel supports console=tty[ab] parameter which is also
 	 * passed to init, so catch it here */
 		/* remap tty[ab] to /dev/ttyS[01] */
@@ -327,7 +330,7 @@ static void console_init(void)
 			/* this is linux virtual tty */
 			snprintf(console, sizeof(console) - 1, VC_FORMAT, vt.v_active);
 		} else {
-			safe_strncpy(console, _PATH_CONSOLE, sizeof(console));
+			safe_strncpy(console, CONSOLE_DEV, sizeof(console));
 			tried++;
 		}
 	}
@@ -335,7 +338,7 @@ static void console_init(void)
 	while ((fd = open(console, O_RDONLY | O_NONBLOCK)) < 0 && tried < 2) {
 		/* Can't open selected console -- try
 			logical system console and VT_MASTER */
-		safe_strncpy(console, (tried == 0 ? _PATH_CONSOLE : CURRENT_VC),
+		safe_strncpy(console, (tried == 0 ? CONSOLE_DEV : CURRENT_VC),
 							sizeof(console));
 		tried++;
 	}
@@ -382,9 +385,30 @@ static void fixup_argv(int argc, char **argv, char *new_argv0)
 	}
 }
 
+/* Open the new terminal device */
+static void open_new_terminal(const char * const device, const int fail) {
+	struct stat sb;
+
+	if ((device_open(device, O_RDWR)) < 0) {
+		if (stat(device, &sb) != 0) {
+			message(LOG | CONSOLE, "device '%s' does not exist.", device);
+		} else {
+			message(LOG | CONSOLE, "Bummer, can't open %s", device);
+		}
+		if (fail)
+			_exit(1);
+		/* else */
+#if !ENABLE_DEBUG_INIT
+		shutdown_signal(SIGUSR1);
+#else
+		_exit(2);
+#endif
+	}
+}
+
 static pid_t run(const struct init_action *a)
 {
-	int i, junk;
+	int i;
 	pid_t pid;
 	char *s, *tmpCmd, *cmd[INIT_BUFFS_SIZE], *cmdpath;
 	char buf[INIT_BUFFS_SIZE + 6];	/* INIT_BUFFS_SIZE+strlen("exec ")+1 */
@@ -401,7 +425,6 @@ static pid_t run(const struct init_action *a)
 	sigprocmask(SIG_BLOCK, &nmask, &omask);
 
 	if ((pid = fork()) == 0) {
-		struct stat sb;
 
 		/* Clean up */
 		close(0);
@@ -425,17 +448,10 @@ static pid_t run(const struct init_action *a)
 		setsid();
 
 		/* Open the new terminal device */
-		if ((device_open(a->terminal, O_RDWR)) < 0) {
-			if (stat(a->terminal, &sb) != 0) {
-				message(LOG | CONSOLE, "device '%s' does not exist.", a->terminal);
-			} else {
-				message(LOG | CONSOLE, "Bummer, can't open %s", a->terminal);
-			}
-			_exit(1);
-		}
+		open_new_terminal(a->terminal, 1);
 
 		/* Make sure the terminal will act fairly normal for us */
-		set_term(0);
+		set_term();
 		/* Setup stdout, stderr for the new process so
 		 * they point to the supplied terminal */
 		dup(0);
@@ -444,7 +460,6 @@ static pid_t run(const struct init_action *a)
 		/* If the init Action requires us to wait, then force the
 		 * supplied terminal to be the controlling tty. */
 		if (a->action & (SYSINIT | WAIT | CTRLALTDEL | SHUTDOWN | RESTART)) {
-			pid_t pgrp, tmp_pid;
 
 			/* Now fork off another process to just hang around */
 			if ((pid = fork()) < 0) {
@@ -460,17 +475,9 @@ static pid_t run(const struct init_action *a)
 				signal(SIGQUIT, SIG_IGN);
 				signal(SIGCHLD, SIG_DFL);
 
-				/* Wait for child to exit */
-				while ((tmp_pid = waitpid(pid, &junk, 0)) != pid) {
-					if (tmp_pid == -1 && errno == ECHILD) {
-						break;
-					}
-					/* FIXME handle other errors */
-		}
-
+				waitfor(NULL, pid);
 				/* See if stealing the controlling tty back is necessary */
-				pgrp = tcgetpgrp(0);
-				if (pgrp != getpid())
+				if (tcgetpgrp(0) != getpid())
 					_exit(0);
 
 				/* Use a temporary process to steal the controlling tty. */
@@ -483,10 +490,7 @@ static pid_t run(const struct init_action *a)
 					ioctl(0, TIOCSCTTY, 1);
 					_exit(0);
 				}
-				while ((tmp_pid = waitpid(pid, &junk, 0)) != pid) {
-					if (tmp_pid < 0 && errno == ECHILD)
-						break;
-				}
+				waitfor(NULL, pid);
 				_exit(0);
 			}
 
@@ -571,12 +575,15 @@ static pid_t run(const struct init_action *a)
 				  getpid(), a->terminal, cmdpath);
 
 #if defined CONFIG_FEATURE_INIT_COREDUMPS
-		if (stat(CORE_ENABLE_FLAG_FILE, &sb) == 0) {
-			struct rlimit limit;
+		{
+			struct stat sb;
+			if (stat(CORE_ENABLE_FLAG_FILE, &sb) == 0) {
+				struct rlimit limit;
 
-			limit.rlim_cur = RLIM_INFINITY;
-			limit.rlim_max = RLIM_INFINITY;
-			setrlimit(RLIMIT_CORE, &limit);
+				limit.rlim_cur = RLIM_INFINITY;
+				limit.rlim_max = RLIM_INFINITY;
+				setrlimit(RLIMIT_CORE, &limit);
+			}
 		}
 #endif
 
@@ -592,15 +599,15 @@ static pid_t run(const struct init_action *a)
 	return pid;
 }
 
-static int waitfor(const struct init_action *a)
+static int waitfor(const struct init_action *a, pid_t pid)
 {
-	int pid;
+	int runpid;
 	int status, wpid;
 
-	pid = run(a);
+	runpid = (NULL == a)? pid : run(a);
 	while (1) {
-		wpid = waitpid(pid,&status,0);
-		if (wpid == pid)
+		wpid = waitpid(runpid,&status,0);
+		if (wpid == runpid)
 			break;
 		if (wpid == -1 && errno == ECHILD) {
 			/* we missed its termination */
@@ -623,7 +630,7 @@ static void run_actions(int action)
 			if (access(a->terminal, R_OK | W_OK)) {
 				delete_init_action(a);
 			} else if (a->action & (SYSINIT | WAIT | CTRLALTDEL | SHUTDOWN | RESTART)) {
-				waitfor(a);
+				waitfor(a, 0);
 				delete_init_action(a);
 			} else if (a->action & ONCE) {
 				run(a);
@@ -639,7 +646,7 @@ static void run_actions(int action)
 	}
 }
 
-#ifndef DEBUG_INIT
+#if !ENABLE_DEBUG_INIT
 static void init_reboot(unsigned long magic)
 {
 	pid_t pid;
@@ -683,12 +690,12 @@ static void shutdown_system(void)
 	sync();
 
 	/* Send signals to every process _except_ pid 1 */
-	message(CONSOLE | LOG, "Sending SIGTERM to all processes.");
+	message(CONSOLE | LOG, init_sending_format, "TERM");
 	kill(-1, SIGTERM);
 	sleep(1);
 	sync();
 
-	message(CONSOLE | LOG, "Sending SIGKILL to all processes.");
+	message(CONSOLE | LOG, init_sending_format, "KILL");
 	kill(-1, SIGKILL);
 	sleep(1);
 
@@ -725,18 +732,10 @@ static void exec_signal(int sig ATTRIBUTE_UNUSED)
 			close(2);
 
 			/* Open the new terminal device */
-			if ((device_open(a->terminal, O_RDWR)) < 0) {
-				struct stat sb;
-				if (stat(a->terminal, &sb) != 0) {
-					message(LOG | CONSOLE, "device '%s' does not exist.", a->terminal);
-				} else {
-					message(LOG | CONSOLE, "Bummer, can't open %s", a->terminal);
-				}
-				halt_signal(SIGUSR1);
-			}
+			open_new_terminal(a->terminal, 0);
 
 			/* Make sure the terminal will act fairly normal for us */
-			set_term(0);
+			set_term();
 			/* Setup stdout, stderr on the supplied terminal */
 			dup(0);
 			dup(0);
@@ -754,33 +753,30 @@ static void exec_signal(int sig ATTRIBUTE_UNUSED)
 	}
 }
 
-static void halt_signal(int sig ATTRIBUTE_UNUSED)
+static void shutdown_signal(int sig)
 {
+	char *m;
+	int rb;
+
 	shutdown_system();
-	message(CONSOLE | LOG, "The system is halted.");
+
+	if (sig == SIGTERM) {
+		m = "reboot";
+		rb = RB_AUTOBOOT;
+	} else if (sig == SIGUSR2) {
+		m = "poweroff";
+		rb = RB_POWER_OFF;
+	} else {
+		m = "halt";
+		rb = RB_HALT_SYSTEM;
+	}
+	message(CONSOLE | LOG, "Requesting system %s.", m);
 	sync();
 
 	/* allow time for last message to reach serial console */
 	sleep(2);
 
-	if (sig == SIGUSR2)
-		init_reboot(RB_POWER_OFF);
-	else
-		init_reboot(RB_HALT_SYSTEM);
-
-	loop_forever();
-}
-
-static void reboot_signal(int sig ATTRIBUTE_UNUSED)
-{
-	shutdown_system();
-	message(CONSOLE | LOG, "Please stand by while rebooting the system.");
-	sync();
-
-	/* allow time for last message to reach serial console */
-	sleep(2);
-
-	init_reboot(RB_AUTOBOOT);
+	init_reboot(rb);
 
 	loop_forever();
 }
@@ -808,7 +804,7 @@ static void cont_handler(int sig ATTRIBUTE_UNUSED)
 	got_cont = 1;
 }
 
-#endif							/* ! DEBUG_INIT */
+#endif							/* ! ENABLE_DEBUG_INIT */
 
 static void new_init_action(int action, const char *command, const char *cons)
 {
@@ -1013,12 +1009,11 @@ int init_main(int argc, char **argv)
 {
 	struct init_action *a;
 	pid_t wpid;
-	int status;
 
 	if (argc > 1 && !strcmp(argv[1], "-q")) {
 		return kill(1,SIGHUP);
 	}
-#ifndef DEBUG_INIT
+#if !ENABLE_DEBUG_INIT
 	/* Expect to be invoked as init with PID=1 or be invoked as linuxrc */
 	if (getpid() != 1 &&
 		(!ENABLE_FEATURE_INITRD || !strstr(bb_applet_name, "linuxrc")))
@@ -1029,10 +1024,10 @@ int init_main(int argc, char **argv)
 	 * clear all of these in run() */
 	signal(SIGHUP, exec_signal);
 	signal(SIGQUIT, exec_signal);
-	signal(SIGUSR1, halt_signal);
-	signal(SIGUSR2, halt_signal);
+	signal(SIGUSR1, shutdown_signal);
+	signal(SIGUSR2, shutdown_signal);
 	signal(SIGINT, ctrlaltdel_signal);
-	signal(SIGTERM, reboot_signal);
+	signal(SIGTERM, shutdown_signal);
 	signal(SIGCONT, cont_handler);
 	signal(SIGSTOP, stop_handler);
 	signal(SIGTSTP, stop_handler);
@@ -1051,7 +1046,7 @@ int init_main(int argc, char **argv)
 	close(2);
 
 	if (device_open(console, O_RDWR | O_NOCTTY) == 0) {
-		set_term(0);
+		set_term();
 		close(0);
 	}
 
@@ -1097,6 +1092,22 @@ int init_main(int argc, char **argv)
 		parse_inittab();
 	}
 
+#ifdef CONFIG_SELINUX
+	if (getenv("SELINUX_INIT") == NULL) {
+		int enforce = 0;
+
+		putenv("SELINUX_INIT=YES");
+		if (selinux_init_load_policy(&enforce) == 0) {
+			execv(argv[0], argv);
+		} else if (enforce > 0) {
+			/* SELinux in enforcing mode but load_policy failed */
+			/* At this point, we probably can't open /dev/console, so log() won't work */
+			message(CONSOLE,"Unable to load SELinux Policy. Machine is in enforcing mode. Halting now.");
+			exit(1);
+		}
+	}
+#endif /* CONFIG_SELINUX */
+
 	/* Make the command line just say "init"  -- thats all, nothing else */
 	fixup_argv(argc, argv, "init");
 
@@ -1131,7 +1142,7 @@ int init_main(int argc, char **argv)
 		sleep(1);
 
 		/* Wait for a child process to exit */
-		wpid = wait(&status);
+		wpid = wait(NULL);
 		while (wpid > 0) {
 			/* Find out who died and clean up their corpse */
 			for (a = init_action_list; a; a = a->next) {
@@ -1145,15 +1156,7 @@ int init_main(int argc, char **argv)
 				}
 			}
 			/* see if anyone else is waiting to be reaped */
-			wpid = waitpid (-1, &status, WNOHANG);
+			wpid = waitpid (-1, NULL, WNOHANG);
 		}
 	}
 }
-
-/*
-Local Variables:
-c-file-style: "linux"
-c-basic-offset: 4
-tab-width: 4
-End:
-*/

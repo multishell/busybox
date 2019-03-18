@@ -1,5 +1,13 @@
 /* vi: set sw=4 ts=4: */
+/*
+ * public domain -- Dave 'Kill a Cop' Cinege <dcinege@psychosis.com>
+ *
+ * makedevs
+ * Make ranges of device files quickly.
+ * known bugs: can't deal with alpha ranges
+ */
 
+#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,16 +17,8 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/sysmacros.h>     /* major() and minor() */
-#include "busybox.h"
 
 #ifdef CONFIG_FEATURE_MAKEDEVS_LEAF
-/*
- * public domain -- Dave 'Kill a Cop' Cinege <dcinege@psychosis.com>
- *
- * makedevs
- * Make ranges of device files quickly.
- * known bugs: can't deal with alpha ranges
- */
 int makedevs_main(int argc, char **argv)
 {
 	mode_t mode;
@@ -94,9 +94,7 @@ int makedevs_main(int argc, char **argv)
 		bb_error_msg_and_die("root directory not specified");
 	}
 
-	if (chdir(rootdir) != 0) {
-		bb_perror_msg_and_die("could not chdir to %s", rootdir);
-	}
+	bb_xchdir(rootdir);
 
 	umask(0);
 
@@ -234,9 +232,9 @@ loop:
 	}
 	fclose(table);
 
-	return 0;
+	return ret;
 }
 
 #else
-# error makdedevs configuration error, either leaf or table must be selected
+# error makedevs configuration error, either leaf or table must be selected
 #endif

@@ -4,25 +4,11 @@
  *
  * Copyright (C) 2002 Robert Griebl <griebl@gmx.de>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
 */
 
 
 #include <sys/ioctl.h>
-#include <sys/time.h>
 #include <sys/utsname.h>
 #include <ctype.h>
 #include <fcntl.h>
@@ -50,7 +36,7 @@ struct linux_rtc_time {
 #define RTC_SET_TIME   _IOW('p', 0x0a, struct linux_rtc_time) /* Set RTC time    */
 #define RTC_RD_TIME    _IOR('p', 0x09, struct linux_rtc_time) /* Read RTC time   */
 
-#ifdef CONFIG_FEATURE_HWCLOCK_LONGOPTIONS
+#if ENABLE_FEATURE_HWCLOCK_LONG_OPTIONS
 # ifndef _GNU_SOURCE
 #  define _GNU_SOURCE
 # endif
@@ -70,7 +56,7 @@ static time_t read_rtc(int utc)
 	memset ( &tm, 0, sizeof( struct tm ));
 	if ( ioctl ( rtc, RTC_RD_TIME, &tm ) < 0 )
 		bb_perror_msg_and_die ( "Could not read time from RTC" );
-	tm. tm_isdst = -1; // not known
+	tm.tm_isdst = -1; /* not known */
 
 	close ( rtc );
 
@@ -103,7 +89,7 @@ static void write_rtc(time_t t, int utc)
 	}
 
 	tm = *( utc ? gmtime ( &t ) : localtime ( &t ));
-	tm. tm_isdst = 0;
+	tm.tm_isdst = 0;
 
 	if ( ioctl ( rtc, RTC_SET_TIME, &tm ) < 0 )
 		bb_perror_msg_and_die ( "Could not set the RTC time" );
@@ -115,17 +101,18 @@ static int show_clock(int utc)
 {
 	struct tm *ptm;
 	time_t t;
-	char buffer [64];
+	RESERVE_CONFIG_BUFFER(buffer, 64);
 
 	t = read_rtc ( utc );
 	ptm = localtime ( &t );  /* Sets 'tzname[]' */
 
-	safe_strncpy ( buffer, ctime ( &t ), sizeof( buffer ));
+	safe_strncpy ( buffer, ctime ( &t ), 64);
 	if ( buffer [0] )
-		buffer [bb_strlen ( buffer ) - 1] = 0;
+		buffer [strlen ( buffer ) - 1] = 0;
 
 	//printf ( "%s  %.6f seconds %s\n", buffer, 0.0, utc ? "" : ( ptm-> tm_isdst ? tzname [1] : tzname [0] ));
 	printf ( "%s  %.6f seconds\n", buffer, 0.0 );
+	RELEASE_CONFIG_BUFFER(buffer);
 
 	return 0;
 }
@@ -135,7 +122,7 @@ static int to_sys_clock(int utc)
 	struct timeval tv = { 0, 0 };
 	const struct timezone tz = { timezone/60 - 60*daylight, 0 };
 
-	tv. tv_sec = read_rtc ( utc );
+	tv.tv_sec = read_rtc ( utc );
 
 	if ( settimeofday ( &tv, &tz ))
 		bb_perror_msg_and_die ( "settimeofday() failed" );
@@ -151,7 +138,7 @@ static int from_sys_clock(int utc)
 	if ( gettimeofday ( &tv, &tz ))
 		bb_perror_msg_and_die ( "gettimeofday() failed" );
 
-	write_rtc ( tv. tv_sec, utc );
+	write_rtc ( tv.tv_sec, utc );
 	return 0;
 }
 
@@ -166,10 +153,10 @@ static int check_utc(void)
 	FILE *f = fopen ( ADJTIME_PATH, "r" );
 
 	if ( f ) {
-		char buffer [128];
+		RESERVE_CONFIG_BUFFER(buffer, 128);
 
 		while ( fgets ( buffer, sizeof( buffer ), f )) {
-			int len = bb_strlen ( buffer );
+			int len = strlen ( buffer );
 
 			while ( len && isspace ( buffer [len - 1] ))
 				len--;
@@ -182,6 +169,7 @@ static int check_utc(void)
 			}
 		}
 		fclose ( f );
+		RELEASE_CONFIG_BUFFER(buffer);
 	}
 	return utc;
 }
@@ -197,7 +185,7 @@ int hwclock_main ( int argc, char **argv )
 	unsigned long opt;
 	int utc;
 
-#ifdef CONFIG_FEATURE_HWCLOCK_LONGOPTIONS
+#if ENABLE_FEATURE_HWCLOCK_LONG_OPTIONS
 static const struct option hwclock_long_options[] = {
 		{ "localtime", 0, 0, 'l' },
 		{ "utc",       0, 0, 'u' },

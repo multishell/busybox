@@ -19,9 +19,8 @@
  *
  * Based in part on the tar implementation from busybox-0.28
  *  Copyright (C) 1995 Bruce Perens
- *  This is free software under the GNU General Public License.
  *
- * Licensed under GPL v2 (or later), see file LICENSE in this tarball.
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
 #include <fcntl.h>
@@ -43,12 +42,8 @@
 #ifdef CONFIG_FEATURE_TAR_CREATE
 
 /* Tar file constants  */
-# define TAR_MAGIC          "ustar"	/* ustar and a null */
-# define TAR_VERSION        "  "	/* Be compatable with GNU tar format */
 
 #define TAR_BLOCK_SIZE		512
-#define TAR_MAGIC_LEN		6
-#define TAR_VERSION_LEN		2
 
 /* POSIX tar Header Block, from POSIX 1003.1-1990  */
 #define NAME_SIZE			100
@@ -209,15 +204,14 @@ static inline int writeTarHeader(struct TarBallInfo *tbInfo,
 
 	memset(&header, 0, size);
 
-	strncpy(header.name, header_name, sizeof(header.name));
+	safe_strncpy(header.name, header_name, sizeof(header.name));
 
 	putOctal(header.mode, sizeof(header.mode), statbuf->st_mode);
 	putOctal(header.uid, sizeof(header.uid), statbuf->st_uid);
 	putOctal(header.gid, sizeof(header.gid), statbuf->st_gid);
 	putOctal(header.size, sizeof(header.size), 0);	/* Regular file size is handled later */
 	putOctal(header.mtime, sizeof(header.mtime), statbuf->st_mtime);
-	strncpy(header.magic, TAR_MAGIC TAR_VERSION,
-			TAR_MAGIC_LEN + TAR_VERSION_LEN);
+	strcpy(header.magic, "ustar  ");
 
 	/* Enter the user and group names (default to root if it fails) */
 	if (bb_getpwuid(header.uname, statbuf->st_uid, sizeof(header.uname)) == NULL)
@@ -552,7 +546,7 @@ static llist_t *append_file_list_to_list(llist_t *list)
 		cur = cur->link;
 		free(tmp);
 		while ((line = bb_get_chomped_line_from_file(src_stream)) != NULL)
-				newlist = llist_add_to(newlist, line);
+				llist_add_to(&newlist, line);
 		fclose(src_stream);
 	}
 	return newlist;
@@ -597,7 +591,7 @@ static char get_header_tar_Z(archive_handle_t *archive_handle)
 #define TAR_OPT_AFTER_START               8
 
 #define CTX_CREATE                        (1 << (TAR_OPT_AFTER_START))
-#define TAR_OPT_DEREFERNCE                (1 << (TAR_OPT_AFTER_START + 1))
+#define TAR_OPT_DEREFERENCE               (1 << (TAR_OPT_AFTER_START + 1))
 #ifdef CONFIG_FEATURE_TAR_CREATE
 # define TAR_OPT_STR_CREATE               "ch"
 # define TAR_OPT_AFTER_CREATE             TAR_OPT_AFTER_START + 2
@@ -801,7 +795,7 @@ int tar_main(int argc, char **argv)
 		if (filename_ptr > argv[optind])
 			*filename_ptr = '\0';
 
-		tar_handle->accept = llist_add_to(tar_handle->accept, argv[optind]);
+		llist_add_to(&(tar_handle->accept), argv[optind]);
 		optind++;
 	}
 
@@ -834,8 +828,8 @@ int tar_main(int argc, char **argv)
 		}
 	}
 
-	if ((base_dir) && (chdir(base_dir)))
-		bb_perror_msg_and_die("Couldnt chdir to %s", base_dir);
+	if (base_dir)
+		bb_xchdir(base_dir);
 
 	/* create an archive */
 	if (ENABLE_FEATURE_TAR_CREATE && (opt & CTX_CREATE)) {
@@ -852,7 +846,8 @@ int tar_main(int argc, char **argv)
 		{
 			verboseFlag = TRUE;
 		}
-		writeTarFile(tar_handle->src_fd, verboseFlag, opt & TAR_OPT_DEREFERNCE, tar_handle->accept,
+		writeTarFile(tar_handle->src_fd, verboseFlag, opt & TAR_OPT_DEREFERENCE,
+				tar_handle->accept,
 			tar_handle->reject, zipMode);
 	} else {
 		while (get_header_ptr(tar_handle) == EXIT_SUCCESS);

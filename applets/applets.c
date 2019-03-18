@@ -6,47 +6,32 @@
  * isn't something I'm going to worry about...  If you wrote something
  * here, please feel free to acknowledge your work.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
  * Based in part on code from sash, Copyright (c) 1999 by David I. Bell
  * Permission has been granted to redistribute this code under the GPL.
  *
+ * Licensed under GPLv2 or later, see file License in this tarball for details.
  */
 
+#include "busybox.h"
 #include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include "busybox.h"
 
-const char usage_messages[] =
-
+#if ENABLE_SHOW_USAGE && !ENABLE_FEATURE_COMPRESS_USAGE
+static const char usage_messages[] =
 #define MAKE_USAGE
 #include "usage.h"
-
 #include "applets.h"
-
 ;
-
 #undef MAKE_USAGE
+#else
+#define usage_messages 0
+#endif /* ENABLE_SHOW_USAGE */
+
 #undef APPLET
 #undef APPLET_NOUSAGE
 #undef PROTOTYPES
 #include "applets.h"
-
 
 static struct BB_applet *applet_using;
 
@@ -56,7 +41,6 @@ const size_t NUM_APPLETS = (sizeof (applets) / sizeof (struct BB_applet) - 1);
 
 #ifdef CONFIG_FEATURE_SUID_CONFIG
 
-#include <sys/stat.h>
 #include <ctype.h>
 #include "pwd_.h"
 #include "grp_.h"
@@ -112,7 +96,7 @@ static char *get_trimmed_slice(char *s, char *e)
 
 	/* Next, advance past all leading space and return a ptr to the
 	 * first non-space char; possibly the terminating nul. */
-	return (char *) bb_skip_whitespace(s);
+	return skip_whitespace(s);
 }
 
 
@@ -253,7 +237,7 @@ static void parse_config_file(void)
 
 				/* Get the specified mode. */
 
-				e = (char *) bb_skip_whitespace(e+1);
+				e = skip_whitespace(e+1);
 
 				for (i=0 ; i < 3 ; i++) {
 					const char *q;
@@ -266,7 +250,7 @@ static void parse_config_file(void)
 
 				/* Now get the the user/group info. */
 
-				s = (char *) bb_skip_whitespace(e);
+				s = skip_whitespace(e);
 
 				/* Note: We require whitespace between the mode and the
 				 * user/group info. */
@@ -372,7 +356,7 @@ static void check_suid (struct BB_applet *applet)
 	  } else
 		setuid (ruid);                  /* no suid -> drop */
 	} else {
-		/* default: drop all priviledges */
+		/* default: drop all privileges */
 	  setgid (rgid);
 	  setuid (ruid);
 	}
@@ -391,9 +375,9 @@ static void check_suid (struct BB_applet *applet)
 
   if (applet->need_suid == _BB_SUID_ALWAYS) {
 	if (geteuid () != 0)
-	  bb_error_msg_and_die ("This applet requires root priviledges!");
+	  bb_error_msg_and_die ("This applet requires root privileges!");
   } else if (applet->need_suid == _BB_SUID_NEVER) {
-	setgid (rgid);                          /* drop all priviledges */
+	setgid (rgid);                          /* drop all privileges */
 	setuid (ruid);
   }
 }
@@ -403,25 +387,69 @@ static void check_suid (struct BB_applet *applet)
 
 
 
+#if ENABLE_FEATURE_COMPRESS_USAGE
 
+#include "usage_compressed.h"
+#include "unarchive.h"
+
+static const char *unpack_usage_messages(void)
+{
+	int input[2], output[2], pid;
+	char *buf;
+
+	if(pipe(input) < 0 || pipe(output) < 0)
+		exit(1);
+
+	pid = fork();
+	switch (pid) {
+	case -1: /* error */
+		exit(1);
+	case 0: /* child */
+		close(input[1]);
+		close(output[0]);
+		uncompressStream(input[0], output[1]);
+		exit(0);
+	}
+	/* parent */
+
+	close(input[0]);
+	close(output[1]);
+	pid = fork();
+	switch (pid) {
+	case -1: /* error */
+		exit(1);
+	case 0: /* child */
+		bb_full_write(input[1], packed_usage, sizeof(packed_usage));
+		exit(0);
+	}
+	/* parent */
+	close(input[1]);
+
+	buf = xmalloc(SIZEOF_usage_messages);
+	bb_full_read(output[0], buf, SIZEOF_usage_messages);
+	return buf;
+}
+
+#else
+#define unpack_usage_messages() usage_messages
+#endif /* ENABLE_FEATURE_COMPRESS_USAGE */
 
 void bb_show_usage (void)
 {
-  const char *format_string;
-  const char *usage_string = usage_messages;
-  int i;
+	if (ENABLE_SHOW_USAGE) {
+		const char *format_string;
+		const char *usage_string = unpack_usage_messages();
+		int i;
 
-  for (i = applet_using - applets; i > 0;) {
-	if (!*usage_string++) {
-	  --i;
+		for (i = applet_using - applets; i > 0;)
+			if (!*usage_string++) --i;
+
+		format_string = "%s\n\nUsage: %s %s\n\n";
+		if (*usage_string == '\b')
+			format_string = "%s\n\nNo help available.\n\n";
+		fprintf (stderr, format_string, bb_msg_full_version,
+			applet_using->name, usage_string);
 	}
-  }
-
-  format_string = "%s\n\nUsage: %s %s\n\n";
-  if (*usage_string == '\b')
-	format_string = "%s\n\nNo help available.\n\n";
-  fprintf (stderr, format_string, bb_msg_full_version, applet_using->name,
-		   usage_string);
 
   exit (bb_default_error_retval);
 }
@@ -456,13 +484,3 @@ void run_applet_by_name (const char *name, int argc, char **argv)
 		exit ((*(applet_using->main)) (argc, argv));
 	}
 }
-
-
-/* END CODE */
-/*
-  Local Variables:
-  c-file-style: "linux"
-  c-basic-offset: 4
-  tab-width: 4
-End:
-*/

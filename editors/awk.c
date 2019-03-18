@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
 #include <math.h>
 #include <ctype.h>
@@ -45,7 +46,7 @@ typedef struct var_s {
 	double number;
 	char *string;
 	union {
-		int aidx;				/* func arg index (on compilation stage) */
+		int aidx;				/* func arg idx (for compilation stage) */
 		struct xhash_s *array;	/* array ptr */
 		struct var_s *parent;	/* for func args, ptr to actual parameter */
 		char **walker;			/* list of array elements (for..in) */
@@ -473,9 +474,9 @@ static xhash *hash_init(void)
 {
 	xhash *newhash;
 
-	newhash = (xhash *)xcalloc(1, sizeof(xhash));
+	newhash = (xhash *)xzalloc(sizeof(xhash));
 	newhash->csize = FIRST_PRIME;
-	newhash->items = (hash_item **)xcalloc(newhash->csize, sizeof(hash_item *));
+	newhash->items = (hash_item **)xzalloc(newhash->csize * sizeof(hash_item *));
 
 	return newhash;
 }
@@ -504,7 +505,7 @@ static void hash_rebuild(xhash *hash)
 		return;
 
 	newsize = PRIMES[hash->nprime++];
-	newitems = (hash_item **)xcalloc(newsize, sizeof(hash_item *));
+	newitems = (hash_item **)xzalloc(newsize * sizeof(hash_item *));
 
 	for (i=0; i<hash->csize; i++) {
 		hi = hash->items[i];
@@ -534,8 +535,8 @@ static void *hash_find(xhash *hash, const char *name)
 		if (++hash->nel / hash->csize > 10)
 			hash_rebuild(hash);
 
-		l = bb_strlen(name) + 1;
-		hi = xcalloc(sizeof(hash_item) + l, 1);
+		l = strlen(name) + 1;
+		hi = xzalloc(sizeof(hash_item) + l);
 		memcpy(hi->name, name, l);
 
 		idx = hashidx(name) % hash->csize;
@@ -559,7 +560,7 @@ static void hash_remove(xhash *hash, const char *name)
 	while (*phi) {
 		hi = *phi;
 		if (strcmp(hi->name, name) == 0) {
-			hash->glen -= (bb_strlen(name) + 1);
+			hash->glen -= (strlen(name) + 1);
 			hash->nel--;
 			*phi = hi->next;
 			free(hi);
@@ -992,7 +993,7 @@ static node *new_node(uint32_t info)
 {
 	register node *n;
 
-	n = (node *)xcalloc(sizeof(node), 1);
+	n = (node *)xzalloc(sizeof(node));
 	n->info = info;
 	n->lineno = lineno;
 	return n;
@@ -1094,7 +1095,7 @@ static node *parse_expr(uint32_t iexp)
 				  case TC_NUMBER:
 				  case TC_STRING:
 					cn->info = OC_VAR;
-					v = cn->l.v = xcalloc(sizeof(var), 1);
+					v = cn->l.v = xzalloc(sizeof(var));
 					if (tc & TC_NUMBER)
 						setvar_i(v, t.number);
 					else
@@ -1103,7 +1104,7 @@ static node *parse_expr(uint32_t iexp)
 
 				  case TC_REGEXP:
 					mk_re_node(t.string, cn,
-									(regex_t *)xcalloc(sizeof(regex_t),2));
+									(regex_t *)xzalloc(sizeof(regex_t)*2));
 					break;
 
 				  case TC_FUNCTION:
@@ -1364,7 +1365,7 @@ static node *mk_splitter(char *s, tsplitter *spl)
 		regfree(re);
 		regfree(ire);
 	}
-	if (bb_strlen(s) > 1) {
+	if (strlen(s) > 1) {
 		mk_re_node(s, n, re);
 	} else {
 		n->info = (uint32_t) *s;
@@ -1432,7 +1433,7 @@ static int awk_split(char *s, node *spl, char **slist)
 	regmatch_t pmatch[2];
 
 	/* in worst case, each char would be a separate field */
-	*slist = s1 = bb_xstrndup(s, bb_strlen(s) * 2 + 3);
+	*slist = s1 = bb_xstrndup(s, strlen(s) * 2 + 3);
 
 	c[0] = c[1] = (char)spl->info;
 	c[2] = c[3] = '\0';
@@ -1527,12 +1528,12 @@ static void handle_special(var *v)
 
 		/* recalculate $0 */
 		sep = getvar_s(V[OFS]);
-		sl = bb_strlen(sep);
+		sl = strlen(sep);
 		b = NULL;
 		len = 0;
 		for (i=0; i<n; i++) {
 			s = getvar_s(&Fields[i]);
-			l = bb_strlen(s);
+			l = strlen(s);
 			if (b) {
 				memcpy(b+len, sep, sl);
 				len += sl;
@@ -1589,7 +1590,7 @@ static void hashwalk_init(var *v, xhash *array)
 		free(v->x.walker);
 
 	v->type |= VF_WALK;
-	w = v->x.walker = (char **)xcalloc(2 + 2*sizeof(char *) + array->glen, 1);
+	w = v->x.walker = (char **)xzalloc(2 + 2*sizeof(char *) + array->glen);
 	*w = *(w+1) = (char *)(w + 2);
 	for (i=0; i<array->csize; i++) {
 		hi = array->items[i];
@@ -1769,7 +1770,7 @@ static char *awk_printf(node *n)
 
 		} else if (c == 's') {
 		    s1 = getvar_s(arg);
-			qrealloc(&b, incr+i+bb_strlen(s1), &bsize);
+			qrealloc(&b, incr+i+strlen(s1), &bsize);
 			i += sprintf(b+i, s, s1);
 
 		} else {
@@ -1809,7 +1810,7 @@ static int awk_sub(node *rn, char *repl, int nm, var *src, var *dest, int ex)
 
 	i = di = 0;
 	sp = getvar_s(src);
-	rl = bb_strlen(repl);
+	rl = strlen(repl);
 	while (regexec(re, sp, 10, pmatch, sp==getvar_s(src) ? 0:REG_NOTBOL) == 0) {
 		so = pmatch[0].rm_so;
 		eo = pmatch[0].rm_eo;
@@ -1922,7 +1923,7 @@ static var *exec_builtin(node *op, var *res)
 		break;
 
 	  case B_ss:
-		l = bb_strlen(as[0]);
+		l = strlen(as[0]);
 		i = getvar_i(av[1]) - 1;
 		if (i>l) i=l; if (i<0) i=0;
 		n = (nargs > 2) ? getvar_i(av[2]) : l-i;
@@ -1950,8 +1951,8 @@ lo_cont:
 
 	  case B_ix:
 		n = 0;
-		ll = bb_strlen(as[1]);
-		l = bb_strlen(as[0]) - ll;
+		ll = strlen(as[1]);
+		l = strlen(as[0]) - ll;
 		if (ll > 0 && l >= 0) {
 			if (! icase) {
 				s = strstr(as[0], as[1]);
@@ -2353,7 +2354,7 @@ re_cont:
 			  case F_le:
 				if (! op1)
 					L.s = getvar_s(V[F0]);
-				R.d = bb_strlen(L.s);
+				R.d = strlen(L.s);
 				break;
 
 			  case F_sy:
@@ -2441,12 +2442,12 @@ re_cont:
 		  /* concatenation (" ") and index joining (",") */
 		  case XC( OC_CONCAT ):
 		  case XC( OC_COMMA ):
-			opn = bb_strlen(L.s) + bb_strlen(R.s) + 2;
+			opn = strlen(L.s) + strlen(R.s) + 2;
 			X.s = (char *)xmalloc(opn);
 			strcpy(X.s, L.s);
 			if ((opinfo & OPCLSMASK) == OC_COMMA) {
 				L.s = getvar_s(V[SUBSEP]);
-				X.s = (char *)xrealloc(X.s, opn + bb_strlen(L.s));
+				X.s = (char *)xrealloc(X.s, opn + strlen(L.s));
 				strcat(X.s, L.s);
 			}
 			strcat(X.s, R.s);

@@ -151,9 +151,6 @@ struct minix_dir_entry {
 	char name[0];
 };
 
-#define BLOCK_SIZE_BITS 10
-#define BLOCK_SIZE (1<<BLOCK_SIZE_BITS)
-
 #define NAME_MAX         255   /* # chars in a file name */
 
 #define MINIX_INODES_PER_BLOCK ((BLOCK_SIZE)/(sizeof (struct minix_inode)))
@@ -307,8 +304,7 @@ static inline int get_size(const char *file)
 	int fd;
 	long size;
 
-	if ((fd = open(file, O_RDWR)) < 0)
-		bb_perror_msg_and_die("%s", file);
+	fd = bb_xopen3(file, O_RDWR, 0);
 	if (ioctl(fd, BLKGETSIZE, &size) >= 0) {
 		close(fd);
 		return (size * 512);
@@ -821,9 +817,7 @@ goodbye:
 	tmp += dirsize;
 	*(short *) tmp = 2;
 	strcpy(tmp + 2, ".badblocks");
-	DEV = open(device_name, O_RDWR);
-	if (DEV < 0)
-		bb_error_msg_and_die("unable to open %s", device_name);
+	DEV = bb_xopen3(device_name, O_RDWR, 0);
 	if (fstat(DEV, &statbuf) < 0)
 		bb_error_msg_and_die("unable to stat %s", device_name);
 	if (!S_ISBLK(statbuf.st_mode))

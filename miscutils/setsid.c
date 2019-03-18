@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * setsid.c -- execute a command in a new session
  * Rick Sladkey <jrs@world.std.com>
@@ -13,17 +14,15 @@
  * - busyboxed
  */
 
+#include "busybox.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include "busybox.h"
 
-int
-setsid_main(int argc, char *argv[]) {
-
-	if (argc < 2) {
+int setsid_main(int argc, char *argv[])
+{
+	if (argc < 2)
 		bb_show_usage();
-	}
 
 	if (getpgrp() == getpid()) {
 		switch(fork()){
@@ -41,6 +40,5 @@ setsid_main(int argc, char *argv[]) {
 
 	execvp(argv[1], argv + 1);
 
-	bb_perror_msg_and_die(argv[1]);
-
+	bb_perror_msg_and_die("%s", argv[1]);
 }

@@ -13,11 +13,11 @@
  * Badly hacked by Tito Ragusa <farmatito@tiscali.it>
  */
 
+#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
 #include <ctype.h>
-#include "busybox.h"
 
 #define WHOLE_FILE		1
 #define PRINT_NAME		2
@@ -41,7 +41,7 @@ int strings_main(int argc, char **argv)
 	argv += optind;
 
 	n = bb_xgetlarg(n_arg, 10, 1, INT_MAX);
-	string = xcalloc(n + 1, 1);
+	string = xzalloc(n + 1);
 	n--;
 
 	if (argc == 0) {

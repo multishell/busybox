@@ -16,12 +16,12 @@
  * precompiled regex
 */
 
+#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
 #include <string.h>
 #include <errno.h>
-#include "busybox.h"
 #include "xregex.h"
 
 
@@ -273,7 +273,7 @@ static void load_regexes_from_file(llist_t *fopt)
 		free(cur);
 		f = bb_xfopen(ffile, "r");
 		while ((line = bb_get_chomped_line_from_file(f)) != NULL) {
-			pattern_head = llist_add_to(pattern_head,
+			llist_add_to(&pattern_head,
 				new_grep_list_data(line, PATTERN_MEM_A));
 		}
 	}
@@ -313,12 +313,12 @@ int grep_main(int argc, char **argv)
 	if(opt & GREP_OPT_A) {
 		lines_after = strtoul(slines_after, &junk, 10);
 		if(*junk != '\0')
-			bb_error_msg_and_die("invalid context length argument");
+			bb_error_msg_and_die(bb_msg_invalid_arg, slines_after, "-A");
 	}
 	if(opt & GREP_OPT_B) {
 		lines_before = strtoul(slines_before, &junk, 10);
 		if(*junk != '\0')
-			bb_error_msg_and_die("invalid context length argument");
+			bb_error_msg_and_die(bb_msg_invalid_arg, slines_before, "-B");
 	}
 	/* sanity checks after parse may be invalid numbers ;-) */
 	if ((opt & (GREP_OPT_c|GREP_OPT_q|GREP_OPT_l|GREP_OPT_L))) {
@@ -373,7 +373,7 @@ int grep_main(int argc, char **argv)
 		else {
 			char *pattern = new_grep_list_data(*argv++, 0);
 
-			pattern_head = llist_add_to(pattern_head, pattern);
+			llist_add_to(&pattern_head, pattern);
 			argc--;
 		}
 	}

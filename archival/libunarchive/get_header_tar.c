@@ -80,7 +80,7 @@ char get_header_tar(archive_handle_t *archive_handle)
 	 * 0's are for the old tar format
 	 */
 	if (strncmp(tar.formated.magic, "ustar", 5) != 0) {
-#ifdef CONFIG_FEATURE_TAR_OLDGNU_COMPATABILITY
+#ifdef CONFIG_FEATURE_TAR_OLDGNU_COMPATIBILITY
 		if (strncmp(tar.formated.magic, "\0\0\0\0\0", 5) != 0)
 #endif
 			bb_error_msg_and_die("Invalid tar magic");
@@ -144,7 +144,7 @@ char get_header_tar(archive_handle_t *archive_handle)
 		/* Reserved for high performance files, treat as normal file */
 	case 0:
 	case '0':
-#ifdef CONFIG_FEATURE_TAR_OLDGNU_COMPATABILITY
+#ifdef CONFIG_FEATURE_TAR_OLDGNU_COMPATIBILITY
 		if (last_char_is(file_header->name, '/')) {
 			file_header->mode |= S_IFDIR;
 		} else
@@ -168,17 +168,15 @@ char get_header_tar(archive_handle_t *archive_handle)
 		break;
 #ifdef CONFIG_FEATURE_TAR_GNU_EXTENSIONS
 	case 'L': {
-			longname = xmalloc(file_header->size + 1);
+			longname = xzalloc(file_header->size + 1);
 			archive_xread_all(archive_handle, longname, file_header->size);
-			longname[file_header->size] = '\0';
 			archive_handle->offset += file_header->size;
 
 			return(get_header_tar(archive_handle));
 		}
 	case 'K': {
-			linkname = xmalloc(file_header->size + 1);
+			linkname = xzalloc(file_header->size + 1);
 			archive_xread_all(archive_handle, linkname, file_header->size);
-			linkname[file_header->size] = '\0';
 			archive_handle->offset += file_header->size;
 
 			file_header->name = linkname;
@@ -206,7 +204,7 @@ char get_header_tar(archive_handle_t *archive_handle)
 		archive_handle->action_header(archive_handle->file_header);
 		archive_handle->flags |= ARCHIVE_EXTRACT_QUIET;
 		archive_handle->action_data(archive_handle);
-		archive_handle->passed = llist_add_to(archive_handle->passed, file_header->name);
+		llist_add_to(&(archive_handle->passed), file_header->name);
 	} else {
 		data_skip(archive_handle);
 	}

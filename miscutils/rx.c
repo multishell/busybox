@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*-------------------------------------------------------------------------
  * Filename:      xmodem.c
  * Version:       $Id: rx.c,v 1.2 2004/03/15 08:28:46 andersen Exp $
@@ -19,6 +20,7 @@
  *
  */
 
+#include "busybox.h"
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -30,7 +32,6 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
-#include "busybox.h"
 
 
 #define SOH 0x01
@@ -38,7 +39,6 @@
 #define EOT 0x04
 #define ACK 0x06
 #define NAK 0x15
-#define CAN 0x18
 #define BS  0x08
 
 /*
@@ -55,18 +55,6 @@ Cf:
 #define TIMEOUT 1
 #define TIMEOUT_LONG 10
 #define MAXERRORS 10
-
-static inline void write_byte(int fd, char cc) {
-	write(fd, &cc, 1);
-}
-
-static inline void write_flush(int fd) {
-	tcdrain(fd);
-}
-
-static inline void read_flush(int fd) {
-	tcflush(fd, TCIFLUSH);
-}
 
 static int read_byte(int fd, unsigned int timeout) {
 	char buf[1];
@@ -98,11 +86,11 @@ static int receive(char *error_buf, size_t error_buf_size,
 #define note_error(fmt,args...) \
 	snprintf(error_buf, error_buf_size, fmt,##args)
 
-	read_flush(ttyfd);
+	/* Flush pending input */
+	tcflush(ttyfd, TCIFLUSH);
 
 	/* Ask for CRC; if we get errors, we will go with checksum */
-	write_byte(ttyfd, nak);
-	write_flush(ttyfd);
+	write(ttyfd, &nak, 1);
 
 	for (;;) {
 		int blockBegin;
@@ -125,8 +113,8 @@ static int receive(char *error_buf, size_t error_buf_size,
 			break;
 
 		case EOT:
-			write_byte(ttyfd, ACK);
-			write_flush(ttyfd);
+			nak = ACK;
+			write(ttyfd, &nak, 1);
 			goto done;
 
 		default:
@@ -231,8 +219,8 @@ static int receive(char *error_buf, size_t error_buf_size,
 
 	next:
 		errors = 0;
-		write_byte(ttyfd, ACK);
-		write_flush(ttyfd);
+		nak = ACK;
+		write(ttyfd, &nak, 1);
 		continue;
 
 	error:
@@ -240,7 +228,6 @@ static int receive(char *error_buf, size_t error_buf_size,
 		errors++;
 		if (errors == MAXERRORS) {
 			/* Abort */
-			int i;
 
 			// if using crc, try again w/o crc
 			if (nak == 'C') {
@@ -253,17 +240,15 @@ static int receive(char *error_buf, size_t error_buf_size,
 			note_error("too many errors; giving up");
 
 		fatal:
-			for (i = 0; i < 5; i ++)
-				write_byte(ttyfd, CAN);
-			for (i = 0; i < 5; i ++)
-				write_byte(ttyfd, BS);
-			write_flush(ttyfd);
+			/* 5 CAN followed by 5 BS */
+			write(ttyfd, "\030\030\030\030\030\010\010\010\010\010", 10);
 			return -1;
 		}
 
-		read_flush(ttyfd);
-		write_byte(ttyfd, nak);
-		write_flush(ttyfd);
+		/* Flush pending input */
+		tcflush(ttyfd, TCIFLUSH);
+
+		write(ttyfd, &nak, 1);
 	}
 
  done:
@@ -289,13 +274,8 @@ int rx_main(int argc, char **argv)
 			bb_show_usage();
 
 	fn = argv[1];
-	ttyfd = open("/dev/tty", O_RDWR);
-	if (ttyfd < 0)
-			bb_error_msg_and_die("%s: open on /dev/tty failed: %m\n", argv[0]);
-
-	filefd = open(fn, O_RDWR|O_CREAT|O_TRUNC, 0666);
-	if (filefd < 0)
-			bb_error_msg_and_die("%s: open on %s failed: %m\n", argv[0], fn);
+	ttyfd = bb_xopen3(CURRENT_TTY, O_RDWR, 0);
+	filefd = bb_xopen3(fn, O_RDWR|O_CREAT|O_TRUNC, 0666);
 
 	if (tcgetattr(ttyfd, &tty) < 0)
 			bb_error_msg_and_die("%s: tcgetattr failed: %m\n", argv[0]);
@@ -321,11 +301,3 @@ int rx_main(int argc, char **argv)
 
 	bb_fflush_stdout_and_exit(EXIT_SUCCESS);
 }
-
-/*
-Local Variables:
-c-file-style: "linux"
-c-basic-offset: 4
-tab-width: 4
-End:
-*/

@@ -86,7 +86,7 @@ static void unzip_skip(int fd, off_t skip)
 static void unzip_read(int fd, void *buf, size_t count)
 {
 	if (bb_xread(fd, buf, count) != count) {
-		bb_error_msg_and_die("Read failure");
+		bb_error_msg_and_die(bb_msg_read_error);
 	}
 }
 
@@ -95,12 +95,12 @@ static void unzip_create_leading_dirs(char *fn)
 	/* Create all leading directories */
 	char *name = bb_xstrdup(fn);
 	if (bb_make_directory(dirname(name), 0777, FILEUTILS_RECUR)) {
-		bb_error_msg_and_die("Failed to create directory");
+		bb_error_msg_and_die("Exiting"); /* bb_make_directory is noisy */
 	}
 	free(name);
 }
 
-static void unzip_extract(zip_header_t *zip_header, int src_fd, int dst_fd)
+static int unzip_extract(zip_header_t *zip_header, int src_fd, int dst_fd)
 {
 	if (zip_header->formated.method == 0) {
 		/* Method 0 - stored (not compressed) */
@@ -117,12 +117,15 @@ static void unzip_extract(zip_header_t *zip_header, int src_fd, int dst_fd)
 		/* Validate decompression - crc */
 		if (zip_header->formated.crc32 != (gunzip_crc ^ 0xffffffffL)) {
 			bb_error_msg("Invalid compressed data--crc error");
+			return 1;
 		}
 		/* Validate decompression - size */
 		if (zip_header->formated.ucmpsize != gunzip_bytes_out) {
 			bb_error_msg("Invalid compressed data--length error");
+			return 1;
 		}
 	}
+	return 0;
 }
 
 int unzip_main(int argc, char **argv)
@@ -137,7 +140,7 @@ int unzip_main(int argc, char **argv)
 	llist_t *zaccept = NULL;
 	llist_t *zreject = NULL;
 	char *base_dir = NULL;
-	int i, opt, opt_range = 0, list_header_done = 0;
+	int failed, i, opt, opt_range = 0, list_header_done = 0;
 	char key_buf[512];
 	struct stat stat_buf;
 
@@ -177,7 +180,7 @@ int unzip_main(int argc, char **argv)
 
 		case 1: /* Include files */
 			if (opt == 1) {
-				zaccept = llist_add_to(zaccept, optarg);
+				llist_add_to(&zaccept, optarg);
 
 			} else if (opt == 'd') {
 				base_dir = optarg;
@@ -193,7 +196,7 @@ int unzip_main(int argc, char **argv)
 
 		case 2 : /* Exclude files */
 			if (opt == 1) {
-				zreject = llist_add_to(zreject, optarg);
+				llist_add_to(&zreject, optarg);
 
 			} else if (opt == 'd') { /* Extract to base directory */
 				base_dir = optarg;
@@ -233,12 +236,13 @@ int unzip_main(int argc, char **argv)
 	}
 
 	/* Change dir if necessary */
-	if (base_dir && chdir(base_dir)) {
-		bb_perror_msg_and_die("Cannot chdir");
-	}
+	if (base_dir)
+		bb_xchdir(base_dir);
 
 	if (verbosity != v_silent)
 		printf("Archive:  %s\n", src_fn);
+
+	failed = 0;
 
 	while (1) {
 		unsigned int magic;
@@ -271,16 +275,15 @@ int unzip_main(int argc, char **argv)
 
 		/* Read filename */
 		free(dst_fn);
-		dst_fn = xmalloc(zip_header.formated.filename_len + 1);
+		dst_fn = xzalloc(zip_header.formated.filename_len + 1);
 		unzip_read(src_fd, dst_fn, zip_header.formated.filename_len);
-		dst_fn[zip_header.formated.filename_len] = 0;
 
 		/* Skip extra header bytes */
 		unzip_skip(src_fd, zip_header.formated.extra_len);
 
 		if ((verbosity == v_list) && !list_header_done){
-			printf("  Length     Date   Time    Name\n");
-			printf(" --------    ----   ----    ----\n");
+			printf("  Length     Date   Time    Name\n"
+				   " --------    ----   ----    ----\n");
 			list_header_done = 1;
 		}
 
@@ -318,7 +321,7 @@ int unzip_main(int argc, char **argv)
 					}
 					unzip_create_leading_dirs(dst_fn);
 					if (bb_make_directory(dst_fn, 0777, 0)) {
-						bb_error_msg_and_die("Failed to create directory");
+						bb_error_msg_and_die("Exiting");
 					}
 				} else {
 					if (!S_ISDIR(stat_buf.st_mode)) {
@@ -367,7 +370,9 @@ int unzip_main(int argc, char **argv)
 			if (verbosity == v_normal) {
 				printf("  inflating: %s\n", dst_fn);
 			}
-			unzip_extract(&zip_header, src_fd, dst_fd);
+			if (unzip_extract(&zip_header, src_fd, dst_fd)) {
+			    failed = 1;
+			}
 			if (dst_fd != STDOUT_FILENO) {
 				/* closing STDOUT is potentially bad for future business */
 				close(dst_fd);
@@ -409,14 +414,5 @@ int unzip_main(int argc, char **argv)
 		       "%9d                   %d files\n", total_size, total_entries);
 	}
 
-	return(EXIT_SUCCESS);
+	return failed;
 }
-
-/* END CODE */
-/*
-Local Variables:
-c-file-style: "linux"
-c-basic-offset: 4
-tab-width: 4
-End:
-*/

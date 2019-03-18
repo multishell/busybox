@@ -1,15 +1,16 @@
+/* vi: set sw=4 ts=4: */
 /*
  * CRONTAB
  *
  * usually setuid root, -c option only works if getuid() == geteuid()
  *
  * Copyright 1994 Matthew Dillon (dillon@apollo.west.oic.com)
- * May be distributed under the GNU General Public License
+ * Vladimir Oleynik <dzo@simtreas.ru> (C) 2002
  *
- * Vladimir Oleynik <dzo@simtreas.ru> (C) 2002 to be used in busybox
- *
+ * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
+#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -40,8 +41,6 @@
 #define PATH_VI         "/bin/vi"   /* location of vi       */
 #endif
 
-#include "busybox.h"
-
 static const char  *CDir = CRONTABS;
 
 static void EditFile(const char *user, const char *file);
@@ -63,7 +62,7 @@ crontab_main(int ac, char **av)
     if ((pas = getpwuid(UserId)) == NULL)
 	bb_perror_msg_and_die("getpwuid");
 
-    strncpy(caller, pas->pw_name, sizeof(caller));
+    safe_strncpy(caller, pas->pw_name, sizeof(caller));
 
     i = 1;
     if (ac > 1) {
@@ -148,8 +147,7 @@ crontab_main(int ac, char **av)
      * Change directory to our crontab directory
      */
 
-    if (chdir(CDir) < 0)
-	bb_perror_msg_and_die("cannot change dir to %s", CDir);
+    bb_xchdir(CDir);
 
     /*
      * Handle options as appropriate
@@ -179,20 +177,16 @@ crontab_main(int ac, char **av)
 	    char buf[1024];
 
 	    snprintf(tmp, sizeof(tmp), TMPDIR "/crontab.%d", getpid());
-	    if ((fd = open(tmp, O_RDWR|O_CREAT|O_TRUNC|O_EXCL, 0600)) >= 0) {
-		chown(tmp, getuid(), getgid());
-		if ((fi = fopen(pas->pw_name, "r"))) {
-		    while ((n = fread(buf, 1, sizeof(buf), fi)) > 0)
-			write(fd, buf, n);
-		}
-		EditFile(caller, tmp);
-		remove(tmp);
-		lseek(fd, 0L, 0);
-		repFd = fd;
-	    } else {
-		bb_error_msg_and_die("unable to create %s", tmp);
+	    fd = bb_xopen3(tmp, O_RDWR|O_CREAT|O_TRUNC|O_EXCL, 0600);
+	    chown(tmp, getuid(), getgid());
+	    if ((fi = fopen(pas->pw_name, "r"))) {
+		while ((n = fread(buf, 1, sizeof(buf), fi)) > 0)
+		    write(fd, buf, n);
 	    }
-
+	    EditFile(caller, tmp);
+	    remove(tmp);
+	    lseek(fd, 0L, 0);
+	    repFd = fd;
 	}
 	option = REPLACE;
 	/* fall through */
@@ -289,11 +283,8 @@ GetReplaceStream(const char *user, const char *file)
     if (ChangeUser(user, 0) < 0)
 	exit(0);
 
-    fd = open(file, O_RDONLY);
-    if (fd < 0) {
-	bb_error_msg("unable to open %s", file);
-	exit(0);
-    }
+    bb_default_error_retval = 0;
+    fd = bb_xopen3(file, O_RDONLY, 0);
     buf[0] = 0;
     write(filedes[1], buf, 1);
     while ((n = read(fd, buf, sizeof(buf))) > 0) {
@@ -358,10 +349,7 @@ ChangeUser(const char *user, short dochdir)
     if (dochdir) {
 	if (chdir(pas->pw_dir) < 0) {
 	    bb_perror_msg("chdir failed: %s %s", user, pas->pw_dir);
-	    if (chdir(TMPDIR) < 0) {
-		bb_perror_msg_and_die("chdir failed: %s %s", user, TMPDIR);
-		return(-1);
-	    }
+	    bb_xchdir(TMPDIR);
 	}
     }
     return(pas->pw_uid);

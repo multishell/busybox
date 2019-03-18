@@ -4,7 +4,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <features.h>
-#if __GLIBC__ >=2 && __GLIBC_MINOR >= 1
+#if (__GLIBC__ >= 2 && __GLIBC_MINOR >= 1) || defined _NEWLIB_VERSION
 #include <netpacket/packet.h>
 #include <net/ethernet.h>
 #else
@@ -14,13 +14,13 @@
 #endif
 #include <errno.h>
 
+#include "common.h"
 #include "packet.h"
 #include "dhcpd.h"
 #include "options.h"
-#include "common.h"
 
 
-void init_header(struct dhcpMessage *packet, char type)
+void udhcp_init_header(struct dhcpMessage *packet, char type)
 {
 	memset(packet, 0, sizeof(struct dhcpMessage));
 	switch (type) {
@@ -44,13 +44,12 @@ void init_header(struct dhcpMessage *packet, char type)
 
 
 /* read a packet from socket fd, return -1 on read error, -2 on packet error */
-int get_packet(struct dhcpMessage *packet, int fd)
+int udhcp_get_packet(struct dhcpMessage *packet, int fd)
 {
 	static const char broken_vendors[][8] = {
 		"MSFT 98",
 		""
 	};
-
 	int bytes;
 	int i;
 	char unsigned *vendor;
@@ -79,12 +78,11 @@ int get_packet(struct dhcpMessage *packet, int fd)
 		}
 	}
 
-
 	return bytes;
 }
 
 
-uint16_t checksum(void *addr, int count)
+uint16_t udhcp_checksum(void *addr, int count)
 {
 	/* Compute Internet Checksum for "count" bytes
 	 *         beginning at location "addr".
@@ -115,7 +113,7 @@ uint16_t checksum(void *addr, int count)
 
 
 /* Construct a ip/udp header for a packet, and specify the source and dest hardware address */
-int raw_packet(struct dhcpMessage *payload, uint32_t source_ip, int source_port,
+int udhcp_raw_packet(struct dhcpMessage *payload, uint32_t source_ip, int source_port,
 		   uint32_t dest_ip, int dest_port, uint8_t *dest_arp, int ifindex)
 {
 	int fd;
@@ -150,13 +148,13 @@ int raw_packet(struct dhcpMessage *payload, uint32_t source_ip, int source_port,
 	packet.udp.len = htons(sizeof(packet.udp) + sizeof(struct dhcpMessage)); /* cheat on the psuedo-header */
 	packet.ip.tot_len = packet.udp.len;
 	memcpy(&(packet.data), payload, sizeof(struct dhcpMessage));
-	packet.udp.check = checksum(&packet, sizeof(struct udp_dhcp_packet));
+	packet.udp.check = udhcp_checksum(&packet, sizeof(struct udp_dhcp_packet));
 
 	packet.ip.tot_len = htons(sizeof(struct udp_dhcp_packet));
 	packet.ip.ihl = sizeof(packet.ip) >> 2;
 	packet.ip.version = IPVERSION;
 	packet.ip.ttl = IPDEFTTL;
-	packet.ip.check = checksum(&(packet.ip), sizeof(packet.ip));
+	packet.ip.check = udhcp_checksum(&(packet.ip), sizeof(packet.ip));
 
 	result = sendto(fd, &packet, sizeof(struct udp_dhcp_packet), 0, (struct sockaddr *) &dest, sizeof(dest));
 	if (result <= 0) {
@@ -168,7 +166,7 @@ int raw_packet(struct dhcpMessage *payload, uint32_t source_ip, int source_port,
 
 
 /* Let the kernel do all the work for packet generation */
-int kernel_packet(struct dhcpMessage *payload, uint32_t source_ip, int source_port,
+int udhcp_kernel_packet(struct dhcpMessage *payload, uint32_t source_ip, int source_port,
 		   uint32_t dest_ip, int dest_port)
 {
 	int n = 1;

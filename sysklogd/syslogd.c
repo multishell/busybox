@@ -13,6 +13,7 @@
  * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
+#include "busybox.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -31,8 +32,6 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <sys/param.h>
-
-#include "busybox.h"
 
 /* SYSLOG_NAMES defined to pull some extra junk from syslog.h */
 #define SYSLOG_NAMES
@@ -209,7 +208,7 @@ static void circ_message(const char *msg)
 	 *      "tail" are actually offsets from the beginning of the buffer.
 	 *
 	 * Note: This algorithm uses Linux IPC mechanism w/ shared memory and semaphores to provide
-	 *       a threasafe way of handling shared memory operations.
+	 *       a threadsafe way of handling shared memory operations.
 	 */
 	if ((buf->tail + l) < buf->size) {
 		/* before we append the message we need to check the HEAD so that we won't
@@ -236,7 +235,7 @@ static void circ_message(const char *msg)
 					/* Note: HEAD is only used to "retrieve" messages, it's not used
 					   when writing messages into our buffer */
 				} else {	/* show an error message to know we messed up? */
-					printf("Weird! Can't find the terminator token??? \n");
+					printf("Weird! Can't find the terminator token?\n");
 					buf->head = 0;
 				}
 			}
@@ -273,7 +272,7 @@ static void circ_message(const char *msg)
 			buf->tail = k + 1;
 		} else {
 			printf
-				("Weird! Can't find the terminator token from the beginning??? \n");
+				("Weird! Can't find the terminator token from the beginning?\n");
 			buf->head = buf->tail = 0;	/* reset buffer, since it's probably corrupted */
 		}
 
@@ -369,12 +368,7 @@ static void message(char *fmt, ...)
 static void init_RemoteLog(void)
 {
 	memset(&remoteaddr, 0, sizeof(remoteaddr));
-	remotefd = socket(AF_INET, SOCK_DGRAM, 0);
-
-	if (remotefd < 0) {
-		bb_error_msg("cannot create socket");
-	}
-
+	remotefd = bb_xsocket(AF_INET, SOCK_DGRAM, 0);
 	remoteaddr.sin_family = AF_INET;
 	remoteaddr.sin_addr = *(struct in_addr *) *(xgethostbyname(RemoteHost))->h_addr_list;
 	remoteaddr.sin_port = htons(RemotePort);
@@ -543,11 +537,7 @@ static void doSyslogd(void)
 	memset(&sunx, 0, sizeof(sunx));
 	sunx.sun_family = AF_UNIX;
 	strncpy(sunx.sun_path, lfile, sizeof(sunx.sun_path));
-	if ((sock_fd = socket(AF_UNIX, SOCK_DGRAM, 0)) < 0) {
-		bb_perror_msg_and_die("Couldn't get file descriptor for socket "
-						   _PATH_LOG);
-	}
-
+	sock_fd = bb_xsocket(AF_UNIX, SOCK_DGRAM, 0);
 	addrLength = sizeof(sunx.sun_family) + strlen(sunx.sun_path);
 	if (bind(sock_fd, (struct sockaddr *) &sunx, addrLength) < 0) {
 		bb_perror_msg_and_die("Could not connect to socket " _PATH_LOG);
@@ -679,22 +669,13 @@ int syslogd_main(int argc, char **argv)
 	umask(0);
 
 	if (doFork == TRUE) {
-#if defined(__uClinux__)
+#ifdef BB_NOMMU
 		vfork_daemon_rexec(0, 1, argc, argv, "-n");
-#else /* __uClinux__ */
-		if(daemon(0, 1) < 0)
-			bb_perror_msg_and_die("daemon");
-#endif /* __uClinux__ */
+#else
+		bb_xdaemon(0, 1);
+#endif
 	}
 	doSyslogd();
 
 	return EXIT_SUCCESS;
 }
-
-/*
-Local Variables
-c-file-style: "linux"
-c-basic-offset: 4
-tab-width: 4
-End:
-*/

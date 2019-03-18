@@ -32,7 +32,7 @@
 #include <net/if.h>
 #include <errno.h>
 #include <features.h>
-#if __GLIBC__ >=2 && __GLIBC_MINOR >= 1
+#if (__GLIBC__ >= 2 && __GLIBC_MINOR >= 1) || defined _NEWLIB_VERSION
 #include <netpacket/packet.h>
 #include <net/ethernet.h>
 #else
@@ -41,8 +41,8 @@
 #include <linux/if_ether.h>
 #endif
 
-#include "socket.h"
 #include "common.h"
+#include "socket.h"
 
 int read_interface(char *interface, int *ifindex, uint32_t *addr, uint8_t *arp)
 {
@@ -120,7 +120,7 @@ int listen_socket(uint32_t ip, int port, char *inf)
 		return -1;
 	}
 
-	strncpy(interface.ifr_ifrn.ifrn_name, inf, IFNAMSIZ);
+	strncpy(interface.ifr_name, inf, IFNAMSIZ);
 	if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE,(char *)&interface, sizeof(interface)) < 0) {
 		close(fd);
 		return -1;

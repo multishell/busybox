@@ -8,17 +8,17 @@
  * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
+#include "busybox.h"
+
 #include <sys/syslog.h>
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <errno.h>
-#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <net/if.h>
 #include <netinet/ether.h>
 
-#include "busybox.h"
 
 /* Older versions of net/if.h do not appear to define IF_NAMESIZE. */
 #ifndef IF_NAMESIZE
@@ -105,7 +105,7 @@ int nameif_main(int argc, char **argv)
 
 			if (strlen(*a) > IF_NAMESIZE)
 				serror("interface name `%s' too long", *a);
-			ch = xcalloc(1, sizeof(mactable_t));
+			ch = xzalloc(sizeof(mactable_t));
 			ch->ifname = bb_xstrdup(*a++);
 			ch->mac = cc_macaddr(*a++);
 			if (clist)
@@ -126,7 +126,7 @@ int nameif_main(int argc, char **argv)
 				continue;
 			}
 			name_length = strcspn(line_ptr, " \t");
-			ch = xcalloc(1, sizeof(mactable_t));
+			ch = xzalloc(sizeof(mactable_t));
 			ch->ifname = bb_xstrndup(line_ptr, name_length);
 			if (name_length > IF_NAMESIZE)
 				serror("interface name `%s' too long", ch->ifname);
@@ -184,11 +184,11 @@ int nameif_main(int argc, char **argv)
 		}
 		if (ch->next != NULL)
 			(ch->next)->prev = ch->prev;
-#ifdef CONFIG_FEATURE_CLEAN_UP
-		free(ch->ifname);
-		free(ch->mac);
-		free(ch);
-#endif
+		if (ENABLE_FEATURE_CLEAN_UP) {
+			free(ch->ifname);
+			free(ch->mac);
+			free(ch);
+		}
 	}
 
 	return 0;

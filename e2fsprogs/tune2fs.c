@@ -39,7 +39,7 @@
 #include "ext2fs/ext2fs.h"
 #include "uuid/uuid.h"
 #include "e2p/e2p.h"
-#include "ext2fs/jfs_user.h"
+#include "ext2fs/kernel-jbd.h"
 #include "util.h"
 #include "blkid/blkid.h"
 
@@ -579,7 +579,7 @@ static ATTRIBUTE_NORETURN void do_findfs(int argc, char **argv)
 #define do_findfs(x, y)
 #endif
 
-static void clean_up(void)
+static void tune2fs_clean_up(void)
 {
 	if (ENABLE_FEATURE_CLEAN_UP && device_name) free(device_name);
 	if (ENABLE_FEATURE_CLEAN_UP && journal_device) free(journal_device);
@@ -593,7 +593,7 @@ int tune2fs_main(int argc, char **argv)
 	io_manager io_ptr;
 
 	if (ENABLE_FEATURE_CLEAN_UP)
-		atexit(clean_up);
+		atexit(tune2fs_clean_up);
 
 	if (ENABLE_FINDFS && (bb_applet_name[0] == 'f')) /* findfs */
 		do_findfs(argc, argv);  /* no return */
@@ -699,13 +699,13 @@ int tune2fs_main(int argc, char **argv)
 		if (strlen(new_label) > sizeof(sb->s_volume_name))
 			bb_error_msg("Warning: label too long, truncating\n");
 		memset(sb->s_volume_name, 0, sizeof(sb->s_volume_name));
-		strncpy(sb->s_volume_name, new_label,
+		safe_strncpy(sb->s_volume_name, new_label,
 			sizeof(sb->s_volume_name));
 		ext2fs_mark_super_dirty(fs);
 	}
 	if (M_flag) {
 		memset(sb->s_last_mounted, 0, sizeof(sb->s_last_mounted));
-		strncpy(sb->s_last_mounted, new_last_mounted,
+		safe_strncpy(sb->s_last_mounted, new_last_mounted,
 			sizeof(sb->s_last_mounted));
 		ext2fs_mark_super_dirty(fs);
 	}

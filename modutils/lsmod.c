@@ -8,22 +8,10 @@
  * Nicolas Ferre <nicolas.ferre@alcove.fr> to support pre 2.1 kernels
  * (which lack the query_module() interface).
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
+#include "busybox.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -36,7 +24,6 @@
 #include <getopt.h>
 #include <sys/utsname.h>
 #include <sys/file.h>
-#include "busybox.h"
 
 
 #ifndef CONFIG_FEATURE_CHECK_TAINTED_MODULE
@@ -203,13 +190,13 @@ int lsmod_main(int argc, char **argv)
 	  }
 	  fclose(file);
 	}
-	return 0;  /* Success  */
+	return EXIT_SUCCESS;
 #else
-	if (bb_xprint_file_by_name("/proc/modules") < 0) {
-		return 0;
-	}
+	if (bb_xprint_file_by_name("/proc/modules") == 0)
+		return EXIT_SUCCESS;
 #endif  /*  CONFIG_FEATURE_2_6_MODULES  */
-	return 1;
+
+	return EXIT_FAILURE;
 }
 
 #endif /* CONFIG_FEATURE_QUERY_MODULE_INTERFACE */

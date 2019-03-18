@@ -3,15 +3,7 @@
  * nfsmount.c -- Linux NFS mount
  * Copyright (C) 1993 Rick Sladkey <jrs@world.std.com>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
- * any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  *
  * Wed Feb  8 12:51:48 1995, biro@yggdrasil.com (Ross Biro): allow all port
  * numbers to be specified on the command line.
@@ -33,18 +25,12 @@
  * nfsmount.c,v 1.1.1.1 1993/11/18 08:40:51 jrs Exp
  */
 
+#include "busybox.h"
 #include <unistd.h>
-#include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#include <netdb.h>
-#include <sys/socket.h>
 #include <time.h>
 #include <sys/utsname.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <stdlib.h>
-#include "busybox.h"
 #undef TRUE
 #undef FALSE
 #include <rpc/rpc.h>
@@ -121,19 +107,7 @@ enum {
 # define textdomain(Domain) /* empty */
 
 enum {
-	MS_MGC_VAL = 0xc0ed0000, /* Magic number indicatng "new" flags */
-	MS_RDONLY = 1,      /* Mount read-only */
-	MS_NOSUID = 2,      /* Ignore suid and sgid bits */
-	MS_NODEV = 4,      /* Disallow access to device special files */
-	MS_NOEXEC = 8,      /* Disallow program execution */
-	MS_SYNCHRONOUS = 16,      /* Writes are synced at once */
-	MS_REMOUNT = 32,      /* Alter flags of a mounted FS */
-	MS_MANDLOCK = 64,      /* Allow mandatory locks on an FS */
 	S_QUOTA = 128,     /* Quota initialized for file/directory/symlink */
-	S_APPEND = 256,     /* Append-only file */
-	S_IMMUTABLE = 512,     /* Immutable file */
-	MS_NOATIME = 1024,    /* Do not update access times. */
-	MS_NODIRATIME = 2048    /* Do not update directory access times */
 };
 
 
@@ -214,7 +188,6 @@ enum {
 
 static char *nfs_strerror(int status);
 
-#define MAKE_VERSION(p,q,r)	(65536*(p) + 256*(q) + (r))
 #define MAX_NFSPROT ((nfs_mount_version >= 4) ? 3 : 2)
 
 enum {
@@ -249,13 +222,13 @@ find_kernel_nfs_mount_version(void)
 
 	nfs_mount_version = NFS_MOUNT_VERSION; /* default */
 
-	kernel_version = get_kernel_revision();
+	kernel_version = get_linux_version_code();
 	if (kernel_version) {
-		if (kernel_version < MAKE_VERSION(2,1,32))
+		if (kernel_version < KERNEL_VERSION(2,1,32))
 			nfs_mount_version = 1;
-		else if (kernel_version < MAKE_VERSION(2,2,18) ||
-				(kernel_version >=   MAKE_VERSION(2,3,0) &&
-				 kernel_version < MAKE_VERSION(2,3,99)))
+		else if (kernel_version < KERNEL_VERSION(2,2,18) ||
+				(kernel_version >=   KERNEL_VERSION(2,3,0) &&
+				 kernel_version < KERNEL_VERSION(2,3,99)))
 			nfs_mount_version = 3;
 		else
 			nfs_mount_version = 4; /* since 2.3.99pre4 */
@@ -503,19 +476,18 @@ int nfsmount(const char *spec, const char *node, int *flags,
 				else if (!strncmp(opteq+1, "udp", 3))
 					tcp = 0;
 				else
-					printf(_("Warning: Unrecognized proto= option.\n"));
+					printf("Warning: Unrecognized proto= option.\n");
 			} else if (!strcmp(opt, "namlen")) {
 #if NFS_MOUNT_VERSION >= 2
 				if (nfs_mount_version >= 2)
 					data.namlen = val;
 				else
 #endif
-				printf(_("Warning: Option namlen is not supported.\n"));
+				printf("Warning: Option namlen is not supported.\n");
 			} else if (!strcmp(opt, "addr"))
 				/* ignore */;
 			else {
-				printf(_("unknown nfs mount parameter: "
-				       "%s=%d\n"), opt, val);
+				printf("unknown nfs mount parameter: %s=%d\n", opt, val);
 				goto fail;
 			}
 		}
@@ -549,10 +521,9 @@ int nfsmount(const char *spec, const char *node, int *flags,
 				if (nfs_mount_version >= 3)
 					nolock = !val;
 				else
-					printf(_("Warning: option nolock is not supported.\n"));
+					printf("Warning: option nolock is not supported.\n");
 			} else {
-				printf(_("unknown nfs mount option: "
-					   "%s%s\n"), val ? "" : "no", opt);
+				printf("unknown nfs mount option: %s%s\n", val ? "" : "no", opt);
 				goto fail;
 			}
 		}
@@ -572,13 +543,9 @@ int nfsmount(const char *spec, const char *node, int *flags,
 	if (nfs_mount_version >= 3)
 		data.flags |= (nolock ? NFS_MOUNT_NONLM : 0);
 #endif
-	if (nfsvers > MAX_NFSPROT) {
+	if (nfsvers > MAX_NFSPROT || mountvers > MAX_NFSPROT) {
 		bb_error_msg("NFSv%d not supported!", nfsvers);
-		return 0;
-	}
-	if (mountvers > MAX_NFSPROT) {
-		bb_error_msg("NFSv%d not supported!", nfsvers);
-		return 0;
+		return 1;
 	}
 	if (nfsvers && !mountvers)
 		mountvers = (nfsvers < 3) ? 1 : nfsvers;
@@ -628,7 +595,7 @@ int nfsmount(const char *spec, const char *node, int *flags,
 		return retval;
 	}
 
-	/* create mount deamon client */
+	/* create mount daemon client */
 	/* See if the nfs host = mount host. */
 	if (mounthost) {
 	  if (mounthost[0] >= '0' && mounthost[0] <= '9') {
@@ -814,18 +781,18 @@ int nfsmount(const char *spec, const char *node, int *flags,
 
 	if (tcp) {
 		if (nfs_mount_version < 3) {
-			printf(_("NFS over TCP is not supported.\n"));
+			printf("NFS over TCP is not supported.\n");
 			goto fail;
 		}
 		fsock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	} else
 		fsock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (fsock < 0) {
-		perror(_("nfs socket"));
+		perror("nfs socket");
 		goto fail;
 	}
 	if (bindresvport(fsock, 0) < 0) {
-		perror(_("nfs bindresvport"));
+		perror("nfs bindresvport");
 		goto fail;
 	}
 	if (port == 0) {
@@ -836,11 +803,11 @@ int nfsmount(const char *spec, const char *node, int *flags,
 			port = NFS_PORT;
 #ifdef NFS_MOUNT_DEBUG
 		else
-			printf(_("used portmapper to find NFS port\n"));
+			printf("used portmapper to find NFS port\n");
 #endif
 	}
 #ifdef NFS_MOUNT_DEBUG
-	printf(_("using port %d for nfs deamon\n"), port);
+	printf("using port %d for nfs daemon\n", port);
 #endif
 	server_addr.sin_port = htons(port);
 	 /*
@@ -848,10 +815,10 @@ int nfsmount(const char *spec, const char *node, int *flags,
 	  * to avoid problems with multihomed hosts.
 	  * --Swen
 	  */
-	if (get_kernel_revision() <= 66314
+	if (get_linux_version_code() <= KERNEL_VERSION(2,3,10)
 	    && connect(fsock, (struct sockaddr *) &server_addr,
 		       sizeof (server_addr)) < 0) {
-		perror(_("nfs connect"));
+		perror("nfs connect");
 		goto fail;
 	}
 
@@ -941,15 +908,13 @@ static char *nfs_strerror(int status)
 		if (nfs_errtbl[i].stat == status)
 			return strerror(nfs_errtbl[i].errnum);
 	}
-	sprintf(buf, _("unknown nfs status return value: %d"), status);
+	sprintf(buf, "unknown nfs status return value: %d", status);
 	return buf;
 }
 
 static bool_t
 xdr_fhandle (XDR *xdrs, fhandle objp)
 {
-	//register int32_t *buf;
-
 	 if (!xdr_opaque (xdrs, objp, FHSIZE))
 		 return FALSE;
 	return TRUE;
@@ -958,8 +923,6 @@ xdr_fhandle (XDR *xdrs, fhandle objp)
 bool_t
 xdr_fhstatus (XDR *xdrs, fhstatus *objp)
 {
-	//register int32_t *buf;
-
 	 if (!xdr_u_int (xdrs, &objp->fhs_status))
 		 return FALSE;
 	switch (objp->fhs_status) {
@@ -976,8 +939,6 @@ xdr_fhstatus (XDR *xdrs, fhstatus *objp)
 bool_t
 xdr_dirpath (XDR *xdrs, dirpath *objp)
 {
-	//register int32_t *buf;
-
 	 if (!xdr_string (xdrs, objp, MNTPATHLEN))
 		 return FALSE;
 	return TRUE;
@@ -986,8 +947,6 @@ xdr_dirpath (XDR *xdrs, dirpath *objp)
 bool_t
 xdr_fhandle3 (XDR *xdrs, fhandle3 *objp)
 {
-	//register int32_t *buf;
-
 	 if (!xdr_bytes (xdrs, (char **)&objp->fhandle3_val, (unsigned int *) &objp->fhandle3_len, FHSIZE3))
 		 return FALSE;
 	return TRUE;
@@ -996,11 +955,9 @@ xdr_fhandle3 (XDR *xdrs, fhandle3 *objp)
 bool_t
 xdr_mountres3_ok (XDR *xdrs, mountres3_ok *objp)
 {
-	//register int32_t *buf;
-
 	 if (!xdr_fhandle3 (xdrs, &objp->fhandle))
 		 return FALSE;
-	 if (!xdr_array (xdrs, (char **)&objp->auth_flavours.auth_flavours_val, (unsigned int *) &objp->auth_flavours.auth_flavours_len, ~0,
+	 if (!xdr_array (xdrs, &(objp->auth_flavours.auth_flavours_val), &(objp->auth_flavours.auth_flavours_len), ~0,
 		sizeof (int), (xdrproc_t) xdr_int))
 		 return FALSE;
 	return TRUE;
@@ -1009,8 +966,6 @@ xdr_mountres3_ok (XDR *xdrs, mountres3_ok *objp)
 bool_t
 xdr_mountstat3 (XDR *xdrs, mountstat3 *objp)
 {
-	//register int32_t *buf;
-
 	 if (!xdr_enum (xdrs, (enum_t *) objp))
 		 return FALSE;
 	return TRUE;
@@ -1019,8 +974,6 @@ xdr_mountstat3 (XDR *xdrs, mountstat3 *objp)
 bool_t
 xdr_mountres3 (XDR *xdrs, mountres3 *objp)
 {
-	//register int32_t *buf;
-
 	 if (!xdr_mountstat3 (xdrs, &objp->fhs_status))
 		 return FALSE;
 	switch (objp->fhs_status) {

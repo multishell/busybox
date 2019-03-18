@@ -3,45 +3,52 @@
  * Mini watchdog implementation for busybox
  *
  * Copyright (C) 2003  Paul Mundt <lethal@linux-sh.org>
+ * Copyright (C) 2006  Bernhard Fischer <busybox@busybox.net>
  *
  * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
+#include "busybox.h"
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <signal.h>
-#include "busybox.h"
 
-/* Userspace timer duration, in seconds */
-static unsigned int timer_duration = 30;
+#define OPT_FOREGROUND 0x01
+#define OPT_TIMER      0x02
 
 /* Watchdog file descriptor */
 static int fd;
 
 static void watchdog_shutdown(int ATTRIBUTE_UNUSED unused)
 {
-	write(fd, "V", 1);	/* Magic */
+	write(fd, "V", 1);	/* Magic, see watchdog-api.txt in kernel */
 	close(fd);
 	exit(0);
 }
 
 int watchdog_main(int argc, char **argv)
 {
-
+	unsigned long opts;
+	unsigned long timer_duration = 30; /* Userspace timer duration, in seconds */
 	char *t_arg;
-	unsigned long flags;
-	flags = bb_getopt_ulflags(argc, argv, "t:", &t_arg);
-	if (flags & 1)
+
+	opts = bb_getopt_ulflags(argc, argv, "Ft:", &t_arg);
+
+	if (opts & OPT_TIMER)
 		timer_duration = bb_xgetlarg(t_arg, 10, 0, INT_MAX);
 
 	/* We're only interested in the watchdog device .. */
 	if (optind < argc - 1 || argc == 1)
 		bb_show_usage();
 
-	if (daemon(0, 1) < 0)
-		bb_perror_msg_and_die("Failed forking watchdog daemon");
+#ifdef BB_NOMMU
+	if (!(opts & OPT_FOREGROUND))
+		vfork_daemon_rexec(0, 1, argc, argv, "-F");
+#else
+	bb_xdaemon(0, 1);
+#endif
 
 	signal(SIGHUP, watchdog_shutdown);
 	signal(SIGINT, watchdog_shutdown);

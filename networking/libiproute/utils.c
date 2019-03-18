@@ -10,13 +10,12 @@
  * Rani Assaf <rani@magic.metawire.com> 980929:	resolve addresses
  */
 
-#include <stdlib.h>
+#include "libbb.h"
+
 #include <string.h>
 #include <unistd.h>
-#include <arpa/inet.h>
 
 #include "utils.h"
-#include "libbb.h"
 #include "inet_common.h"
 
 int get_integer(int *val, char *arg, int base)
@@ -241,9 +240,9 @@ void incomplete_command(void)
 	exit(-1);
 }
 
-void invarg(char *msg, char *arg)
+void invarg(const char * const arg, const char * const opt)
 {
-	bb_error_msg("argument \"%s\" is wrong: %s", arg, msg);
+	bb_error_msg(bb_msg_invalid_arg, arg, opt);
 	exit(-1);
 }
 

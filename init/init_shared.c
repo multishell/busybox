@@ -7,15 +7,17 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
+#include "busybox.h"
 #include <signal.h>
 #include <stdlib.h>
+#include <sys/types.h>
 #include <unistd.h>
 #include <getopt.h>
 #include <sys/reboot.h>
 #include <sys/syslog.h>
-#include "busybox.h"
 #include "init_shared.h"
 
+const char * const init_sending_format = "Sending SIG%s to all processes.";
 #ifndef CONFIG_INIT
 const char * const bb_shutdown_format = "\r%s\n";
 int bb_shutdown_system(unsigned long magic)
@@ -26,7 +28,7 @@ int bb_shutdown_system(unsigned long magic)
 	/* Don't kill ourself */
 	signal(SIGTERM,SIG_IGN);
 	signal(SIGHUP,SIG_IGN);
-	setpgrp();
+	bb_setpgrp;
 
 	/* Allow Ctrl-Alt-Del to reboot system. */
 #ifndef RB_ENABLE_CAD
@@ -43,16 +45,16 @@ int bb_shutdown_system(unsigned long magic)
 	sync();
 
 	/* Send signals to every process _except_ pid 1 */
-	message = "Sending SIGTERM to all processes.";
-	syslog(pri, "%s", message);
+	message = "TERM";
+	syslog(pri, init_sending_format, message);
 	printf(bb_shutdown_format, message);
 
 	kill(-1, SIGTERM);
 	sleep(1);
 	sync();
 
-	message = "Sending SIGKILL to all processes.";
-	syslog(pri, "%s", message);
+	message = "KILL";
+	syslog(pri, init_sending_format, message);
 	printf(bb_shutdown_format, message);
 
 	kill(-1, SIGKILL);

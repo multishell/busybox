@@ -11,20 +11,26 @@
 #ifndef	__LIBBUSYBOX_H__
 #define	__LIBBUSYBOX_H__    1
 
+#include "bb_config.h"
+#include "platform.h"
+
+#include <ctype.h>
+#include <dirent.h>
+#include <fcntl.h>
+#include <inttypes.h>
+#include <netdb.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
-#include <sys/types.h>
+#include <string.h>
+#include <strings.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/types.h>
 #include <termios.h>
-#include <stdint.h>
+#include <unistd.h>
 
-#include <netdb.h>
-
-#include <features.h>
-
-#include "platform.h"
-#include "bb_config.h"
 #ifdef CONFIG_SELINUX
 #include <selinux/selinux.h>
 #endif
@@ -38,9 +44,23 @@
 # include "sha1.h"
 #endif
 
+/* Try to pull in PATH_MAX */
+#include <limits.h>
+#include <sys/param.h>
+#ifndef PATH_MAX
+#define  PATH_MAX         256
+#endif
+
+#ifdef DMALLOC
+#include <dmalloc.h>
+#endif
+
 /* Some useful definitions */
+#undef FALSE
 #define FALSE   ((int) 0)
+#undef TRUE
 #define TRUE    ((int) 1)
+#undef SKIP
 #define SKIP	((int) 2)
 
 /* for mtab.c */
@@ -59,6 +79,34 @@
 #define	MAX(a,b) (((a)>(b))?(a):(b))
 #endif
 
+/* buffer allocation schemes */
+#ifdef CONFIG_FEATURE_BUFFERS_GO_ON_STACK
+#define RESERVE_CONFIG_BUFFER(buffer,len)           char buffer[len]
+#define RESERVE_CONFIG_UBUFFER(buffer,len) unsigned char buffer[len]
+#define RELEASE_CONFIG_BUFFER(buffer)      ((void)0)
+#else
+#ifdef CONFIG_FEATURE_BUFFERS_GO_IN_BSS
+#define RESERVE_CONFIG_BUFFER(buffer,len)  static          char buffer[len]
+#define RESERVE_CONFIG_UBUFFER(buffer,len) static unsigned char buffer[len]
+#define RELEASE_CONFIG_BUFFER(buffer)      ((void)0)
+#else
+#define RESERVE_CONFIG_BUFFER(buffer,len)           char *buffer=xmalloc(len)
+#define RESERVE_CONFIG_UBUFFER(buffer,len) unsigned char *buffer=xmalloc(len)
+#define RELEASE_CONFIG_BUFFER(buffer)      free (buffer)
+#endif
+#endif
+
+
+typedef struct llist_s {
+	char *data;
+	struct llist_s *link;
+} llist_t;
+extern void llist_add_to(llist_t **old_head, void *data);
+extern void llist_add_to_end(llist_t **list_head, void *data);
+extern void *llist_pop(llist_t **elm);
+extern void llist_free(llist_t *elm, void (*freeit)(void *data));
+
+
 extern void bb_show_usage(void) ATTRIBUTE_NORETURN ATTRIBUTE_EXTERNALLY_VISIBLE;
 extern void bb_error_msg(const char *s, ...) __attribute__ ((format (printf, 1, 2)));
 extern void bb_error_msg_and_die(const char *s, ...) __attribute__ ((noreturn, format (printf, 1, 2)));
@@ -76,9 +124,12 @@ extern void bb_verror_msg(const char *s, va_list p) __attribute__ ((format (prin
 extern void bb_vperror_msg(const char *s, va_list p)  __attribute__ ((format (printf, 1, 0)));
 
 extern int bb_echo(int argc, char** argv);
+extern int bb_test(int argc, char** argv);
 
 extern const char *bb_mode_string(int mode);
 extern int is_directory(const char *name, int followLinks, struct stat *statBuf);
+extern DIR *bb_opendir(const char *path);
+extern DIR *bb_xopendir(const char *path);
 
 extern int remove_file(const char *path, int flags);
 extern int copy_file(const char *source, const char *dest, int flags);
@@ -95,10 +146,10 @@ extern int recursive_action(const char *fileName, int recurse,
 extern int bb_parse_mode( const char* s, mode_t* theMode);
 extern long bb_xgetlarg(const char *arg, int base, long lower, long upper);
 
-extern unsigned long bb_baud_to_value(speed_t speed);
-extern speed_t bb_value_to_baud(unsigned long value);
+extern unsigned int tty_baud_to_value(speed_t speed);
+extern speed_t tty_value_to_baud(unsigned int value);
 
-extern int get_kernel_revision(void);
+extern int get_linux_version_code(void);
 
 extern int get_console_fd(void);
 extern struct mntent *find_mount_point(const char *name, const char *table);
@@ -123,6 +174,14 @@ extern int   bb_fclose_nonstdin(FILE *f);
 extern void  bb_fflush_stdout_and_exit(int retval) ATTRIBUTE_NORETURN;
 
 extern void xstat(const char *filename, struct stat *buf);
+extern int  bb_xsocket(int domain, int type, int protocol);
+extern pid_t bb_spawn(char **argv);
+extern pid_t bb_xspawn(char **argv);
+extern int wait4pid(int pid);
+extern void bb_xdaemon(int nochdir, int noclose);
+extern void bb_xbind(int sockfd, struct sockaddr *my_addr, socklen_t addrlen);
+extern void bb_xlisten(int s, int backlog);
+extern void bb_xchdir(const char *path);
 
 #define BB_GETOPT_ERROR 0x80000000UL
 extern const char *bb_opt_complementally;
@@ -147,7 +206,7 @@ extern void bb_warn_ignoring_args(int n);
 
 extern void chomp(char *s);
 extern void trim(char *s);
-extern const char *bb_skip_whitespace(const char *);
+extern char *skip_whitespace(const char *);
 
 extern struct BB_applet *find_applet_by_name(const char *name);
 void run_applet_by_name(const char *name, int argc, char **argv);
@@ -156,6 +215,7 @@ void run_applet_by_name(const char *name, int argc, char **argv);
  * to have the prototypes here unconditionally.  */
 extern void *xmalloc(size_t size);
 extern void *xrealloc(void *old, size_t size);
+extern void *xzalloc(size_t size);
 extern void *xcalloc(size_t nmemb, size_t size);
 
 extern char *bb_xstrdup (const char *s);
@@ -218,7 +278,7 @@ extern int vdprintf(int d, const char *format, va_list ap);
 int nfsmount(const char *spec, const char *node, int *flags,
 	     char **mount_opts, int running_bg);
 
-/* Include our own copy of struct sysinfo to avoid binary compatability
+/* Include our own copy of struct sysinfo to avoid binary compatibility
  * problems with Linux 2.4, which changed things.  Grumble, grumble. */
 struct sysinfo {
 	long uptime;			/* Seconds since boot */
@@ -298,6 +358,8 @@ extern const char * const bb_msg_name_longer_than_foo;
 extern const char * const bb_msg_unknown;
 extern const char * const bb_msg_can_not_create_raw_socket;
 extern const char * const bb_msg_perm_denied_are_you_root;
+extern const char * const bb_msg_requires_arg;
+extern const char * const bb_msg_invalid_arg;
 extern const char * const bb_msg_standard_input;
 extern const char * const bb_msg_standard_output;
 
@@ -308,6 +370,7 @@ extern const char * const bb_path_gshadow_file;
 extern const char * const bb_path_group_file;
 extern const char * const bb_path_securetty_file;
 extern const char * const bb_path_motd_file;
+extern const char * const bb_path_wtmp_file;
 extern const char * const bb_dev_null;
 
 #ifndef BUFSIZ
@@ -407,17 +470,17 @@ extern struct spwd *pwd_to_spwd(const struct passwd *pw);
 extern int obscure(const char *old, const char *newval, const struct passwd *pwdp);
 
 extern int bb_xopen(const char *pathname, int flags);
+extern int bb_xopen3(const char *pathname, int flags, int mode);
 extern ssize_t bb_xread(int fd, void *buf, size_t count);
 extern void bb_xread_all(int fd, void *buf, size_t count);
 extern unsigned char bb_xread_char(int fd);
 
 #ifndef COMM_LEN
-/*#include <sched.h> *//* Task command name length */
 #ifdef TASK_COMM_LEN
 #define COMM_LEN TASK_COMM_LEN
 #else
-#define COMM_LEN 16 /* synchronize with size of comm in struct task_struct
-					                          in /usr/include/linux/sched.h */
+/* synchronize with sizeof(task_struct.comm) in /usr/include/linux/sched.h */
+#define COMM_LEN 16
 #endif
 #endif
 typedef struct {
@@ -443,20 +506,15 @@ extern int compare_string_array(const char * const string_array[], const char *k
 
 extern int my_query_module(const char *name, int which, void **buf, size_t *bufsize, size_t *ret);
 
-typedef struct llist_s {
-	char *data;
-	struct llist_s *link;
-} llist_t;
-extern llist_t *llist_add_to(llist_t *old_head, char *new_item);
-extern llist_t *llist_add_to_end(llist_t *list_head, char *data);
-extern llist_t *llist_free_one(llist_t *elm);
-extern void llist_free(llist_t *elm);
-
 extern void print_login_issue(const char *issue_file, const char *tty);
 extern void print_login_prompt(void);
 
+#ifdef BB_NOMMU
+extern void vfork_daemon(int nochdir, int noclose);
 extern void vfork_daemon_rexec(int nochdir, int noclose,
 		int argc, char **argv, char *foreground_opt);
+#endif
+
 extern int get_terminal_width_height(int fd, int *width, int *height);
 extern unsigned long get_ug_id(const char *s, long (*__bb_getxxnam)(const char *));
 
@@ -475,7 +533,7 @@ typedef struct _md5_ctx_t_ {
 	uint32_t B;
 	uint32_t C;
 	uint32_t D;
-	uint32_t total[2];
+	uint64_t total;
 	uint32_t buflen;
 	char buffer[128];
 } md5_ctx_t;
@@ -484,9 +542,13 @@ void md5_begin(md5_ctx_t *ctx);
 void md5_hash(const void *data, size_t length, md5_ctx_t *ctx);
 void *md5_end(void *resbuf, md5_ctx_t *ctx);
 
-/* busybox.h will include dmalloc later for us, else include it here.  */
-#if !defined _BB_INTERNAL_H_ && defined DMALLOC
-#include <dmalloc.h>
+extern uint32_t *bb_crc32_filltable (int endian);
+
+#ifndef RB_POWER_OFF
+/* Stop system and switch power off if possible.  */
+#define RB_POWER_OFF   0x4321fedc
 #endif
+
+extern const char BB_BANNER[];
 
 #endif /* __LIBBUSYBOX_H__ */

@@ -16,11 +16,7 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-/* These defines are very important for BusyBox.  Without these,
- * huge chunks of ram are pre-allocated making the BusyBox bss
- * size Freaking Huge(tm), which is a bad thing.*/
 #define SMALL_MEM
-#define DYN_ALLOC
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -87,17 +83,11 @@ typedef unsigned long ulg;
 #  endif
 #endif
 
-#ifdef DYN_ALLOC
 #  define DECLARE(type, array, size)  static type * array
 #  define ALLOC(type, array, size) { \
-      array = (type*)xcalloc((size_t)(((size)+1L)/2), 2*sizeof(type)); \
+      array = (type*)xzalloc((size_t)(((size)+1L)/2) * 2*sizeof(type)); \
    }
 #  define FREE(array) {free(array), array=NULL;}
-#else
-#  define DECLARE(type, array, size)  static type array[size]
-#  define ALLOC(type, array, size)
-#  define FREE(array)
-#endif
 
 #define tab_suffix window
 #define tab_prefix prev	/* hash link (see deflate.c) */
@@ -293,6 +283,7 @@ static int ofd;			/* output file descriptor */
 static unsigned insize;	/* valid bytes in inbuf */
 static unsigned outcnt;	/* bytes in output buffer */
 
+static uint32_t *crc_32_tab;
 
 /* Output a 16 bit value, lsb first */
 static void put_short(ush w)
@@ -333,7 +324,7 @@ static void write_buf(int fd, void *buf, unsigned cnt)
 	unsigned n;
 
 	while ((n = write(fd, buf, cnt)) != cnt) {
-		if (n == (unsigned) (-1)) bb_error_msg_and_die("can't write");
+		if (n == (unsigned) (-1)) bb_error_msg_and_die(bb_msg_write_error);
 		cnt -= n;
 		buf = (void *) ((char *) buf + n);
 	}
@@ -344,32 +335,13 @@ static void write_buf(int fd, void *buf, unsigned cnt)
  * pointer, then initialize the crc shift register contents instead.
  * Return the current crc in either case.
  */
-static ulg updcrc(uch * s, unsigned n)
+static uint32_t updcrc(uch * s, unsigned n)
 {
-	static ulg crc = (ulg) 0xffffffffL;	/* shift register contents */
-	register ulg c;		/* temporary variable */
-	static unsigned long crc_32_tab[256];
-
-	if (crc_32_tab[1] == 0x00000000L) {
-		unsigned long csr;	/* crc shift register */
-		const unsigned long e = 0xedb88320L;	/* polynomial exclusive-or pattern */
-		int i;			/* counter for all possible eight bit values */
-		int k;			/* byte being shifted into crc apparatus */
-
-		/* Compute table of CRC's. */
-		for (i = 1; i < 256; i++) {
-			csr = i;
-			/* The idea to initialize the register with the byte instead of
-			   * zero was stolen from Haruhiko Okumura's ar002
-			 */
-			for (k = 8; k; k--)
-				csr = csr & 1 ? (csr >> 1) ^ e : csr >> 1;
-			crc_32_tab[i] = csr;
-		}
-	}
+	static uint32_t crc = ~0;	/* shift register contents */
+	uint32_t c;		/* temporary variable */
 
 	if (s == NULL) {
-		c = 0xffffffffL;
+		c = ~0;
 	} else {
 		c = crc;
 		if (n)
@@ -378,7 +350,7 @@ static ulg updcrc(uch * s, unsigned n)
 			} while (--n);
 	}
 	crc = c;
-	return c ^ 0xffffffffL;	/* (instead of ~c for 64-bit machines) */
+	return ~c;
 }
 
 /* bits.c -- output variable-length bit strings
@@ -1223,6 +1195,9 @@ int gzip_main(int argc, char **argv)
 	ALLOC(uch, window, 2L * WSIZE);
 	ALLOC(ush, tab_prefix, 1L << BITS);
 
+	/* Initialise the CRC32 table */
+	crc_32_tab = bb_crc32_filltable(0);
+	
 	clear_bufs();
 	part_nb = 0;
 
@@ -1243,8 +1218,8 @@ int gzip_main(int argc, char **argv)
 				inFileNum = STDIN_FILENO;
 				outFileNum = STDOUT_FILENO;
 			} else {
-				inFileNum = open(argv[i], O_RDONLY);
-				if (inFileNum < 0 || fstat(inFileNum, &statBuf) < 0)
+				inFileNum = bb_xopen3(argv[i], O_RDONLY, 0);
+				if (fstat(inFileNum, &statBuf) < 0)
 					bb_perror_msg_and_die("%s", argv[i]);
 				time_stamp = statBuf.st_ctime;
 				ifile_size = statBuf.st_size;
@@ -2416,7 +2391,7 @@ static void set_file_type(void)
  */
 
 
-static ulg crc;			/* crc on uncompressed file data */
+static uint32_t crc;			/* crc on uncompressed file data */
 static long header_bytes;	/* number of bytes in gzip header */
 
 static void put_long(ulg n)

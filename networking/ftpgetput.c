@@ -13,25 +13,17 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include <sys/types.h>
 #include <sys/ioctl.h>
-#include <sys/time.h>
-#include <sys/stat.h>
 
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <signal.h>
 #include <string.h>
 #include <unistd.h>
 
-#include <netinet/in.h>
-#include <netdb.h>
 #include <sys/socket.h>
-#include <arpa/inet.h>
 
 #include "busybox.h"
 
@@ -122,8 +114,10 @@ static FILE *ftp_login(ftp_host_info_t *server)
 	return(control_stream);
 }
 
-#ifdef CONFIG_FTPGET
-static int ftp_recieve(ftp_host_info_t *server, FILE *control_stream,
+#if !ENABLE_FTPGET
+#define ftp_receive 0
+#else
+static int ftp_receive(ftp_host_info_t *server, FILE *control_stream,
 		const char *local_path, char *server_path)
 {
 	char buf[512];
@@ -207,7 +201,9 @@ static int ftp_recieve(ftp_host_info_t *server, FILE *control_stream,
 }
 #endif
 
-#ifdef CONFIG_FTPPUT
+#if !ENABLE_FTPPUT
+#define ftp_send 0
+#else
 static int ftp_send(ftp_host_info_t *server, FILE *control_stream,
 		const char *server_path, char *local_path)
 {
@@ -274,6 +270,7 @@ static int ftp_send(ftp_host_info_t *server, FILE *control_stream,
 #define FTPGETPUT_OPT_PASSWORD	8
 #define FTPGETPUT_OPT_PORT	16
 
+#if ENABLE_FEATURE_FTPGETPUT_LONG_OPTIONS
 static const struct option ftpgetput_long_options[] = {
 	{"continue", 1, NULL, 'c'},
 	{"verbose", 0, NULL, 'v'},
@@ -282,6 +279,9 @@ static const struct option ftpgetput_long_options[] = {
 	{"port", 1, NULL, 'P'},
 	{0, 0, 0, 0}
 };
+#else
+#define ftpgetput_long_options 0
+#endif
 
 int ftpgetput_main(int argc, char **argv)
 {
@@ -299,24 +299,12 @@ int ftpgetput_main(int argc, char **argv)
 	int (*ftp_action)(ftp_host_info_t *, FILE *, const char *, char *) = NULL;
 
 	/* Check to see if the command is ftpget or ftput */
-#ifdef CONFIG_FTPPUT
-# ifdef CONFIG_FTPGET
-	if (bb_applet_name[3] == 'p') {
+	if (ENABLE_FTPPUT && (!ENABLE_FTPGET || bb_applet_name[3] == 'p')) {
 		ftp_action = ftp_send;
 	}
-# else
-	ftp_action = ftp_send;
-# endif
-#endif
-#ifdef CONFIG_FTPGET
-# ifdef CONFIG_FTPPUT
-	if (bb_applet_name[3] == 'g') {
-		ftp_action = ftp_recieve;
+	if (ENABLE_FTPGET && (!ENABLE_FTPPUT || bb_applet_name[3] == 'g')) {
+		ftp_action = ftp_receive;
 	}
-# else
-	ftp_action = ftp_recieve;
-# endif
-#endif
 
 	/* Set default values */
 	server = xmalloc(sizeof(ftp_host_info_t));
@@ -327,7 +315,9 @@ int ftpgetput_main(int argc, char **argv)
 	/*
 	 * Decipher the command line
 	 */
-	bb_applet_long_options = ftpgetput_long_options;
+	if (ENABLE_FEATURE_FTPGETPUT_LONG_OPTIONS)
+		bb_applet_long_options = ftpgetput_long_options;
+
 	opt = bb_getopt_ulflags(argc, argv, "cvu:p:P:", &server->user, &server->password, &port);
 
 	/* Process the non-option command line arguments */
@@ -358,11 +348,3 @@ int ftpgetput_main(int argc, char **argv)
 
 	return(ftp_action(server, control_stream, argv[optind + 1], argv[optind + 2]));
 }
-
-/*
-Local Variables:
-c-file-style: "linux"
-c-basic-offset: 4
-tab-width: 4
-End:
-*/

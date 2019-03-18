@@ -13,7 +13,7 @@
  * bb_getopt_ulflags();
  */
 
-/* Design notes: There is no spec for this.  Remind me to write one.
+/* Design notes: There is no spec for mount.  Remind me to write one.
 
    mount_main() calls singlemount() which calls mount_it_now().
 
@@ -22,18 +22,14 @@
    mount_it_now() does the actual mount.
 */
 
-#include <limits.h>
-#include <stdlib.h>
+#include "busybox.h"
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
-#include <stdio.h>
 #include <mntent.h>
 #include <ctype.h>
-#include <sys/mount.h>
 #include <fcntl.h>		// for CONFIG_FEATURE_MOUNT_LOOP
 #include <sys/ioctl.h>  // for CONFIG_FEATURE_MOUNT_LOOP
-#include "busybox.h"
 
 // These two aren't always defined in old headers
 #ifndef MS_BIND
@@ -169,7 +165,7 @@ static llist_t *get_block_backed_filesystems(void)
 			if(*fs=='#' || *fs=='*') continue;
 			if(!*fs) continue;
 
-			list=llist_add_to_end(list,bb_xstrdup(fs));
+			llist_add_to_end(&list,bb_xstrdup(fs));
 		}
 		if (ENABLE_FEATURE_CLEAN_UP) fclose(f);
 	}
@@ -182,7 +178,7 @@ llist_t *fslist = 0;
 #if ENABLE_FEATURE_CLEAN_UP
 static void delete_block_backed_filesystems(void)
 {
-	llist_free(fslist);
+	llist_free(fslist, free);
 }
 #else
 void delete_block_backed_filesystems(void);
@@ -260,9 +256,9 @@ static int mount_it_now(struct mntent *mp, int vfsflags, char *filteropts)
 // Mount one directory.  Handles NFS, loopback, autobind, and filesystem type
 // detection.  Returns 0 for success, nonzero for failure.
 
-static int singlemount(struct mntent *mp)
+static int singlemount(struct mntent *mp, int ignore_busy)
 {
-	int rc = 1, vfsflags;
+	int rc = -1, vfsflags;
 	char *loopFile = 0, *filteropts = 0;
 	llist_t *fl = 0;
 	struct stat st;
@@ -281,14 +277,14 @@ static int singlemount(struct mntent *mp)
 	{
 		if (nfsmount(mp->mnt_fsname, mp->mnt_dir, &vfsflags, &filteropts, 1)) {
 			bb_perror_msg("nfsmount failed");
-			return 1;
+			goto report_error;
 		} else {
 			// Strangely enough, nfsmount() doesn't actually mount() anything.
 			mp->mnt_type = "nfs";
 			rc = mount_it_now(mp, vfsflags, filteropts);
 			if (ENABLE_FEATURE_CLEAN_UP) free(filteropts);
 			
-			return rc;
+			goto report_error;
 		}
 	}
 
@@ -351,16 +347,20 @@ static int singlemount(struct mntent *mp)
 
 	// If mount failed, clean up loop file (if any).
 
-	if (rc && loopFile) {
+	if (ENABLE_FEATURE_MOUNT_LOOP && rc && loopFile) {
 		del_loop(mp->mnt_fsname);
 		if (ENABLE_FEATURE_CLEAN_UP) {
 			free(loopFile);
 			free(mp->mnt_fsname);
 		}
 	}
+report_error:
+	if (rc && errno == EBUSY && ignore_busy) rc = 0;
+	if (rc < 0)
+		bb_perror_msg("Mounting %s on %s failed", mp->mnt_fsname, mp->mnt_dir);
+
 	return rc;
 }
-
 
 // Parse options, if necessary parse fstab/mtab, and call singlemount for
 // each directory to be mounted.
@@ -369,7 +369,7 @@ int mount_main(int argc, char **argv)
 {
 	char *cmdopts = bb_xstrdup(""), *fstabname, *fstype=0, *storage_path=0;
 	FILE *fstab;
-	int i, opt, all = FALSE, rc = 1;
+	int i, opt, all = FALSE, rc = 0;
 	struct mntent mtpair[2], *mtcur = mtpair;
 
 	/* parse long options, like --bind and --move.  Note that -o option
@@ -451,7 +451,7 @@ int mount_main(int argc, char **argv)
 		mtpair->mnt_dir = argv[optind+1];
 		mtpair->mnt_type = fstype;
 		mtpair->mnt_opts = cmdopts;
-		rc = singlemount(mtpair);
+		rc = singlemount(mtpair, 0);
 		goto clean_up;
 	}
 
@@ -495,10 +495,10 @@ int mount_main(int argc, char **argv)
 				mtcur = mtnext;
 				mtcur->mnt_opts=bb_xstrdup(mtcur->mnt_opts);
 				append_mount_options(&(mtcur->mnt_opts),cmdopts);
-				rc = singlemount(mtcur);
+				rc = singlemount(mtcur, 0);
 				free(mtcur->mnt_opts);
 			}
-			break;
+			goto clean_up;
 		}
 
 		/* If we're trying to mount something specific and this isn't it,
@@ -533,13 +533,9 @@ int mount_main(int argc, char **argv)
 
 			// Mount this thing.
 
-			if (singlemount(mtcur)) {
-				// Don't whine about already mounted fs when mounting all.
-				// Note: we should probably change return value to indicate 
-				// failure, without causing a duplicate error message.
-				if (errno != EBUSY) bb_perror_msg("Mounting %s on %s failed",
-						mtcur->mnt_fsname, mtcur->mnt_dir);
-				rc = 0;
+			if (singlemount(mtcur, 1)) {
+				/* Count number of failed mounts */
+				rc++;
 			}
 		}
 	}
@@ -551,10 +547,6 @@ clean_up:
 		free(storage_path);
 		free(cmdopts);
 	}
-
-	if(rc)
-		bb_perror_msg("Mounting %s on %s failed",
-				mtcur->mnt_fsname, mtcur->mnt_dir);
 
 	return rc;
 }

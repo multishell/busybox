@@ -2,7 +2,7 @@
  *  Modified for busybox by Glenn McGrath <bug1@iinet.net.au>
  *  Added support output to stdout by Thomas Lundquist <thomasez@zelow.no>
  *
- *  Licensed under GPL v2, see file LICENSE in this tarball for details.
+ *  Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
 #include <fcntl.h>
@@ -41,16 +41,18 @@ int bunzip2_main(int argc, char **argv)
 
 	/* Check that the input is sane.  */
 	if (isatty(src_fd) && (opt & BUNZIP2_OPT_FORCE) == 0) {
-		bb_error_msg_and_die("compressed data not read from terminal.  Use -f to force it.");
+		bb_error_msg_and_die("Compressed data not read from terminal.  Use -f to force it.");
 	}
 
 	if (filename) {
+		struct stat stat_buf;
 		char *extension=filename+strlen(filename)-4;
 		if (strcmp(extension, ".bz2") != 0) {
 			bb_error_msg_and_die("Invalid extension");
 		}
+		xstat(filename, &stat_buf);
 		*extension=0;
-		dst_fd = bb_xopen(filename, O_WRONLY | O_CREAT);
+		dst_fd = bb_xopen3(filename, O_WRONLY | O_CREAT, stat_buf.st_mode);
 	} else dst_fd = STDOUT_FILENO;
 	status = uncompressStream(src_fd, dst_fd);
 	if(filename) {

@@ -158,8 +158,7 @@ int add_simple_option(uint8_t *optionptr, uint8_t code, uint32_t data)
 			option[OPT_CODE] = code;
 			len = option_lengths[dh->flags & TYPE_MASK];
 			option[OPT_LEN] = len;
-			if (__BYTE_ORDER == __BIG_ENDIAN)
-				data <<= 8 * (4 - len);
+			if (BB_BIG_ENDIAN) data <<= 8 * (4 - len);
 			/* This memcpy is for broken processors which can't
 			 * handle a simple unaligned 32-bit assignment */
 			memcpy(&option[OPT_DATA], &data, 4);
@@ -170,4 +169,3 @@ int add_simple_option(uint8_t *optionptr, uint8_t code, uint32_t data)
 	DEBUG(LOG_ERR, "Could not add option 0x%02x", code);
 	return 0;
 }
-

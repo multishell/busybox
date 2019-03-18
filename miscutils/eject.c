@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * eject implementation for busybox
  *
@@ -5,7 +6,6 @@
  * Copyright (C) 2005  Tito Ragusa <farmatito@tiscali.it>
  *
  * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
- *
  */
 
 /*
@@ -13,12 +13,11 @@
  * Most of the dirty work blatantly ripped off from cat.c =)
  */
 
+#include "busybox.h"
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
-#include <sys/mount.h>
 #include <mntent.h>
-#include "busybox.h"
 
 /* various defines swiped from linux/cdrom.h */
 #define CDROMCLOSETRAY            0x5319  /* pendant of CDROMEJECT  */

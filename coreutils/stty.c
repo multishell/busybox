@@ -23,6 +23,7 @@
 
 //#define TEST
 
+#include "busybox.h"
 #include <stddef.h>
 #include <termios.h>
 #include <sys/ioctl.h>
@@ -45,7 +46,6 @@
 #include <errno.h>
 #include <limits.h>
 #include <fcntl.h>
-#include "busybox.h"
 
 #define STREQ(a, b) (strcmp ((a), (b)) == 0)
 
@@ -608,7 +608,7 @@ int main(int argc, char **argv)
 			for (i = 0; i < NUM_control_info; ++i)
 				if (STREQ(argv[k], control_info[i].name)) {
 					if (k == argc - 1)
-					    bb_error_msg_and_die("missing argument to `%s'", argv[k]);
+					    bb_error_msg_and_die(bb_msg_requires_arg, argv[k]);
 					match_found = 1;
 					++k;
 					set_control_char(&control_info[i], argv[k], &mode);
@@ -619,14 +619,14 @@ int main(int argc, char **argv)
 		if (match_found == 0) {
 			if (STREQ(argv[k], "ispeed")) {
 				if (k == argc - 1)
-				    bb_error_msg_and_die("missing argument to `%s'", argv[k]);
+				    bb_error_msg_and_die(bb_msg_requires_arg, argv[k]);
 				++k;
 				set_speed(input_speed, argv[k], &mode);
 				speed_was_set = 1;
 				require_set_attr = 1;
 			} else if (STREQ(argv[k], "ospeed")) {
 				if (k == argc - 1)
-				    bb_error_msg_and_die("missing argument to `%s'", argv[k]);
+				    bb_error_msg_and_die(bb_msg_requires_arg, argv[k]);
 				++k;
 				set_speed(output_speed, argv[k], &mode);
 				speed_was_set = 1;
@@ -635,13 +635,13 @@ int main(int argc, char **argv)
 #ifdef TIOCGWINSZ
 			else if (STREQ(argv[k], "rows")) {
 				if (k == argc - 1)
-				    bb_error_msg_and_die("missing argument to `%s'", argv[k]);
+				    bb_error_msg_and_die(bb_msg_requires_arg, argv[k]);
 				++k;
 				set_window_size((int) bb_xparse_number(argv[k], stty_suffixes),
 								-1);
 			} else if (STREQ(argv[k], "cols") || STREQ(argv[k], "columns")) {
 				if (k == argc - 1)
-				    bb_error_msg_and_die("missing argument to `%s'", argv[k]);
+				    bb_error_msg_and_die(bb_msg_requires_arg, argv[k]);
 				++k;
 				set_window_size(-1,
 						(int) bb_xparse_number(argv[k], stty_suffixes));
@@ -654,7 +654,7 @@ int main(int argc, char **argv)
 #ifdef HAVE_C_LINE
 			else if (STREQ(argv[k], "line")) {
 				if (k == argc - 1)
-					bb_error_msg_and_die("missing argument to `%s'", argv[k]);
+					bb_error_msg_and_die(bb_msg_requires_arg, argv[k]);
 				++k;
 				mode.c_line = bb_xparse_number(argv[k], stty_suffixes);
 				require_set_attr = 1;
@@ -1190,7 +1190,7 @@ static void display_speed(struct termios *mode, int fancy)
 	if (fancy) {
 		fmt_str += 9;
 	}
-	wrapf(fmt_str, bb_baud_to_value(ispeed), bb_baud_to_value(ospeed));
+	wrapf(fmt_str, tty_baud_to_value(ispeed), tty_baud_to_value(ospeed));
 	if (!fancy)
 		current_col = 0;
 }
@@ -1239,7 +1239,7 @@ static int recover_mode(char *arg, struct termios *mode)
 
 static speed_t string_to_baud(const char *arg)
 {
-	return bb_value_to_baud(bb_xparse_number(arg, 0));
+	return tty_value_to_baud(bb_xparse_number(arg, 0));
 }
 
 static void sane_mode(struct termios *mode)

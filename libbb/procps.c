@@ -4,15 +4,15 @@
  *
  * Copyright 1998 by Albert Cahalan; all rights reserved.
  * Copyright (C) 2002 by Vladimir Oleynik <dzo@simtreas.ru>
- * GNU Library General Public License Version 2, or any later version
  *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
 #include <dirent.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/param.h>
 #include <unistd.h>
-#include <asm/page.h>
 #include <fcntl.h>
 
 #include "libbb.h"
@@ -28,7 +28,8 @@ static int read_to_buf(const char *filename, void *buf)
 	fd = open(filename, O_RDONLY);
 	if(fd < 0)
 		return -1;
-	ret = read(fd, buf, PROCPS_BUFSIZE);
+	ret = read(fd, buf, PROCPS_BUFSIZE-1);
+	((char *)buf)[ret > 0 ? ret : 0] = 0;
 	close(fd);
 	return ret;
 }
@@ -50,9 +51,7 @@ procps_status_t * procps_scan(int save_user_arg0)
 	struct stat sb;
 
 	if (!dir) {
-		dir = opendir("/proc");
-		if(!dir)
-			bb_error_msg_and_die("Can't open /proc");
+		dir = bb_xopendir("/proc");
 	}
 	for(;;) {
 		if((entry = readdir(dir)) == NULL) {
@@ -73,6 +72,7 @@ procps_status_t * procps_scan(int save_user_arg0)
 			continue;
 		bb_getpwuid(curstatus.user, sb.st_uid, sizeof(curstatus.user));
 
+		/* see proc(5) for some details on this */
 		strcpy(status_tail, "/stat");
 		n = read_to_buf(status, buf);
 		if(n < 0)
@@ -87,15 +87,15 @@ procps_status_t * procps_scan(int save_user_arg0)
 		"%*s %*s %*s %*s "     /* pgrp, session, tty, tpgid */
 		"%*s %*s %*s %*s %*s " /* flags, min_flt, cmin_flt, maj_flt, cmaj_flt */
 #ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
-		"%lu %lu "
+		"%lu %lu "             /* utime, stime */
 #else
-		"%*s %*s "
+		"%*s %*s "             /* utime, stime */
 #endif
 		"%*s %*s %*s "         /* cutime, cstime, priority */
-		"%ld "
+		"%ld "                 /* nice */
 		"%*s %*s %*s "         /* timeout, it_real_value, start_time */
 		"%*s "                 /* vsize */
-		"%ld",
+		"%ld",                 /* rss */
 		curstatus.state, &curstatus.ppid,
 #ifdef CONFIG_FEATURE_TOP_CPU_USAGE_PERCENTAGE
 		&curstatus.utime, &curstatus.stime,
@@ -148,12 +148,3 @@ procps_status_t * procps_scan(int save_user_arg0)
 		return memcpy(&ret_status, &curstatus, sizeof(procps_status_t));
 	}
 }
-
-/* END CODE */
-/*
-Local Variables:
-c-file-style: "linux"
-c-basic-offset: 4
-tab-width: 4
-End:
-*/

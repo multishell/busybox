@@ -44,10 +44,11 @@
  */
 
 
-
 #define IFS_BROKEN
 
 #define PROFILE 0
+
+#include "busybox.h"
 
 #ifdef DEBUG
 #define _GNU_SOURCE
@@ -58,7 +59,6 @@
 #include <sys/param.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
-#include <sys/time.h>
 #include <sys/wait.h>
 
 #include <stdio.h>
@@ -77,12 +77,10 @@
 #include <paths.h>
 #include <setjmp.h>
 #include <signal.h>
-#include <stdint.h>
+/*#include <stdint.h>*/
 #include <time.h>
 #include <fnmatch.h>
 
-
-#include "busybox.h"
 #include "pwd_.h"
 
 #ifdef CONFIG_ASH_JOB_CONTROL
@@ -1227,6 +1225,9 @@ static int evalcmd(int, char **);
 #ifdef CONFIG_ASH_BUILTIN_ECHO
 static int echocmd(int, char **);
 #endif
+#ifdef CONFIG_ASH_BUILTIN_TEST
+static int testcmd(int, char **);
+#endif
 static int execcmd(int, char **);
 static int exitcmd(int, char **);
 static int exportcmd(int, char **);
@@ -1288,10 +1289,15 @@ struct builtincmd {
 
 
 #define COMMANDCMD (builtincmd + 5 + \
-	ENABLE_ASH_ALIAS + ENABLE_ASH_JOB_CONTROL)
+	2 * ENABLE_ASH_BUILTIN_TEST + \
+	ENABLE_ASH_ALIAS + \
+	ENABLE_ASH_JOB_CONTROL)
 #define EXECCMD (builtincmd + 7 + \
-	ENABLE_ASH_CMDCMD + ENABLE_ASH_ALIAS + \
-	ENABLE_ASH_BUILTIN_ECHO + ENABLE_ASH_JOB_CONTROL)
+	2 * ENABLE_ASH_BUILTIN_TEST + \
+	ENABLE_ASH_ALIAS + \
+	ENABLE_ASH_JOB_CONTROL + \
+	ENABLE_ASH_CMDCMD + \
+	ENABLE_ASH_BUILTIN_ECHO)
 
 #define BUILTIN_NOSPEC  "0"
 #define BUILTIN_SPECIAL "1"
@@ -1306,9 +1312,14 @@ struct builtincmd {
 #define IS_BUILTIN_REGULAR(builtincmd) ((builtincmd)->name[0] & 2)
 #define IS_BUILTIN_ASSIGN(builtincmd) ((builtincmd)->name[0] & 4)
 
+/* make sure to keep these in proper order since it is searched via bsearch() */
 static const struct builtincmd builtincmd[] = {
 	{ BUILTIN_SPEC_REG      ".", dotcmd },
 	{ BUILTIN_SPEC_REG      ":", truecmd },
+#ifdef CONFIG_ASH_BUILTIN_TEST
+	{ BUILTIN_REGULAR	"[", testcmd },
+	{ BUILTIN_REGULAR	"[[", testcmd },
+#endif
 #ifdef CONFIG_ASH_ALIAS
 	{ BUILTIN_REG_ASSG      "alias", aliascmd },
 #endif
@@ -1354,6 +1365,10 @@ static const struct builtincmd builtincmd[] = {
 	{ BUILTIN_SPEC_REG      "return", returncmd },
 	{ BUILTIN_SPEC_REG      "set", setcmd },
 	{ BUILTIN_SPEC_REG      "shift", shiftcmd },
+	{ BUILTIN_SPEC_REG      "source", dotcmd },
+#ifdef CONFIG_ASH_BUILTIN_TEST
+	{ BUILTIN_REGULAR	"test", testcmd },
+#endif
 	{ BUILTIN_SPEC_REG      "times", timescmd },
 	{ BUILTIN_SPEC_REG      "trap", trapcmd },
 	{ BUILTIN_REGULAR       "true", truecmd },
@@ -3723,9 +3738,7 @@ tryexec(char *cmd, char **argv, char **envp)
 #ifdef CONFIG_FEATURE_SH_STANDALONE_SHELL
 	if(find_applet_by_name(cmd) != NULL) {
 		/* re-exec ourselves with the new arguments */
-		execve("/proc/self/exe",argv,envp);
-		/* If proc isn't mounted, try hardcoded path to busybox binary*/
-		execve("/bin/busybox",argv,envp);
+		execve(CONFIG_BUSYBOX_EXEC_PATH,argv,envp);
 		/* If they called chroot or otherwise made the binary no longer
 		 * executable, fall through */
 	}
@@ -7146,8 +7159,8 @@ forkchild(struct job *jp, union node *n, int mode)
 		ignoresig(SIGQUIT);
 		if (jp->nprocs == 0) {
 			close(0);
-			if (open(_PATH_DEVNULL, O_RDONLY) != 0)
-				sh_error("Can't open %s", _PATH_DEVNULL);
+			if (open(bb_dev_null, O_RDONLY) != 0)
+				sh_error("Can't open %s", bb_dev_null);
 		}
 	}
 	if (!oldlvl && iflag) {
@@ -8144,6 +8157,15 @@ echocmd(int argc, char **argv)
 	return bb_echo(argc, argv);
 }
 #endif
+
+#ifdef CONFIG_ASH_BUILTIN_TEST
+static int
+testcmd(int argc, char **argv)
+{
+	return bb_test(argc, argv);
+}
+#endif
+
 /*      memalloc.c        */
 
 /*
@@ -8763,7 +8785,7 @@ procargs(int argc, char **argv)
 	xminusc = minusc;
 	if (*xargv == NULL) {
 		if (xminusc)
-			sh_error("-c requires an argument");
+			sh_error(bb_msg_requires_arg, "-c");
 		sflag = 1;
 	}
 	if (iflag == 2 && sflag == 1 && isatty(0) && isatty(1))
@@ -9004,8 +9026,7 @@ setcmd(int argc, char **argv)
 
 #ifdef CONFIG_ASH_GETOPTS
 static void
-getoptsreset(value)
-	const char *value;
+getoptsreset(const char *value)
 {
 	shellparam.optind = number(value);
 	shellparam.optoff = -1;
@@ -9972,7 +9993,7 @@ static const char xxreadtoken_tokens[] = {
 #define xxreadtoken_singles \
 	(sizeof(xxreadtoken_chars) - xxreadtoken_doubles - 1)
 
-static int xxreadtoken()
+static int xxreadtoken(void)
 {
 	int c;
 

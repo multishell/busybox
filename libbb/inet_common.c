@@ -8,13 +8,13 @@
  *
  */
 
+#include "libbb.h"
 #include "inet_common.h"
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "libbb.h"
 
 #ifdef DEBUG
 # include <resolv.h>
@@ -62,7 +62,6 @@ int INET_resolve(const char *name, struct sockaddr_in *s_in, int hostfirst)
 	}
 	if (hostfirst) {
 		/* Don't try again */
-		errno = h_errno;
 		return -1;
 	}
 #ifdef DEBUG
@@ -74,7 +73,6 @@ int INET_resolve(const char *name, struct sockaddr_in *s_in, int hostfirst)
 	bb_error_msg("gethostbyname (%s)", name);
 #endif
 	if ((hp = gethostbyname(name)) == (struct hostent *) NULL) {
-		errno = h_errno;
 		return -1;
 	}
 	memcpy((char *) &s_in->sin_addr, (char *) hp->h_addr_list[0],
@@ -206,8 +204,8 @@ int INET6_resolve(const char *name, struct sockaddr_in6 *sin6)
 
 #ifndef IN6_IS_ADDR_UNSPECIFIED
 # define IN6_IS_ADDR_UNSPECIFIED(a) \
-	(((__u32 *) (a))[0] == 0 && ((__u32 *) (a))[1] == 0 && \
-	 ((__u32 *) (a))[2] == 0 && ((__u32 *) (a))[3] == 0)
+	(((uint32_t *) (a))[0] == 0 && ((uint32_t *) (a))[1] == 0 && \
+	 ((uint32_t *) (a))[2] == 0 && ((uint32_t *) (a))[3] == 0)
 #endif
 
 

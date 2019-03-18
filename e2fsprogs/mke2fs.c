@@ -833,8 +833,8 @@ static int PRS(int argc, char *argv[])
 #endif
 
 #ifdef __linux__
-	linux_version_code = get_kernel_revision();
-	if (linux_version_code && linux_version_code < (2*65536 + 2*256)) {
+	linux_version_code = get_linux_version_code();
+	if (linux_version_code && linux_version_code < KERNEL_VERSION(2,2,0)) {
 		param.s_rev_level = 0;
 		param.s_feature_incompat = 0;
 		param.s_feature_compat = 0;
@@ -1199,7 +1199,7 @@ BLOCKSIZE_ERROR:
 	return 1;
 }
 
-static void clean_up(void)
+static void mke2fs_clean_up(void)
 {
 	if (ENABLE_FEATURE_CLEAN_UP && journal_device) free(journal_device);
 }
@@ -1214,7 +1214,7 @@ int mke2fs_main (int argc, char *argv[])
 	io_manager	io_ptr;
 
 	if (ENABLE_FEATURE_CLEAN_UP)
-		atexit(clean_up);
+		atexit(mke2fs_clean_up);
 	if(!PRS(argc, argv))
 		return 0;
 

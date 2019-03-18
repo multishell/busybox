@@ -1,10 +1,9 @@
-/* $Id: telnetd.c,v 1.13 2004/09/14 17:24:58 bug1 Exp $
- *
+/* vi: set sw=4 ts=4: */
+/*
  * Simple telnet server
  * Bjorn Wesen, Axis Communications AB (bjornw@axis.com)
  *
- * This file is distributed under the Gnu Public License (GPL),
- * please see the file LICENSE for further information.
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  *
  * ---------------------------------------------------------------------------
  * (C) Copyright 2000, Axis Communications AB, LUND, SWEDEN
@@ -23,8 +22,8 @@
  */
 
 /*#define DEBUG 1 */
+#undef DEBUG
 
-#include <sys/time.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
@@ -94,7 +93,7 @@ struct tsession {
    +-------+     wridx1++     +------+     rdidx1++     +----------+
    |       | <--------------  | buf1 | <--------------  |          |
    |       |     size1--      +------+     size1++      |          |
-   |  pty  |					    |  socket  |
+   |  pty  |                                            |  socket  |
    |       |     rdidx2++     +------+     wridx2++     |          |
    |       |  --------------> | buf2 |  --------------> |          |
    +-------+     size2++      +------+     size2--      +----------+
@@ -110,7 +109,7 @@ static struct tsession *sessions;
 
 /*
 
-   Remove all IAC's from the buffer pointed to by bf (recieved IACs are ignored
+   Remove all IAC's from the buffer pointed to by bf (received IACs are ignored
    and must be removed so as to not be interpreted by the terminal).  Make an
    uninterrupted string of characters fit for the terminal.  Do this by packing
    all characters meant for the terminal sequentially towards the end of bf.
@@ -224,6 +223,9 @@ getpty(char *line)
 		}
 		for (j = 0; j < 16; j++) {
 			line[9] = j < 10 ? j + '0' : j - 10 + 'a';
+#ifdef DEBUG
+			fprintf(stderr, "Trying to open device: %s\n", line);
+#endif
 			if ((p = open(line, O_RDWR | O_NOCTTY)) >= 0) {
 				line[5] = 't';
 				return p;
@@ -258,27 +260,23 @@ make_new_session(int sockfd)
 	struct termios termbuf;
 	int pty, pid;
 	char tty_name[32];
-	struct tsession *ts = malloc(sizeof(struct tsession) + BUFSIZE * 2);
+	struct tsession *ts = xzalloc(sizeof(struct tsession) + BUFSIZE * 2);
 
 	ts->buf1 = (char *)(&ts[1]);
 	ts->buf2 = ts->buf1 + BUFSIZE;
 
 #ifdef CONFIG_FEATURE_TELNETD_INETD
-	ts->sockfd_read = 0;
 	ts->sockfd_write = 1;
 #else /* CONFIG_FEATURE_TELNETD_INETD */
 	ts->sockfd = sockfd;
 #endif /* CONFIG_FEATURE_TELNETD_INETD */
-
-	ts->rdidx1 = ts->wridx1 = ts->size1 = 0;
-	ts->rdidx2 = ts->wridx2 = ts->size2 = 0;
 
 	/* Got a new connection, set up a tty and spawn a shell.  */
 
 	pty = getpty(tty_name);
 
 	if (pty < 0) {
-		syslog(LOG_ERR, "All network ports in use!");
+		syslog(LOG_ERR, "All terminals in use!");
 		return 0;
 	}
 
@@ -299,9 +297,8 @@ make_new_session(int sockfd)
 	send_iac(ts, WILL, TELOPT_ECHO);
 	send_iac(ts, WILL, TELOPT_SGA);
 
-
 	if ((pid = fork()) < 0) {
-		syslog(LOG_ERR, "Can`t forking");
+		syslog(LOG_ERR, "Could not fork");
 	}
 	if (pid == 0) {
 		/* In child, open the child's side of the tty.  */
@@ -315,7 +312,7 @@ make_new_session(int sockfd)
 		if (open(tty_name, O_RDWR /*| O_NOCTTY*/) < 0) {
 			syslog(LOG_ERR, "Could not open tty");
 			exit(1);
-			}
+		}
 		dup(0);
 		dup(0);
 
@@ -355,7 +352,7 @@ free_session(struct tsession *ts)
 	struct tsession *t = sessions;
 
 	/* Unlink this telnet session from the session list.  */
-	if(t == ts)
+	if (t == ts)
 		sessions = ts->next;
 	else {
 		while(t->next != ts)
@@ -370,9 +367,9 @@ free_session(struct tsession *ts)
 	close(ts->ptyfd);
 	close(ts->sockfd);
 
-	if(ts->ptyfd == maxfd || ts->sockfd == maxfd)
+	if (ts->ptyfd == maxfd || ts->sockfd == maxfd)
 		maxfd--;
-	if(ts->ptyfd == maxfd || ts->sockfd == maxfd)
+	if (ts->ptyfd == maxfd || ts->sockfd == maxfd)
 		maxfd--;
 
 	free(ts);
@@ -446,10 +443,7 @@ telnetd_main(int argc, char **argv)
 
 	/* Grab a TCP socket.  */
 
-	master_fd = socket(SOCKET_TYPE, SOCK_STREAM, 0);
-	if (master_fd < 0) {
-		bb_perror_msg_and_die("socket");
-	}
+	master_fd = bb_xsocket(SOCKET_TYPE, SOCK_STREAM, 0);
 	(void)setsockopt(master_fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
 
 	/* Set it to listen to specified port.  */
@@ -465,17 +459,9 @@ telnetd_main(int argc, char **argv)
 	sa.sin_addr = bind_addr;
 #endif
 
-	if (bind(master_fd, (struct sockaddr *) &sa, sizeof(sa)) < 0) {
-		bb_perror_msg_and_die("bind");
-	}
-
-	if (listen(master_fd, 1) < 0) {
-		bb_perror_msg_and_die("listen");
-	}
-
-	if (daemon(0, 0) < 0)
-		bb_perror_msg_and_die("daemon");
-
+	bb_xbind(master_fd, (struct sockaddr *) &sa, sizeof(sa));
+	bb_xlisten(master_fd, 1);
+	bb_xdaemon(0, 0);
 
 	maxfd = master_fd;
 #endif /* CONFIG_FEATURE_TELNETD_INETD */
@@ -534,7 +520,8 @@ telnetd_main(int argc, char **argv)
 #ifndef CONFIG_FEATURE_TELNETD_INETD
 		/* First check for and accept new sessions.  */
 		if (FD_ISSET(master_fd, &rdfdset)) {
-			int fd, salen;
+			int fd;
+			socklen_t salen;
 
 			salen = sizeof(sa);
 			if ((fd = accept(master_fd, (struct sockaddr *)&sa,
@@ -632,9 +619,9 @@ telnetd_main(int argc, char **argv)
 					continue;
 				}
 #endif /* CONFIG_FEATURE_TELNETD_INETD */
-				if(!*(ts->buf1 + ts->rdidx1 + r - 1)) {
+				if (!*(ts->buf1 + ts->rdidx1 + r - 1)) {
 					r--;
-					if(!r)
+					if (!r)
 						continue;
 				}
 				ts->rdidx1 += r;

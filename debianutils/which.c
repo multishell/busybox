@@ -9,16 +9,22 @@
  * Based on which from debianutils
  */
 
+#include "busybox.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/stat.h>
-#include "busybox.h"
+
+
+static int is_executable_file(const char const * a, struct stat *b)
+{
+	return (!access(a,X_OK) && !stat(a, b) && S_ISREG(b->st_mode));
+}
 
 int which_main(int argc, char **argv)
 {
-	int status = EXIT_SUCCESS;
+	int status;
 	size_t i, count;
 	char *path_list;
 
@@ -29,7 +35,7 @@ int which_main(int argc, char **argv)
 
 	path_list = getenv("PATH");
 	if (path_list != NULL) {
-		size_t path_len = bb_strlen(path_list);
+		size_t path_len = strlen(path_list);
 		char *new_list = NULL;
 		count = 1;
 
@@ -63,13 +69,12 @@ int which_main(int argc, char **argv)
 		count = 5;
 	}
 
+	status = EXIT_SUCCESS;
 	while (argc-- > 0) {
 		struct stat stat_b;
 		char *buf;
 		char *path_n;
-		char found = 0;
-#define is_executable_file(a, b) (!access(a,X_OK) && !stat(a, &b) && \
-		S_ISREG(b.st_mode))
+		int found = 0;
 
 		argv++;
 		path_n = path_list;
@@ -77,18 +82,18 @@ int which_main(int argc, char **argv)
 
 		/* if filename is either absolute or contains slashes,
 		 * stat it */
-		if (strchr(buf, '/') != NULL && is_executable_file(buf, stat_b)) {
-			found = 1;
+		if (strchr(buf, '/') != NULL && is_executable_file(buf, &stat_b)) {
+			found++;
 		} else {
 			/* Couldn't access file and file doesn't contain slashes */
 			for (i = 0; i < count; i++) {
 				buf = concat_path_file(path_n, *argv);
-				if (is_executable_file(buf, stat_b)) {
-					found = 1;
+				if (is_executable_file(buf, &stat_b)) {
+					found++;
 					break;
 				}
 				free(buf);
-				path_n += (bb_strlen(path_n) + 1);
+				path_n += (strlen(path_n) + 1);
 			}
 		}
 		if (found) {
@@ -99,11 +104,3 @@ int which_main(int argc, char **argv)
 	}
 	bb_fflush_stdout_and_exit(status);
 }
-
-/*
-Local Variables:
-c-file-style: "linux"
-c-basic-offset: 4
-tab-width: 4
-End:
-*/

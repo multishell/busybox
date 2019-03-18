@@ -2,23 +2,10 @@
 /*
  * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  *
  */
 
-#include "busybox.h"
 #include "libbb.h"
 
 #ifdef L_full_version
@@ -51,10 +38,16 @@
 	const char * const bb_msg_unknown = "(unknown)";
 #endif
 #ifdef L_can_not_create_raw_socket
-	const char * const bb_msg_can_not_create_raw_socket = "can`t create raw socket";
+	const char * const bb_msg_can_not_create_raw_socket = "can't create raw socket";
 #endif
 #ifdef L_perm_denied_are_you_root
 	const char * const bb_msg_perm_denied_are_you_root = "permission denied. (are you root?)";
+#endif
+#ifdef L_msg_requires_arg
+	const char * const bb_msg_requires_arg = "%s requires an argument";
+#endif
+#ifdef L_msg_invalid_arg
+	const char * const bb_msg_invalid_arg = "invalid argument `%s' to `%s'";
 #endif
 #ifdef L_msg_standard_input
 	const char * const bb_msg_standard_input = "standard input";
@@ -105,6 +98,20 @@ const char * const bb_default_login_shell = LIBBB_DEFAULT_LOGIN_SHELL;
 #ifdef L_bb_dev_null
 const char * const bb_dev_null = "/dev/null";
 #endif
+
+#ifdef L_bb_path_wtmp_file
+#include <utmp.h>
+/* This is usually something like "/var/adm/wtmp" or "/var/log/wtmp" */
+const char * const bb_path_wtmp_file =
+#if defined _PATH_WTMP
+_PATH_WTMP;
+#elif defined WTMP_FILE
+WTMP_FILE;
+#else
+# error unknown path to wtmp file
+#endif
+#endif
+
 
 #ifdef L_bb_common_bufsiz1
 char bb_common_bufsiz1[BUFSIZ+1];

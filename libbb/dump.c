@@ -10,11 +10,10 @@
  * Original copyright notice is retained at the end of this file.
  */
 
-#include <stdlib.h>
+#include "libbb.h"
 #include <string.h>
 #include <unistd.h>
 #include <ctype.h>		/* for isdigit() */
-#include "libbb.h"
 #include "dump.h"
 
 enum _vflag bb_dump_vflag = FIRST;
@@ -83,9 +82,9 @@ int bb_dump_size(FS * fs)
 static void rewrite(FS * fs)
 {
 	enum { NOTOKAY, USEBCNT, USEPREC } sokay;
-	register PR *pr, **nextpr = NULL;
-	register FU *fu;
-	register char *p1, *p2, *p3;
+	PR *pr, **nextpr = NULL;
+	FU *fu;
+	char *p1, *p2, *p3;
 	char savech, *fmtp;
 	const char *byte_count_str;
 	int nconv, prec = 0;
@@ -98,7 +97,7 @@ static void rewrite(FS * fs)
 		for (nconv = 0, fmtp = fu->fmt; *fmtp; nextpr = &pr->nextpr) {
 			/* NOSTRICT */
 			/* DBU:[dvae@cray.com] calloc so that forward ptrs start out NULL*/
-			pr = (PR *) xcalloc(1,sizeof(PR));
+			pr = xzalloc(sizeof(PR));
 			if (!fu->nextpr)
 				fu->nextpr = pr;
 			/* ignore nextpr -- its unused inside the loop and is
@@ -246,8 +245,7 @@ static void rewrite(FS * fs)
 			{
 				savech = *p3;
 				*p3 = '\0';
-				if (!(pr->fmt = realloc(pr->fmt, strlen(pr->fmt)+(p3-p2)+1)))
-					bb_perror_msg_and_die("hexdump");
+				pr->fmt = xrealloc(pr->fmt, strlen(pr->fmt)+(p3-p2)+1);
 				strcat(pr->fmt, p2);
 				*p3 = savech;
 				p2 = p3;
@@ -380,7 +378,7 @@ static unsigned char *get(void)
 			if (need == bb_dump_blocksize) {
 				return ((unsigned char *) NULL);
 			}
-			if (bb_dump_vflag != ALL && !bcmp(curp, savp, nread)) {
+			if (bb_dump_vflag != ALL && !memcmp(curp, savp, nread)) {
 				if (bb_dump_vflag != DUP) {
 					printf("*\n");
 				}
@@ -405,7 +403,7 @@ static unsigned char *get(void)
 		}
 		if (!(need -= n)) {
 			if (bb_dump_vflag == ALL || bb_dump_vflag == FIRST
-				|| bcmp(curp, savp, bb_dump_blocksize)) {
+				|| memcmp(curp, savp, bb_dump_blocksize)) {
 				if (bb_dump_vflag == DUP || bb_dump_vflag == FIRST) {
 					bb_dump_vflag = WAIT;
 				}
@@ -426,7 +424,7 @@ static unsigned char *get(void)
 
 static void bpad(PR * pr)
 {
-	register char *p1, *p2;
+	char *p1, *p2;
 
 	/*
 	 * remove all conversion flags; '-' is the only one valid
@@ -435,7 +433,8 @@ static void bpad(PR * pr)
 	pr->flags = F_BPAD;
 	*pr->cchar = 's';
 	for (p1 = pr->fmt; *p1 != '%'; ++p1);
-	for (p2 = ++p1; *p1 && strchr(" -0+#", *p1); ++p1);
+	for (p2 = ++p1; *p1 && strchr(" -0+#", *p1); ++p1)
+		if (pr->nospace) pr->nospace--;
 	while ((*p2++ = *p1++) != 0);
 }
 
@@ -550,12 +549,12 @@ static void display(void)
 
 							switch (pr->bcnt) {
 							case 4:
-								bcopy((char *) bp, (char *) &fval,
+								memmove((char *) &fval, (char *) bp,
 									  sizeof(fval));
 								printf(pr->fmt, fval);
 								break;
 							case 8:
-								bcopy((char *) bp, (char *) &dval,
+								memmove((char *) &dval, (char *) bp,
 									  sizeof(dval));
 								printf(pr->fmt, dval);
 								break;
@@ -571,12 +570,12 @@ static void display(void)
 								printf(pr->fmt, (int) *bp);
 								break;
 							case 2:
-								bcopy((char *) bp, (char *) &sval,
+								memmove((char *) &sval, (char *) bp,
 									  sizeof(sval));
 								printf(pr->fmt, (int) sval);
 								break;
 							case 4:
-								bcopy((char *) bp, (char *) &ival,
+								memmove((char *) &ival, (char *) bp,
 									  sizeof(ival));
 								printf(pr->fmt, ival);
 								break;
@@ -604,12 +603,12 @@ static void display(void)
 								printf(pr->fmt, (unsigned int) * bp);
 								break;
 							case 2:
-								bcopy((char *) bp, (char *) &sval,
+								memmove((char *) &sval, (char *) bp,
 									  sizeof(sval));
 								printf(pr->fmt, (unsigned int) sval);
 								break;
 							case 4:
-								bcopy((char *) bp, (char *) &ival,
+								memmove((char *) &ival, (char *) bp,
 									  sizeof(ival));
 								printf(pr->fmt, ival);
 								break;
@@ -673,17 +672,16 @@ int bb_dump_dump(char **argv)
 
 void bb_dump_add(const char *fmt)
 {
-	register const char *p;
-	register char *p1;
-	register char *p2;
+	const char *p;
+	char *p1;
+	char *p2;
 	static FS **nextfs;
 	FS *tfs;
 	FU *tfu, **nextfu;
 	const char *savep;
 
 	/* start new linked list of format units */
-	/* NOSTRICT */
-	tfs = (FS *) xcalloc(1,sizeof(FS)); /*DBU:[dave@cray.com] start out NULL */
+	tfs = xzalloc(sizeof(FS)); /*DBU:[dave@cray.com] start out NULL */
 	if (!bb_dump_fshead) {
 		bb_dump_fshead = tfs;
 	} else {
@@ -695,7 +693,7 @@ void bb_dump_add(const char *fmt)
 	/* take the format string and break it up into format units */
 	for (p = fmt;;) {
 		/* bb_dump_skip leading white space */
-		p = bb_skip_whitespace(p);
+		p = skip_whitespace(p);
 		if (!*p) {
 			break;
 		}
@@ -703,7 +701,7 @@ void bb_dump_add(const char *fmt)
 		/* allocate a new format unit and link it in */
 		/* NOSTRICT */
 		/* DBU:[dave@cray.com] calloc so that forward pointers start out NULL */
-		tfu = (FU *) xcalloc(1,sizeof(FU));
+		tfu = xzalloc(sizeof(FU));
 		*nextfu = tfu;
 		nextfu = &tfu->nextfu;
 		tfu->reps = 1;
@@ -718,12 +716,12 @@ void bb_dump_add(const char *fmt)
 			tfu->reps = atoi(savep);
 			tfu->flags = F_SETREP;
 			/* bb_dump_skip trailing white space */
-			p = bb_skip_whitespace(++p);
+			p = skip_whitespace(++p);
 		}
 
 		/* bb_dump_skip slash and trailing white space */
 		if (*p == '/') {
-			p = bb_skip_whitespace(++p);
+			p = skip_whitespace(++p);
 		}
 
 		/* byte count */
@@ -734,7 +732,7 @@ void bb_dump_add(const char *fmt)
 			}
 			tfu->bcnt = atoi(savep);
 			/* bb_dump_skip trailing white space */
-			p = bb_skip_whitespace(++p);
+			p = skip_whitespace(++p);
 		}
 
 		/* format */

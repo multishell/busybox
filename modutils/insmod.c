@@ -55,22 +55,10 @@
  *   Restructured (and partly rewritten) by:
  *   Björn Ekwall <bj0rn@blox.se> February 1999
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
+#include "busybox.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <stddef.h>
@@ -83,7 +71,6 @@
 #include <getopt.h>
 #include <fcntl.h>
 #include <sys/utsname.h>
-#include "busybox.h"
 
 #if !defined(CONFIG_FEATURE_2_4_MODULES) && \
 	!defined(CONFIG_FEATURE_2_6_MODULES)
@@ -128,6 +115,14 @@ extern int insmod_ng_main( int argc, char **argv);
 #define CONFIG_USE_GOT_ENTRIES
 #define CONFIG_GOT_ENTRY_SIZE 8
 #define CONFIG_USE_SINGLE
+#endif
+
+/* blackfin */
+#if defined(BFIN)
+#define MATCH_MACHINE(x) (x == EM_BLACKFIN)
+#define SHT_RELM	SHT_RELA
+#define Elf32_RelM	Elf32_Rela
+#define ELFCLASSM	ELFCLASS32
 #endif
 
 /* CRIS */
@@ -198,6 +193,15 @@ extern int insmod_ng_main( int argc, char **argv);
 #define CONFIG_USE_GOT_ENTRIES
 #define CONFIG_GOT_ENTRY_SIZE 4
 #define CONFIG_USE_SINGLE
+#endif
+
+/* Microblaze */
+#if defined(__microblaze__)
+#define CONFIG_USE_SINGLE
+#define MATCH_MACHINE(x) (x == EM_XILINX_MICROBLAZE)
+#define SHT_RELM	SHT_RELA
+#define Elf32_RelM	Elf32_Rela
+#define ELFCLASSM	ELFCLASS32
 #endif
 
 /* MIPS */
@@ -681,9 +685,9 @@ static enum obj_reloc arch_apply_relocation (struct obj_file *f,
 				      ElfW(RelM) *rel, ElfW(Addr) value);
 
 static void arch_create_got (struct obj_file *f);
-
+#if ENABLE_FEATURE_CHECK_TAINTED_MODULE
 static int obj_gpl_license(struct obj_file *f, const char **license);
-
+#endif /* ENABLE_FEATURE_CHECK_TAINTED_MODULE */
 #endif /* obj.h */
 //----------------------------------------------------------------------------
 //--------end of modutils obj.h
@@ -982,6 +986,65 @@ arch_apply_relocation(struct obj_file *f,
 		case R_386_GOTOFF:
 			assert(got != 0);
 			*loc += v - got;
+			break;
+
+#elif defined (__microblaze__)
+		case R_MICROBLAZE_NONE:
+		case R_MICROBLAZE_64_NONE:
+		case R_MICROBLAZE_32_SYM_OP_SYM:
+		case R_MICROBLAZE_32_PCREL:
+			break;
+
+		case R_MICROBLAZE_64_PCREL: {
+			/* dot is the address of the current instruction.
+			 * v is the target symbol address.
+			 * So we need to extract the offset in the code,
+			 * adding v, then subtrating the current address 
+			 * of this instruction.
+			 * Ex: "IMM 0xFFFE  bralid 0x0000" = "bralid 0xFFFE0000"
+			 */
+
+			/* Get split offset stored in code */
+			unsigned int temp = (loc[0] & 0xFFFF) << 16 |
+						(loc[1] & 0xFFFF);
+
+			/* Adjust relative offset. -4 adjustment required 
+			 * because dot points to the IMM insn, but branch
+			 * is computed relative to the branch instruction itself.
+			 */
+			temp += v - dot - 4;
+
+			/* Store back into code */
+			loc[0] = (loc[0] & 0xFFFF0000) | temp >> 16;
+			loc[1] = (loc[1] & 0xFFFF0000) | (temp & 0xFFFF);
+
+			break;
+		}
+
+		case R_MICROBLAZE_32:
+			*loc += v;
+			break;
+
+		case R_MICROBLAZE_64: {
+			/* Get split pointer stored in code */
+			unsigned int temp1 = (loc[0] & 0xFFFF) << 16 |
+						(loc[1] & 0xFFFF);
+
+			/* Add reloc offset */
+			temp1+=v;
+
+			/* Store back into code */
+			loc[0] = (loc[0] & 0xFFFF0000) | temp1 >> 16;
+			loc[1] = (loc[1] & 0xFFFF0000) | (temp1 & 0xFFFF);
+
+			break;
+		}
+
+		case R_MICROBLAZE_32_PCREL_LO:
+		case R_MICROBLAZE_32_LO:
+		case R_MICROBLAZE_SRO32:
+		case R_MICROBLAZE_SRW32:
+			ret = obj_reloc_unhandled;
 			break;
 
 #elif defined(__mc68000__)
@@ -3326,7 +3389,7 @@ static struct obj_file *obj_load(FILE * fp, int loadprogbits)
 	}
 	if (f->header.e_ident[EI_CLASS] != ELFCLASSM
 			|| f->header.e_ident[EI_DATA] != (BB_BIG_ENDIAN
-			   	? ELFDATA2MSB : ELFDATA2LSB)
+				? ELFDATA2MSB : ELFDATA2LSB)
 			|| f->header.e_ident[EI_VERSION] != EV_CURRENT
 			|| !MATCH_MACHINE(f->header.e_machine)) {
 		bb_error_msg("ELF file not for this architecture");
@@ -4297,9 +4360,7 @@ int insmod_ng_main( int argc, char **argv)
 		strcat(options, " ");
 	}
 
-	if ((fd = open(filename, O_RDONLY, 0)) < 0) {
-		bb_perror_msg_and_die("cannot open module `%s'", filename);
-	}
+	fd = bb_xopen3(filename, O_RDONLY, 0);
 
 	fstat(fd, &st);
 	len = st.st_size;

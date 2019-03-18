@@ -10,6 +10,8 @@
 #define UTIL_LINUX_VERSION "2.12"
 
 
+#define _(x) x
+
 #define PROC_PARTITIONS "/proc/partitions"
 
 #include <features.h>
@@ -40,17 +42,6 @@
 #include "busybox.h"
 
 #define DKTYPENAMES
-
-#define BLKRRPART  _IO(0x12,95)    /* re-read partition table */
-#define BLKGETSIZE _IO(0x12,96)    /* return device size */
-#define BLKFLSBUF  _IO(0x12,97)    /* flush buffer cache */
-#define BLKSSZGET  _IO(0x12,104)   /* get block device sector size */
-
-/* Avoid conflicts with the 2.6 kernel headers, which define
- * _IOR rather differently */
-#undef _IOR
-#define _IOR(type,nr,size)      _IOC(_IOC_READ,(type),(nr),sizeof(size))
-#define BLKGETSIZE64 _IOR(0x12,114,uint64_t)
 
 /*
    fdisk.h
@@ -486,7 +477,7 @@ check_aix_label(void)
 
 #define BSD_LINUX_BOOTDIR "/usr/ucb/mdec"
 
-#if defined (i386) || defined (__sparc__) || defined (__arm__) || defined (__mips__) || defined (__s390__) || defined (__sh__) || defined(__x86_64__)
+#if defined (i386) || defined (__sparc__) || defined (__arm__) || defined (__m68k__) || defined (__mips__) || defined (__s390__) || defined (__sh__) || defined(__x86_64__)
 #define BSD_LABELSECTOR   1
 #define BSD_LABELOFFSET   0
 #elif defined (__alpha__) || defined (__powerpc__) || defined (__ia64__) || defined (__hppa__)
@@ -1322,7 +1313,7 @@ xbsd_write_bootstrap(void)
 
 /* We need a backup of the disklabel (xbsd_dlabel might have changed). */
 	d = &disklabelbuffer[BSD_LABELSECTOR * SECTOR_SIZE];
-	bcopy(d, &dl, sizeof(struct xbsd_disklabel));
+	memmove(&dl, d, sizeof(struct xbsd_disklabel));
 
 /* The disklabel will be overwritten by 0's from bootxx anyway */
 	memset(d, 0, sizeof(struct xbsd_disklabel));
@@ -1339,7 +1330,7 @@ xbsd_write_bootstrap(void)
 			exit(EXIT_FAILURE);
 		}
 
-	bcopy(&dl, d, sizeof(struct xbsd_disklabel));
+	memmove(d, &dl, sizeof(struct xbsd_disklabel));
 
 #if defined (__powerpc__) || defined (__hppa__)
 	sector = 0;
@@ -1526,8 +1517,8 @@ xbsd_readlabel (struct partition *p, struct xbsd_disklabel *d)
 	if (BSD_BBSIZE != read(fd, disklabelbuffer, BSD_BBSIZE))
 		fdisk_fatal(unable_to_read);
 
-	bcopy(&disklabelbuffer[BSD_LABELSECTOR * SECTOR_SIZE + BSD_LABELOFFSET],
-		   d, sizeof(struct xbsd_disklabel));
+	memmove(d, &disklabelbuffer[BSD_LABELSECTOR * SECTOR_SIZE + BSD_LABELOFFSET],
+		   sizeof(struct xbsd_disklabel));
 
 	if (d->d_magic != BSD_DISKMAGIC || d->d_magic2 != BSD_DISKMAGIC)
 		return 0;
@@ -1562,8 +1553,8 @@ xbsd_writelabel (struct partition *p, struct xbsd_disklabel *d)
 	/* This is necessary if we want to write the bootstrap later,
 	   otherwise we'd write the old disklabel with the bootstrap.
 	*/
-	bcopy(d, &disklabelbuffer[BSD_LABELSECTOR * SECTOR_SIZE + BSD_LABELOFFSET],
-		sizeof(struct xbsd_disklabel));
+	memmove(&disklabelbuffer[BSD_LABELSECTOR * SECTOR_SIZE + BSD_LABELOFFSET],
+		d, sizeof(struct xbsd_disklabel));
 
 #if defined (__alpha__) && BSD_LABELSECTOR == 0
 	alpha_bootblock_checksum (disklabelbuffer);
@@ -1983,7 +1974,7 @@ create_sgiinfo(void)
 	/* I keep SGI's habit to write the sgilabel to the second block */
 	sgilabel->directory[0].vol_file_start = SGI_SSWAP32(2);
 	sgilabel->directory[0].vol_file_size = SGI_SSWAP32(sizeof(sgiinfo));
-	strncpy((char*)sgilabel->directory[0].vol_file_name, "sgilabel", 8);
+	strcpy((char*)sgilabel->directory[0].vol_file_name, "sgilabel");
 }
 
 static sgiinfo *fill_sgiinfo(void);
@@ -2343,7 +2334,7 @@ create_sgilabel(void)
 		"until you decide to write them. After that, of course, the previous\n"
 		"content will be unrecoverably lost.\n\n"));
 
-	sgi_other_endian = (BYTE_ORDER == LITTLE_ENDIAN);
+	sgi_other_endian = (BB_LITTLE_ENDIAN);
 	res = ioctl(fd, BLKGETSIZE, &longsectors);
 	if (!ioctl(fd, HDIO_GETGEO, &geometry)) {
 		heads = geometry.heads;
@@ -2681,11 +2672,7 @@ create_sunlabel(void)
 		_("Building a new sun disklabel. Changes will remain in memory only,\n"
 		"until you decide to write them. After that, of course, the previous\n"
 		"content won't be recoverable.\n\n"));
-#if BYTE_ORDER == LITTLE_ENDIAN
-	sun_other_endian = 1;
-#else
-	sun_other_endian = 0;
-#endif
+	sun_other_endian = BB_LITTLE_ENDIAN;
 	memset(MBRbuffer, 0, sizeof(MBRbuffer));
 	sunlabel->magic = SUN_SSWAP16(SUN_LABEL_MAGIC);
 	if (!floppy) {
@@ -5079,7 +5066,7 @@ static void
 add_partition(int n, int sys)
 {
 	char mesg[256];         /* 48 does not suffice in Japanese */
-	int i, readed = 0;
+	int i, num_read = 0;
 	struct partition *p = ptes[n].part_table;
 	struct partition *q = ptes[ext_index].part_table;
 	long long llimit;
@@ -5128,12 +5115,12 @@ add_partition(int n, int sys)
 		}
 		if (start > limit)
 			break;
-		if (start >= temp+units_per_sector && readed) {
+		if (start >= temp+units_per_sector && num_read) {
 			printf(_("Sector %llu is already allocated\n"), (unsigned long long)temp);
 			temp = start;
-			readed = 0;
+			num_read = 0;
 		}
-		if (!readed && start == temp) {
+		if (!num_read && start == temp) {
 			off_t saved_start;
 
 			saved_start = start;
@@ -5143,9 +5130,9 @@ add_partition(int n, int sys)
 				start = (start - 1) * units_per_sector;
 				if (start < saved_start) start = saved_start;
 			}
-			readed = 1;
+			num_read = 1;
 		}
-	} while (start != temp || !readed);
+	} while (start != temp || !num_read);
 	if (n > 4) {                    /* NOT for fifth partition */
 		struct pte *pe = &ptes[n];
 

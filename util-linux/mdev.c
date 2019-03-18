@@ -8,53 +8,50 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include <ctype.h>
-#include <dirent.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <string.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
-#include <sys/sysmacros.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <stdlib.h>
 #include "busybox.h"
+#include <ctype.h>
+#include <errno.h>
+#include <sys/mman.h>
+#include <sys/sysmacros.h>
 #include "xregex.h"
 
 #define DEV_PATH	"/dev"
-#define MDEV_CONF	"/etc/mdev.conf"
 
-#include <busybox.h>
+struct mdev_globals
+{
+	int root_major, root_minor;
+} mdev_globals;
 
-int root_major, root_minor;
+#define bbg mdev_globals
 
 /* mknod in /dev based on a path like "/sys/block/hda/hda1" */
-static void make_device(char *path)
+static void make_device(char *path, int delete)
 {
-	char *device_name, *s;
+	char *device_name;
 	int major, minor, type, len, fd;
 	int mode = 0660;
 	uid_t uid = 0;
 	gid_t gid = 0;
+	char *temp = path + strlen(path);
+	char *command = NULL;
 
-	RESERVE_CONFIG_BUFFER(temp, PATH_MAX);
+	/* Try to read major/minor string.  Note that the kernel puts \n after
+	 * the data, so we don't need to worry about null terminating the string
+	 * because sscanf() will stop at the first nondigit, which \n is.  We
+	 * also depend on path having writeable space after it. */
 
-	/* Try to read major/minor string */
-
-	snprintf(temp, PATH_MAX, "%s/dev", path);
-	fd = open(temp, O_RDONLY);
-	len = read(fd, temp, PATH_MAX-1);
+	strcat(path, "/dev");
+	fd = open(path, O_RDONLY);
+	len = read(fd, temp + 1, 64);
+	*temp++ = 0;
 	close(fd);
-	if (len < 1) goto end;
+	if (len < 1) return;
 
 	/* Determine device name, type, major and minor */
 
 	device_name = strrchr(path, '/') + 1;
-	type = strncmp(path+5, "block/", 6) ? S_IFCHR : S_IFBLK;
-	if (sscanf(temp, "%d:%d", &major, &minor) != 2)
-		goto end;
+	type = path[5]=='c' ? S_IFCHR : S_IFBLK;
+	if (sscanf(temp, "%d:%d", &major, &minor) != 2) return;
 
 	/* If we have a config file, look up permissions for this device */
 
@@ -62,7 +59,7 @@ static void make_device(char *path)
 		char *conf, *pos, *end;
 
 		/* mmap the config file */
-		if (-1 != (fd=open(MDEV_CONF,O_RDONLY))) {
+		if (-1 != (fd=open("/etc/mdev.conf",O_RDONLY))) {
 			len = lseek(fd, 0, SEEK_END);
 			conf = mmap(NULL, len, PROT_READ, MAP_PRIVATE, fd, 0);
 			if (conf) {
@@ -79,106 +76,119 @@ static void make_device(char *path)
 						;
 
 					/* Three fields: regex, uid:gid, mode */
-					for (field=3; field; field--) {
+					for (field=0; field < (3 + ENABLE_FEATURE_MDEV_EXEC);
+							field++)
+					{
 						/* Skip whitespace */
-						while (pos<end && isspace(*pos))
-							pos++;
-						if (pos==end || *pos=='#')
-							break;
-						for (end2=pos; end2<end && !isspace(*end2) && *end2!='#'; end2++)
+						while (pos<end && isspace(*pos)) pos++;
+						if (pos==end || *pos=='#') break;
+						for (end2=pos;
+							end2<end && !isspace(*end2) && *end2!='#'; end2++)
 							;
 
-						switch (field) {
+						if (!field) {
 							/* Regex to match this device */
-							case 3:
-							{
-								char *regex = strndupa(pos,end2-pos);
-								regex_t match;
-								regmatch_t off;
-								int result;
 
-								/* Is this it? */
-								xregcomp(&match,regex,REG_EXTENDED);
-								result = regexec(&match,device_name,1,&off,0);
-								regfree(&match);
+							char *regex = strndupa(pos, end2-pos);
+							regex_t match;
+							regmatch_t off;
+							int result;
 
-								/* If not this device, skip rest of line */
-								if (result || off.rm_so || off.rm_eo!=strlen(device_name))
-									goto end_line;
+							/* Is this it? */
+							xregcomp(&match,regex, REG_EXTENDED);
+							result = regexec(&match, device_name, 1, &off, 0);
+							regfree(&match);
 
+							/* If not this device, skip rest of line */
+							if (result || off.rm_so
+									|| off.rm_eo != strlen(device_name))
 								break;
-							}
+
+						} else if (field == 1) {
 							/* uid:gid */
-							case 2:
-							{
-								char *s2;
 
-								/* Find : */
-								for(s=pos; s<end2 && *s!=':'; s++)
-									;
-								if (s == end2)
-									goto end_line;
+							char *s, *s2;
 
-								/* Parse UID */
-								uid = strtoul(pos,&s2,10);
-								if (s != s2) {
-									struct passwd *pass;
-									pass = getpwnam(strndupa(pos,s-pos));
-									if (!pass)
-										goto end_line;
-									uid = pass->pw_uid;
-								}
-								s++;
-								/* parse GID */
-								gid = strtoul(s,&s2,10);
-								if (end2 != s2) {
-									struct group *grp;
-									grp = getgrnam(strndupa(s,end2-s));
-									if (!grp)
-										goto end_line;
-									gid = grp->gr_gid;
-								}
+							/* Find : */
+							for(s=pos; s<end2 && *s!=':'; s++)
+								;
+							if (s == end2) break;
+
+							/* Parse UID */
+							uid = strtoul(pos,&s2,10);
+							if (s != s2) {
+								struct passwd *pass;
+								pass = getpwnam(strndupa(pos, s-pos));
+								if (!pass) break;
+								uid = pass->pw_uid;
+							}
+							s++;
+							/* parse GID */
+							gid = strtoul(s, &s2, 10);
+							if (end2 != s2) {
+								struct group *grp;
+								grp = getgrnam(strndupa(s, end2-s));
+								if (!grp) break;
+								gid = grp->gr_gid;
+							}
+						} else if (field == 2) {
+							/* mode */
+
+							mode = strtoul(pos, &pos, 8);
+							if (pos != end2) break;
+						} else if (ENABLE_FEATURE_MDEV_EXEC && field == 3) {
+							// Command to run
+							char *s = "@$*", *s2;
+							if (!(s2 = strchr(s, *pos++))) {
+							  	// Force error
+								field = 1;
 								break;
 							}
-							/* mode */
-							case 1:
-							{
-								mode = strtoul(pos,&pos,8);
-								if (pos != end2)
-									goto end_line;
-								else
-									goto found_device;
-							}
+							if ((s2-s+1) & (1<<delete))
+								command = bb_xstrndup(pos, end-pos);
 						}
+
 						pos = end2;
 					}
-end_line:
+
 					/* Did everything parse happily? */
-					if (field && field!=3)
-						bb_error_msg_and_die("Bad line %d",line);
+
+					if (field > 2) break;
+					if (field) bb_error_msg_and_die("Bad line %d",line);
 
 					/* Next line */
 					pos = ++end;
 				}
-found_device:
 				munmap(conf, len);
 			}
 			close(fd);
 		}
 	}
 
-	sprintf(temp, "%s/%s", DEV_PATH, device_name);
 	umask(0);
-	if (mknod(temp, mode | type, makedev(major, minor)) && errno != EEXIST)
-		bb_perror_msg_and_die("mknod %s failed", temp);
+	if (!delete) {
+		if (mknod(device_name, mode | type, makedev(major, minor)) && errno != EEXIST)
+			bb_perror_msg_and_die("mknod %s failed", device_name);
 
-	if (major==root_major && minor==root_minor)
-		symlink(temp,DEV_PATH "/root");
+		if (major == bbg.root_major && minor == bbg.root_minor)
+			symlink(device_name, "root");
 	
-	if (ENABLE_FEATURE_MDEV_CONF) chown(temp,uid,gid);
-
-end:
-	RELEASE_CONFIG_BUFFER(temp);
+		if (ENABLE_FEATURE_MDEV_CONF) chown(device_name, uid, gid);
+	}
+	if (command) {
+		int rc;
+		char *s;
+		
+		s=bb_xasprintf("MDEV=%s",device_name);
+		putenv(s);
+		rc = system(command);
+		s[4]=0;
+		putenv(s);
+		free(s);
+		free(command);
+		if (rc == -1) bb_perror_msg_and_die("Couldn't run %s", command);
+	}
+	if (delete) unlink(device_name);
 }
 
 /* Recursive search of /sys/block or /sys/class.  path must be a writeable
@@ -194,21 +204,22 @@ static void find_dev(char *path)
 		return;
 
 	while ((entry = readdir(dir)) != NULL) {
+		struct stat st;
 
 		/* Skip "." and ".." (also skips hidden files, which is ok) */
 
 		if (entry->d_name[0] == '.')
 			continue;
 
-		if (entry->d_type == DT_DIR) {
-			snprintf(path+len, PATH_MAX-len, "/%s", entry->d_name);
-			find_dev(path);
-			path[len] = 0;
-		}
+		// uClibc doesn't fill out entry->d_type reliably. so we use lstat().
+
+		snprintf(path+len, PATH_MAX-len, "/%s", entry->d_name);
+		if (!lstat(path, &st) && S_ISDIR(st.st_mode)) find_dev(path);
+		path[len] = 0;
 
 		/* If there's a dev entry, mknod it */
 
-		if (!strcmp(entry->d_name, "dev")) make_device(path);
+		if (!strcmp(entry->d_name, "dev")) make_device(path, 0);
 	}
 
 	closedir(dir);
@@ -220,14 +231,16 @@ int mdev_main(int argc, char *argv[])
 	char *env_path;
 	RESERVE_CONFIG_BUFFER(temp,PATH_MAX);
 
+	bb_xchdir(DEV_PATH);
+
 	/* Scan */
 
 	if (argc == 2 && !strcmp(argv[1],"-s")) {
 		struct stat st;
 
 		stat("/", &st);  // If this fails, we have bigger problems.
-		root_major=major(st.st_dev);
-		root_minor=minor(st.st_dev);
+		bbg.root_major=major(st.st_dev);
+		bbg.root_minor=minor(st.st_dev);
 		strcpy(temp,"/sys/block");
 		find_dev(temp);
 		strcpy(temp,"/sys/class");
@@ -241,13 +254,9 @@ int mdev_main(int argc, char *argv[])
 	    if (!action || !env_path)
 			bb_show_usage();
 
-		if (!strcmp(action, "add")) {
-			sprintf(temp, "/sys%s", env_path);
-			make_device(temp);
-		} else if (!strcmp(action, "remove")) {
-			sprintf(temp, "%s/%s", DEV_PATH, strrchr(env_path, '/') + 1);
-			unlink(temp);
-		}
+		sprintf(temp, "/sys%s", env_path);
+		if (!strcmp(action, "add")) make_device(temp,0);
+		else if (!strcmp(action, "remove")) make_device(temp,1);
 	}
 
 	if (ENABLE_FEATURE_CLEAN_UP) RELEASE_CONFIG_BUFFER(temp);

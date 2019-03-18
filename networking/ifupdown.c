@@ -32,7 +32,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "libbb.h"
+#include "busybox.h"
 
 #define MAX_OPT_DEPTH 10
 #define EUNBALBRACK 10001
@@ -111,6 +111,8 @@ static char no_act = 0;
 static char verbose = 0;
 static char **__myenviron = NULL;
 
+#if ENABLE_FEATURE_IFUPDOWN_IPV4 || ENABLE_FEATURE_IFUPDOWN_IPV6
+
 #ifdef CONFIG_FEATURE_IFUPDOWN_IP
 
 static unsigned int count_bits(unsigned int a)
@@ -135,8 +137,6 @@ static int count_netmask_bits(char *dotted_quad)
 }
 #endif
 
-#if ENABLE_FEATURE_IFUPDOWN_IPV4 || ENABLE_FEATURE_IFUPDOWN_IPV6 || \
-	ENABLE_FEATURE_IFUPDOWN_IPX
 static void addstr(char **buf, size_t *len, size_t *pos, char *str, size_t str_length)
 {
 	if (*pos + str_length >= *len) {
@@ -257,7 +257,7 @@ static char *parse(char *command, struct interface_defn_t *ifd)
 					varvalue = get_var(command, nextpercent - command, ifd);
 
 					if (varvalue) {
-						addstr(&result, &len, &pos, varvalue, bb_strlen(varvalue));
+						addstr(&result, &len, &pos, varvalue, strlen(varvalue));
 					} else {
 #ifdef CONFIG_FEATURE_IFUPDOWN_IP
 						/* Sigh...  Add a special case for 'ip' to convert from
@@ -268,7 +268,7 @@ static char *parse(char *command, struct interface_defn_t *ifd)
 							if (varvalue && (res=count_netmask_bits(varvalue)) > 0) {
 								char argument[255];
 								sprintf(argument, "%d", res);
-								addstr(&result, &len, &pos, argument, bb_strlen(argument));
+								addstr(&result, &len, &pos, argument, strlen(argument));
 								command = nextpercent + 1;
 								break;
 							}
@@ -316,39 +316,6 @@ static int execute(char *command, struct interface_defn_t *ifd, execfn *exec)
 	return(1);
 }
 #endif
-
-#ifdef CONFIG_FEATURE_IFUPDOWN_IPX
-static int static_up_ipx(struct interface_defn_t *ifd, execfn *exec)
-{
-	return(execute("ipx_interface add %iface% %frame% %netnum%", ifd, exec));
-}
-
-static int static_down_ipx(struct interface_defn_t *ifd, execfn *exec)
-{
-	return(execute("ipx_interface del %iface% %frame%", ifd, exec));
-}
-
-static int dynamic_up(struct interface_defn_t *ifd, execfn *exec)
-{
-	return(execute("ipx_interface add %iface% %frame%", ifd, exec));
-}
-
-static int dynamic_down(struct interface_defn_t *ifd, execfn *exec)
-{
-	return(execute("ipx_interface del %iface% %frame%", ifd, exec));
-}
-
-static struct method_t methods_ipx[] = {
-	{ "dynamic", dynamic_up, dynamic_down, },
-	{ "static", static_up_ipx, static_down_ipx, },
-};
-
-static struct address_family_t addr_ipx = {
-	"ipx",
-	sizeof(methods_ipx) / sizeof(struct method_t),
-	methods_ipx
-};
-#endif /* IFUP_FEATURE_IPX */
 
 #ifdef CONFIG_FEATURE_IFUPDOWN_IPV6
 static int loopback_up6(struct interface_defn_t *ifd, execfn *exec)
@@ -663,10 +630,7 @@ static struct interfaces_file_t *read_interfaces(const char *filename)
 
 	enum { NONE, IFACE, MAPPING } currently_processing = NONE;
 
-	defn = xmalloc(sizeof(struct interfaces_file_t));
-	defn->autointerfaces = NULL;
-	defn->mappings = NULL;
-	defn->ifaces = NULL;
+	defn = xzalloc(sizeof(struct interfaces_file_t));
 
 	f = bb_xfopen(filename, "r");
 
@@ -681,10 +645,7 @@ static struct interfaces_file_t *read_interfaces(const char *filename)
 
 		if (strcmp(firstword, "mapping") == 0) {
 #ifdef CONFIG_FEATURE_IFUPDOWN_MAPPING
-			currmap = xmalloc(sizeof(struct mapping_defn_t));
-			currmap->max_matches = 0;
-			currmap->n_matches = 0;
-			currmap->match = NULL;
+			currmap = xzalloc(sizeof(struct mapping_defn_t));
 
 			while ((firstword = next_word(&buf_ptr)) != NULL) {
 				if (currmap->max_matches == currmap->n_matches) {
@@ -721,13 +682,10 @@ static struct interfaces_file_t *read_interfaces(const char *filename)
 #ifdef CONFIG_FEATURE_IFUPDOWN_IPV6
 					&addr_inet6,
 #endif
-#ifdef CONFIG_FEATURE_IFUPDOWN_IPX
-					&addr_ipx,
-#endif
 					NULL
 				};
 
-				currif = xmalloc(sizeof(struct interface_defn_t));
+				currif = xzalloc(sizeof(struct interface_defn_t));
 				iface_name = next_word(&buf_ptr);
 				address_family_name = next_word(&buf_ptr);
 				method_name = next_word(&buf_ptr);
@@ -761,9 +719,6 @@ static struct interfaces_file_t *read_interfaces(const char *filename)
 					return NULL;
 				}
 
-				currif->max_options = 0;
-				currif->n_options = 0;
-				currif->option = NULL;
 
 				{
 					llist_t *iface_list;
@@ -776,7 +731,7 @@ static struct interfaces_file_t *read_interfaces(const char *filename)
 						}
 					}
 
-					defn->ifaces = llist_add_to_end(defn->ifaces, (char*)currif);
+					llist_add_to_end(&(defn->ifaces), (char*)currif);
 				}
 				debug_noise("iface %s %s %s\n", currif->iface, address_family_name, method_name);
 			}
@@ -790,7 +745,7 @@ static struct interfaces_file_t *read_interfaces(const char *filename)
 				}
 
 				/* Add the interface to the list */
-				defn->autointerfaces = llist_add_to_end(defn->autointerfaces, bb_xstrdup(firstword));
+				llist_add_to_end(&(defn->autointerfaces), bb_xstrdup(firstword));
 				debug_noise("\nauto %s\n", firstword);
 			}
 			currently_processing = NONE;
@@ -800,7 +755,7 @@ static struct interfaces_file_t *read_interfaces(const char *filename)
 					{
 						int i;
 
-						if (bb_strlen(buf_ptr) == 0) {
+						if (strlen(buf_ptr) == 0) {
 							bb_error_msg("option with empty value \"%s\"", buf);
 							return NULL;
 						}
@@ -882,9 +837,7 @@ static char *setlocalenv(char *format, const char *name, const char *value)
 	char *here;
 	char *there;
 
-	result = xmalloc(bb_strlen(format) + bb_strlen(name) + bb_strlen(value) + 1);
-
-	sprintf(result, format, name, value);
+	result = bb_xasprintf(format, name, value);
 
 	for (here = there = result; *there != '=' && *there; there++) {
 		if (*there == '-')
@@ -897,7 +850,7 @@ static char *setlocalenv(char *format, const char *name, const char *value)
 			here++;
 		}
 	}
-	memmove(here, there, bb_strlen(there) + 1);
+	memmove(here, there, strlen(there) + 1);
 
 	return result;
 }
@@ -915,11 +868,9 @@ static void set_environ(struct interface_defn_t *iface, const char *mode)
 			*ppch = NULL;
 		}
 		free(__myenviron);
-		__myenviron = NULL;
 	}
-	__myenviron = xmalloc(sizeof(char *) * (n_env_entries + 1 /* for final NULL */ ));
+	__myenviron = xzalloc(sizeof(char *) * (n_env_entries + 1 /* for final NULL */ ));
 	environend = __myenviron;
-	*environend = NULL;
 
 	for (i = 0; i < iface->n_options; i++) {
 		if (strcmp(iface->option[i].name, "up") == 0
@@ -929,19 +880,13 @@ static void set_environ(struct interface_defn_t *iface, const char *mode)
 			continue;
 		}
 		*(environend++) = setlocalenv("IF_%s=%s", iface->option[i].name, iface->option[i].value);
-		*environend = NULL;
 	}
 
 	*(environend++) = setlocalenv("%s=%s", "IFACE", iface->iface);
-	*environend = NULL;
 	*(environend++) = setlocalenv("%s=%s", "ADDRFAM", iface->address_family->name);
-	*environend = NULL;
 	*(environend++) = setlocalenv("%s=%s", "METHOD", iface->method->name);
-	*environend = NULL;
 	*(environend++) = setlocalenv("%s=%s", "MODE", mode);
-	*environend = NULL;
 	*(environend++) = setlocalenv("%s=%s", "PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
-	*environend = NULL;
 }
 
 static int doit(char *str)
@@ -1098,7 +1043,7 @@ static char *run_mapping(char *physical, struct mapping_defn_t * map)
 			/* If we are able to read a line of output from the script,
 			 * remove any trailing whitespace and use this value
 			 * as the name of the logical interface. */
-			char *pch = new_logical + bb_strlen(new_logical) - 1;
+			char *pch = new_logical + strlen(new_logical) - 1;
 
 			while (pch >= new_logical && isspace(*pch))
 				*(pch--) = '\0';
@@ -1106,7 +1051,7 @@ static char *run_mapping(char *physical, struct mapping_defn_t * map)
 			free(logical);
 			logical = new_logical;
 		} else {
-			/* If we are UNABLE to read a line of output, discard are
+			/* If we are UNABLE to read a line of output, discard our
 			 * freshly allocated memory. */
 			free(new_logical);
 		}
@@ -1120,7 +1065,7 @@ static char *run_mapping(char *physical, struct mapping_defn_t * map)
 
 static llist_t *find_iface_state(llist_t *state_list, const char *iface)
 {
-	unsigned short iface_len = bb_strlen(iface);
+	unsigned short iface_len = strlen(iface);
 	llist_t *search = state_list;
 
 	while (search) {
@@ -1214,39 +1159,16 @@ int ifupdown_main(int argc, char **argv)
 		if (cmds == iface_up) {
 			target_list = defn->autointerfaces;
 		} else {
-#if 0
-			/* iface_down */
-			llist_t *new_item;
-			const llist_t *list = state_list;
-			while (list) {
-				new_item = xmalloc(sizeof(llist_t));
-				new_item->data = bb_xstrdup(list->data);
-				new_item->link = NULL;
-				list = target_list;
-				if (list == NULL)
-					target_list = new_item;
-				else {
-					while (list->link) {
-						list = list->link;
-					}
-					list = new_item;
-				}
-				list = list->link;
-			}
-			target_list = defn->autointerfaces;
-#else
-
 			/* iface_down */
 			const llist_t *list = state_list;
 			while (list) {
-				target_list = llist_add_to_end(target_list, bb_xstrdup(list->data));
+				llist_add_to_end(&target_list, bb_xstrdup(list->data));
 				list = list->link;
 			}
 			target_list = defn->autointerfaces;
-#endif
 		}
 	} else {
-		target_list = llist_add_to_end(target_list, argv[optind]);
+		llist_add_to_end(&target_list, argv[optind]);
 	}
 
 
@@ -1345,27 +1267,16 @@ int ifupdown_main(int argc, char **argv)
 			llist_t *iface_state = find_iface_state(state_list, iface);
 
 			if (cmds == iface_up) {
-				char *newiface = xmalloc(bb_strlen(iface) + 1 + bb_strlen(liface) + 1);
-				sprintf(newiface, "%s=%s", iface, liface);
+				char *newiface = bb_xasprintf("%s=%s", iface, liface);
 				if (iface_state == NULL) {
-					state_list = llist_add_to_end(state_list, newiface);
+					llist_add_to_end(&state_list, newiface);
 				} else {
 					free(iface_state->data);
 					iface_state->data = newiface;
 				}
 			} else {
 				/* Remove an interface from the linked list */
-				if (iface_state) {
-					llist_t *l = iface_state->link;
-					free(iface_state->data);
-					iface_state->data = NULL;
-					iface_state->link = NULL;
-					if (l) {
-						iface_state->data = l->data;
-						iface_state->link = l->link;
-					}
-					free(l);
-				}
+				free(llist_pop(&iface_state));
 			}
 		}
 	}

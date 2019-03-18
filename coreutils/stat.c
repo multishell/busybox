@@ -1,3 +1,4 @@
+/* vi:set ts=4:*/
 /*
  * stat -- display file or file system status
  *
@@ -8,23 +9,11 @@
  * Written by Michael Meskes
  * Taken from coreutils and turned into a busybox applet by Mike Frysinger
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
 #include <stdio.h>
+#include <stdint.h>
 #include <sys/types.h>
 #include <pwd.h>
 #include <grp.h>
@@ -39,7 +28,7 @@
 
 /* vars to control behavior */
 #define OPT_TERSE 2
-#define OPT_DEREFERNCE 4
+#define OPT_DEREFERENCE 4
 static long flags;
 
 static char const *file_type(struct stat const *st)
@@ -157,15 +146,15 @@ static void print_statfs(char *pformat, size_t buf_len, char m,
 		printf(pformat, human_fstype(statfsbuf->f_type));
 		break;
 	case 'b':
-		strncat(pformat, "ld", buf_len);
+		strncat(pformat, "jd", buf_len);
 		printf(pformat, (intmax_t) (statfsbuf->f_blocks));
 		break;
 	case 'f':
-		strncat(pformat, "ld", buf_len);
+		strncat(pformat, "jd", buf_len);
 		printf(pformat, (intmax_t) (statfsbuf->f_bfree));
 		break;
 	case 'a':
-		strncat(pformat, "ld", buf_len);
+		strncat(pformat, "jd", buf_len);
 		printf(pformat, (intmax_t) (statfsbuf->f_bavail));
 		break;
 	case 'S':
@@ -174,11 +163,11 @@ static void print_statfs(char *pformat, size_t buf_len, char m,
 		printf(pformat, (unsigned long int) (statfsbuf->f_bsize));
 		break;
 	case 'c':
-		strncat(pformat, "ld", buf_len);
+		strncat(pformat, "jd", buf_len);
 		printf(pformat, (intmax_t) (statfsbuf->f_files));
 		break;
 	case 'd':
-		strncat(pformat, "ld", buf_len);
+		strncat(pformat, "jd", buf_len);
 		printf(pformat, (intmax_t) (statfsbuf->f_ffree));
 		break;
 	default:
@@ -219,15 +208,15 @@ static void print_stat(char *pformat, size_t buf_len, char m,
 		}
 		break;
 	case 'd':
-		strncat(pformat, "lu", buf_len);
+		strncat(pformat, "ju", buf_len);
 		printf(pformat, (uintmax_t) statbuf->st_dev);
 		break;
 	case 'D':
-		strncat(pformat, "lx", buf_len);
+		strncat(pformat, "jx", buf_len);
 		printf(pformat, (uintmax_t) statbuf->st_dev);
 		break;
 	case 'i':
-		strncat(pformat, "lu", buf_len);
+		strncat(pformat, "ju", buf_len);
 		printf(pformat, (uintmax_t) statbuf->st_ino);
 		break;
 	case 'a':
@@ -279,7 +268,7 @@ static void print_stat(char *pformat, size_t buf_len, char m,
 		printf(pformat, (unsigned long int) minor(statbuf->st_rdev));
 		break;
 	case 's':
-		strncat(pformat, "lu", buf_len);
+		strncat(pformat, "ju", buf_len);
 		printf(pformat, (uintmax_t) (statbuf->st_size));
 		break;
 	case 'B':
@@ -287,7 +276,7 @@ static void print_stat(char *pformat, size_t buf_len, char m,
 		printf(pformat, (unsigned long int) 512); //ST_NBLOCKSIZE
 		break;
 	case 'b':
-		strncat(pformat, "lu", buf_len);
+		strncat(pformat, "ju", buf_len);
 		printf(pformat, (uintmax_t) statbuf->st_blocks);
 		break;
 	case 'o':
@@ -400,7 +389,7 @@ static int do_statfs(char const *filename, char const *format)
 #else
 
 	format = (flags & OPT_TERSE
-		? "%s %Lx %lu "
+		? "%s %llx %lu "
 		: "  File: \"%s\"\n"
 		  "    ID: %-8Lx Namelen: %-7lu ");
 	printf(format,
@@ -416,8 +405,8 @@ static int do_statfs(char const *filename, char const *format)
 	format = (flags & OPT_TERSE
 		? "%lu %ld %ld %ld %ld %ld\n"
 		: "Block size: %-10lu\n"
-		  "Blocks: Total: %-10ld Free: %-10ld Available: %ld\n"
-		  "Inodes: Total: %-10ld Free: %ld\n");
+		  "Blocks: Total: %-10jd Free: %-10jd Available: %jd\n"
+		  "Inodes: Total: %-10jd Free: %jd\n");
 	printf(format,
 	       (unsigned long int) (statfsbuf.f_bsize),
 	       (intmax_t) (statfsbuf.f_blocks),
@@ -435,7 +424,7 @@ static int do_stat(char const *filename, char const *format)
 {
 	struct stat statbuf;
 
-	if ((flags & OPT_DEREFERNCE ? stat : lstat) (filename, &statbuf) != 0) {
+	if ((flags & OPT_DEREFERENCE ? stat : lstat) (filename, &statbuf) != 0) {
 		bb_perror_msg("cannot stat '%s'", filename);
 		return 0;
 	}
@@ -466,7 +455,7 @@ static int do_stat(char const *filename, char const *format)
 	print_it(format, filename, print_stat, &statbuf);
 #else
 	if (flags & OPT_TERSE) {
-		printf("%s %lu %lu %lx %lu %lu %lx %lu %lu %lx %lx %lu %lu %lu %lu\n",
+		printf("%s %ju %ju %lx %lu %lu %jx %ju %lu %lx %lx %lu %lu %lu %lu\n",
 		       filename,
 		       (uintmax_t) (statbuf.st_size),
 		       (uintmax_t) statbuf.st_blocks,
@@ -500,8 +489,8 @@ static int do_stat(char const *filename, char const *format)
 		else
 			printf("  File: \"%s\"\n", filename);
 
-		printf("  Size: %-10lu\tBlocks: %-10lu IO Block: %-6lu %s\n"
-		       "Device: %lxh/%lud\tInode: %-10lu  Links: %-5lu",
+		printf("  Size: %-10ju\tBlocks: %-10ju IO Block: %-6lu %s\n"
+		       "Device: %jxh/%jud\tInode: %-10ju  Links: %-5lu",
 		       (uintmax_t) (statbuf.st_size),
 		       (uintmax_t) statbuf.st_blocks,
 		       (unsigned long int) statbuf.st_blksize,
@@ -540,9 +529,7 @@ int stat_main(int argc, char **argv)
 	int (*statfunc)(char const *, char const *) = do_stat;
 
 	flags = bb_getopt_ulflags(argc, argv, "ftL"
-#ifdef CONFIG_FEATURE_STAT_FORMAT
-	"c:", &format
-#endif
+	USE_FEATURE_STAT_FORMAT("c:", &format)
 	);
 
 	if (flags & 1)                /* -f */

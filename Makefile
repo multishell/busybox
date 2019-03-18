@@ -5,13 +5,19 @@
 # Licensed under GPLv2, see the file LICENSE in this tarball for details.
 #
 
-#--------------------------------------------------------------
-# You shouldn't need to mess with anything beyond this point...
-#--------------------------------------------------------------
-noconfig_targets := menuconfig config oldconfig randconfig \
+# You shouldn't have to edit anything in this file for configuration
+# purposes, try "make help" or read http://busybox.net/FAQ.html.
+
+.PHONY: dummy subdirs release distclean clean config oldconfig menuconfig \
+        tags check test depend dep buildtree hosttools _all checkhelp \
+        sizes bloatcheck baseline objsizes
+
+noconfig_targets := menuconfig config oldconfig randconfig hosttools \
 	defconfig allyesconfig allnoconfig allbareconfig \
 	clean distclean help \
 	release tags
+
+nocheck_targets := clean distclean help release tags
 
 # the toplevel sourcedir
 ifndef top_srcdir
@@ -33,27 +39,44 @@ DIRS:=applets archival archival/libunarchive coreutils console-tools \
 SRC_DIRS:=$(patsubst %,$(top_srcdir)/%,$(DIRS))
 
 # That's our default target when none is given on the command line
-.PHONY: _all
 _all:
 
 CONFIG_CONFIG_IN = $(top_srcdir)/Config.in
 
-ifeq ($(KBUILD_SRC),)
-
+ifeq ($(BUILD_SRC),)
 ifdef O
   ifeq ("$(origin O)", "command line")
-    KBUILD_OUTPUT := $(O)
+    BUILD_OUTPUT := $(O)
     top_builddir := $(O)
   endif
 else
 # If no alternate output-dir was specified, we build in cwd
-# We are using KBUILD_OUTPUT nevertheless to make sure that we create
+# We are using BUILD_OUTPUT nevertheless to make sure that we create
 # Rules.mak and the toplevel Makefile, in case they don't exist.
-  KBUILD_OUTPUT := $(top_builddir)
+  BUILD_OUTPUT := $(top_builddir)
+endif
+
+# see if we are in verbose mode
+BUILD_VERBOSE :=
+ifdef V
+  ifeq ("$(origin V)", "command line")
+    BUILD_VERBOSE := $(V)
+  endif
+endif
+ifdef VERBOSE
+  ifeq ("$(origin VERBOSE)", "command line")
+    BUILD_VERBOSE := $(VERBOSE)
+  endif
+endif
+
+ifneq ($(strip $(BUILD_VERBOSE)),)
+  export BUILD_VERBOSE
+  CHECK_VERBOSE := -v
+# ARFLAGS+=v
 endif
 
 ifneq ($(strip $(HAVE_DOT_CONFIG)),y)
-# pull in OS specific commands like cp, mkdir, etc. early
+# pull in settings early
 -include $(top_srcdir)/Rules.mak
 endif
 
@@ -64,40 +87,40 @@ all_tree: $(all_tree)
 $(all_tree):
 	@mkdir -p "$@"
 
-ifneq ($(KBUILD_OUTPUT),)
+ifneq ($(BUILD_OUTPUT),)
 # Invoke a second make in the output directory, passing relevant variables
 # Check that the output directory actually exists
-saved-output := $(KBUILD_OUTPUT)
-KBUILD_OUTPUT := $(shell cd $(KBUILD_OUTPUT) && /bin/pwd)
-$(if $(wildcard $(KBUILD_OUTPUT)),, \
+saved-output := $(BUILD_OUTPUT)
+BUILD_OUTPUT := $(shell cd $(BUILD_OUTPUT) && /bin/pwd)
+$(if $(wildcard $(BUILD_OUTPUT)),, \
      $(error output directory "$(saved-output)" does not exist))
 
 .PHONY: $(MAKECMDGOALS)
 
-$(filter-out _all,$(MAKECMDGOALS)) _all: $(KBUILD_OUTPUT)/Rules.mak $(KBUILD_OUTPUT)/Makefile all_tree
-	$(Q)$(MAKE) -C $(KBUILD_OUTPUT) \
+$(filter-out _all,$(MAKECMDGOALS)) _all: $(BUILD_OUTPUT)/Rules.mak $(BUILD_OUTPUT)/Makefile all_tree
+	$(Q)$(MAKE) -C $(BUILD_OUTPUT) \
 	top_srcdir=$(top_srcdir) \
 	top_builddir=$(top_builddir) \
-	KBUILD_SRC=$(top_srcdir) \
+	BUILD_SRC=$(top_srcdir) \
 	-f $(CURDIR)/Makefile $@
 
-$(KBUILD_OUTPUT)/Rules.mak:
+$(BUILD_OUTPUT)/Rules.mak:
 	@echo > $@
 	@echo top_srcdir=$(top_srcdir) >> $@
-	@echo top_builddir=$(KBUILD_OUTPUT) >> $@
+	@echo top_builddir=$(BUILD_OUTPUT) >> $@
 	@echo include $(top_srcdir)/Rules.mak >> $@
 
-$(KBUILD_OUTPUT)/Makefile:
+$(BUILD_OUTPUT)/Makefile:
 	@echo > $@
 	@echo top_srcdir=$(top_srcdir) >> $@
-	@echo top_builddir=$(KBUILD_OUTPUT) >> $@
-	@echo KBUILD_SRC='$$(top_srcdir)' >> $@
-	@echo include '$$(KBUILD_SRC)'/Makefile >> $@
+	@echo top_builddir=$(BUILD_OUTPUT) >> $@
+	@echo BUILD_SRC='$$(top_srcdir)' >> $@
+	@echo include '$$(BUILD_SRC)'/Makefile >> $@
 
 # Leave processing to above invocation of make
 skip-makefile := 1
-endif # ifneq ($(KBUILD_OUTPUT),)
-endif # ifeq ($(KBUILD_SRC),)
+endif # ifneq ($(BUILD_OUTPUT),)
+endif # ifeq ($(BUILD_SRC),)
 
 ifeq ($(skip-makefile),)
 
@@ -117,6 +140,7 @@ help:
 	@echo '  all			- Executable and documentation'
 	@echo '  busybox		- the swiss-army executable'
 	@echo '  doc			- docs/BusyBox.{txt,html,1}'
+	@echo '  html			- create html-based cross-reference'
 	@echo
 	@echo 'Configuration:'
 	@echo '  allnoconfig		- disable all symbols in .config'
@@ -126,16 +150,24 @@ help:
 	@echo '  defconfig		- set .config to largest generic configuration'
 	@echo '  menuconfig		- interactive curses-based configurator'
 	@echo '  oldconfig		- resolve any unresolved symbols in .config'
+	@echo '  hosttools  		- build sed for the host.'
+	@echo '  			  You can use these commands if the commands on the host'
+	@echo '  			  is unusable. Afterwards use it like:'
+	@echo '			  make SED="$(top_builddir)/sed"'
 	@echo
 	@echo 'Installation:'
 	@echo '  install		- install busybox into $(PREFIX)'
 	@echo '  uninstall'
 	@echo
 	@echo 'Development:'
+	@echo '  baseline		- create busybox_old for bloatcheck.'
+	@echo '  bloatcheck		- show size difference between old and new versions'
 	@echo '  check			- run the test suite for all applets'
+	@echo '  checkhelp		- check for missing help-entries in Config.in'
 	@echo '  randconfig		- generate a random configuration'
 	@echo '  release		- create a distribution tarball'
 	@echo '  sizes			- show size of all enabled busybox symbols'
+	@echo '  objsizes		- show size of each .o object built'
 	@echo
 
 
@@ -170,7 +202,7 @@ scripts/config/mconf: scripts/config/Makefile
 	fi
 
 menuconfig: scripts/config/mconf
-	@[ -f .config ] || make $(MAKEFLAGS) defconfig
+	@[ -f .config ] || $(MAKE) $(MAKEFLAGS) defconfig
 	@./scripts/config/mconf $(CONFIG_CONFIG_IN)
 
 config: scripts/config/conf
@@ -183,29 +215,41 @@ randconfig: scripts/config/conf
 	@./scripts/config/conf -r $(CONFIG_CONFIG_IN)
 
 allyesconfig: scripts/config/conf
-	@./scripts/config/conf -y $(CONFIG_CONFIG_IN)
+	@./scripts/config/conf -y $(CONFIG_CONFIG_IN) > /dev/null
 	@$(SED) -i -r -e "s/^(USING_CROSS_COMPILER)=.*/# \1 is not set/" .config
-	@./scripts/config/conf -o $(CONFIG_CONFIG_IN)
+	@./scripts/config/conf -o $(CONFIG_CONFIG_IN) > /dev/null
 
 allnoconfig: scripts/config/conf
-	@./scripts/config/conf -n $(CONFIG_CONFIG_IN)
+	@./scripts/config/conf -n $(CONFIG_CONFIG_IN) > /dev/null
 
 # defconfig is allyesconfig minus any features that are specialized enough
 # or cause enough behavior change that the user really should switch them on
 # manually if that's what they want.  Sort of "maximum sane config".
 
 defconfig: scripts/config/conf
-	@./scripts/config/conf -y $(CONFIG_CONFIG_IN)
+	@./scripts/config/conf -y $(CONFIG_CONFIG_IN) > /dev/null
 	@$(SED) -i -r -e "s/^(USING_CROSS_COMPILER|CONFIG_(DEBUG.*|STATIC|SELINUX|BUILD_(AT_ONCE|LIBBUSYBOX)|FEATURE_(DEVFS|FULL_LIBBUSYBOX|SHARED_BUSYBOX|MTAB_SUPPORT|CLEAN_UP|UDHCP_DEBUG)|INSTALL_NO_USR))=.*/# \1 is not set/" .config
-	@./scripts/config/conf -o $(CONFIG_CONFIG_IN)
+	@./scripts/config/conf -o $(CONFIG_CONFIG_IN) > /dev/null
 
 
 allbareconfig: scripts/config/conf
-	@./scripts/config/conf -y $(CONFIG_CONFIG_IN)
+	@./scripts/config/conf -y $(CONFIG_CONFIG_IN) > /dev/null
 	@$(SED) -i -r -e "s/^(USING_CROSS_COMPILER|CONFIG_(DEBUG|STATIC|SELINUX|DEVFSD|NC_GAPING_SECURITY_HOLE|BUILD_AT_ONCE)).*/# \1 is not set/" .config
 	@$(SED) -i -e "/FEATURE/s/=.*//;/^[^#]/s/.*FEATURE.*/# \0 is not set/;" .config
 	@echo "CONFIG_FEATURE_BUFFERS_GO_ON_STACK=y" >> .config
-	@yes n | ./scripts/config/conf -o $(CONFIG_CONFIG_IN)
+	@yes n | ./scripts/config/conf -o $(CONFIG_CONFIG_IN) > /dev/null
+
+hosttools:
+	$(Q)cp .config .config.bak || noold=yea
+	$(Q)$(MAKE) CC="$(HOSTCC)" CFLAGS="$(HOSTCFLAGS) $(INCS)" allnoconfig
+	$(Q)mv .config .config.in
+	$(Q)(grep -v CONFIG_SED .config.in ; \
+	 echo "CONFIG_SED=y" ; ) > .config
+	$(Q)$(MAKE) CC="$(HOSTCC)" CFLAGS="$(HOSTCFLAGS) $(INCS)" oldconfig include/bb_config.h
+	$(Q)$(MAKE) CC="$(HOSTCC)" CFLAGS="$(HOSTCFLAGS) $(INCS)" busybox
+	$(Q)[ -f .config.bak ] && mv .config.bak .config || rm .config
+	mv busybox sed
+	@echo "Now do: $(MAKE) SED=$(top_builddir)/sed <target>"
 
 else # ifneq ($(strip $(HAVE_DOT_CONFIG)),y)
 
@@ -280,30 +324,24 @@ $(LIBBUSYBOX_SONAME):
 ifndef MAJOR_VERSION
 	$(error MAJOR_VERSION needed for $@ is not defined)
 endif
-	$(do_link) $(LIB_CFLAGS) $(CFLAGS_COMBINE) \
+	$(do_link.so) \
 	-Wl,-soname=$(LD_LIBBUSYBOX).$(MAJOR_VERSION) \
-	-Wl,-z,combreloc $(LIB_LDFLAGS) \
-	-o $(@) \
-	-Wl,--start-group -Wl,--whole-archive \
-	$(LIBRARY_DEFINE) $(^) \
-	-Wl,--no-whole-archive -Wl,--end-group
+	-Wl,-z,combreloc
 	@rm -f $(DO_INSTALL_LIBS)
 	@for i in $(DO_INSTALL_LIBS); do ln -s $(@) $$i ; done
 	$(do_strip)
 
 endif # ifeq ($(strip $(CONFIG_BUILD_LIBBUSYBOX)),y)
 
-busybox_unstripped: .depend $(LIBBUSYBOX_SONAME) $(BUSYBOX_SRC) $(libraries-y)
-	$(do_link) $(PROG_CFLAGS) $(PROG_LDFLAGS) $(CFLAGS_COMBINE) \
-	-o $@ -Wl,--start-group  \
-	$(APPLETS_DEFINE) $(APPLET_SRC) \
-	$(BUSYBOX_DEFINE) $(BUSYBOX_SRC) $(libraries-y) \
-	$(LDBUSYBOX) $(LIBRARIES) \
-	-Wl,--end-group
+busybox_unstripped: .depend $(LIBBUSYBOX_SONAME) $(BUSYBOX_SRC) $(APPLET_SRC) $(libraries-y)
+	$(do_link)
 
 busybox: busybox_unstripped
 	$(Q)cp busybox_unstripped busybox
 	$(do_strip)
+
+%.bflt: %_unstripped
+	$(do_elf2flt)
 
 busybox.links: $(top_srcdir)/applets/busybox.mkll include/bb_config.h $(top_srcdir)/include/applets.h
 	$(Q)-$(SHELL) $^ >$@
@@ -331,23 +369,25 @@ ifneq ($(strip $(DO_INSTALL_LIBS)),n)
 	done
 endif
 
-# see if we are in verbose mode
-KBUILD_VERBOSE :=
-ifdef V
-  ifeq ("$(origin V)", "command line")
-    KBUILD_VERBOSE := $(V)
-  endif
-endif
-ifneq ($(strip $(KBUILD_VERBOSE)),)
-  CHECK_VERBOSE := -v
-# ARFLAGS+=v
-endif
 check test: busybox
-	bindir=$(top_builddir) srcdir=$(top_srcdir)/testsuite \
-	$(top_srcdir)/testsuite/runtest $(CHECK_VERBOSE)
+	bindir=$(top_builddir) srcdir=$(top_srcdir)/testsuite SED="$(SED)" \
+	$(SHELL) $(top_srcdir)/testsuite/runtest $(CHECK_VERBOSE)
+
+checkhelp:
+	$(Q)$(top_srcdir)/scripts/checkhelp.awk \
+		$(wildcard $(patsubst %,%/Config.in,$(SRC_DIRS) ./))
 
 sizes: busybox_unstripped
 	$(NM) --size-sort $(<)
+
+bloatcheck: busybox_old busybox_unstripped
+	@$(top_srcdir)/scripts/bloat-o-meter busybox_old busybox_unstripped
+
+baseline: busybox_unstripped
+	@mv busybox_unstripped busybox_old
+
+objsizes: busybox_unstripped
+	$(SHELL) $(top_srcdir)/scripts/objsizes
 
 # Documentation Targets
 doc: docs/busybox.pod docs/BusyBox.txt docs/BusyBox.1 docs/BusyBox.html
@@ -384,20 +424,34 @@ docs/busybox.net/BusyBox.html: docs/busybox.pod
 
 # The nifty new dependency stuff
 scripts/bb_mkdep: $(top_srcdir)/scripts/bb_mkdep.c
-	$(Q)$(HOSTCC) $(HOSTCFLAGS) -o $@ $<
+	$(do_link.h)
 
 DEP_INCLUDES := include/bb_config.h
 
 ifeq ($(strip $(CONFIG_BBCONFIG)),y)
 DEP_INCLUDES += include/bbconfigopts.h
 
-include/bbconfigopts.h: .config
+include/bbconfigopts.h: .config $(top_srcdir)/scripts/config/mkconfigs
 	$(disp_gen)
 	$(Q)$(top_srcdir)/scripts/config/mkconfigs > $@
 endif
 
+ifeq ($(strip $(CONFIG_FEATURE_COMPRESS_USAGE)),y)
+USAGE_BIN:=scripts/usage
+$(USAGE_BIN): $(top_srcdir)/scripts/usage.c .config
+	$(do_link.h)
+
+DEP_INCLUDES += include/usage_compressed.h
+
+include/usage_compressed.h: .config $(USAGE_BIN) $(top_srcdir)/scripts/usage_compressed
+	$(Q)SED="$(SED)" $(SHELL) $(top_srcdir)/scripts/usage_compressed "$(top_builddir)/scripts" > $@
+endif # CONFIG_FEATURE_COMPRESS_USAGE
+
+# workaround alleged bug in make-3.80, make-3.81
+.NOTPARALLEL: .depend
+
 depend dep: .depend
-.depend: scripts/bb_mkdep $(DEP_INCLUDES)
+.depend: scripts/bb_mkdep $(USAGE_BIN) $(DEP_INCLUDES)
 	$(disp_gen)
 	$(Q)rm -f .depend
 	$(Q)mkdir -p include/config
@@ -420,13 +474,14 @@ clean:
 	    libbusybox.so* \
 	    .config.old busybox busybox_unstripped
 	- rm -r -f _install testsuite/links
-	- find . -name .\*.flags -o -name \*.o  -o -name \*.om \
+	- find . -name .\*.flags -o -name \*.o  -o -name \*.om -o -name \*.syn \
 	    -o -name \*.os -o -name \*.osm -o -name \*.a | xargs rm -f
 
 distclean: clean
-	- rm -f scripts/bb_mkdep
-	- rm -r -f include/config $(DEP_INCLUDES)
-	- find . -name .depend'*' | xargs rm -f
+	rm -f scripts/bb_mkdep scripts/usage
+	rm -r -f include/config include/config.h $(DEP_INCLUDES)
+	find . -name .depend'*' -print0 | xargs -0 rm -f
+	rm -f .hdepend
 	rm -f .config .config.old .config.cmd
 
 release: distclean #doc
@@ -449,8 +504,17 @@ release: distclean #doc
 tags:
 	ctags -R .
 
+# documentation, cross-reference
+# Modern distributions already ship synopsis packages (e.g. debian)
+# If you have an old distribution go to http://synopsis.fresco.org/
+syn_tgt := $(wildcard $(patsubst %,%/*.c,$(SRC_DIRS)))
+syn     := $(patsubst %.c, %.syn, $(syn_tgt))
+
+%.syn: %.c
+	synopsis -p C -l Comments.SSDFilter,Comments.Previous $(INCS) -Wp,verbose,debug,preprocess,cppflags="'$(CFLAGS) $(EXTRA_CFLAGS) $(LDFLAGS) $(PROG_CFLAGS) $(PROG_LDFLAGS) $(CFLAGS_COMBINE) $(APPLETS_DEFINE) $(BUSYBOX_DEFINE)'" -o $@ $<
+html: $(syn)
+	synopsis -f HTML -Wf,title="'BusyBox Documentation'" -o $@ $^
+
 
 endif # ifeq ($(skip-makefile),)
 
-.PHONY: dummy subdirs release distclean clean config oldconfig \
-	menuconfig tags check test depend dep buildtree

@@ -57,7 +57,6 @@
 #include <stdarg.h>
 #include <string.h>
 #include <ctype.h>
-#include <sys/time.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -1187,7 +1186,7 @@ do_chown:
 	return (FALSE);
 }   /*  End Function copy_inode  */
 
-static void free_config ()
+static void free_config (void)
 /*  [SUMMARY] Free the configuration information.
     [RETURNS] Nothing.
 */
@@ -1312,9 +1311,9 @@ static const char *get_variable (const char *variable, void *info)
 	/* compare_string_array returns i>=0  */
 	i=compare_string_array(field_names, variable);
 
-	if ( i > 6 && (i > 1 && gv_info == NULL))
+	if ( i > 6 || i < 0 || (i > 1 && gv_info == NULL))
 			return (NULL);
-	if( i >= 0 || i <= 3)
+	if( i >= 0 && i <= 3)
 	{
 		debug_msg_logger(LOG_INFO, "%s: i=%d %s", __FUNCTION__, i ,field_names[i+7]);
 		return(field_names[i+7]);

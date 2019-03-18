@@ -1,9 +1,11 @@
+/* vi: set sw=4 ts=4: */
 /*
  * Mini DNS server implementation for busybox
  *
  * Copyright (C) 2005 Roberto A. Foglietta (me@roberto.foglietta.name)
  * Copyright (C) 2005 Odd Arild Olsen (oao at fibula dot no)
  * Copyright (C) 2003 Paul Sheer
+ *
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  *
  * Odd Arild Olsen started out with the sheerdns [1] of Paul Sheer and rewrote
@@ -21,7 +23,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <ctype.h>
-#include "libbb.h"
+#include "busybox.h"
 
 static char *fileconf = "/etc/dnsd.conf";
 #define LOCK_FILE       "/var/run/dnsd.lock"
@@ -80,8 +82,7 @@ static uint32_t ttl = DEFAULT_TTL;
 /*
  * Convert host name from C-string to dns length/string.
  */
-static void
-convname(char *a, uint8_t *q)
+static void convname(char *a, uint8_t *q)
 {
 	int i = (q[0] == '.') ? 0 : 1;
 	for(; i < MAX_HOST_LEN-1 && *q; i++, q++)
@@ -91,10 +92,9 @@ convname(char *a, uint8_t *q)
 }
 
 /*
- * Insert length of substrings insetad of dots
+ * Insert length of substrings instead of dots
  */
-static void
-undot(uint8_t * rip)
+static void undot(uint8_t * rip)
 {
 	int i = 0, s = 0;
 	while(rip[i]) i++;
@@ -109,8 +109,7 @@ undot(uint8_t * rip)
 /*
  * Append message to log file
  */
-static void
-log_message(char *filename, char *message)
+static void log_message(char *filename, char *message)
 {
 	FILE *logfile;
 	if (!daemonmode)
@@ -131,8 +130,7 @@ log_message(char *filename, char *message)
  * converting to a length/string substring for that label.
  */
 
-static int
-getfileentry(FILE * fp, struct dns_entry *s, int verb)
+static int getfileentry(FILE * fp, struct dns_entry *s, int verb)
 {
 	unsigned int a,b,c,d;
 	char *r, *name;
@@ -166,19 +164,16 @@ restart:
 /*
  * Read hostname/IP records from file
  */
-static void
-dnsentryinit(int verb)
+static void dnsentryinit(int verb)
 {
 	FILE *fp;
 	struct dns_entry *m, *prev;
 	prev = dnsentry = NULL;
 
-	if(!(fp = fopen(fileconf, "r")))
-		bb_perror_msg_and_die("open %s",fileconf);
+	fp = bb_xfopen(fileconf, "r");
 
 	while (1) {
-		if(!(m = (struct dns_entry *)malloc(sizeof(struct dns_entry))))
-			bb_perror_msg_and_die("malloc dns_entry");
+		m = xmalloc(sizeof(struct dns_entry));
 
 		m->next = NULL;
 		if (getfileentry(fp, m, verb))
@@ -197,15 +192,13 @@ dnsentryinit(int verb)
 /*
  * Set up UDP socket
  */
-static int
-listen_socket(char *iface_addr, int listen_port)
+static int listen_socket(char *iface_addr, int listen_port)
 {
 	struct sockaddr_in a;
 	char msg[100];
 	int s;
 	int yes = 1;
-	if ((s = socket(PF_INET, SOCK_DGRAM, 0)) < 0)
-		bb_perror_msg_and_die("socket() failed");
+	s = bb_xsocket(PF_INET, SOCK_DGRAM, 0);
 #ifdef SO_REUSEADDR
 	if (setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (char *)&yes, sizeof(yes)) < 0)
 		bb_perror_msg_and_die("setsockopt() failed");
@@ -215,9 +208,8 @@ listen_socket(char *iface_addr, int listen_port)
 	a.sin_family = AF_INET;
 	if (!inet_aton(iface_addr, &a.sin_addr))
 		bb_perror_msg_and_die("bad iface address");
-	if (bind(s, (struct sockaddr *)&a, sizeof(a)) < 0)
-		bb_perror_msg_and_die("bind() failed");
-	listen(s, 50);
+	bb_xbind(s, (struct sockaddr *)&a, sizeof(a));
+	listen(s, 50); /* bb_xlisten? */
 	sprintf(msg, "accepting UDP packets on addr:port %s:%d\n",
 		iface_addr, (int)listen_port);
 	log_message(LOG_FILE, msg);
@@ -228,8 +220,7 @@ listen_socket(char *iface_addr, int listen_port)
  * Look query up in dns records and return answer if found
  * qs is the query string, first byte the string length
  */
-static int
-table_lookup(uint16_t type, uint8_t * as, uint8_t * qs)
+static int table_lookup(uint16_t type, uint8_t * as, uint8_t * qs)
 {
 	int i;
 	struct dns_entry *d=dnsentry;
@@ -269,8 +260,7 @@ table_lookup(uint16_t type, uint8_t * as, uint8_t * qs)
  * Decode message and generate answer
  */
 #define eret(s) do { fprintf (stderr, "%s\n", s); return -1; } while (0)
-static int
-process_packet(uint8_t * buf)
+static int process_packet(uint8_t * buf)
 {
 	struct dns_head *head;
 	struct dns_prop *qprop;
@@ -367,8 +357,7 @@ process_packet(uint8_t * buf)
 /*
  * Exit on signal
  */
-static void
-interrupt(int x)
+static void interrupt(int x)
 {
 	unlink(LOCK_FILE);
 	write(2, "interrupt exiting\n", 18);
@@ -404,14 +393,12 @@ int dnsd_main(int argc, char **argv)
 	}
 
 	if(is_daemon())
-#if defined(__uClinux__)
+#ifdef BB_NOMMU
 		/* reexec for vfork() do continue parent */
 		vfork_daemon_rexec(1, 0, argc, argv, "-d");
-#else							/* uClinux */
-		if (daemon(1, 0) < 0) {
-			bb_perror_msg_and_die("daemon");
-		}
-#endif							/* uClinuvx */
+#else
+		bb_xdaemon(1, 0);
+#endif
 
 	dnsentryinit(is_verbose());
 

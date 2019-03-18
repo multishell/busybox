@@ -37,7 +37,6 @@
 #include <sys/param.h>
 #include <sys/socket.h>
 #include <sys/file.h>
-#include <sys/time.h>
 #include <sys/times.h>
 #include <signal.h>
 
@@ -111,7 +110,7 @@ static void ping(const char *host)
 	setsockopt(pingsock, SOL_RAW, IPV6_CHECKSUM, (char *) &sockopt,
 			   sizeof(sockopt));
 
-	c = sendto(pingsock, packet, sizeof(packet), 0,
+	c = sendto(pingsock, packet, DEFDATALEN + sizeof (struct icmp6_hdr), 0,
 			   (struct sockaddr *) &pingaddr, sizeof(struct sockaddr_in6));
 
 	if (c < 0 || c != sizeof(packet))
@@ -204,7 +203,7 @@ static void sendping(int junk)
 {
 	struct icmp6_hdr *pkt;
 	int i;
-	char packet[datalen + 8];
+	char packet[datalen + sizeof (struct icmp6_hdr)];
 
 	pkt = (struct icmp6_hdr *) packet;
 
@@ -312,7 +311,7 @@ static void unpack(char *packet, int sz, struct sockaddr_in6 *from, int hoplimit
 			return;
 
 		printf("%d bytes from %s: icmp6_seq=%u", sz,
-			   inet_ntop(AF_INET6, (struct in_addr6 *) &pingaddr.sin6_addr,
+			   inet_ntop(AF_INET6, &pingaddr.sin6_addr,
 						 buf, sizeof(buf)),
 			   icmppkt->icmp6_seq);
 		printf(" ttl=%d time=%lu.%lu ms", hoplimit,
@@ -393,7 +392,7 @@ static void ping(const char *host)
 
 	printf("PING %s (%s): %d data bytes\n",
 	           hostent->h_name,
-			   inet_ntop(AF_INET6, (struct in_addr6 *) &pingaddr.sin6_addr,
+			   inet_ntop(AF_INET6, &pingaddr.sin6_addr,
 						 buf, sizeof(buf)),
 		   datalen);
 
