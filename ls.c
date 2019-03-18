@@ -49,11 +49,7 @@
 /************************************************************************/
 
 #include "internal.h"
-#if !defined(__GLIBC__) && (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 1)
-# include <linux/types.h>
-#else
 # include <sys/types.h>
-#endif
 #include <sys/stat.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -345,7 +341,7 @@ static int list_item(const char *name)
 	struct stat info;
 	DIR *dir;
 	struct dirent *entry;
-	char fullname[MAXNAMLEN + 1], *fnend;
+	char fullname[BUFSIZ + 1], *fnend;
 
 	if (lstat(name, &info))
 		goto listerr;
@@ -568,6 +564,8 @@ extern int ls_main(int argc, char **argv)
 				opts |= DISP_RECURSIVE;
 				break;
 #endif
+			case 'g': /* ignore -- for ftp servers */
+				break;
 			default:
 				goto print_usage_message;
 			}

@@ -56,13 +56,13 @@ terse runtime description of their behavior.
 Currently defined functions include:
 
 ar, basename, cat, chgrp, chmod, chown, chroot, chvt, clear, cp, cut, date,
-dc, dd, deallocvt, df, dirname, dmesg, du, dutmp, echo, false, fbset,
+dc, dd, deallocvt, df, dirname, dmesg, du, dumpkmap, dutmp, echo, false, fbset,
 fdflush, find, free, freeramdisk, fsck.minix, grep, gunzip, gzip, halt,
 head, hostid, hostname, id, init, insmod, kill, killall, length, ln,
 loadacm, loadfont, loadkmap, logger, logname, ls, lsmod, makedevs, mkdir,
 mkfifo, mkfs.minix, mknod, mkswap, mktemp, more, mount, mt, mv, nc,
 nslookup, ping, poweroff, printf, ps, pwd, reboot, rm, rmdir, rmmod, sed,
-setkeycodes, sfdisk, sh, sleep, sort, swapoff, swapon, sync, syslogd, tail,
+setkeycodes, sh, sleep, sort, swapoff, swapon, sync, syslogd, tail,
 tar, tee, telnet, test, touch, tr, true, tty, umount, uname, uniq, update,
 uptime, usleep, uudecode, uuencode, wc, which, whoami, yes, zcat, [
 
@@ -237,17 +237,17 @@ Example:
 
 -------------------------------
 
-=item clear
-
-Clears the screen.
-
--------------------------------
-
 =item chvt
 
 Usage: chvt N
 
 Changes the foreground virtual terminal to /dev/ttyN
+
+-------------------------------
+
+=item clear
+
+Clears the screen.
 
 -------------------------------
 
@@ -276,11 +276,12 @@ Prints selected fields from each input FILE to standard output.
 
 Options:
 
-        -b LIST Output only bytes from LIST
-        -c LIST Output only characters from LIST
-        -d DELIM        Use DELIM instead of tab as the field delimiter
-        -f N    Print only these fields
-        -n      Ignored
+		-b LIST Output only bytes from LIST
+		-c LIST Output only characters from LIST
+		-d CHAR Use CHAR instead of tab as the field delimiter
+		-s      Only output Lines if the include DELIM
+		-f N    Print only these fields
+		-n      Ignored
 
 Example:
 
@@ -362,6 +363,14 @@ Example:
 
 -------------------------------
 
+=item deallocvt
+
+Usage: deallocvt N
+
+Deallocates unused virtual terminal /dev/ttyN
+
+-------------------------------
+
 =item df
 
 Usage: df [filesystem ...]
@@ -428,6 +437,14 @@ Example:
 	12      ./docs/CVS
 	104     ./docs
 	2417    .
+
+-------------------------------
+
+=item dumpkmap
+
+Usage: dumpkmap
+
+Prints out a binary keyboard translation table to standard input.
 
 -------------------------------
 
@@ -579,21 +596,13 @@ Example:
 
 -------------------------------
 
-=item deallocvt
-
-Usage: deallocvt N
-
-Deallocates unused virtual terminal /dev/ttyN
-
--------------------------------
-
 =item fsck.minix
 
 Usage: fsck.minix [B<-larvsmf>] /dev/name
 
 Performs a consistency check for MINIX filesystems.
 
-OPTIONS:
+Options:
 
 	-l      Lists all filenames
 	-r      Perform interactive repairs
@@ -611,7 +620,7 @@ Usage: grep [OPTIONS]... PATTERN [FILE]...
 
 Search for PATTERN in each FILE or standard input.
 
-OPTIONS:
+Options:
 
 	-h      suppress the prefixing filename on output
 	-i      ignore case distinctions
@@ -1123,7 +1132,7 @@ Usage: mkfs.minix [B<-c> | B<-l> filename] [B<-nXX>] [B<-iXX>] /dev/name [blocks
 
 Make a MINIX filesystem.
 
-OPTIONS:
+Options:
 
 	-c              Check the device for bad blocks
 	-n [14|30]      Specify the maximum length of filenames
@@ -1183,25 +1192,6 @@ Example:
 	/tmp/temp.mWiLjM
 	$ ls -la /tmp/temp.mWiLjM
 	-rw-------    1 andersen andersen        0 Apr 25 17:10 /tmp/temp.mWiLjM
-
--------------------------------
-
-=item nc
-
-Usage: nc [IP] [port]
-
-Netcat opens a pipe to IP:port
-
-Example:
-
-	$ nc foobar.somedomain.com 25
-	220 foobar ESMTP Exim 3.12 #1 Sat, 15 Apr 2000 00:03:02 -0600
-	help
-	214-Commands supported:
-	214-    HELO EHLO MAIL RCPT DATA AUTH
-	214     NOOP QUIT RSET HELP
-	quit
-	221 foobar closing connection
 
 -------------------------------
 
@@ -1273,6 +1263,25 @@ Rename SOURCE to DEST, or move SOURCE(s) to DIRECTORY.
 Example:
 
 	$ mv /tmp/foo /bin/bar
+
+-------------------------------
+
+=item nc
+
+Usage: nc [IP] [port]
+
+Netcat opens a pipe to IP:port
+
+Example:
+
+	$ nc foobar.somedomain.com 25
+	220 foobar ESMTP Exim 3.12 #1 Sat, 15 Apr 2000 00:03:02 -0600
+	help
+	214-Commands supported:
+	214-    HELO EHLO MAIL RCPT DATA AUTH
+	214     NOOP QUIT RSET HELP
+	quit
+	221 foobar closing connection
 
 -------------------------------
 
@@ -1492,49 +1501,6 @@ shell, this will do the job.
 
 -------------------------------
 
-=item sfdisk
-
-Usage: sfdisk [options] device ...
-
-device: something like /dev/hda or /dev/sda
-
-useful options:
-
-    -s [or --show-size]: list size of a partition
-    -c [or --id]:        print or change partition Id
-    -l [or --list]:      list partitions of each device
-    -d [or --dump]:      idem, but in a format suitable for later input
-    -i [or --increment]: number cylinders etc. from 1 instead of from 0
-    -uS, -uB, -uC, -uM:  accept/report in units of sectors/blocks/cylinders/MB
-    -T [or --list-types]:list the known partition types
-    -D [or --DOS]:       for DOS-compatibility: waste a little space
-    -R [or --re-read]:   make kernel reread partition table
-    -N# :                change only the partition with number #
-    -n :                 do not actually write to disk
-    -O file :            save the sectors that will be overwritten to file
-    -I file :            restore these sectors again
-    -v [or --version]:   print version
-    -? [or --help]:      print this message
-
-dangerous options:
-
-    -g [or --show-geometry]: print the kernel's idea of the geometry
-    -x [or --show-extended]: also list extended partitions on output
-
-                             or expect descriptors for them on input
-    -L  [or --Linux]:      do not complain about things irrelevant for Linux
-    -q  [or --quiet]:      suppress warning messages
-    You can override the detected geometry using:
-    -C# [or --cylinders #]:set the number of cylinders to use
-    -H# [or --heads #]:    set the number of heads to use
-    -S# [or --sectors #]:  set the number of sectors to use
-
-You can disable all consistency checking with:
-
-    -f  [or --force]:      do what I say, even if it is stupid
-
--------------------------------
-
 =item sleep
 
 Usage: sleep N
@@ -1566,6 +1532,30 @@ Example:
 
 -------------------------------
 
+=item swapoff
+
+Usage: swapoff [OPTION] [device]
+
+Stop swapping virtual memory pages on the given device.
+
+Options:
+
+        -a      Stop swapping on all swap devices
+
+-------------------------------
+
+=item swapon
+
+Usage: swapon [OPTION] [device]
+
+Start swapping virtual memory pages on the given device.
+
+Options:
+
+        -a      Start swapping on all swap devices
+
+-------------------------------
+
 =item sync
 
 Usage: sync
@@ -1587,30 +1577,6 @@ Options:
 	-n		Run as a foreground process
 	-K		Do not start up the klogd process
 	-O FILE		Use an alternate log file (default=/var/log/messages)
-
--------------------------------
-
-=item swapon
-
-Usage: swapon [OPTION] [device]
-
-Start swapping virtual memory pages on the given device.
-
-Options:
-
-        -a      Start swapping on all swap devices
-
--------------------------------
-
-=item swapoff
-
-Usage: swapoff [OPTION] [device]
-
-Stop swapping virtual memory pages on the given device.
-
-Options:
-
-        -a      Stop swapping on all swap devices
 
 -------------------------------
 
@@ -1665,6 +1631,33 @@ Example:
 
 -------------------------------
 
+=item tee
+
+Usage: tee [OPTION]... [FILE]...
+
+Copy standard input to each FILE, and also to standard output.
+
+Options:
+
+        -a      append to the given FILEs, do not overwrite
+
+Example:
+
+	$ echo "Hello" | tee /tmp/foo
+	$ cat /tmp/foo
+	Hello
+
+-------------------------------
+
+=item telnet
+
+Usage: telnet host [port]
+
+Telnet is used to establish interactive communication with another
+computer over a network using the TELNET protocol.
+
+-------------------------------
+
 =item test, [
 
 Usage: test EXPRESSION
@@ -1687,33 +1680,6 @@ Example:
 	$ [ -d /junk ]
 	$ echo $?
 	1
-
--------------------------------
-
-=item telnet
-
-Usage: telnet host [port]
-
-Telnet is used to establish interactive communication with another
-computer over a network using the TELNET protocol.
-
--------------------------------
-
-=item tee
-
-Usage: tee [OPTION]... [FILE]...
-
-Copy standard input to each FILE, and also to standard output.
-
-Options:
-
-        -a      append to the given FILEs, do not overwrite
-
-Example:
-
-	$ echo "Hello" | tee /tmp/foo
-	$ cat /tmp/foo
-	Hello
 
 -------------------------------
 
@@ -1779,45 +1745,6 @@ Example:
 
 	$ tty
 	/dev/tty2
-
--------------------------------
-
-=item uuencode
-
-Usage: uuencode [OPTION] [INFILE] REMOTEFILE
-
-Uuencode a file.
-
-Options:
-
-	-m      use base64 encoding as of RFC1521
-
-Example:
-
-	$ uuencode busybox busybox
-	begin 755 busybox
-	M?T5,1@$!`0````````````(``P`!````L+@$"#0```!0N@,``````#0`(``&
-	.....
-	$ uudecode busybox busybox > busybox.uu
-	$
-
--------------------------------
-
-=item uudecode
-
-Usage: uudecode [OPTION] [FILE]
-
-Uudecode a uuencoded file
-
-Options:
-
-	-o FILE  direct output to FILE
-
-Example:
-
-	$ uudecode -o busybox busybox.uu
-	$ ls -l busybox
-	-rwxr-xr-x   1 ams      ams        245264 Jun  7 21:35 busybox
 
 -------------------------------
 
@@ -1914,6 +1841,45 @@ Example:
 
 	$ usleep 1000000
 	[pauses for 1 second]
+
+-------------------------------
+
+=item uuencode
+
+Usage: uuencode [OPTION] [INFILE] REMOTEFILE
+
+Uuencode a file.
+
+Options:
+
+	-m      use base64 encoding as of RFC1521
+
+Example:
+
+	$ uuencode busybox busybox
+	begin 755 busybox
+	M?T5,1@$!`0````````````(``P`!````L+@$"#0```!0N@,``````#0`(``&
+	.....
+	$ uudecode busybox busybox > busybox.uu
+	$
+
+-------------------------------
+
+=item uudecode
+
+Usage: uudecode [OPTION] [FILE]
+
+Uudecode a uuencoded file
+
+Options:
+
+	-o FILE  direct output to FILE
+
+Example:
+
+	$ uudecode -o busybox busybox.uu
+	$ ls -l busybox
+	-rwxr-xr-x   1 ams      ams        245264 Jun  7 21:35 busybox
 
 -------------------------------
 
@@ -2062,4 +2028,4 @@ Enrique Zanardi <ezanardi@ull.es>
 
 =cut
 
-# $Id: busybox.pod,v 1.51 2000/06/21 22:53:24 andersen Exp $
+# $Id: busybox.pod,v 1.56 2000/07/11 17:29:36 andersen Exp $

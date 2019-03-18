@@ -38,9 +38,8 @@
 #include <dirent.h>
 #include <ctype.h>
 #include <assert.h>
+#include <getopt.h>
 #include <sys/utsname.h>
-#include <sys/syscall.h>
-#include <linux/unistd.h>
 
 //----------------------------------------------------------------------------
 //--------modutils module.h, lines 45-242
@@ -71,7 +70,7 @@
 #ifndef MODUTILS_MODULE_H
 #define MODUTILS_MODULE_H 1
 
-#ident "$Id: insmod.c,v 1.9 2000/06/19 19:53:30 andersen Exp $"
+#ident "$Id: insmod.c,v 1.15 2000/07/11 17:52:22 andersen Exp $"
 
 /* This file contains the structures used by the 2.0 and 2.1 kernels.
    We do not use the kernel headers directly because we do not wish
@@ -277,7 +276,7 @@ int delete_module(const char *);
 #ifndef MODUTILS_OBJ_H
 #define MODUTILS_OBJ_H 1
 
-#ident "$Id: insmod.c,v 1.9 2000/06/19 19:53:30 andersen Exp $"
+#ident "$Id: insmod.c,v 1.15 2000/07/11 17:52:22 andersen Exp $"
 
 /* The relocatable object is manipulated using elfin types.  */
 
@@ -530,6 +529,9 @@ _syscall2(int, new_sys_init_module, const char *, name,
 _syscall5(int, old_sys_init_module, const char *, name, char *, code,
 		  unsigned, codesize, struct old_mod_routines *, routines,
 		  struct old_symbol_table *, symtab)
+#ifndef __NR_query_module
+#define __NR_query_module     167
+#endif
 _syscall5(int, query_module, const char *, name, int, which,
 		void *, buf, size_t, bufsize, size_t*, ret);
 #ifndef BB_RMMOD
@@ -1189,8 +1191,10 @@ old_process_module_arguments(struct obj_file *f, int argc, char **argv)
 		int *loc;
 
 		p = *argv;
-		if ((q = strchr(p, '=')) == NULL)
+		if ((q = strchr(p, '=')) == NULL) {
+			argc--;
 			continue;
+                }
 		*q++ = '\0';
 
 		sym = obj_find_symbol(f, p);
@@ -1210,9 +1214,7 @@ old_process_module_arguments(struct obj_file *f, int argc, char **argv)
 			str = alloca(strlen(q));
 			for (r = str, q++; *q != '"'; ++q, ++r) {
 				if (*q == '\0') {
-					fprintf(stderr,
-							"improperly terminated string argument for %s\n",
-							p);
+					fprintf(stderr, "improperly terminated string argument for %s\n", p);
 					return 0;
 				} else if (*q == '\\')
 					switch (*++q) {
@@ -1341,7 +1343,7 @@ static int old_get_kernel_symbols(void)
 
 	nks = get_kernel_syms(NULL);
 	if (nks < 0) {
-		perror("get_kernel_syms: %m");
+		errorMsg("get_kernel_syms: %s: %s", m_name, strerror(errno));
 		return 0;
 	}
 
@@ -1522,7 +1524,7 @@ old_init_module(const char *m_name, struct obj_file *f,
 							  m_size | (flag_autoclean ? OLD_MOD_AUTOCLEAN
 										: 0), &routines, symtab);
 	if (ret)
-		perror("init_module: %m");
+		errorMsg("init_module: %s: %s", m_name, strerror(errno));
 
 	free(image);
 	free(symtab);
@@ -1552,8 +1554,10 @@ new_process_module_arguments(struct obj_file *f, int argc, char **argv)
 		int min, max, n;
 
 		p = *argv;
-		if ((q = strchr(p, '=')) == NULL)
+		if ((q = strchr(p, '=')) == NULL) {
+			argc--;
 			continue;
+                }
 
 		key = alloca(q - p + 6);
 		memcpy(key, "parm_", 5);
@@ -1837,7 +1841,7 @@ static int new_get_kernel_symbols(void)
 			module_names = xrealloc(module_names, bufsize = ret);
 			goto retry_modules_load;
 		}
-		perror("QM_MODULES: %m\n");
+		errorMsg("QM_MODULES: %s", strerror(errno));
 		return 0;
 	}
 
@@ -1856,7 +1860,7 @@ static int new_get_kernel_symbols(void)
 				/* The module was removed out from underneath us.  */
 				continue;
 			}
-			perror("query_module: QM_INFO: %m");
+			errorMsg("query_module: QM_INFO: %s: %s", mn, strerror(errno));
 			return 0;
 		}
 
@@ -1871,7 +1875,7 @@ static int new_get_kernel_symbols(void)
 				/* The module was removed out from underneath us.  */
 				continue;
 			default:
-				perror("query_module: QM_SYMBOLS: %m");
+				errorMsg("query_module: QM_SYMBOLS: %s: %s", mn, strerror(errno));
 				return 0;
 			}
 		}
@@ -1896,7 +1900,7 @@ static int new_get_kernel_symbols(void)
 			syms = xrealloc(syms, bufsize = ret);
 			goto retry_kern_sym_load;
 		}
-		perror("kernel: QM_SYMBOLS: %m");
+		errorMsg("kernel: QM_SYMBOLS: %s", strerror(errno));
 		return 0;
 	}
 	nksyms = nsyms = ret;
@@ -2077,7 +2081,7 @@ new_init_module(const char *m_name, struct obj_file *f,
 
 	ret = new_sys_init_module(m_name, (struct new_module *) image);
 	if (ret)
-		perror("init_module: %m");
+		errorMsg("init_module: %s: %s", m_name, strerror(errno));
 
 	free(image);
 
@@ -2457,7 +2461,7 @@ struct obj_file *obj_load(FILE * fp)
 
 	fseek(fp, 0, SEEK_SET);
 	if (fread(&f->header, sizeof(f->header), 1, fp) != 1) {
-		perror("error reading ELF header: %m");
+		errorMsg("error reading ELF header: %s", strerror(errno));
 		return NULL;
 	}
 
@@ -2496,7 +2500,7 @@ struct obj_file *obj_load(FILE * fp)
 	section_headers = alloca(sizeof(ElfW(Shdr)) * shnum);
 	fseek(fp, f->header.e_shoff, SEEK_SET);
 	if (fread(section_headers, sizeof(ElfW(Shdr)), shnum, fp) != shnum) {
-		perror("error reading ELF section headers: %m");
+		errorMsg("error reading ELF section headers: %s", strerror(errno));
 		return NULL;
 	}
 
@@ -2526,8 +2530,7 @@ struct obj_file *obj_load(FILE * fp)
 				sec->contents = xmalloc(sec->header.sh_size);
 				fseek(fp, sec->header.sh_offset, SEEK_SET);
 				if (fread(sec->contents, sec->header.sh_size, 1, fp) != 1) {
-					fprintf(stderr,
-							"error reading ELF section data: %m\n");
+					errorMsg("error reading ELF section data: %s", strerror(errno));
 					return NULL;
 				}
 			} else {
@@ -2724,8 +2727,7 @@ extern int insmod_main( int argc, char **argv)
 			if (m_filename[0] == '\0'
 				|| ((fp = fopen(m_filename, "r")) == NULL)) 
 			{
-				perror("No module by that name found in " _PATH_MODULES
-					   "\n");
+				errorMsg("No module named '%s' found in '%s'\n", m_fullName, _PATH_MODULES);
 				exit(FALSE);
 			}
 		}
@@ -2857,7 +2859,7 @@ extern int insmod_main( int argc, char **argv)
 				m_size);
 		goto out;
 	default:
-		perror("create_module: %m");
+		errorMsg("create_module: %s: %s", m_name, strerror(errno));
 		goto out;
 	}
 

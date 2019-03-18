@@ -16,7 +16,6 @@
  */
 
 #include "internal.h"
-#include <linux/unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 

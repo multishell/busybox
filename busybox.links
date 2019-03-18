@@ -8,6 +8,7 @@
 /bin/df
 /bin/dmesg
 /bin/du
+/bin/dumpkmap
 /bin/echo
 /bin/false
 /bin/fdflush
@@ -57,7 +58,6 @@
 /sbin/poweroff
 /sbin/reboot
 /sbin/rmmod
-/sbin/sfdisk
 /sbin/swapoff
 /sbin/swapon
 /sbin/syslogd
@@ -81,6 +81,7 @@
 /usr/bin/loadfont
 /usr/bin/logger
 /usr/bin/logname
+/usr/bin/md5sum
 /usr/bin/mkfifo
 /usr/bin/nc
 /usr/bin/nslookup

@@ -1,4 +1,10 @@
-busybox (0.45-1) frozen; urgency=low
+busybox (0.46-1) unstable; urgency=low
+
+  * New version released.  See changelog for details.
+
+ -- Erik Andersen <andersee@debian.org>  Tue, 11 Jul 2000 12:15:44 -0600
+
+busybox (0.45-1) unstable; urgency=low
 
   * First attempt at packaging BusyBox as a .deb.  This has been in 
     in the Debian boot-floppies CVS tree forever.  Hopefully, having it as a
@@ -10,7 +16,7 @@ busybox (0.45-1) frozen; urgency=low
     times in the past that I would have loved to have this sitting on my system
     (i.e. when libc gets screwed up.)
 
- -- Erik Andersen <andersee@debian.org>  Sun, 18 Jun 2000 21:45:47 -0600
+ -- Erik Andersen <andersee@debian.org>  Tue, 27 Jun 2000 12:26:41 -0600
 
 Local variables:
 mode: debian-changelog

@@ -25,6 +25,7 @@
 #define BB_DMESG
 #define BB_DUTMP
 #define BB_DU
+#define BB_DUMPKMAP
 #define BB_ECHO
 #define BB_FBSET
 #define BB_FDFLUSH
@@ -44,7 +45,6 @@
 #define BB_INSMOD
 #define BB_KILL
 #define BB_KILLALL
-#define BB_KLOGD
 #define BB_LENGTH
 #define BB_LN
 #define BB_LOADACM
@@ -55,7 +55,7 @@
 #define BB_LS
 #define BB_LSMOD
 #define BB_MAKEDEVS
-//#define BB_MD5SUM
+#define BB_MD5SUM
 #define BB_MKDIR
 #define BB_MKFIFO
 #define BB_MKFS_MINIX
@@ -78,7 +78,6 @@
 #define BB_RMMOD
 #define BB_SED
 #define BB_SETKEYCODES
-#define BB_SFDISK
 #define BB_SH
 #define BB_SLEEP
 #define BB_SORT
@@ -116,12 +115,18 @@
 // pretty/useful).
 //
 //
-// Turn this on to use Erik's very cool devps, devmtab, 
-// etc kernel drivers, thereby eliminating the need for 
-// the /proc filesystem and thereby saving lots and lots 
-// memory for more important things.
-// You can't use this and USE_PROCFS at the same time...
-// (BTW, I emailed Linus and this patch will not be going into the stock kernel)
+//
+// Turn this on to use Erik's very cool devps, devmtab, etc kernel drivers,
+// thereby eliminating the need for the /proc filesystem and thereby saving
+// lots and lots memory for more important things.  You can not use this and
+// USE_PROCFS at the same time...  NOTE:  If you enable this feature, you
+// _must_ have patched the kernel to include the devps patch that is included
+// in the busybox/kernel-patches directory.  You will also need to create some
+// device special files /dev on your embedded system:
+//        mknod /dev/modules c 10 23
+//        mknod /dev/mtab c 10 22
+//        mknod /dev/ps c 10 21
+// I emailed Linus and this patch will not be going into the stock kernel.
 //#define BB_FEATURE_USE_DEVPS_PATCH
 //
 // enable features that use the /proc filesystem (apps that 
@@ -159,7 +164,7 @@
 #define BB_FEATURE_LS_RECURSIVE
 //
 // Change ping implementation -- simplified, featureless, but really small.
-//#define BB_SIMPLE_PING
+//#define BB_FEATURE_SIMPLE_PING
 //
 // Make init use a simplified /etc/inittab file (recommended).
 #define BB_FEATURE_USE_INITTAB
@@ -178,6 +183,9 @@
 //Make sure nothing is printed to the console on boot
 #define BB_FEATURE_EXTRA_QUIET
 //
+//Should syslogd also provide klogd support?
+#define BB_FEATURE_KLOGD
+//
 //Simple tail implementation (2k vs 6k for the full one).  Still
 //provides 'tail -f' support -- but for only one file at a time.
 #define BB_FEATURE_SIMPLE_TAIL
@@ -188,13 +196,13 @@
 // Enable support for a real /etc/mtab file instead of /proc/mounts
 //#define BB_FEATURE_MOUNT_MTAB_SUPPORT
 //
+// Enable support for mounting remote NFS volumes
+// (This does not yet work with Linux 2.[34].x kernels)
+#define BB_FEATURE_NFSMOUNT
+//
 // Enable support forced filesystem unmounting 
 // (i.e. in case of an unreachable NFS system).
 #define BB_FEATURE_MOUNT_FORCE
-//
-// Enable support for mounting remote NFS volumes
-// (This does not yet work with Linux 2.[34].x kernels)
-//#define BB_FEATURE_NFSMOUNT
 //
 // Enable support for creation of tar files.
 #define BB_FEATURE_TAR_CREATE
@@ -211,7 +219,7 @@
 //Allow the shell to invoke all the compiled in BusyBox commands as if they
 //were shell builtins.  Nice for staticly linking an emergency rescue shell
 //amoung other thing.
-#define BB_FEATURE_STANDALONE_SHELL
+#define BB_FEATURE_SH_STANDALONE_SHELL
 //
 // Enable tab completion in the shell (not yet 
 // working very well -- so don't turn this on)
@@ -219,6 +227,9 @@
 //
 //Turn on extra fbset options
 //#define BB_FEATURE_FBSET_FANCY
+//
+//Turn on fbset readmode support
+//#define BB_FEATURE_FBSET_READMODE
 //
 // You must enable one or both of these features
 // Support installing modules from pre 2.1 kernels
@@ -229,6 +240,11 @@
 // Support module version checking
 //#define BB_FEATURE_INSMOD_VERSION_CHECKING
 //
+//
+// Enable busybox --install [-s]
+// to create links (or symlinks) for all the commands that are 
+// compiled into the binary.  (needs /proc filesystem)
+// #define BB_FEATURE_INSTALLER
 //
 // End of Features List
 //

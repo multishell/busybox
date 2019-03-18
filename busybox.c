@@ -39,9 +39,6 @@ const struct BB_applet applets[] = {
 	{"basename", basename_main, _BB_DIR_USR_BIN},
 #endif
 	{"busybox", busybox_main, _BB_DIR_BIN},
-#ifdef BB_BLOCK_DEVICE
-	{"block_device", block_device_main, _BB_DIR_SBIN},
-#endif
 #ifdef BB_CAT
 	{"cat", cat_main, _BB_DIR_BIN},
 #endif
@@ -89,6 +86,9 @@ const struct BB_applet applets[] = {
 #endif
 #ifdef BB_DU
 	{"du", du_main, _BB_DIR_BIN},
+#endif
+#ifdef BB_DUMPKMAP
+	{"dumpkmap", dumpkmap_main, _BB_DIR_BIN},
 #endif
 #ifdef BB_DUTMP
 	{"dutmp", dutmp_main, _BB_DIR_USR_SBIN},
@@ -261,9 +261,6 @@ const struct BB_applet applets[] = {
 #ifdef BB_SETKEYCODES
 	{"setkeycodes", setkeycodes_main, _BB_DIR_USR_BIN},
 #endif
-#ifdef BB_SFDISK
-	{"sfdisk", sfdisk_main, _BB_DIR_SBIN},
-#endif
 #ifdef BB_SH
 	{"sh", shell_main, _BB_DIR_BIN},
 #endif
@@ -358,6 +355,83 @@ const struct BB_applet applets[] = {
 };
 
 
+#ifdef BB_FEATURE_INSTALLER
+/* 
+ * directory table
+ *		this should be consistent w/ the enum, internal.h::Location,
+ *		or else...
+ */
+static char* install_dir[] = {
+	"/",
+	"/bin",
+	"/sbin",
+	"/usr/bin",
+	"/usr/sbin",
+};
+
+/* abstract link() */
+typedef int (*__link_f)(const char *, const char *);
+
+/* 
+ * Where in the filesystem is this busybox?
+ * [return]
+ *		malloc'd string w/ full pathname of busybox's location
+ *		NULL on failure
+ */
+static char *busybox_fullpath()
+{
+	pid_t pid;
+	char path[256];
+	char proc[256];
+	int len;
+
+	pid = getpid();
+	sprintf(proc, "/proc/%d/exe", pid);
+	len = readlink(proc, path, 256);
+	if (len != -1) {
+		path[len] = 0;
+	} else {
+		fprintf(stderr, "busybox : %s : %s\n", proc, strerror(errno));
+		return NULL;
+	}
+	return strdup(path);
+}
+
+/* create (sym)links for each applet */
+static int install_links(const char *busybox, int use_symbolic_links)
+{
+	__link_f Link = link;
+
+	char command[256];
+	int i;
+	int rc = 0;
+
+	if (use_symbolic_links) Link = symlink;
+
+	for (i = 0; applets[i].name != NULL; i++) {
+		sprintf (
+			command, 
+			"%s/%s", 
+			install_dir[applets[i].location], 
+			applets[i].name
+		);
+#if 1
+		rc |= Link(busybox, command);
+#else
+		puts(command);
+#endif
+		if (rc) {
+			fprintf(stderr,"busybox : %s : %s\n", command, strerror(errno));
+		}
+	}
+	return rc;
+}
+
+#if 0
+int uninstall_links() ?
+#endif
+#endif /* BB_FEATURE_INSTALLER */
+
 
 int main(int argc, char **argv)
 {
@@ -365,12 +439,49 @@ int main(int argc, char **argv)
 	char				*name;
 	const struct BB_applet	*a		= applets;
 
+#ifdef BB_FEATURE_INSTALLER	
+	/* 
+	 * This style of argument parsing doesn't scale well 
+	 * in the event that busybox starts wanting more --options.
+	 * If someone has a cleaner approach, by all means implement it.
+	 */
+	if (argc > 1 && (strcmp(argv[1], "--install") == 0)) {
+		int use_symbolic_links = 0;
+		int rc = 0;
+		char *busybox;
+
+		/* to use symlinks, or not to use symlinks... */
+		if (argc > 2) {
+			if ((strcmp(argv[2], "-s") == 0)) { 
+				use_symbolic_links = 1; 
+			}
+		}
+
+		/* link */
+		busybox = busybox_fullpath();
+		if (busybox) {
+			install_links(busybox, use_symbolic_links);
+			free(busybox);
+		} else {
+			rc = 1;
+		}
+		return rc;
+	}
+#endif /* BB_FEATURE_INSTALLER */
+
 	for (s = name = argv[0]; *s != '\0';) {
 		if (*s++ == '/')
 			name = s;
 	}
 
 	*argv = name;
+
+#ifdef BB_SH
+	/* Add in a special case hack -- whenever **argv == '-'
+	 * (i.e. '-su' or '-sh') always invoke the shell */
+	if (**argv == '-')
+		exit(((*(shell_main)) (argc, argv)));
+#endif
 
 	while (a->name != 0) {
 		if (strcmp(name, a->name) == 0) {

@@ -40,9 +40,8 @@
 #include <sys/types.h>
 #include <sys/un.h>
 #include <sys/param.h>
-#include <linux/unistd.h>
 
-#if __GNU_LIBRARY__ < 5
+#if ! defined __GLIBC__ && ! defined __UCLIBC__
 
 typedef unsigned int socklen_t;
 
@@ -85,7 +84,7 @@ static const char syslogd_usage[] =
 	"Options:\n"
 	"\t-m NUM\t\tInterval between MARK lines (default=20min, 0=off)\n"
 	"\t-n\t\tRun as a foreground process\n"
-#ifdef BB_KLOGD
+#ifdef BB_FEATURE_KLOGD
 	"\t-K\t\tDo not start up the klogd process\n"
 #endif
 	"\t-O FILE\t\tUse an alternate log file (default=/var/log/messages)\n"
@@ -316,7 +315,7 @@ static void doSyslogd (void)
 	}
 }
 
-#ifdef BB_KLOGD
+#ifdef BB_FEATURE_KLOGD
 
 static void klogd_signal(int sig)
 {
@@ -407,7 +406,7 @@ extern int syslogd_main(int argc, char **argv)
 	int pid, klogd_pid;
 	int doFork = TRUE;
 
-#ifdef BB_KLOGD
+#ifdef BB_FEATURE_KLOGD
 	int startKlogd = TRUE;
 #endif
 	int stopDoingThat = FALSE;
@@ -427,7 +426,7 @@ extern int syslogd_main(int argc, char **argv)
 			case 'n':
 				doFork = FALSE;
 				break;
-#ifdef BB_KLOGD
+#ifdef BB_FEATURE_KLOGD
 			case 'K':
 				startKlogd = FALSE;
 				break;
@@ -456,7 +455,7 @@ extern int syslogd_main(int argc, char **argv)
 
 	umask(0);
 
-#ifdef BB_KLOGD
+#ifdef BB_FEATURE_KLOGD
 	/* Start up the klogd process */
 	if (startKlogd == TRUE) {
 		klogd_pid = fork();

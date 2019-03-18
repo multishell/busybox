@@ -1,3 +1,66 @@
+0.46
+
+	* Better portability.  Now should compile cleanly with libc5, 
+	    GNU libc 2.0 and 2.1, and various Linux kernels including 
+	    2.0.x, 2.2.x, and to 2.4.0-test*. (patch for 2.4.x kernels
+	    to make /proc/mounts behave included in the kernel-patches dir). 
+	* Fixed a _horrible_ bug where 'tar -tvf' could unlink
+	    local files that matched tarball contents!!!  Fix thanks 
+	    to Marius Groeger <mgroeger@sysgo.de>
+	* Fixed a nasty bug in tar when could mess up saved symlinks.
+	* Fixed tar creation support when reading from stdin ('tar -cf - . ') 
+	    thanks to Daniel Quinlan <quinlan@transmeta.com>
+	* Updates to handle Linux 2.4.0 kernels (kludged around the
+	    "none" entries in /proc/mounts, added a hack to make sysinfo
+	    work with both old and new kernels).
+	* Fixed insmod module option parsing for options lacking an '='.
+	    Fix thanks to Marc Nijdam <marc_nijdam@hp.com>
+	* Fixed segfault with 'cut -f 1 -d:' and added 'cut -s' suport.
+	    Fix thanks to Arne Bernin <arne@matrix.loopback.org>
+	* Several fixes from Marius Groeger <mag@sysgo.de>
+	    - Added support for "sh -c command args..."
+	    - Fixed globbing, i.e. 'echo * *' and 'echo "******"' now work.
+	    - Added shell environment variable substitution 
+	    - Added the "read" shell builtin.
+	* Fixed cursor editing in cmdedit.c. The following keyboard sequence 
+	    used to create an infinite loop: ls, cursor up, left, down.
+	* Added support for being a login shell, so things like
+	    '-su' or '-sh' (stuff where argv[0][0]=='-') will now always 
+	    invoke the shell.  Now you can use BusyBox as a login shell.
+	* ls.c now ignores '-g', since some ftp clients like that sort 
+	    of thing.  Patch thanks to David Vrabel <dvrabel@arcom.co.uk>
+	* Fix to init.c from Stuart Menefy <Stuart.Menefy@st.com> so that
+	    it always sets the controlling terminal before running any programs
+	* Several fixes from Matt Kraai <kraai@alumni.carnegiemellon.edu>
+	    - Fixed tr so it recognizes standard escape sequences.  
+		Merged common escape seq. code from tr and echo into utility.c.
+	    - Major work in updating/cleaning up the docs, and getting the
+		new SGML based docs into shape.
+	    - cleanup of ar.c
+	    - BusyBox should now poweroff when asked to do so.
+	    - Fixed 'ln -n' and 'ln -s' so they both work properly.
+	* Reorganized signal names in kill.c for better architecture support 
+	    -- patch thanks to simon wood <simon@mungewell.uklinux.net>
+	* In 0.43, backspace and delete worked properly, but with 0.45, 
+	    it just echoed a ^? for backspace, and ^H for control-h.  This
+	    was due to a broken macro in init.c, that is now fixed.
+	* Removed sfdisk from BusyBox.  It was buggy, fat, and we really
+	    couldn't maintain it very well, so including it was not really
+	    very appropriate.  Those wanting an fdisk are invited to
+	    grab a copy from util-linux.
+	* Added 'dumpkmap' to allow people to dump a binary keymap, which can 
+	    then be loaded in by 'loadkmap' -- submitted by
+	    Arne Bernin <arne@matrix.loopback.org>
+	* Fixed NFS so it supports 2.4.x kernels and NFSv3.
+	* Brand, new versions of grep and sed which use libc regex routines,
+	    thanks to Mark Whitley <markw@lineo.com>.  The hand-tooled 
+	    "regexp.[ch]" files have been removed. Much help on these from 
+	    Matt Kraai as well.
+
+
+	 -Erik Andersen
+
+
 0.45
 	* Now compiles vs libc5 (which can save lots of space for 
 	    embedded systems).
@@ -22,7 +85,7 @@
 	* Replaced the telnet implementation with one written by 
 	    Tomi Ollila <too@iki.fi> It works great and costs 3k.
 	* BusyBox sh (lash) now supports being used as a standalone shell.  When
-	    BB_FEATURE_STANDALONE_SHELL is defined, all the busybox commands may
+	    BB_FEATURE_SH_STANDALONE_SHELL is defined, all the busybox commands may
 	    be invoked as shell internals.  Best used when compiling staticly 
 	    (i.e. DOSTATIC=true)
 	* BusyBox sh (lash) internals now behave as expected wrt pipes 

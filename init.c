@@ -37,22 +37,41 @@
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
-#include <asm/types.h>
-#include <linux/serial.h>		/* for serial_struct */
-#include <linux/version.h>
-#include <linux/reboot.h>
-#include <linux/unistd.h>
-#include <sys/sysinfo.h>		/* For check_free_memory() */
 #include <sys/fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/mount.h>
-//#include <sys/sysmacros.h>
 #include <sys/types.h>
-#include <sys/vt.h>				/* for vt_stat */
 #include <sys/wait.h>
 #ifdef BB_SYSLOGD
 # include <sys/syslog.h>
 #endif
+
+/* From <linux/vt.h> */
+struct vt_stat {
+	unsigned short v_active;        /* active vt */
+	unsigned short v_signal;        /* signal to send */
+	unsigned short v_state;         /* vt bitmask */
+};
+#define VT_GETSTATE     0x5603  /* get global vt state info */
+
+/* From <linux/serial.h> */
+struct serial_struct {
+	int     type;
+	int     line;
+	int     port;
+	int     irq;
+	int     flags;
+	int     xmit_fifo_size;
+	int     custom_divisor;
+	int     baud_base;
+	unsigned short  close_delay;
+	char    reserved_char[2];
+	int     hub6;
+	unsigned short  closing_wait; /* time to wait before closing */
+	unsigned short  closing_wait2; /* no longer used... */
+	int     reserved[4];
+};
+
 
 
 #ifndef RB_HALT_SYSTEM
@@ -86,9 +105,7 @@
 #include <sys/time.h>
 #endif
 
-#ifndef KERNEL_VERSION
 #define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))
-#endif
 
 #if defined(__GLIBC__)
 #include <sys/kdaemon.h>
@@ -226,8 +243,6 @@ static void message(int device, char *fmt, ...)
 	}
 }
 
-#define CTRLCHAR(ch)	((ch)&0x1f)
-
 /* Set terminal settings to reasonable defaults */
 void set_term(int fd)
 {
@@ -236,14 +251,14 @@ void set_term(int fd)
 	tcgetattr(fd, &tty);
 
 	/* set control chars */
-	tty.c_cc[VINTR]  = CTRLCHAR('C');	/* Ctrl-C */
-	tty.c_cc[VQUIT]  = CTRLCHAR('\\');	/* Ctrl-\ */
-	tty.c_cc[VERASE] = CTRLCHAR('?');	/* Ctrl-? */
-	tty.c_cc[VKILL]  = CTRLCHAR('U');	/* Ctrl-U */
-	tty.c_cc[VEOF]   = CTRLCHAR('D');	/* Ctrl-D */
-	tty.c_cc[VSTOP]  = CTRLCHAR('S');	/* Ctrl-S */
-	tty.c_cc[VSTART] = CTRLCHAR('Q');	/* Ctrl-Q */
-	tty.c_cc[VSUSP]  = CTRLCHAR('Z');	/* Ctrl-Z */
+	tty.c_cc[VINTR]  = 3;	/* C-c */
+	tty.c_cc[VQUIT]  = 28;	/* C-\ */
+	tty.c_cc[VERASE] = 127; /* C-? */
+	tty.c_cc[VKILL]  = 21;	/* C-u */
+	tty.c_cc[VEOF]   = 4;	/* C-d */
+	tty.c_cc[VSTART] = 17;	/* C-q */
+	tty.c_cc[VSTOP]  = 19;	/* C-s */
+	tty.c_cc[VSUSP]  = 26;	/* C-z */
 
 	/* use line dicipline 0 */
 	tty.c_line = 0;
@@ -270,13 +285,28 @@ static int check_free_memory()
 {
 	struct sysinfo info;
 
+	/* Pre initialize mem_unit in case this kernel is something prior to
+	 * the linux 2.4 kernel (which will actually fill in mem_unit... */
 	sysinfo(&info);
 	if (sysinfo(&info) != 0) {
-		message(LOG, "Error checking free memory: %s\n", strerror(errno));
+		printf("Error checking free memory: %s\n", strerror(errno));
 		return -1;
 	}
+	if (info.mem_unit==0) {
+		/* Looks like we have a kernel prior to Linux 2.4.x */
+		info.mem_unit=1024;
+		info.totalram/=info.mem_unit;
+		info.totalswap/=info.mem_unit;
+	} else {
+		/* Bah. Linux 2.4.x completely changed sysinfo. This can in theory
+		overflow a 32 bit unsigned long, but who puts more then 4GiB ram+swap
+		on an embedded system? */
+		info.mem_unit/=1024;
+		info.totalram*=info.mem_unit;
+		info.totalswap*=info.mem_unit;
+	}
 
-	return((info.totalram+info.totalswap)/1024);
+	return(info.totalram+info.totalswap);
 }
 
 static void console_init()
@@ -398,6 +428,7 @@ static pid_t run(char *command, char *terminal, int get_enter)
 		dup2(fd, 0);
 		dup2(fd, 1);
 		dup2(fd, 2);
+		ioctl(0, TIOCSCTTY, 0);
 		tcsetpgrp(0, getpgrp());
 		set_term(0);
 
@@ -554,7 +585,7 @@ static void shutdown_system(void)
 	run_lastAction();
 
 	sync();
-	if (kernelVersion > 0 && kernelVersion <= 2 * 65536 + 2 * 256 + 11) {
+	if (kernelVersion > 0 && kernelVersion <= KERNEL_VERSION(2,2,11)) {
 		/* bdflush, kupdate not needed for kernels >2.2.11 */
 		bdflush(1, 0);
 		sync();
@@ -573,11 +604,9 @@ static void halt_signal(int sig)
 	/* allow time for last message to reach serial console */
 	sleep(2);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,2,0)
-	if (sig == SIGUSR2)
+	if (sig == SIGUSR2 && kernelVersion >= KERNEL_VERSION(2,2,0))
 		init_reboot(RB_POWER_OFF);
 	else
-#endif
 		init_reboot(RB_HALT_SYSTEM);
 	exit(0);
 }
@@ -873,7 +902,7 @@ extern int init_main(int argc, char **argv)
 	/* Set up sig handlers  -- be sure to
 	 * clear all of these in run() */
 	signal(SIGUSR1, halt_signal);
-	signal(SIGUSR2, reboot_signal);
+	signal(SIGUSR2, halt_signal);
 	signal(SIGINT, reboot_signal);
 	signal(SIGTERM, reboot_signal);
 #if defined BB_FEATURE_INIT_CHROOT

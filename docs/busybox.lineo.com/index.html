@@ -63,6 +63,66 @@ BusyBox is licensed under the
 BusyBox now has a mailing list <a href="http://opensource.lineo.com/lists/busybox/">mailing list</a>!
 To subscribe, go and visit <a href="http://opensource.lineo.com/mailman/listinfo/busybox">this page</a>.
 
+<!-- Begin Latest News section -->
+
+<TR><TD BGCOLOR="#ccccc0" ALIGN=center>
+    <A NAME="news">
+    <BIG><B>
+    Latest News</A> 
+    </B></BIG>
+    </A>
+</TD></TR>
+<TR><TD BGCOLOR="#eeeee0">
+
+<ul>
+
+    <p> <li> <b>11 July 2000 -- BusyBox 0.46 released</b>
+    <br>
+
+	     This release fixes several bugs (including a ugly bug in tar,
+	     and fixes for NFSv3 mount support).  Added a dumpkmap to allow 
+	     people to dump a binary keymaps for use with 'loadkmap', and a
+	     completely reworked 'grep' and 'sed' with should behave better.
+	     BusyBox shell can now also be used as a login shell.
+	     See the <a href="ftp://ftp.lineo.com/pub/busybox/Changelog">changelog</a> for complete details.
+
+
+    <p> <li> <b>21 June 2000 -- BusyBox 0.45 released</b>
+    <br>
+
+	     This release has been slow in coming, but is very solid at this
+	     point.  BusyBox now supports libc5 as well as GNU libc.  This
+	     release provides the following new apps: cut, tr, insmod, ar,
+	     mktemp, ,setkeycodes md5sum, uuencode, uudecode, which , and
+	     telnet.  There are bug fixes for just about every app as well (see
+	     the <a href="ftp://ftp.lineo.com/pub/busybox/Changelog">changelog</a> for
+	     details).
+	     <p>
+	     Also, some exciting infrastructure news!  Busybox now has its own 
+	     <a href="http://opensource.lineo.com/lists/busybox/">mailing list</a>, 
+	     publically browsable
+	     <a href="http://opensource.lineo.com/cgi-bin/cvsweb/busybox/">CVS tree</a>,  
+	     anonymous
+	     <a href="http://opensource.lineo.com/cvs_anon.html">CVS access</a>, and
+	     for those that are actively contributing there is even 
+	     <a href="http://opensource.lineo.com/cvs_write.html">CVS write access</a>.
+	     I think this will be a huge help to the ongoing development of BusyBox.
+	     <p>
+	     Also, for the curious, there is no 0.44 release.  Somehow 0.44 got announced
+	     a few weeks ago prior to its actually being released.  To avoid any confusion
+	     we are just skipping 0.44.
+	     <p>
+	     Many thanks go out to the many people that have contributed to this release
+	     of BusyBox (esp. Pavel Roskin)!
+
+
+
+    <p> <li> <b>Old News</b>
+    <br>
+	     For the old news, visit <a href="http://busybox.lineo.com/oldnews.html">the old news page</a>.
+</ul>
+
+
 <!-- Begin Download section -->
 
 <TR><TD BGCOLOR="#ccccc0" ALIGN=center>
@@ -83,51 +143,6 @@ To subscribe, go and visit <a href="http://opensource.lineo.com/mailman/listinfo
 </ul>
 
 
-<!-- Begin Latest News section -->
-
-<TR><TD BGCOLOR="#ccccc0" ALIGN=center>
-    <A NAME="news">
-    <BIG><B>
-    Latest News</A> 
-    </B></BIG>
-    </A>
-</TD></TR>
-<TR><TD BGCOLOR="#eeeee0">
-
-<ul>
-
-    <p> <li> <b>21 June 2000 -- BusyBox 0.45 released</b>
-    <br>
-
-	     This release has been slow in coming, but is very solid at this
-	     point.  BusyBox now supports libc5 as well as GNU libc.  This
-	     release provides the following new apps: cut, tr, insmod, ar,
-	     mktemp, ,setkeycodes md5sum, uuencode, uudecode, which , and
-	     telnet.  There are bug fixes for just about every app as well (see
-	     the <a href="ftp://ftp.lineo.com/pub/busybox/Changelog">changelog</a> for
-	     details).
-	     <p>
-	     Also, some exciting infrastructure news!  Busybox now has its own 
-	     <a href="http://opensource.lineo.com/lists/busybox/">mailing list</a>, 
-	    publically browsable
-	    <a href="http://opensource.lineo.com/cgi-bin/cvsweb/busybox/">CVS tree</a>,  
-	    anonymous
-	    <a href="http://opensource.lineo.com/cvs_anon.html">CVS access</a>, and
-	    for those that are actively contributing there is even 
-	    <a href="http://opensource.lineo.com/cvs_write.html">CVS write access</a>.
-	    I think this will be a huge help to the ongoing development of BusyBox.
-	    <p>
-	    Many thanks go out to the many people that have contributed to this release
-	    of BusyBox!
-
-
-
-    <p> <li> <b>Old News</b>
-    <br>
-	     For the old news, visit <a href="http://busybox.lineo.com/oldnews.html">the old news page</a>.
-</ul>
-
-
 <!-- Begin Docs section -->
 
 <TR><TD BGCOLOR="#ccccc0" ALIGN=center>
@@ -144,28 +159,32 @@ Current documentation for BusyBox includes:
 		a <em>lot</em> of time updating these docs and trying to make them 
 		fairly comprehensive for the BusyBox 0.43 release.  If you find any 
 		errors (factual, grammatical, whatever) please let me know.
-
-    <li> More documentation will follow.
+    <li> <a href="http://bugs.lineo.com/db/pa/lbusybox.html">BusyBoxBugs</a>.
+    <li> If you need more help, the BusyBox
+    <a href="http://opensource.lineo.com/lists/busybox/">mailing list</a> is
+    a good place to start.
 </ul>
 
 
 <!-- Begin Projects section -->
 
 <TR><TD BGCOLOR="#ccccc0" ALIGN=center>
-    <A NAME="docs"><BIG><B>
+    <A NAME="projects"><BIG><B>
     Projects using BusyBox
     </A></B></BIG>
 </TD></TR>
 <TR><TD BGCOLOR="#eeeee0">
 I know of the following projects that use BusyBox
 <ul>
-    <li> <a href="http://www.lineo.com/products/embedix.html">Lineo Embedix Linux</a>
+    <li> <a href="http://www.lineo.com/products/embedix_linux/">Lineo Embedix Linux</a>
     <li> <a href="http://cvs.debian.org/boot-floppies/">Debian boot floppies project</a>
     <li> <a href="http://www.linuxrouter.org/">Linux Router Project </a>
     <li> <a href="http://linux-embedded.org/">LEM</a>
     <li> <a href="http://www.toms.net/rb/">tomsrtbt</a>
     <li> <a href="http://www.stormix.com/">Stormix Installer</a>
     <li> <a href="http://www.emacinc.com/linux2_sbc.htm">EMAC Linux 2.0 SBC</a>
+    <li> <a href="http://www.trinux.org/">Trinux</a>
+    <li> <a href="http://www.suse.com/~peterb/x86/tinynet.html">tinynet</a>
 
 </ul>
 Do you use BusyBox?  I'd love to know about it and I'd be happy to link to you.

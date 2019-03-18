@@ -41,7 +41,7 @@
 #include "cmdedit.h"
 #endif
 
-
+#define MAX_READ	128	/* size of input buffer for `read' builtin */
 #define JOB_STATUS_FORMAT "[%d] %-22s %.40s\n"
 
 
@@ -89,18 +89,21 @@ struct builtInCommand {
 	int (*function) (struct job *, struct jobSet * jobList);	/* function ptr */
 };
 
-/* Some function prototypes */
-static int shell_cd(struct job *cmd, struct jobSet *junk);
-static int shell_env(struct job *dummy, struct jobSet *junk);
-static int shell_exit(struct job *cmd, struct jobSet *junk);
-static int shell_fg_bg(struct job *cmd, struct jobSet *jobList);
-static int shell_help(struct job *cmd, struct jobSet *junk);
-static int shell_jobs(struct job *dummy, struct jobSet *jobList);
-static int shell_pwd(struct job *dummy, struct jobSet *junk);
-static int shell_export(struct job *cmd, struct jobSet *junk);
-static int shell_source(struct job *cmd, struct jobSet *jobList);
-static int shell_unset(struct job *cmd, struct jobSet *junk);
+/* function prototypes for builtins */
+static int builtin_cd(struct job *cmd, struct jobSet *junk);
+static int builtin_env(struct job *dummy, struct jobSet *junk);
+static int builtin_exit(struct job *cmd, struct jobSet *junk);
+static int builtin_fg_bg(struct job *cmd, struct jobSet *jobList);
+static int builtin_help(struct job *cmd, struct jobSet *junk);
+static int builtin_jobs(struct job *dummy, struct jobSet *jobList);
+static int builtin_pwd(struct job *dummy, struct jobSet *junk);
+static int builtin_export(struct job *cmd, struct jobSet *junk);
+static int builtin_source(struct job *cmd, struct jobSet *jobList);
+static int builtin_unset(struct job *cmd, struct jobSet *junk);
+static int builtin_read(struct job *cmd, struct jobSet *junk);
 
+
+/* function prototypes for shell stuff */
 static void checkJobs(struct jobSet *jobList);
 static int getCommand(FILE * source, char *command);
 static int parseCommand(char **commandPtr, struct job *job, int *isBg);
@@ -111,35 +114,37 @@ static int busy_loop(FILE * input);
 
 /* Table of built-in functions */
 static struct builtInCommand bltins[] = {
-	{"bg", "Resume a job in the background", "bg [%%job]", shell_fg_bg},
-	{"cd", "Change working directory", "cd [dir]", shell_cd},
-	{"exit", "Exit from shell()", "exit", shell_exit},
-	{"fg", "Bring job into the foreground", "fg [%%job]", shell_fg_bg},
-	{"jobs", "Lists the active jobs", "jobs", shell_jobs},
-	{"export", "Set environment variable", "export [VAR=value]", shell_export},
-	{"unset", "Unset environment variable", "unset VAR", shell_unset},
+	{"bg", "Resume a job in the background", "bg [%%job]", builtin_fg_bg},
+	{"cd", "Change working directory", "cd [dir]", builtin_cd},
+	{"exit", "Exit from shell()", "exit", builtin_exit},
+	{"fg", "Bring job into the foreground", "fg [%%job]", builtin_fg_bg},
+	{"jobs", "Lists the active jobs", "jobs", builtin_jobs},
+	{"export", "Set environment variable", "export [VAR=value]", builtin_export},
+	{"unset", "Unset environment variable", "unset VAR", builtin_unset},
+	{"read", "Input environment variable", "read [VAR]", builtin_read},
 	{NULL, NULL, NULL, NULL}
 };
 
 /* Table of built-in functions */
 static struct builtInCommand bltins_forking[] = {
-	{"env", "Print all environment variables", "env", shell_env},
-	{"pwd", "Print current directory", "pwd", shell_pwd},
-	{".", "Source-in and run commands in a file", ". filename", shell_source},
-	{"help", "List shell built-in commands", "help", shell_help},
+	{"env", "Print all environment variables", "env", builtin_env},
+	{"pwd", "Print current directory", "pwd", builtin_pwd},
+	{".", "Source-in and run commands in a file", ". filename", builtin_source},
+	{"help", "List shell built-in commands", "help", builtin_help},
 	{NULL, NULL, NULL, NULL}
 };
 
 static const char shell_usage[] =
-
-	"sh [FILE]...\n" 
+	"sh [FILE]...\n"
+	"   or: sh -c command [args]...\n"
 #ifndef BB_FEATURE_TRIVIAL_HELP
 	"\nlash: The BusyBox command interpreter (shell).\n\n"
 #endif
 	;
 
-static char cwd[1024];
 static char *prompt = "# ";
+static char *cwd = NULL;
+static char *local_pending_command = NULL;
 
 #ifdef BB_FEATURE_SH_COMMAND_EDITING
 void win_changed(int sig)
@@ -154,7 +159,7 @@ void win_changed(int sig)
 
 
 /* built-in 'cd <path>' handler */
-static int shell_cd(struct job *cmd, struct jobSet *junk)
+static int builtin_cd(struct job *cmd, struct jobSet *junk)
 {
 	char *newdir;
 
@@ -172,7 +177,7 @@ static int shell_cd(struct job *cmd, struct jobSet *junk)
 }
 
 /* built-in 'env' handler */
-static int shell_env(struct job *dummy, struct jobSet *junk)
+static int builtin_env(struct job *dummy, struct jobSet *junk)
 {
 	char **e;
 
@@ -183,7 +188,7 @@ static int shell_env(struct job *dummy, struct jobSet *junk)
 }
 
 /* built-in 'exit' handler */
-static int shell_exit(struct job *cmd, struct jobSet *junk)
+static int builtin_exit(struct job *cmd, struct jobSet *junk)
 {
 	if (!cmd->progs[0].argv[1] == 1)
 		exit TRUE;
@@ -192,7 +197,7 @@ static int shell_exit(struct job *cmd, struct jobSet *junk)
 }
 
 /* built-in 'fg' and 'bg' handler */
-static int shell_fg_bg(struct job *cmd, struct jobSet *jobList)
+static int builtin_fg_bg(struct job *cmd, struct jobSet *jobList)
 {
 	int i, jobNum;
 	struct job *job=NULL;
@@ -225,8 +230,9 @@ static int shell_fg_bg(struct job *cmd, struct jobSet *jobList)
 
 	if (*cmd->progs[0].argv[0] == 'f') {
 		/* Make this job the foreground job */
-		if (tcsetpgrp(0, job->pgrp))
-			perror("tcsetpgrp");
+		/* suppress messages when run from /linuxrc mag@sysgo.de */
+		if (tcsetpgrp(0, job->pgrp) && errno != ENOTTY)
+			perror("tcsetpgrp"); 
 		jobList->fg = job;
 	}
 
@@ -242,7 +248,7 @@ static int shell_fg_bg(struct job *cmd, struct jobSet *jobList)
 }
 
 /* built-in 'help' handler */
-static int shell_help(struct job *cmd, struct jobSet *junk)
+static int builtin_help(struct job *cmd, struct jobSet *junk)
 {
 	struct builtInCommand *x;
 
@@ -259,7 +265,7 @@ static int shell_help(struct job *cmd, struct jobSet *junk)
 }
 
 /* built-in 'jobs' handler */
-static int shell_jobs(struct job *dummy, struct jobSet *jobList)
+static int builtin_jobs(struct job *dummy, struct jobSet *jobList)
 {
 	struct job *job;
 	char *statusString;
@@ -277,7 +283,7 @@ static int shell_jobs(struct job *dummy, struct jobSet *jobList)
 
 
 /* built-in 'pwd' handler */
-static int shell_pwd(struct job *dummy, struct jobSet *junk)
+static int builtin_pwd(struct job *dummy, struct jobSet *junk)
 {
 	getcwd(cwd, sizeof(cwd));
 	fprintf(stdout, "%s\n", cwd);
@@ -285,12 +291,12 @@ static int shell_pwd(struct job *dummy, struct jobSet *junk)
 }
 
 /* built-in 'export VAR=value' handler */
-static int shell_export(struct job *cmd, struct jobSet *junk)
+static int builtin_export(struct job *cmd, struct jobSet *junk)
 {
 	int res;
 
 	if (!cmd->progs[0].argv[1] == 1) {
-		return (shell_env(cmd, junk));
+		return (builtin_env(cmd, junk));
 	}
 	res = putenv(cmd->progs[0].argv[1]);
 	if (res)
@@ -298,8 +304,42 @@ static int shell_export(struct job *cmd, struct jobSet *junk)
 	return (res);
 }
 
+/* built-in 'read VAR' handler */
+static int builtin_read(struct job *cmd, struct jobSet *junk)
+{
+	int res = 0, len, newlen;
+	char *s;
+	char string[MAX_READ];
+
+	if (cmd->progs[0].argv[1]) {
+		/* argument (VAR) given: put "VAR=" into buffer */
+		strcpy(string, cmd->progs[0].argv[1]);
+		len = strlen(string);
+		string[len++] = '=';
+		string[len]   = '\0';
+		fgets(&string[len], sizeof(string) - len, stdin);	/* read string */
+		newlen = strlen(string);
+		if(newlen > len)
+			string[--newlen] = '\0';	/* chomp trailing newline */
+		/*
+		** string should now contain "VAR=<value>"
+		** copy it (putenv() won't do that, so we must make sure
+		** the string resides in a static buffer!)
+		*/
+		res = -1;
+		if((s = strdup(string)))
+			res = putenv(s);
+		if (res)
+			fprintf(stdout, "read: %s\n", strerror(errno));
+	}
+	else
+		fgets(string, sizeof(string), stdin);
+
+	return (res);
+}
+
 /* Built-in '.' handler (read-in and execute commands from file) */
-static int shell_source(struct job *cmd, struct jobSet *junk)
+static int builtin_source(struct job *cmd, struct jobSet *junk)
 {
 	FILE *input;
 	int status;
@@ -320,7 +360,7 @@ static int shell_source(struct job *cmd, struct jobSet *junk)
 }
 
 /* built-in 'unset VAR' handler */
-static int shell_unset(struct job *cmd, struct jobSet *junk)
+static int builtin_unset(struct job *cmd, struct jobSet *junk)
 {
 	if (!cmd->progs[0].argv[1] == 1) {
 		fprintf(stdout, "unset: parameter required.\n");
@@ -411,6 +451,17 @@ static void checkJobs(struct jobSet *jobList)
 
 static int getCommand(FILE * source, char *command)
 {
+	if (source == NULL) {
+		if (local_pending_command) {
+			/* a command specified (-c option): return it & mark it done */
+			strcpy(command, local_pending_command);
+			free(local_pending_command);
+			local_pending_command = NULL;
+			return 0;
+		}
+		return 1;
+	}
+
 	if (source == stdin) {
 #ifdef BB_FEATURE_SH_COMMAND_EDITING
 		int len;
@@ -448,7 +499,7 @@ static void globLastArgument(struct childProgram *prog, int *argcPtr,
 	int rc;
 	int flags;
 	int i;
-	char *src, *dst;
+	char *src, *dst, *var;
 
 	if (argc > 1) {				/* cmd->globResult is already initialized */
 		flags = GLOB_APPEND;
@@ -458,6 +509,9 @@ static void globLastArgument(struct childProgram *prog, int *argcPtr,
 		flags = 0;
 		i = 0;
 	}
+	/* do shell variable substitution */
+	if(*prog->argv[argc - 1] == '$' && (var = getenv(prog->argv[argc - 1] + 1)))
+		prog->argv[argc - 1] = var;
 
 	rc = glob(prog->argv[argc - 1], flags, NULL, &prog->globResult);
 	if (rc == GLOB_NOSPACE) {
@@ -522,12 +576,13 @@ static int parseCommand(char **commandPtr, struct job *job, int *isBg)
 	job->progs = malloc(sizeof(*job->progs));
 
 	/* We set the argv elements to point inside of this string. The 
-	   memory is freed by freeJob(). 
+	   memory is freed by freeJob(). Allocate twice the original
+	   length in case we need to quote every single character.
 
 	   Getting clean memory relieves us of the task of NULL 
 	   terminating things and makes the rest of this look a bit 
 	   cleaner (though it is, admittedly, a tad less efficient) */
-	job->cmdBuf = command = calloc(1, strlen(*commandPtr) + 1);
+	job->cmdBuf = command = calloc(1, 2*strlen(*commandPtr) + 1);
 	job->text = NULL;
 
 	prog = job->progs;
@@ -570,9 +625,8 @@ static int parseCommand(char **commandPtr, struct job *job, int *isBg)
 										 sizeof(*prog->argv) *
 										 argvAlloced);
 				}
-				prog->argv[argc] = buf;
-
 				globLastArgument(prog, &argc, &argvAlloced);
+				prog->argv[argc] = buf;
 			}
 		} else
 			switch (*src) {
@@ -602,6 +656,7 @@ static int parseCommand(char **commandPtr, struct job *job, int *isBg)
 					if (*chptr && *prog->argv[argc]) {
 						buf++, argc++;
 						globLastArgument(prog, &argc, &argvAlloced);
+						prog->argv[argc] = buf;
 					}
 				}
 
@@ -736,7 +791,7 @@ static int runCommand(struct job newJob, struct jobSet *jobList, int inBg)
 	int nextin, nextout;
 	int pipefds[2];				/* pipefd[0] is for reading */
 	struct builtInCommand *x;
-#ifdef BB_FEATURE_STANDALONE_SHELL
+#ifdef BB_FEATURE_SH_STANDALONE_SHELL
 	const struct BB_applet *a = applets;
 #endif
 
@@ -750,7 +805,7 @@ static int runCommand(struct job newJob, struct jobSet *jobList, int inBg)
 			nextout = 1;
 		}
 
-		/* Match any built-ins here */
+		/* Check if the command matches any non-forking builtins */
 		for (x = bltins; x->cmd; x++) {
 			if (!strcmp(newJob.progs[i].argv[0], x->cmd)) {
 				return (x->function(&newJob, jobList));
@@ -773,14 +828,16 @@ static int runCommand(struct job newJob, struct jobSet *jobList, int inBg)
 			/* explicit redirections override pipes */
 			setupRedirections(newJob.progs + i);
 
-			/* Match any built-ins here */
+			/* Check if the command matches any of the other builtins */
 			for (x = bltins_forking; x->cmd; x++) {
 				if (!strcmp(newJob.progs[i].argv[0], x->cmd)) {
 					exit (x->function(&newJob, jobList));
 				}
 			}
-#ifdef BB_FEATURE_STANDALONE_SHELL
-			/* Handle busybox internals here */
+#ifdef BB_FEATURE_SH_STANDALONE_SHELL
+			/* Check if the command matches any busybox internal commands here */
+			/* TODO: Add matching when paths are appended (i.e. 'cat' currently
+			 * works, but '/bin/cat' doesn't ) */
 			while (a->name != 0) {
 				if (strcmp(newJob.progs[i].argv[0], a->name) == 0) {
 					int argc;
@@ -842,7 +899,8 @@ static int runCommand(struct job newJob, struct jobSet *jobList, int inBg)
 		jobList->fg = job;
 
 		/* move the new process group into the foreground */
-		if (tcsetpgrp(0, newJob.pgrp))
+		/* suppress messages when run from /linuxrc mag@sysgo.de */
+		if (tcsetpgrp(0, newJob.pgrp) && errno != ENOTTY)
 			perror("tcsetpgrp");
 	}
 
@@ -894,9 +952,13 @@ static int busy_loop(FILE * input)
 	char *nextCommand = NULL;
 	struct jobSet jobList = { NULL, NULL };
 	struct job newJob;
+	pid_t  parent_pgrp;
 	int i;
 	int status;
 	int inBg;
+
+	/* save current owner of TTY so we can restore it on exit */
+	parent_pgrp = tcgetpgrp(0);
 
 	command = (char *) calloc(BUFSIZ, sizeof(char));
 
@@ -939,10 +1001,6 @@ static int busy_loop(FILE * input)
 
 					removeJob(&jobList, jobList.fg);
 					jobList.fg = NULL;
-
-					/* move the shell to the foreground */
-					if (tcsetpgrp(0, getpid()))
-						perror("tcsetpgrp");
 				}
 			} else {
 				/* the child was stopped */
@@ -958,13 +1016,22 @@ static int busy_loop(FILE * input)
 
 			if (!jobList.fg) {
 				/* move the shell to the foreground */
-				if (tcsetpgrp(0, getpid()))
-					perror("tcsetpgrp");
+				/* suppress messages when run from /linuxrc mag@sysgo.de */
+				if (tcsetpgrp(0, getpid()) && errno != ENOTTY)
+					perror("tcsetpgrp"); 
 			}
 		}
 	}
 	free(command);
 
+	/* return controlling TTY back to parent process group before exiting */
+	if (tcsetpgrp(0, parent_pgrp))
+		perror("tcsetpgrp");
+
+	/* return exit status if called with "-c" */
+	if (input == NULL && WIFEXITED(status))
+		return WEXITSTATUS(status);
+	
 	return 0;
 }
 
@@ -973,11 +1040,12 @@ int shell_main(int argc, char **argv)
 {
 	FILE *input = stdin;
 
-	if (argc > 2) {
-		usage(shell_usage);
-	}
 	/* initialize the cwd */
-	getcwd(cwd, sizeof(cwd));
+	cwd = (char *) calloc(BUFSIZ, sizeof(char));
+	if (cwd == 0) {
+		fatalError("sh: out of memory\n");
+	}
+	getcwd(cwd, sizeof(char)*BUFSIZ);
 
 #ifdef BB_FEATURE_SH_COMMAND_EDITING
 	cmdedit_init();
@@ -986,20 +1054,43 @@ int shell_main(int argc, char **argv)
 #endif
 
 	//if (argv[0] && argv[0][0] == '-') {
-	//      shell_source("/etc/profile");
+	//      builtin_source("/etc/profile");
 	//}
 
 	if (argc < 2) {
 		fprintf(stdout, "\n\nBusyBox v%s (%s) Built-in shell\n", BB_VER, BB_BT);
 		fprintf(stdout, "Enter 'help' for a list of built-in commands.\n\n");
 	} else {
-		if (*argv[1]=='-') {
-			usage("sh\n\nlash -- the BusyBox LAme SHell (command interpreter)\n");
+		if (argv[1][0]=='-' && argv[1][1]=='c') {
+			int i;
+			local_pending_command = (char *) calloc(BUFSIZ, sizeof(char));
+			if (local_pending_command == 0) {
+				fatalError("sh: out of memory\n");
+			}
+			for(i=2; i<argc; i++)
+			{
+				if (strlen(local_pending_command) + strlen(argv[i]) >= BUFSIZ) {
+					local_pending_command = realloc(local_pending_command, 
+							strlen(local_pending_command) + strlen(argv[i]));
+					if (local_pending_command==NULL) 
+					  fatalError("sh: commands for -c option too long\n");
+				}
+				strcat(local_pending_command, argv[i]);
+				if ( (i + 1) < argc)
+				  strcat(local_pending_command, " ");
+			}
+			input = NULL;
+			  
 		}
-		input = fopen(argv[1], "r");
-		if (!input) {
-			fatalError("sh: Couldn't open file '%s': %s\n", argv[1],
-					   strerror(errno));
+		else if (argv[1][0]=='-') {
+			usage(shell_usage);
+		}
+		else {
+			input = fopen(argv[1], "r");
+			if (!input) {
+				fatalError("sh: Couldn't open file '%s': %s\n", argv[1],
+						   strerror(errno));
+			}
 		}
 	}
 

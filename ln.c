@@ -40,9 +40,7 @@ static const char ln_usage[] =
 	"\t-s\tmake symbolic links instead of hard links\n"
 
 	"\t-f\tremove existing destination files\n"
-#if 0
 	"\t-n\tno dereference symlinks - treat like normal file\n"
-#endif
 #endif
 	;
 
@@ -52,7 +50,7 @@ static int followLinks = TRUE;
 
 extern int ln_main(int argc, char **argv)
 {
-	char *linkName;
+	char *linkName, *dirName=NULL;
 	int linkIntoDirFlag;
 	int stopIt = FALSE;
 
@@ -92,40 +90,26 @@ extern int ln_main(int argc, char **argv)
 
 	linkName = argv[argc - 1];
 
-	if (strlen(linkName) > BUFSIZ) {
-		fprintf(stderr, name_too_long, "ln");
-		exit FALSE;
-	}
-
-	linkIntoDirFlag = isDirectory(linkName, TRUE, NULL);
-
+	linkIntoDirFlag = isDirectory(linkName, followLinks, NULL);
 	if ((argc >= 3) && linkIntoDirFlag == FALSE) {
 		fprintf(stderr, not_a_directory, "ln", linkName);
 		exit FALSE;
 	}
 
+	if (linkIntoDirFlag == TRUE)
+		dirName = linkName;
+
 	while (argc-- >= 2) {
-#if 0
-		char srcName[BUFSIZ + 1];
-		int nChars;
-#endif
 		int status;
 
-		if (strlen(*argv) > BUFSIZ) {
-			fprintf(stderr, name_too_long, "ln");
-			exit FALSE;
+		if (linkIntoDirFlag == TRUE) {
+			char *baseName = get_last_path_component(*argv);
+			linkName = (char *)malloc(strlen(dirName)+strlen(baseName)+2);
+			strcpy(linkName, dirName);
+			if(dirName[strlen(dirName)-1] != '/')
+				strcat(linkName, "/");
+			strcat(linkName,baseName);
 		}
-
-#if 0
-		if (followLinks == FALSE) {
-			strcpy(srcName, *argv);
-		} else {
-			/* Warning!  This can silently truncate if > BUFSIZ, but
-			   I don't think that there can be one > BUFSIZ anyway. */
-			nChars = readlink(*argv, srcName, BUFSIZ);
-			srcName[nChars] = '\0';
-		}
-#endif
 
 		if (removeoldFlag == TRUE) {
 			status = (unlink(linkName) && errno != ENOENT);
@@ -143,6 +127,11 @@ extern int ln_main(int argc, char **argv)
 			perror(linkName);
 			exit FALSE;
 		}
+
+		if (linkIntoDirFlag == TRUE)
+			free(linkName);
+
+		argv++;
 	}
 	return( TRUE);
 }

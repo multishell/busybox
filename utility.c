@@ -45,15 +45,15 @@
 #include <dirent.h>
 #include <time.h>
 #include <utime.h>
-#include <sys/stat.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <sys/stat.h>
+#include <sys/ioctl.h>
 #include <sys/utsname.h>		/* for uname(2) */
 
 #if defined BB_FEATURE_MOUNT_LOOP
 #include <fcntl.h>
-#include <sys/ioctl.h>
-#include <linux/loop.h>
+#include <linux/loop.h> /* Pull in loop device support */
 #endif
 
 /* Busybox mount uses either /proc/filesystems or /dev/mtab to get the 
@@ -79,7 +79,6 @@ const char mtab_file[] = "/dev/mtab";
 #  endif
 #  endif
 #endif
-
 
 extern void usage(const char *usage)
 {
@@ -130,6 +129,28 @@ extern int get_kernel_revision(void)
 	return major * 65536 + minor * 256 + patch;
 }
 #endif                                                 /* BB_INIT */
+
+
+
+#if defined BB_FREE || defined BB_INIT || defined BB_UNAME || defined BB_UPTIME
+_syscall1(int, sysinfo, struct sysinfo *, info);
+#endif                                                 /* BB_INIT */
+
+#if defined BB_MOUNT || defined BB_UMOUNT
+
+#ifndef __NR_umount2
+#define __NR_umount2           52
+#endif
+
+/* Include our own version of <sys/mount.h>, since libc5 doesn't
+ * know about umount2 */
+extern _syscall1(int, umount, const char *, special_file);
+extern _syscall2(int, umount2, const char *, special_file, int, flags);
+extern _syscall5(int, mount, const char *, special_file, const char *, dir,
+		const char *, fstype, unsigned long int, rwflag, const void *, data);
+#endif
+
+
 
 #if defined (BB_CP_MV) || defined (BB_DU)
 
@@ -892,11 +913,12 @@ unsigned long my_getpwnamegid(char *name)
 #endif /* BB_CHMOD_CHOWN_CHGRP || BB_PS || BB_LS || BB_TAR || BB_ID */ 
 
 
-#if (defined BB_CHVT) || (defined BB_DEALLOCVT)
+#if (defined BB_CHVT) || (defined BB_DEALLOCVT) || (defined BB_SETKEYCODES)
 
-
-#include <linux/kd.h>
-#include <sys/ioctl.h>
+/* From <linux/kd.h> */ 
+#define KDGKBTYPE       0x4B33  /* get keyboard type */
+#define         KB_84           0x01
+#define         KB_101          0x02    /* this is what we always answer */
 
 int is_a_console(int fd)
 {
@@ -977,7 +999,7 @@ int get_console_fd(char *tty_name)
 }
 
 
-#endif							/* BB_CHVT || BB_DEALLOCVT */
+#endif							/* BB_CHVT || BB_DEALLOCVT || BB_SETKEYCODES */
 
 
 #if !defined BB_REGEXP && (defined BB_GREP || defined BB_SED)
@@ -1278,7 +1300,7 @@ extern int device_open(char *device, int mode)
 
 #if defined BB_KILLALL || ( defined BB_FEATURE_LINUXRC && ( defined BB_HALT || defined BB_REBOOT || defined BB_POWEROFF ))
 #ifdef BB_FEATURE_USE_DEVPS_PATCH
-#include <linux/devps.h>
+#include <linux/devps.h> /* For Erik's nifty devps device driver */
 #endif
 
 #if defined BB_FEATURE_USE_DEVPS_PATCH
@@ -1318,7 +1340,7 @@ extern pid_t* findPidByName( char* pidName)
 		fatalError( "\nDEVPS_GET_PID_LIST: %s\n", strerror (errno));
 
 	/* Now search for a match */
-	for (i=1; i<pid_array[0] ; i++) {
+	for (i=1, j=0; i<pid_array[0] ; i++) {
 		char* p;
 		struct pid_info info;
 
@@ -1431,6 +1453,36 @@ extern void *xmalloc(size_t size)
 		fatalError(memory_exhausted, "");
 	return cp;
 }
+
+#if defined BB_FEATURE_NFSMOUNT
+extern char * xstrdup (const char *s) {
+	char *t;
+
+	if (s == NULL)
+		return NULL;
+
+	t = strdup (s);
+
+	if (t == NULL)
+		fatalError(memory_exhausted, "");
+
+	return t;
+}
+
+extern char * xstrndup (const char *s, int n) {
+	char *t;
+
+	if (s == NULL)
+		fatalError("xstrndup bug");
+
+	t = xmalloc(n+1);
+	strncpy(t,s,n);
+	t[n] = 0;
+
+	return t;
+}
+#endif
+
 
 #if (__GLIBC__ < 2) && (defined BB_SYSLOGD || defined BB_INIT)
 extern int vdprintf(int d, const char *format, va_list ap)
@@ -1573,57 +1625,115 @@ extern int find_real_root_device_name(char* name)
 }
 #endif
 
-const unsigned int CSTRING_BUFFER_LENGTH = 1024;
-/* recursive parser that returns cstrings of arbitrary length
- * from a FILE* 
- */
-static char *
-cstring_alloc(FILE* f, int depth)
+
+/* get_line_from_file() - This function reads an entire line from a text file
+ * up to a newline. It returns a malloc'ed char * which must be stored and
+ * free'ed  by the caller. */
+extern char *get_line_from_file(FILE *file)
 {
-    char *cstring;
-    char buffer[CSTRING_BUFFER_LENGTH];
-    int	 target = CSTRING_BUFFER_LENGTH * depth;
-    int  c, i, len, size;
+	static const int GROWBY = 80; /* how large we will grow strings by */
 
-    /* fill buffer */
-    i = 0;
-	while ((c = fgetc(f)) != EOF) {
-		buffer[i] = (char) c;
-		if (buffer[i++] == 0x0a) { break; }
-		if (i == CSTRING_BUFFER_LENGTH) { break; }
-    }
-    len = i;
+	int ch;
+	int idx = 0;
+	char *linebuf = NULL;
+	int linebufsz = 0;
 
-    /* recurse or malloc? */
-    if (len == CSTRING_BUFFER_LENGTH) {
-		cstring = cstring_alloc(f, (depth + 1));
-    } else {
-		/* [special case] EOF */
-		if ((depth | len) == 0) { return NULL; }
+	while (1) {
+		ch = fgetc(file);
+		if (ch == EOF)
+			break;
+		/* grow the line buffer as necessary */
+		if (idx > linebufsz-2)
+			linebuf = realloc(linebuf, linebufsz += GROWBY);
+		linebuf[idx++] = (char)ch;
+		if ((char)ch == '\n')
+			break;
+	}
 
-		/* malloc */
-		size = target + len + 1;
-		cstring = malloc(size);
-		if (!cstring) { return NULL; }
-		cstring[size - 1] = 0;
-    }
+	if (idx == 0)
+		return NULL;
 
-    /* copy buffer */
-    if (cstring) {
-		memcpy(&cstring[target], buffer, len);
-    }
-    return cstring;
+	linebuf[idx] = 0;
+	return linebuf;
 }
 
-/* 
- * wrapper around recursive cstring_alloc 
- * it's the caller's responsibility to free the cstring
- */ 
-char *
-cstring_lineFromFile(FILE *f)
+#if defined BB_ECHO || defined BB_TR
+char process_escape_sequence(char **ptr)
 {
-    return cstring_alloc(f, 0);
+	char c;
+
+	switch (c = *(*ptr)++) {
+	case 'a':
+		c = '\a';
+		break;
+	case 'b':
+		c = '\b';
+		break;
+	case 'f':
+		c = '\f';
+		break;
+	case 'n':
+		c = '\n';
+		break;
+	case 't':
+		c = '\t';
+		break;
+	case 'v':
+		c = '\v';
+		break;
+	case '\\':
+		c = '\\';
+		break;
+	case '0': case '1': case '2': case '3':
+	case '4': case '5': case '6': case '7':
+		c -= '0';
+		if ('0' <= **ptr && **ptr <= '7') {
+			c = c * 8 + (*(*ptr)++ - '0');
+			if ('0' <= **ptr && **ptr <= '7')
+				c = c * 8 + (*(*ptr)++ - '0');
+		}
+		break;
+	default:
+		(*ptr)--;
+		c = '\\';
+		break;
+	}
+	return c;
 }
+#endif
+
+#if defined BB_BASENAME || defined BB_LN
+char *get_last_path_component(char *path)
+{
+	char *s=path+strlen(path)-1;
+
+	/* strip trailing slashes */
+	while (s && *s == '/') {
+		*s-- = '\0';
+	}
+
+	/* find last component */
+	s = strrchr(path, '/');
+	if (s==NULL) return path;
+	else return s+1;
+}
+#endif
+
+#if defined BB_GREP || defined BB_SED
+int bb_regcomp(regex_t *preg, const char *regex, int cflags)
+{
+	int ret;
+	if ((ret = regcomp(preg, regex, cflags)) != 0) {
+		int errmsgsz = regerror(ret, preg, NULL, 0);
+		char *errmsg = xmalloc(errmsgsz);
+		regerror(ret, preg, errmsg, errmsgsz);
+		errorMsg("bb_regcomp: %s\n", errmsg);
+		free(errmsg);
+		regfree(preg);
+	}
+	return ret;
+}
+#endif
 
 /* END CODE */
 /*

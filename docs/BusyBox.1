@@ -93,7 +93,7 @@
 .nr % 0
 .rr F
 .\}
-.TH BUSYBOX 1 "version 0.45" "21/Jun/2000" "BusyBox"
+.TH BUSYBOX 1 "version 0.46" "11/Jul/2000" "BusyBox"
 .UC
 .if n .hy 0
 .if n .na
@@ -238,13 +238,13 @@ terse runtime description of their behavior.
 Currently defined functions include:
 .PP
 ar, basename, cat, chgrp, chmod, chown, chroot, chvt, clear, cp, cut, date,
-dc, dd, deallocvt, df, dirname, dmesg, du, dutmp, echo, false, fbset,
+dc, dd, deallocvt, df, dirname, dmesg, du, dumpkmap, dutmp, echo, false, fbset,
 fdflush, find, free, freeramdisk, fsck.minix, grep, gunzip, gzip, halt,
 head, hostid, hostname, id, init, insmod, kill, killall, length, ln,
 loadacm, loadfont, loadkmap, logger, logname, ls, lsmod, makedevs, mkdir,
 mkfifo, mkfs.minix, mknod, mkswap, mktemp, more, mount, mt, mv, nc,
 nslookup, ping, poweroff, printf, ps, pwd, reboot, rm, rmdir, rmmod, sed,
-setkeycodes, sfdisk, sh, sleep, sort, swapoff, swapon, sync, syslogd, tail,
+setkeycodes, sh, sleep, sort, swapoff, swapon, sync, syslogd, tail,
 tar, tee, telnet, test, touch, tr, true, tty, umount, uname, uniq, update,
 uptime, usleep, uudecode, uuencode, wc, which, whoami, yes, zcat, [
 .PP
@@ -417,14 +417,14 @@ Example:
 \&        -rwxr-xr-x    1 root     root        40816 Feb  5 07:45 /bin/ls*
 .Ve
 -------------------------------
-.Ip "clear" 4
-Clears the screen.
-.Sp
--------------------------------
 .Ip "chvt" 4
 Usage: chvt N
 .Sp
 Changes the foreground virtual terminal to /dev/ttyN
+.Sp
+-------------------------------
+.Ip "clear" 4
+Clears the screen.
 .Sp
 -------------------------------
 .Ip "cp" 4
@@ -451,12 +451,13 @@ Prints selected fields from each input \s-1FILE\s0 to standard output.
 .Sp
 Options:
 .Sp
-.Vb 5
-\&        -b LIST Output only bytes from LIST
-\&        -c LIST Output only characters from LIST
-\&        -d DELIM        Use DELIM instead of tab as the field delimiter
-\&        -f N    Print only these fields
-\&        -n      Ignored
+.Vb 6
+\&                -b LIST Output only bytes from LIST
+\&                -c LIST Output only characters from LIST
+\&                -d CHAR Use CHAR instead of tab as the field delimiter
+\&                -s      Only output Lines if the include DELIM
+\&                -f N    Print only these fields
+\&                -n      Ignored
 .Ve
 Example:
 .Sp
@@ -537,6 +538,12 @@ Example:
 \&        4+0 records out
 .Ve
 -------------------------------
+.Ip "deallocvt" 4
+Usage: deallocvt N
+.Sp
+Deallocates unused virtual terminal /dev/ttyN
+.Sp
+-------------------------------
 .Ip "df" 4
 Usage: df [filesystem ...]
 .Sp
@@ -601,6 +608,12 @@ Example:
 \&        104     ./docs
 \&        2417    .
 .Ve
+-------------------------------
+.Ip "dumpkmap" 4
+Usage: dumpkmap
+.Sp
+Prints out a binary keyboard translation table to standard input.
+.Sp
 -------------------------------
 .Ip "dutmp" 4
 Usage: dutmp [\s-1FILE\s0]
@@ -743,18 +756,12 @@ Example:
 \&        $ freeramdisk /dev/ram2
 .Ve
 -------------------------------
-.Ip "deallocvt" 4
-Usage: deallocvt N
-.Sp
-Deallocates unused virtual terminal /dev/ttyN
-.Sp
--------------------------------
 .Ip "fsck.minix" 4
 Usage: fsck.minix [\fB\-larvsmf\fR] /dev/name
 .Sp
 Performs a consistency check for \s-1MINIX\s0 filesystems.
 .Sp
-\s-1OPTIONS\s0:
+Options:
 .Sp
 .Vb 7
 \&        -l      Lists all filenames
@@ -771,7 +778,7 @@ Usage: grep [\s-1OPTIONS\s0]... \s-1PATTERN\s0 [\s-1FILE\s0]...
 .Sp
 Search for \s-1PATTERN\s0 in each \s-1FILE\s0 or standard input.
 .Sp
-\s-1OPTIONS\s0:
+Options:
 .Sp
 .Vb 5
 \&        -h      suppress the prefixing filename on output
@@ -1283,7 +1290,7 @@ Usage: mkfs.minix [\fB\-c\fR | \fB\-l\fR filename] [\fB\-nXX\fR] [\fB\-iXX\fR] /
 .Sp
 Make a \s-1MINIX\s0 filesystem.
 .Sp
-\s-1OPTIONS\s0:
+Options:
 .Sp
 .Vb 5
 \&        -c              Check the device for bad blocks
@@ -1342,24 +1349,6 @@ Example:
 \&        /tmp/temp.mWiLjM
 \&        $ ls -la /tmp/temp.mWiLjM
 \&        -rw-------    1 andersen andersen        0 Apr 25 17:10 /tmp/temp.mWiLjM
-.Ve
--------------------------------
-.Ip "nc" 4
-Usage: nc [\s-1IP\s0] [port]
-.Sp
-Netcat opens a pipe to \s-1IP:\s0port
-.Sp
-Example:
-.Sp
-.Vb 8
-\&        $ nc foobar.somedomain.com 25
-\&        220 foobar ESMTP Exim 3.12 #1 Sat, 15 Apr 2000 00:03:02 -0600
-\&        help
-\&        214-Commands supported:
-\&        214-    HELO EHLO MAIL RCPT DATA AUTH
-\&        214     NOOP QUIT RSET HELP
-\&        quit
-\&        221 foobar closing connection
 .Ve
 -------------------------------
 .Ip "more" 4
@@ -1429,6 +1418,24 @@ Example:
 .Sp
 .Vb 1
 \&        $ mv /tmp/foo /bin/bar
+.Ve
+-------------------------------
+.Ip "nc" 4
+Usage: nc [\s-1IP\s0] [port]
+.Sp
+Netcat opens a pipe to \s-1IP:\s0port
+.Sp
+Example:
+.Sp
+.Vb 8
+\&        $ nc foobar.somedomain.com 25
+\&        220 foobar ESMTP Exim 3.12 #1 Sat, 15 Apr 2000 00:03:02 -0600
+\&        help
+\&        214-Commands supported:
+\&        214-    HELO EHLO MAIL RCPT DATA AUTH
+\&        214     NOOP QUIT RSET HELP
+\&        quit
+\&        221 foobar closing connection
 .Ve
 -------------------------------
 .Ip "nslookup" 4
@@ -1641,51 +1648,6 @@ and such, use ash or bash.  If you just need a very simple and extremely small
 shell, this will do the job.
 .Sp
 -------------------------------
-.Ip "sfdisk" 4
-Usage: sfdisk [options] device ...
-.Sp
-device: something like /dev/hda or /dev/sda
-.Sp
-useful options:
-.Sp
-.Vb 15
-\&    -s [or --show-size]: list size of a partition
-\&    -c [or --id]:        print or change partition Id
-\&    -l [or --list]:      list partitions of each device
-\&    -d [or --dump]:      idem, but in a format suitable for later input
-\&    -i [or --increment]: number cylinders etc. from 1 instead of from 0
-\&    -uS, -uB, -uC, -uM:  accept/report in units of sectors/blocks/cylinders/MB
-\&    -T [or --list-types]:list the known partition types
-\&    -D [or --DOS]:       for DOS-compatibility: waste a little space
-\&    -R [or --re-read]:   make kernel reread partition table
-\&    -N# :                change only the partition with number #
-\&    -n :                 do not actually write to disk
-\&    -O file :            save the sectors that will be overwritten to file
-\&    -I file :            restore these sectors again
-\&    -v [or --version]:   print version
-\&    -? [or --help]:      print this message
-.Ve
-dangerous options:
-.Sp
-.Vb 2
-\&    -g [or --show-geometry]: print the kernel's idea of the geometry
-\&    -x [or --show-extended]: also list extended partitions on output
-.Ve
-.Vb 7
-\&                             or expect descriptors for them on input
-\&    -L  [or --Linux]:      do not complain about things irrelevant for Linux
-\&    -q  [or --quiet]:      suppress warning messages
-\&    You can override the detected geometry using:
-\&    -C# [or --cylinders #]:set the number of cylinders to use
-\&    -H# [or --heads #]:    set the number of heads to use
-\&    -S# [or --sectors #]:  set the number of sectors to use
-.Ve
-You can disable all consistency checking with:
-.Sp
-.Vb 1
-\&    -f  [or --force]:      do what I say, even if it is stupid
-.Ve
--------------------------------
 .Ip "sleep" 4
 Usage: sleep N
 .Sp
@@ -1715,6 +1677,28 @@ Example:
 \&        f
 .Ve
 -------------------------------
+.Ip "swapoff" 4
+Usage: swapoff [\s-1OPTION\s0] [device]
+.Sp
+Stop swapping virtual memory pages on the given device.
+.Sp
+Options:
+.Sp
+.Vb 1
+\&        -a      Stop swapping on all swap devices
+.Ve
+-------------------------------
+.Ip "swapon" 4
+Usage: swapon [\s-1OPTION\s0] [device]
+.Sp
+Start swapping virtual memory pages on the given device.
+.Sp
+Options:
+.Sp
+.Vb 1
+\&        -a      Start swapping on all swap devices
+.Ve
+-------------------------------
 .Ip "sync" 4
 Usage: sync
 .Sp
@@ -1734,28 +1718,6 @@ Options:
 \&        -n              Run as a foreground process
 \&        -K              Do not start up the klogd process
 \&        -O FILE         Use an alternate log file (default=/var/log/messages)
-.Ve
--------------------------------
-.Ip "swapon" 4
-Usage: swapon [\s-1OPTION\s0] [device]
-.Sp
-Start swapping virtual memory pages on the given device.
-.Sp
-Options:
-.Sp
-.Vb 1
-\&        -a      Start swapping on all swap devices
-.Ve
--------------------------------
-.Ip "swapoff" 4
-Usage: swapoff [\s-1OPTION\s0] [device]
-.Sp
-Stop swapping virtual memory pages on the given device.
-.Sp
-Options:
-.Sp
-.Vb 1
-\&        -a      Stop swapping on all swap devices
 .Ve
 -------------------------------
 .Ip "tail" 4
@@ -1811,6 +1773,31 @@ Example:
 \&        $ tar -cf /tmp/tarball.tar /usr/local
 .Ve
 -------------------------------
+.Ip "tee" 4
+Usage: tee [\s-1OPTION\s0]... [\s-1FILE\s0]...
+.Sp
+Copy standard input to each \s-1FILE\s0, and also to standard output.
+.Sp
+Options:
+.Sp
+.Vb 1
+\&        -a      append to the given FILEs, do not overwrite
+.Ve
+Example:
+.Sp
+.Vb 3
+\&        $ echo "Hello" | tee /tmp/foo
+\&        $ cat /tmp/foo
+\&        Hello
+.Ve
+-------------------------------
+.Ip "telnet" 4
+Usage: telnet host [port]
+.Sp
+Telnet is used to establish interactive communication with another
+computer over a network using the \s-1TELNET\s0 protocol.
+.Sp
+-------------------------------
 .Ip "test, [" 4
 Usage: test \s-1EXPRESSION\s0
 or   [ \s-1EXPRESSION\s0 ]
@@ -1833,31 +1820,6 @@ Example:
 \&        $ [ -d /junk ]
 \&        $ echo $?
 \&        1
-.Ve
--------------------------------
-.Ip "telnet" 4
-Usage: telnet host [port]
-.Sp
-Telnet is used to establish interactive communication with another
-computer over a network using the \s-1TELNET\s0 protocol.
-.Sp
--------------------------------
-.Ip "tee" 4
-Usage: tee [\s-1OPTION\s0]... [\s-1FILE\s0]...
-.Sp
-Copy standard input to each \s-1FILE\s0, and also to standard output.
-.Sp
-Options:
-.Sp
-.Vb 1
-\&        -a      append to the given FILEs, do not overwrite
-.Ve
-Example:
-.Sp
-.Vb 3
-\&        $ echo "Hello" | tee /tmp/foo
-\&        $ cat /tmp/foo
-\&        Hello
 .Ve
 -------------------------------
 .Ip "touch" 4
@@ -1921,45 +1883,6 @@ Example:
 .Vb 2
 \&        $ tty
 \&        /dev/tty2
-.Ve
--------------------------------
-.Ip "uuencode" 4
-Usage: uuencode [\s-1OPTION\s0] [\s-1INFILE\s0] \s-1REMOTEFILE\s0
-.Sp
-Uuencode a file.
-.Sp
-Options:
-.Sp
-.Vb 1
-\&        -m      use base64 encoding as of RFC1521
-.Ve
-Example:
-.Sp
-.Vb 6
-\&        $ uuencode busybox busybox
-\&        begin 755 busybox
-\&        M?T5,1@$!`0````````````(``P`!````L+@$"#0```!0N@,``````#0`(``&
-\&        .....
-\&        $ uudecode busybox busybox > busybox.uu
-\&        $
-.Ve
--------------------------------
-.Ip "uudecode" 4
-Usage: uudecode [\s-1OPTION\s0] [\s-1FILE\s0]
-.Sp
-Uudecode a uuencoded file
-.Sp
-Options:
-.Sp
-.Vb 1
-\&        -o FILE  direct output to FILE
-.Ve
-Example:
-.Sp
-.Vb 3
-\&        $ uudecode -o busybox busybox.uu
-\&        $ ls -l busybox
-\&        -rwxr-xr-x   1 ams      ams        245264 Jun  7 21:35 busybox
 .Ve
 -------------------------------
 .Ip "umount" 4
@@ -2052,6 +1975,45 @@ Example:
 .Vb 2
 \&        $ usleep 1000000
 \&        [pauses for 1 second]
+.Ve
+-------------------------------
+.Ip "uuencode" 4
+Usage: uuencode [\s-1OPTION\s0] [\s-1INFILE\s0] \s-1REMOTEFILE\s0
+.Sp
+Uuencode a file.
+.Sp
+Options:
+.Sp
+.Vb 1
+\&        -m      use base64 encoding as of RFC1521
+.Ve
+Example:
+.Sp
+.Vb 6
+\&        $ uuencode busybox busybox
+\&        begin 755 busybox
+\&        M?T5,1@$!`0````````````(``P`!````L+@$"#0```!0N@,``````#0`(``&
+\&        .....
+\&        $ uudecode busybox busybox > busybox.uu
+\&        $
+.Ve
+-------------------------------
+.Ip "uudecode" 4
+Usage: uudecode [\s-1OPTION\s0] [\s-1FILE\s0]
+.Sp
+Uudecode a uuencoded file
+.Sp
+Options:
+.Sp
+.Vb 1
+\&        -o FILE  direct output to FILE
+.Ve
+Example:
+.Sp
+.Vb 3
+\&        $ uudecode -o busybox busybox.uu
+\&        $ ls -l busybox
+\&        -rwxr-xr-x   1 ams      ams        245264 Jun  7 21:35 busybox
 .Ve
 -------------------------------
 .Ip "wc" 4
@@ -2186,9 +2148,9 @@ Enrique Zanardi <ezanardi@ull.es>
 
 .IX Item "chroot"
 
-.IX Item "clear"
-
 .IX Item "chvt"
+
+.IX Item "clear"
 
 .IX Item "cp"
 
@@ -2200,6 +2162,8 @@ Enrique Zanardi <ezanardi@ull.es>
 
 .IX Item "dd"
 
+.IX Item "deallocvt"
+
 .IX Item "df"
 
 .IX Item "dirname"
@@ -2207,6 +2171,8 @@ Enrique Zanardi <ezanardi@ull.es>
 .IX Item "dmesg"
 
 .IX Item "du"
+
+.IX Item "dumpkmap"
 
 .IX Item "dutmp"
 
@@ -2223,8 +2189,6 @@ Enrique Zanardi <ezanardi@ull.es>
 .IX Item "free"
 
 .IX Item "freeramdisk"
-
-.IX Item "deallocvt"
 
 .IX Item "fsck.minix"
 
@@ -2286,8 +2250,6 @@ Enrique Zanardi <ezanardi@ull.es>
 
 .IX Item "mktemp"
 
-.IX Item "nc"
-
 .IX Item "more"
 
 .IX Item "mount"
@@ -2295,6 +2257,8 @@ Enrique Zanardi <ezanardi@ull.es>
 .IX Item "mt"
 
 .IX Item "mv"
+
+.IX Item "nc"
 
 .IX Item "nslookup"
 
@@ -2322,29 +2286,27 @@ Enrique Zanardi <ezanardi@ull.es>
 
 .IX Item "sh"
 
-.IX Item "sfdisk"
-
 .IX Item "sleep"
 
 .IX Item "sort"
+
+.IX Item "swapoff"
+
+.IX Item "swapon"
 
 .IX Item "sync"
 
 .IX Item "syslogd"
 
-.IX Item "swapon"
-
-.IX Item "swapoff"
-
 .IX Item "tail"
 
 .IX Item "tar"
 
-.IX Item "test, ["
+.IX Item "tee"
 
 .IX Item "telnet"
 
-.IX Item "tee"
+.IX Item "test, ["
 
 .IX Item "touch"
 
@@ -2353,10 +2315,6 @@ Enrique Zanardi <ezanardi@ull.es>
 .IX Item "true"
 
 .IX Item "tty"
-
-.IX Item "uuencode"
-
-.IX Item "uudecode"
 
 .IX Item "umount"
 
@@ -2369,6 +2327,10 @@ Enrique Zanardi <ezanardi@ull.es>
 .IX Item "uptime"
 
 .IX Item "usleep"
+
+.IX Item "uuencode"
+
+.IX Item "uudecode"
 
 .IX Item "wc"
 

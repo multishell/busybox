@@ -198,6 +198,8 @@ extern int tar_main(int argc, char **argv)
 					tarName = *(++argv);
 					if (tarName == NULL)
 						fatalError( "Option requires an argument: No file specified\n");
+					if (!strcmp(tarName, "-"))
+						tostdoutFlag = TRUE;
 					stopIt=TRUE;
 					break;
 
@@ -648,7 +650,8 @@ static int readTarFile(const char* tarName, int extractFlag, int listFlag,
 		}
 
 		/* Remove any clutter lying in our way */
-		unlink( header.name);
+		if (extractFlag == TRUE)	/* .. but only if we are extracting (as */
+			unlink( header.name);	/* opposed to listing) (rob@sysgo.de)   */
 
 		/* If we got here, we can be certain we have a legitimate 
 		 * header to work with.  So work with it.  */
@@ -824,12 +827,15 @@ writeTarHeader(struct TarBallInfo *tbInfo, const char *fileName, struct stat *st
 
 	/* WARNING/NOTICE: I break Hard Links */
 	if (S_ISLNK(statbuf->st_mode)) {
+		int link_size=0;
 		char buffer[BUFSIZ];
 		header.typeflag  = SYMTYPE;
-		if ( readlink(fileName, buffer, sizeof(buffer) - 1) < 0) {
+		link_size = readlink(fileName, buffer, sizeof(buffer) - 1);
+		if ( link_size < 0) {
 			errorMsg("Error reading symlink '%s': %s\n", header.name, strerror(errno));
 			return ( FALSE);
 		}
+		buffer[link_size] = '\0';
 		strncpy(header.linkname, buffer, sizeof(header.linkname)); 
 	} else if (S_ISDIR(statbuf->st_mode)) {
 		header.typeflag  = DIRTYPE;

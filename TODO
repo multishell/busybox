@@ -16,58 +16,6 @@ around to it some time. If you have any good ideas, please let me know.
 
 -----------
 
-Bugs that need fixing:
-
- - 'ln -n' has been disabled for this release, till we can fix a memory
-    corruption bug.
- - fix 'cp' (or test suite script) so that it passes the last item in
-    the test suite.
- - ps dirent race bug (need to stat the file before attempting chdir)
- - Make 'ln -s /tmp/file .' work the way GNU ln does (i.e. makes a link to 
-    /tmp/file in the current directory, rather then trying and failing to create
-    a symlink named "." in the current working directory).
- - Prune sfdisk, graft in std fdisk instead
-
-
-We will rework these to use libc regex functions instead (as per the mailing
-list discussion):
- - 'grep foo$ file' doesn't work
- - 'grep *foo file' segfaults
-
-
------------
-
-Linux 2.4.x kernels
-
-BusyBox 0.45 currently will not work with the Linux 2.4.x kernels.  
-I know of the following problems:
-
-1) The sysinfo syscall has changed what it does (binary incompatable), breaking
-    init and free.
-2) BusyBox NFS support is broken with 2.4.x (needs to be adjusted for NFSv3 and
-    kernel header changes).
-3) mount,umount,and df are all broken by the "none" entries for fake filesystems
-    such as the shared mem one.  Al Viro claims these will be disappearing soon...
-
-I made a kernel patch that reverts the sysinfo changes
-    http://kernelnotes.org/lnxlists/linux-kernel/lk_0006_01/msg00619.html
-
-and I have been fighting with Alan Cox to get these changes fixed in a binary
-compatable way, but Alan has so far not been very receptive.  I am planning on
-appealing to Linus (when he gets back from vacation) and then going with
-whatever he decides...
-
-So my thought is, 2.4.x just isn't ready for BusyBox to target it, and even if
-it was, BusyBox isn't ready yet either.  Seems to me like this will not be
-ready for a while, and we should just not worry about it yet.
-
-As long as I have BB_FEATURE_NFSMOUNT turned off, everything compiles cleanly
-for me with linux2.4.0test1-ac22-riel (i.e. I don't see the freeramdisk.c
-problem you reported).  I use Debian potato (gcc 2.95.2, GNU libc 2.1.3).
-Of course, as noted above, compiling != working.
-
------------
-
 * Make insmod actually work
 * dnsdomainname
 * traceroute/netstat
@@ -108,32 +56,6 @@ to be present in an embedded system.
 
 Compile with debugging on, run 'nm --size-sort ./busybox'
 and then start with the biggest things and make them smaller...
-
------------------------
-
-busybox.defs.h is too big and hard to follow.
-
-Perhaps I need to add a better build system (like the Linux kernel?)
-
------------------------
-
-Feature request:
-
-/bin/busybox --install -s    which makes all links to commands that it
-  can support (an optionnal -s should be used for symbolic links instead
-  of hard links).
-
------------------------
-
-
-> Have you ever thought of doig network logging in busybox syslogd ? It
-> would quite make sense on embedded systems... :)
-
-So far I had not considered it.  Basically, you wish to have
-messages from the embedded box logged to a remote network
-syslog box, right?  I can see that this would be useful.
-I'll add this to the TODO list,
-
 
 -----------------------
 

@@ -19,7 +19,7 @@
 #
 
 PROG      := busybox
-VERSION   := 0.45
+VERSION   := 0.46
 BUILDTIME := $(shell TZ=UTC date --utc "+%Y.%m.%d-%H:%M%z")
 export VERSION
 
@@ -33,7 +33,8 @@ DOSTATIC = false
 
 # To compile vs an alternative libc, you may need to use/adjust
 # the following lines to meet your needs.  This is how I did it...
-#CFLAGS+=-nostdinc -I/home/andersen/CVS/uC-libc/include -I/usr/include/linux
+#GCCINCDIR = $(shell gcc -print-search-dirs | sed -ne "s/install: \(.*\)/\1include/gp")
+#CFLAGS+=-nostdinc -fno-builtin -I/home/andersen/CVS/uC-libc/include -I$(GCCINCDIR)
 #LDFLAGS+=-nostdlib
 #LIBRARIES = /home/andersen/CVS/uC-libc/libc.a
 
@@ -52,11 +53,11 @@ endif
 
 # -D_GNU_SOURCE is needed because environ is used in init.c
 ifeq ($(DODEBUG),true)
-    CFLAGS += -Wall -g -fno-builtin -D_GNU_SOURCE
+    CFLAGS += -Wall -g -D_GNU_SOURCE
     LDFLAGS += 
     STRIP   =
 else
-    CFLAGS  += -Wall $(OPTIMIZATION) -fomit-frame-pointer -fno-builtin -D_GNU_SOURCE
+    CFLAGS  += -Wall $(OPTIMIZATION) -fomit-frame-pointer -D_GNU_SOURCE
     LDFLAGS  += -s
     STRIP    = $(STRIPTOOL) --remove-section=.note --remove-section=.comment $(PROG)
     #Only staticly link when _not_ debugging 
@@ -79,7 +80,6 @@ ifndef $(PREFIX)
     PREFIX = `pwd`/_install
 endif
 
-
 OBJECTS   = $(shell ./busybox.sh) busybox.o messages.o utility.o
 CFLAGS    += -DBB_VER='"$(VERSION)"'
 CFLAGS    += -DBB_BT='"$(BUILDTIME)"'
@@ -89,7 +89,10 @@ endif
 
 all: busybox busybox.links doc
 
-doc: docs/BusyBox.txt docs/BusyBox.1 docs/BusyBox.html
+doc: olddoc
+
+# Old Docs...
+olddoc: docs/BusyBox.txt docs/BusyBox.1 docs/BusyBox.html
 
 docs/BusyBox.txt: docs/busybox.pod
 	@echo
@@ -105,8 +108,32 @@ docs/BusyBox.html: docs/busybox.lineo.com/BusyBox.html
 	- ln -s busybox.lineo.com/BusyBox.html docs/BusyBox.html
 
 docs/busybox.lineo.com/BusyBox.html: docs/busybox.pod
-	- pod2html docs/busybox.pod > docs/busybox.lineo.com/BusyBox.html
+	- pod2html --noindex docs/busybox.pod > docs/busybox.lineo.com/BusyBox.html
 	- rm -f pod2html*
+
+
+# New docs based on DOCBOOK SGML
+newdoc: docs/busybox.txt docs/busybox.pdf docs/busybox/busybox.html
+
+docs/busybox.txt: docs/busybox.sgml
+	@echo
+	@echo BusyBox Documentation
+	@echo
+	(cd docs; sgmltools -b txt busybox.sgml)
+
+docs/busybox.dvi: docs/busybox.sgml
+	(cd docs; sgmltools -b dvi busybox.sgml)
+
+docs/busybox.ps: docs/busybox.sgml
+	(cd docs; sgmltools -b ps busybox.sgml)
+
+docs/busybox.pdf: docs/busybox.ps
+	(cd docs; ps2pdf busybox.ps)
+
+docs/busybox/busybox.html: docs/busybox.sgml
+	(cd docs/busybox.lineo.com; sgmltools -b html ../busybox.sgml)
+
+
 
 busybox: $(OBJECTS)
 	$(CC) $(LDFLAGS) -o $@ $^ $(LIBRARIES)
@@ -115,7 +142,7 @@ busybox: $(OBJECTS)
 busybox.links: busybox.def.h
 	- ./busybox.mkll | sort >$@
 
-regexp.o nfsmount.o cmdedit.o: %.o: %.h
+nfsmount.o cmdedit.o: %.o: %.h
 $(OBJECTS): %.o: busybox.def.h internal.h  %.c Makefile
 
 test tests:
@@ -125,8 +152,11 @@ clean:
 	- rm -f busybox.links *~ *.o core
 	- rm -rf _install
 	- cd tests && $(MAKE) clean
-	- rm -f docs/BusyBox.html docs/busybox.lineo.com/BusyBox.html \
-		docs/BusyBox.1 docs/BusyBox.txt pod2html*
+	- rm -f docs/BusyBox.txt docs/BusyBox.1 docs/BusyBox.html \
+	    docs/busybox.lineo.com/BusyBox.html
+	- rm -f docs/busybox.txt docs/busybox.dvi docs/busybox.ps \
+	    docs/busybox.pdf docs/busybox.lineo.com/busybox.html
+	- rm -rf docs/busybox
 
 distclean: clean
 	- rm -f busybox
@@ -150,4 +180,13 @@ dist release: distclean doc
 				 -print		\
 		| xargs rm -f;			\
 						\
+	find busybox-$(VERSION)/ -type f	\
+				 -name .\#*	\
+				 -print		\
+		| xargs rm -f;			\
+						\
 	tar -cvzf busybox-$(VERSION).tar.gz busybox-$(VERSION)/;
+
+.PHONY: tags
+tags:
+	ctags -R .
