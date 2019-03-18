@@ -27,8 +27,8 @@ int makedevs_main(int argc, char **argv)
 
 	basedev = argv[1];
 	type = argv[2];
-	Smajor = major(atoi(argv[3]));
-	Sminor = minor(atoi(argv[4]));
+	Smajor = atoi(argv[3]);
+	Sminor = atoi(argv[4]);
 	S = atoi(argv[5]);
 	E = atoi(argv[6]);
 	nodname = argc == 8 ? basedev : buf;
@@ -58,7 +58,7 @@ int makedevs_main(int argc, char **argv)
 
 	/* if mode != S_IFCHR and != S_IFBLK third param in mknod() ignored */
 
-		if (mknod(nodname, mode, Smajor | Sminor))
+		if (mknod(nodname, mode, makedev(Smajor, Sminor)))
 			bb_error_msg("Failed to create: %s", nodname);
 
 		if (nodname == basedev) /* ex. /dev/hda - to /dev/hda1 ... */

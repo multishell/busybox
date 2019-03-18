@@ -115,7 +115,7 @@ static struct dep_t *build_dep ( void )
 	struct utsname un;
 	struct dep_t *first = 0;
 	struct dep_t *current = 0;
-	char buffer[256];
+	char buffer[2048];
 	char *filename = buffer;
 	int continuation_line = 0;
 
@@ -361,29 +361,30 @@ static struct dep_t *build_dep ( void )
 /* return 1 = found, 0 = not found                        */
 static int mod_strcmp ( const char *mod_path, const char *mod_name )
 {
+	/* last path component */
+	const char *last_comp = strrchr (mod_path, '/'); 
+	const char *mod_ext = ".o";
+
 #if defined(CONFIG_FEATURE_2_6_MODULES)
-#define MODULE_EXTENSION	".ko"
-#define MOD_EXTENSION_LEN	3
-#else
-#define MODULE_EXTENSION	".o"
-#define MOD_EXTENSION_LEN	2
+	if ( k_version > 4 )
+		mod_ext = ".ko";
 #endif
-	if ((strstr (mod_path, mod_name) ==
-				(mod_path + strlen(mod_path) -
-				 strlen(mod_name) - MOD_EXTENSION_LEN))
-			&& (!strcmp(mod_path + strlen(mod_path) -
-					MOD_EXTENSION_LEN, MODULE_EXTENSION)))
-	{
-      return 1;
-	}
-  return 0;
+
+	last_comp = last_comp ? last_comp + 1 : mod_path;
+
+	return (strncmp(last_comp,
+					 mod_name,
+					 strlen(mod_name)) == 0 ) &&
+		   ((strcmp(last_comp + strlen (mod_name), mod_ext) == 0) || last_comp[strlen(mod_name)] == 0) &&
+		   (strcmp(mod_path + strlen(mod_path) -
+					strlen(mod_ext), mod_ext) == 0);
 }
 
 /* return 1 = loaded, 0 = not loaded, -1 = can't tell */
 static int already_loaded (const char *name)
 {
 	int fd;
-	char buffer[256];
+	char buffer[4096];
 
 	fd = open ("/proc/modules", O_RDONLY);
 	if (fd < 0)
@@ -408,8 +409,8 @@ static int already_loaded (const char *name)
 
 static int mod_process ( struct mod_list_t *list, int do_insert )
 {
-	char lcmd [256];
-	int rc = 1;
+	char lcmd [4096];
+	int rc = 0;
 
 	while ( list ) {
 		*lcmd = '\0';
@@ -425,14 +426,20 @@ static int mod_process ( struct mod_list_t *list, int do_insert )
 						do_syslog ? "-s" : "", list-> m_module );
 		}
 
-		if ( verbose )
-			printf ( "%s\n", lcmd );
-		if ( !show_only && *lcmd) {
-			int rc2 = system ( lcmd );
-			if (do_insert) rc = rc2; /* only last module matters */
-			else if (!rc2) rc = 0; /* success if remove any mod */
+		if (*lcmd) {
+			if (verbose) {
+				printf("%s\n", lcmd);
+			}
+			if (!show_only) {
+				int rc2 = system(lcmd);
+				if (do_insert) {
+					rc = rc2; /* only last module matters */
+				}
+				else if (!rc2) {
+					rc = 0; /* success if remove any mod */
+				}
+			}
 		}
-
 		list = do_insert ? list-> m_prev : list-> m_next;
 	}
 	return (show_only) ? 0 : rc;
@@ -543,6 +550,7 @@ static int mod_insert ( char *mod, int argc, char **argv )
 	check_dep ( mod, &head, &tail );
 
 	if ( head && tail ) {
+#if defined(CONFIG_FEATURE_2_6_MODULES)
 		if ( argc ) {
 			int i;
 			int l = 0;
@@ -559,6 +567,7 @@ static int mod_insert ( char *mod, int argc, char **argv )
 				strcat ( head-> m_options, " " );
 			}
 		}
+#endif
 
 		// process tail ---> head
 		rc = mod_process ( tail, 1 );
@@ -664,5 +673,3 @@ extern int modprobe_main(int argc, char** argv)
 
 	return EXIT_SUCCESS;
 }
-
-
