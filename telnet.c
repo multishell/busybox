@@ -728,28 +728,6 @@ static void setup_sockaddr_in(struct sockaddr_in * addr, int port)
 	addr->sin_port = htons(port);
 }
   
-#if 0
-static int local_bind(int port)
-{
-	struct sockaddr_in s_addr;
-	int s = create_socket();
-  
-	setup_sockaddr_in(&s_addr, port);
-  
-	setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
-  
-	if (bind(s, &s_addr, sizeof s_addr) < 0)
-	{
-		char * e = sys_errlist[errno];
-		syserrorexit("bind");
-		exit(1);
-	}
-	listen(s, 1);
-	
-	return s;
-}
-#endif
-
 static int remote_connect(struct in_addr addr, int port)
 {
 	struct sockaddr_in s_addr;

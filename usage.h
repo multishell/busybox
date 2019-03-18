@@ -1109,11 +1109,82 @@
 	"-rw-------    1 andersen andersen        0 Apr 25 17:10 /tmp/temp.mWiLjM\n" 
 
 #define modprobe_trivial_usage \
-	"[FILE ...]"
+	"modprobe	 [  -adnqv  ] [ -C config ] module [ symbol=value ... ]\n" \
+	"modprobe [ -adnqv ] [ -C config ] [ -t type ] pattern\n" \
+	"modprobe -l [ -C config ] [ -t type ] pattern\n" \
+	"modprobe -c [ -C config ]\n" \
+	"modprobe -r [ -dnv ] [ -C config ] [ module ...]\n" \
+	"modprobe -V\n"
 #define modprobe_full_usage \
-	"Used for hight level module loading and unloading."
+	"Used to load kernel modules and automatically load their dependancies." \
+	"USAGE:\n" \
+	"\tmodprobe	 [  -adnqv  ] [ -C config ] module [ symbol=value ... ]\n" \
+	"\tmodprobe [ -adnqv ] [ -C config ] [ -t type ] pattern\n" \
+	"\tmodprobe -l [ -C config ] [ -t type ] pattern\n" \
+	"\tmodprobe -c [ -C config ]\n" \
+	"\tmodprobe -r [ -dnv ] [ -C config ] [ module ...]\n" \
+	"\tmodprobe -V\n" \
+	"\n" \
+	"OPTIONS\n" \
+	"\t-a (*** not supported ***)\n" \
+	"\t   Load all matching modules instead of stopping after\n" \
+	"\t   the first successful loading.\n" \
+	"\n" \
+	"\t-c (*** not supported ***)\n" \
+	"\t   Show the currently used configuration.\n" \
+	"\n" \
+	"\t-d\n" \
+	"\t   Show  information about the internal representation\n" \
+	"\t   of the stack of modules.\n" \
+	"\n" \
+	"\t-k\n" \
+	"\t   Set 'autoclean' on loaded	 modules.   Used  by  the\n" \
+	"\t   kernel  when it calls on modprobe to satify a miss­\n" \
+	"\t   ing feature (supplied as a module).  The -q  option\n" \
+	"\t   is implied by -k.	 These options will automatically\n" \
+	"\t   be sent to insmod.\n" \
+	"\n" \
+	"\t-l (*** not supported ***)\n" \
+	"\t   List matching modules.\n" \
+	"\n" \
+	"\t-n\n" \
+	"\t   Don't actually perform the action, just  show  what\n" \
+	"\t   would be done.\n" \
+	"\n" \
+	"\t-q\n" \
+	"\t   Do  not  complain about insmod failing to install a\n" \
+	"\t   module.  Continue as  normal,  but  silently,  with\n" \
+	"\t   other  possibilities  for	 modprobe  to test.  This\n" \
+	"\t   option will automatically be sent to insmod.\n" \
+	"\n" \
+	"\t-r\n" \
+	"\t   Remove module (stacks) or do  autoclean,	depending\n" \
+	"\t   on  whether  there are any modules mentioned on the\n" \
+	"\t   command line.\n" \
+	"\n" \
+	"\t-s\n" \
+	"\t   Report via syslog instead of stderr.  This  options\n" \
+	"\t   will automatically be sent to insmod.\n" \
+	"\n" \
+	"\t-t type (*** not supported ***)\n" \
+	"\t   Only consider modules of this type (tag).\n" \
+	"\n" \
+	"\t-v\n" \
+	"\t   Print all commands as they are executed.\n" \
+	"\n" \
+	"\t-V\n" \
+	"\t   Show the release version of modprobe.\n" \
+	"\n" \
+	"\t-C configfile (*** not supported ***)\n" \
+	"\t   Use  the	file configfile instead of (the optional)\n" \
+	"\t   /etc/modules.conf	 to  specify  the  configuration.\n" \
+	"\t   The  environment	variable  MODULECONF  can also be\n" \
+	"\t   used to select (and override) a different	 configu­\n" \
+	"\t   ration  file from the default /etc/modules.conf (or\n" \
+	"\t   /etc/conf.modules (depreciated)).\n"
 #define modprobe_example_usage \
-	"$ modprobe cdrom\n" 
+	"$ modprobe pcnet_cs\n" \
+	"$ modprobe -r pcnet_cs\n"
 
 #define more_trivial_usage \
 	"[FILE ...]"
@@ -1619,6 +1690,15 @@
 	"\t-p\tPut file.\n" \
 	) \
 	"\t-r FILE\tTransfer remote FILE.\n"
+
+#define top_trivial_usage \
+	"[-d <seconds>]"
+#define top_full_usage \
+	"top provides an view of processor activity in real time.\n" \
+	"This utility reads the status for all processes in /proc each <seconds>\n" \
+	"and shows the status for however many processes will fit on the screen.\n" \
+	"This utility will not show processes that are started after program startup,\n" \
+	"but it will show the EXIT status for and PIDs that exit while it is running."
 
 #define touch_trivial_usage \
 	"[-c] FILE [FILE ...]"

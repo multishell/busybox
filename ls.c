@@ -676,7 +676,7 @@ static int list_single(struct dnode *dn)
 				break;
 #endif
 			case LIST_ID_NUMERIC:
-				printf("%-8d %-8d", dn->dstat.st_uid, dn->dstat.st_gid);
+				printf("%-8ld %-8ld", (long)dn->dstat.st_uid, (long)dn->dstat.st_gid);
 				column += 17;
 				break;
 			case LIST_SIZE:

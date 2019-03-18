@@ -407,6 +407,9 @@
 #ifdef BB_TIME
 	APPLET(time, time_main, _BB_DIR_USR_BIN)
 #endif
+#ifdef BB_TOP
+	APPLET(top, top_main, _BB_DIR_USR_BIN)
+#endif
 #ifdef BB_TOUCH
 	APPLET(touch, touch_main, _BB_DIR_BIN)
 #endif

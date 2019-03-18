@@ -110,7 +110,7 @@ extern int parse_mode( const char* s, mode_t* theMode);
 
 extern int get_kernel_revision(void);
 
-extern int get_console_fd(char* tty_name);
+extern int get_console_fd(void);
 extern struct mntent *find_mount_point(const char *name, const char *table);
 extern void write_mtab(char* blockDevice, char* directory, 
 	char* filesystemType, long flags, char* string_flags);
@@ -321,8 +321,14 @@ extern const char * const can_not_create_raw_socket;
 #define CURRENT_TTY "/dev/tty"
 #define CONSOLE_DEV "/dev/console"
 
+int is_in_ino_dev_hashtable(const struct stat *statbuf, char **name);
+void add_to_ino_dev_hashtable(const struct stat *statbuf, const char *name);
+void reset_ino_dev_hashtable(void);
+
+
 /* Cope with mmu-less systems somewhat gracefully */
-#if defined(__UCLIBC__) && !defined(__UCLIBC_HAS_MMU__)
+#ifdef __uClinux__
+#undef fork
 #define fork	vfork
 #endif
 

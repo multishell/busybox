@@ -55,7 +55,7 @@ static void klogd_signal(int sig)
 	klogctl(7, NULL, 0);
 	klogctl(0, 0, 0);
 	//logMessage(0, "Kernel log daemon exiting.");
-	syslog_msg(LOG_DAEMON, 0, "Kernel log daemon exiting.");
+	syslog_msg(LOG_SYSLOG, LOG_NOTICE, "Kernel log daemon exiting.");
 	exit(TRUE);
 }
 
@@ -76,7 +76,7 @@ static void doKlogd (void)
 	/* "Open the log. Currently a NOP." */
 	klogctl(1, NULL, 0);
 
-	syslog_msg(LOG_DAEMON, 0, "klogd started: " BB_BANNER);
+	syslog_msg(LOG_SYSLOG, LOG_NOTICE, "klogd started: " BB_BANNER);
 
 	while (1) {
 		/* Use kernel syscalls */
@@ -89,7 +89,7 @@ static void doKlogd (void)
 				continue;
 			snprintf(message, 79, "klogd: Error return from sys_sycall: %d - %s.\n", 
 												errno, strerror(errno));
-			syslog_msg(LOG_DAEMON, LOG_SYSLOG | LOG_ERR, message);
+			syslog_msg(LOG_SYSLOG, LOG_ERR, message);
 			exit(1);
 		}
 
@@ -109,7 +109,7 @@ static void doKlogd (void)
 			}
 			if (log_buffer[i] == '\n') {
 				log_buffer[i] = '\0';  /* zero terminate this message */
-				syslog_msg(LOG_DAEMON, LOG_KERN | priority, start);
+				syslog_msg(LOG_KERN, priority, start);
 				start = &log_buffer[i+1];
 				priority = LOG_INFO;
 			}
@@ -122,27 +122,30 @@ extern int klogd_main(int argc, char **argv)
 {
 	/* no options, no getopt */
 	int opt;
+#ifndef __uClinux__ /* fork() not available in uClinux */
 	int doFork = TRUE;
+#endif  /* __uClinux__ */
 
 	/* do normal option parsing */
 	while ((opt = getopt(argc, argv, "n")) > 0) {
 		switch (opt) {
 			case 'n':
+#ifndef __uClinux__	/* fork() not available in uClinux */
 				doFork = FALSE;
+#endif  /* __uClinux__ */
 				break;
 			default:
 				show_usage();
 		}
 	}
 
+#ifndef __uClinux__	/* fork() not available in uClinux */
 	if (doFork == TRUE) {
-#if !defined(__UCLIBC__) || defined(__UCLIBC_HAS_MMU__)
 		if (daemon(0, 1) < 0)
 			perror_msg_and_die("daemon");
-#else
-			error_msg_and_die("daemon not supported");
-#endif
 	}
+#endif  /* __uClinux__ */
+
 	doKlogd();
 	
 	return EXIT_SUCCESS;

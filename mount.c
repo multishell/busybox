@@ -101,6 +101,7 @@ static const struct mount_options mount_options[] = {
 	{"async", ~MS_SYNCHRONOUS, 0},
 	{"atime", ~0, ~MS_NOATIME},
 	{"defaults", ~0, 0},
+	{"noauto", ~0, 0},
 	{"dev", ~MS_NODEV, 0},
 	{"diratime", ~0, ~MS_NODIRATIME},
 	{"exec", ~MS_NOEXEC, 0},
@@ -128,7 +129,7 @@ do_mount(char *specialfile, char *dir, char *filesystemtype,
 	char *lofile = NULL;
 #endif
 
-	if (fakeIt == FALSE)
+	if (! fakeIt)
 	{
 #if defined BB_FEATURE_MOUNT_LOOP
 		if (use_loop==TRUE) {
@@ -164,7 +165,7 @@ do_mount(char *specialfile, char *dir, char *filesystemtype,
 	if (status == 0 || fakeIt==TRUE) {
 
 #if defined BB_FEATURE_MTAB_SUPPORT
-		if (useMtab == TRUE) {
+		if (useMtab) {
 			erase_mtab(specialfile);	// Clean any stale entries
 			write_mtab(specialfile, dir, filesystemtype, flags, mtab_opts);
 		}
@@ -187,10 +188,15 @@ do_mount(char *specialfile, char *dir, char *filesystemtype,
 }
 
 
+static void paste_str(char **s1, const char *s2)
+{
+	*s1 = xrealloc(*s1, strlen(*s1)+strlen(s2)+1);
+	strcat(*s1, s2);
+}
 
 /* Seperate standard mount options from the nonstandard string options */
 static void
-parse_mount_options(char *options, int *flags, char *strflags)
+parse_mount_options(char *options, int *flags, char **strflags)
 {
 	while (options) {
 		int gotone = FALSE;
@@ -211,20 +217,16 @@ parse_mount_options(char *options, int *flags, char *strflags)
 			f++;
 		}
 #if defined BB_FEATURE_MOUNT_LOOP
-		if (gotone == FALSE && !strcasecmp("loop", options)) {	/* loop device support */
+		if (!strcasecmp("loop", options)) { /* loop device support */
 			use_loop = TRUE;
 			gotone = TRUE;
 		}
 #endif
-		if (*strflags && strflags != '\0' && gotone == FALSE) {
-			char *temp = strflags;
-
-			temp += strlen(strflags);
-			*temp++ = ',';
-			*temp++ = '\0';
+		if (! gotone) {
+			if (**strflags) /* have previous parsed options */
+				paste_str(strflags, ",");
+			paste_str(strflags, options);
 		}
-		if (gotone == FALSE)
-			strcat(strflags, options);
 		if (comma) {
 			*comma = ',';
 			options = ++comma;
@@ -262,7 +264,7 @@ mount_one(char *blockDevice, char *directory, char *filesystemType,
 				status = do_mount(blockDevice, directory, filesystemType,
 					flags | MS_MGC_VAL, string_flags,
 					useMtab, fakeIt, mtab_opts, mount_all);
-				if (status == TRUE)
+				if (status)
 					break;
 			}
 		}
@@ -287,7 +289,7 @@ mount_one(char *blockDevice, char *directory, char *filesystemType,
 				status = do_mount(blockDevice, directory, filesystemType,
 								  flags | MS_MGC_VAL, string_flags,
 								  useMtab, fakeIt, mtab_opts, mount_all);
-				if (status == TRUE)
+				if (status)
 					break;
 			}
 		}
@@ -300,8 +302,8 @@ mount_one(char *blockDevice, char *directory, char *filesystemType,
 				fakeIt, mtab_opts, mount_all);
 	}
 
-	if (status == FALSE) {
-		if (whineOnErrors == TRUE) {
+	if (! status) {
+		if (whineOnErrors) {
 			perror_msg("Mounting %s on %s failed", blockDevice, directory);
 		}
 		return (FALSE);
@@ -309,7 +311,7 @@ mount_one(char *blockDevice, char *directory, char *filesystemType,
 	return (TRUE);
 }
 
-void show_mounts(void)
+static void show_mounts(char *onlytype)
 {
 #if defined BB_FEATURE_USE_DEVPS_PATCH
 	int fd, i, numfilesystems;
@@ -333,10 +335,12 @@ void show_mounts(void)
 		perror_msg_and_die( "\nDEVMTAB_GET_MOUNTS");
 
 	for( i = 0 ; i < numfilesystems ; i++) {
-		printf( "%s %s %s %s %d %d\n", mntentlist[i].mnt_fsname,
-				mntentlist[i].mnt_dir, mntentlist[i].mnt_type, 
-				mntentlist[i].mnt_opts, mntentlist[i].mnt_freq, 
-				mntentlist[i].mnt_passno);
+		if ( !onlytype || ( strcmp ( mntentlist[i].mnt_type, onlytype ) == 0 )) {
+			printf( "%s %s %s %s %d %d\n", mntentlist[i].mnt_fsname,
+					mntentlist[i].mnt_dir, mntentlist[i].mnt_type, 
+					mntentlist[i].mnt_opts, mntentlist[i].mnt_freq, 
+					mntentlist[i].mnt_passno);
+		}
 	}
 #ifdef BB_FEATURE_CLEAN_UP
 	/* Don't bother to close files or free memory.  Exit 
@@ -356,8 +360,10 @@ void show_mounts(void)
 			if (strcmp(blockDevice, "/dev/root") == 0) {
 				blockDevice = find_real_root_device_name(blockDevice);
 			}
-			printf("%s on %s type %s (%s)\n", blockDevice, m->mnt_dir,
-				   m->mnt_type, m->mnt_opts);
+			if ( !onlytype || ( strcmp ( m-> mnt_type, onlytype ) == 0 )) {
+				printf("%s on %s type %s (%s)\n", blockDevice, m->mnt_dir,
+						m->mnt_type, m->mnt_opts);
+			}
 #ifdef BB_FEATURE_CLEAN_UP
 			if(blockDevice != m->mnt_fsname)
 				free(blockDevice);
@@ -374,31 +380,33 @@ void show_mounts(void)
 extern int mount_main(int argc, char **argv)
 {
 	struct stat statbuf;
-	char string_flags_buf[1024] = "";
-	char *string_flags = string_flags_buf;
-	char *extra_opts = string_flags_buf;
+	char *string_flags = xstrdup("");
+	char *extra_opts;
 	int flags = 0;
 	char *filesystemType = "auto";
+	int got_filesystemType = 0;
 	char *device = xmalloc(PATH_MAX);
 	char *directory = xmalloc(PATH_MAX);
+	struct mntent *m = NULL;
 	int all = FALSE;
 	int fakeIt = FALSE;
 	int useMtab = TRUE;
 	int rc = EXIT_FAILURE;
-	int fstabmount = FALSE;	
+	FILE *f = 0;
 	int opt;
 
 	/* Parse options */
 	while ((opt = getopt(argc, argv, "o:rt:wafnv")) > 0) {
 		switch (opt) {
 		case 'o':
-			parse_mount_options(optarg, &flags, string_flags);
+			parse_mount_options(optarg, &flags, &string_flags);
 			break;
 		case 'r':
 			flags |= MS_RDONLY;
 			break;
 		case 't':
 			filesystemType = optarg;
+			got_filesystemType = 1;
 			break;
 		case 'w':
 			flags &= ~MS_RDONLY;
@@ -420,7 +428,7 @@ extern int mount_main(int argc, char **argv)
 	}
 
 	if (!all && optind == argc)
-		show_mounts();
+		show_mounts(got_filesystemType ? filesystemType : 0);
 
 	if (optind < argc) {
 		/* if device is a filename get its real path */
@@ -435,40 +443,37 @@ extern int mount_main(int argc, char **argv)
 	if (optind + 1 < argc)
 		directory = simplify_path(argv[optind + 1]);
 
-	if (all == TRUE || optind + 1 == argc) {
-		struct mntent *m = NULL;
-		FILE *f = setmntent("/etc/fstab", "r");
-		fstabmount = TRUE;
+	if (all || optind + 1 == argc) {
+		f = setmntent("/etc/fstab", "r");
 
 		if (f == NULL)
 			perror_msg_and_die( "\nCannot read /etc/fstab");
 
 		while ((m = getmntent(f)) != NULL) {
-			if (all == FALSE && optind + 1 == argc && (
+			if (! all && optind + 1 == argc && (
 				(strcmp(device, m->mnt_fsname) != 0) &&
 				(strcmp(device, m->mnt_dir) != 0) ) ) {
 				continue;
 			}
 			
-			if (all == TRUE && (				// If we're mounting 'all'
+			if (all && (							// If we're mounting 'all'
 				(strstr(m->mnt_opts, "noauto")) ||	// and the file system isn't noauto,
 				(strstr(m->mnt_type, "swap")) ||	// and isn't swap or nfs, then mount it
 				(strstr(m->mnt_type, "nfs")) ) ) {
 				continue;
 			}
 			
-			if (all == TRUE || flags == 0) {	// Allow single mount to override fstab flags
+			if (all || flags == 0) {	// Allow single mount to override fstab flags
 				flags = 0;
-				string_flags = string_flags_buf;
-				*string_flags = '\0';
-				parse_mount_options(m->mnt_opts, &flags, string_flags);
+				string_flags[0] = 0;
+				parse_mount_options(m->mnt_opts, &flags, &string_flags);
 			}
 			
 			strcpy(device, m->mnt_fsname);
 			strcpy(directory, m->mnt_dir);
-			filesystemType = strdup(m->mnt_type);
+			filesystemType = xstrdup(m->mnt_type);
 singlemount:			
-			string_flags = strdup(string_flags);
+			extra_opts = string_flags;
 			rc = EXIT_SUCCESS;
 #ifdef BB_NFSMOUNT
 			if (strchr(device, ':') != NULL) {
@@ -484,13 +489,13 @@ singlemount:
 					string_flags, useMtab, fakeIt, extra_opts, TRUE, all))
 				rc = EXIT_FAILURE;
 				
-			if (all == FALSE)
+			if (! all)
 				break;
 		}
-		if (fstabmount == TRUE)
+		if (f)
 			endmntent(f);
 			
-		if (all == FALSE && fstabmount == TRUE && m == NULL)
+		if (! all && f && m == NULL)
 			fprintf(stderr, "Can't find %s in /etc/fstab\n", device);
 	
 		return rc;

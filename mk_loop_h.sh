@@ -15,7 +15,7 @@
 # search /usr/include, as may well happen with cross-compilers.
 # It would be better to ask $(CC) if these files can be found.
 
-if [ -f /usr/include/linux/posix_types.h ]; then
+if [ -f ${LINUXDIR:-/usr}/include/linux/posix_types.h ]; then
    echo '#include <linux/posix_types.h>'
    echo '#undef dev_t'
    echo '#define dev_t __kernel_dev_t'
@@ -27,7 +27,7 @@ fi
 # Next we have to find the loop stuff itself.
 # First try kernel source, then a private version.
 
-if [ -f /usr/include/linux/loop.h ]; then
+if [ -f ${LINUXDIR:-/usr}/include/linux/loop.h ]; then
    echo '#include <linux/loop.h>'
 else
    echo '#include "real_loop.h"'

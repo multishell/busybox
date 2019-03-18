@@ -1286,11 +1286,82 @@ TEMPLATE is any name with six `Xs' (i.e., /tmp/temp.XXXXXX).</P>
 <P></P>
 <DT><STRONG><A NAME="item_modprobe"><STRONG>modprobe</STRONG></A></STRONG><BR>
 <DD>
-modprobe [FILE ...]
-<P>Used for hight level module loading and unloading.</P>
+modprobe modprobe	 [  <STRONG>-adnqv</STRONG>  ] [ <STRONG>-C</STRONG> config ] module [ symbol=value ... ]
+modprobe [ <STRONG>-adnqv</STRONG> ] [ <STRONG>-C</STRONG> config ] [ <STRONG>-t</STRONG> type ] pattern
+modprobe <STRONG>-l</STRONG> [ <STRONG>-C</STRONG> config ] [ <STRONG>-t</STRONG> type ] pattern
+modprobe <STRONG>-c</STRONG> [ <STRONG>-C</STRONG> config ]
+modprobe <STRONG>-r</STRONG> [ <STRONG>-dnv</STRONG> ] [ <STRONG>-C</STRONG> config ] [ module ...]
+modprobe <STRONG>-V</STRONG>
+<P>Used to load kernel modules and automatically load their dependancies.USAGE:</P>
+<PRE>
+        modprobe         [  -adnqv  ] [ -C config ] module [ symbol=value ... ]
+        modprobe [ -adnqv ] [ -C config ] [ -t type ] pattern
+        modprobe -l [ -C config ] [ -t type ] pattern
+        modprobe -c [ -C config ]
+        modprobe -r [ -dnv ] [ -C config ] [ module ...]
+        modprobe -V</PRE>
+<P>OPTIONS</P>
+<PRE>
+        -a (*** not supported ***)
+           Load all matching modules instead of stopping after
+           the first successful loading.</PRE>
+<PRE>
+        -c (*** not supported ***)
+           Show the currently used configuration.</PRE>
+<PRE>
+        -d
+           Show  information about the internal representation
+           of the stack of modules.</PRE>
+<PRE>
+        -k
+           Set 'autoclean' on loaded     modules.   Used  by  the
+           kernel  when it calls on modprobe to satify a miss­
+           ing feature (supplied as a module).  The -q  option
+           is implied by -k.     These options will automatically
+           be sent to insmod.</PRE>
+<PRE>
+        -l (*** not supported ***)
+           List matching modules.</PRE>
+<PRE>
+        -n
+           Don't actually perform the action, just  show  what
+           would be done.</PRE>
+<PRE>
+        -q
+           Do  not  complain about insmod failing to install a
+           module.  Continue as  normal,  but  silently,  with
+           other  possibilities  for     modprobe  to test.  This
+           option will automatically be sent to insmod.</PRE>
+<PRE>
+        -r
+           Remove module (stacks) or do  autoclean,     depending
+           on  whether  there are any modules mentioned on the
+           command line.</PRE>
+<PRE>
+        -s
+           Report via syslog instead of stderr.  This  options
+           will automatically be sent to insmod.</PRE>
+<PRE>
+        -t type (*** not supported ***)
+           Only consider modules of this type (tag).</PRE>
+<PRE>
+        -v
+           Print all commands as they are executed.</PRE>
+<PRE>
+        -V
+           Show the release version of modprobe.</PRE>
+<PRE>
+        -C configfile (*** not supported ***)
+           Use  the     file configfile instead of (the optional)
+           /etc/modules.conf     to  specify  the  configuration.
+           The  environment     variable  MODULECONF  can also be
+           used to select (and override) a different     configu­
+           ration  file from the default /etc/modules.conf (or
+           /etc/conf.modules (depreciated)).</PRE>
 <P>Example:</P>
 <PRE>
-        $ modprobe cdrom</PRE>
+        $ modprobe pcnet_cs
+        $ modprobe -r pcnet_cs</PRE>
 <P>-------------------------------</P>
 <P></P>
 <DT><STRONG><A NAME="item_more"><STRONG>more</STRONG></A></STRONG><BR>
@@ -1787,6 +1858,16 @@ tftp [OPTION]... HOST [PORT]
 <DD>
 time [OPTION]... COMMAND [ARGS...]
 <P>Runs the program COMMAND with arguments ARGS.  When COMMAND finishes,</P>
+<P>-------------------------------</P>
+<P></P>
+<DT><STRONG><A NAME="item_top"><STRONG>top</STRONG></A></STRONG><BR>
+<DD>
+top [<STRONG>-d</STRONG> &lt;seconds&gt;]
+<P>top provides an view of processor activity in real time.
+This utility reads the status for all processes in /proc each &lt;seconds&gt;
+and shows the status for however many processes will fit on the screen.
+This utility will not show processes that are started after program startup,
+but it will show the EXIT status for and PIDs that exit while it is running.</P>
 <P>-------------------------------</P>
 <P></P>
 <DT><STRONG><A NAME="item_touch"><STRONG>touch</STRONG></A></STRONG><BR>

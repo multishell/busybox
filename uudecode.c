@@ -204,7 +204,7 @@ static int decode (const char *inname,
   register char *p;
   int mode;
   char buf[2 * BUFSIZ];
-  char *outname;
+  char *outname = NULL;
   int do_base64 = 0;
   int res;
   int dofre;

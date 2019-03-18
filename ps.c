@@ -38,6 +38,7 @@
 #include <string.h>
 #include <termios.h>
 #include <sys/ioctl.h>
+#include <linux/major.h>
 #include "busybox.h"
 
 static const int TERMINAL_WIDTH = 79;      /* not 80 in case terminal has linefold bug */
@@ -57,6 +58,7 @@ typedef struct proc_s {
 	int ppid;						/* pid of parent process */
 	char state;						/* single-char code for process state (S=sleeping) */
 	unsigned int vmsize;			/* size of process as far as the vm is concerned */
+	char ttyname[9];				/* tty device */
 } proc_t;
 
 
@@ -72,6 +74,24 @@ static int file2str(char *filename, char *ret, int cap)
 	ret[num_read] = 0;
 	close(fd);
 	return num_read;
+}
+
+
+static char master[] = "pqrstuvwxyzabcde";
+#define MAJOR(x) ((x) >> 8)
+#define MINOR(x) ((x) & 0xff)
+
+static void dev_to_name(dev_t dev, char *name)
+{
+	if (MAJOR(dev) == TTY_MAJOR)
+		if (MINOR(dev) < 64)
+			sprintf(name,"tty%d", (int)MINOR(dev));
+		else
+			sprintf(name,"ttyS%d", (int)MINOR(dev)-64);
+	else if (MAJOR(dev) == PTY_SLAVE_MAJOR)
+		sprintf(name,"tty%c%x", master[MINOR(dev) / 16], (int)MINOR(dev) & 0xf);
+	else
+		strcpy(name, "");
 }
 
 
@@ -101,14 +121,100 @@ static void parse_proc_status(char *S, proc_t * P)
 	else
 		error_msg("Internal error!");
 
-	tmp = strstr(S, "VmSize:");
-	if (tmp)
+	P->vmsize = 0;
+	if ((tmp = strstr(S, "VmSize:")) != NULL)
 		sscanf(tmp, "VmSize:\t%d", &P->vmsize);
+	else if ((tmp = strstr(S, "Mem:")) != NULL)
+		sscanf(tmp, "MemSize:\t%d", &P->vmsize);
 #if 0
 	else
 		error_msg("Internal error!");
 #endif
 }
+
+
+static void parse_proc_stat(char *S, proc_t * P)
+{
+	char *tmp;
+
+	/* pid (name) */
+	tmp = strrchr(S, ')');
+	/* state */
+	tmp += 4;
+	/* ppid */
+	tmp = strchr(tmp, ' ')+1;
+	/* pgrp */
+	tmp = strchr(tmp, ' ')+1;
+	/* session */
+	tmp = strchr(tmp, ' ')+1;
+	/* tty */
+	dev_to_name(atoi(tmp), P->ttyname);
+	tmp = strchr(tmp, ' ')+1;
+
+#if 0
+	/* tty_pgrp */
+	tmp = strchr(tmp, ' ')+1;
+	/* flags */
+	tmp = strchr(tmp, ' ')+1;
+	/* min_flt */
+	tmp = strchr(tmp, ' ')+1;
+	/* cmin_flt */
+	tmp = strchr(tmp, ' ')+1;
+	/* maj_flt */
+	tmp = strchr(tmp, ' ')+1;
+	/* cmaj_flt */
+	tmp = strchr(tmp, ' ')+1;
+	/* utime */
+	tmp = strchr(tmp, ' ')+1;
+	/* stime */
+	tmp = strchr(tmp, ' ')+1;
+	/* cutime */
+	tmp = strchr(tmp, ' ')+1;
+	/* cstime */
+	tmp = strchr(tmp, ' ')+1;
+	/* priority */
+	tmp = strchr(tmp, ' ')+1;
+	/* nice */
+	tmp = strchr(tmp, ' ')+1;
+	/* timeout */
+	tmp = strchr(tmp, ' ')+1;
+	/* it_real_value */
+	tmp = strchr(tmp, ' ')+1;
+	/* start_time */
+	tmp = strchr(tmp, ' ')+1;
+	/* vsize */
+	tmp = strchr(tmp, ' ')+1;
+	/* rss */
+	tmp = strchr(tmp, ' ')+1;
+	/* rsslim*/
+	tmp = strchr(tmp, ' ')+1;
+	/* start_code */
+	tmp = strchr(tmp, ' ')+1;
+	/* end_code */
+	tmp = strchr(tmp, ' ')+1;
+	/* start_stack */
+	tmp = strchr(tmp, ' ')+1;
+	/* sp */
+	tmp = strchr(tmp, ' ')+1;
+	/* ip */
+	tmp = strchr(tmp, ' ')+1;
+	/* signal */
+	tmp = strchr(tmp, ' ')+1;
+	/* blocked */
+	tmp = strchr(tmp, ' ')+1;
+	/* sigignore */
+	tmp = strchr(tmp, ' ')+1;
+	/* sigcatch */
+	tmp = strchr(tmp, ' ')+1;
+	/* wchan */
+	tmp = strchr(tmp, ' ')+1;
+	/* nswap */
+	tmp = strchr(tmp, ' ')+1;
+	/* cnswap */
+	tmp = strchr(tmp, ' ')+1;
+#endif	
+}
+
 
 extern int ps_main(int argc, char **argv)
 {
@@ -138,13 +244,19 @@ extern int ps_main(int argc, char **argv)
 			terminal_width = win.ws_col - 1;
 #endif
 
-	printf("  PID  Uid     VmSize Stat Command\n");
+	printf("%5s %-7s %-8s %6s %5s %s\n", "PID", "TTY", "Uid",
+			"Size", "State", "Command");
 	while ((entry = readdir(dir)) != NULL) {
 		if (!isdigit(*entry->d_name))
 			continue;
 		sprintf(path, "/proc/%s/status", entry->d_name);
 		if ((file2str(path, sbuf, sizeof sbuf)) != -1) {
 			parse_proc_status(sbuf, &p);
+		}
+
+		sprintf(path, "/proc/%s/stat", entry->d_name);
+		if ((file2str(path, sbuf, sizeof sbuf)) != -1) {
+			parse_proc_stat(sbuf, &p);
 		}
 
 		/* Make some adjustments as needed */
@@ -157,10 +269,8 @@ extern int ps_main(int argc, char **argv)
 		if (file == NULL)
 			continue;
 		i = 0;
-		if(p.vmsize == 0)
-			len = printf("%5d %-8s        %c    ", p.pid, uidName, p.state);
-		else
-			len = printf("%5d %-8s %6d %c    ", p.pid, uidName, p.vmsize, p.state);
+		len = printf("%5d %-7s %-8s %6d   %c   ",
+				p.pid, p.ttyname, uidName, p.vmsize, p.state);
 		while (((c = getc(file)) != EOF) && (i < (terminal_width-len))) {
 			i++;
 			if (c == '\0')

@@ -18,6 +18,13 @@
  * very minor changes required to also work with StrongArm and presumably
  * all ARM based systems.
  *
+ * Magnus Damm <damm@opensource.se> 22-May-2002.
+ *   The plt and got code are now using the same structs.
+ *   Added generic linked list code to fully support PowerPC.
+ *   Replaced the mess in arch_apply_relocation() with architecture blocks.
+ *   The arch_create_got() function got cleaned up with architecture blocks.
+ *   These blocks should be easy maintain and sync with obj_xxx.c in modutils.
+ *
  * Magnus Damm <damm@opensource.se> added PowerPC support 20-Feb-2001.
  *   PowerPC specific code stolen from modutils-2.3.16, 
  *   written by Paul Mackerras, Copyright 1996, 1997 Linux International.
@@ -63,6 +70,7 @@
 #include <assert.h>
 #include <string.h>
 #include <getopt.h>
+#include <fcntl.h>
 #include <sys/utsname.h>
 #include "busybox.h"
 
@@ -79,30 +87,102 @@
 #define LOADBITS 1
 #endif
 
-#if defined(__powerpc__)
-#define BB_USE_PLT_ENTRIES
-#define BB_PLT_ENTRY_SIZE 16
-#endif
-
 #if defined(__arm__)
 #define BB_USE_PLT_ENTRIES
 #define BB_PLT_ENTRY_SIZE 8
 #define BB_USE_GOT_ENTRIES
 #define BB_GOT_ENTRY_SIZE 8
-#endif
+#define BB_USE_SINGLE
 
-#if defined(__sh__)
-#define BB_USE_GOT_ENTRIES
-#define BB_GOT_ENTRY_SIZE 4
+#define MATCH_MACHINE(x) (x == EM_ARM)
+#define SHT_RELM	SHT_REL
+#define Elf32_RelM	Elf32_Rel
+#define ELFCLASSM	ELFCLASS32
 #endif
 
 #if defined(__i386__)
 #define BB_USE_GOT_ENTRIES
 #define BB_GOT_ENTRY_SIZE 4
+#define BB_USE_SINGLE
+
+#ifndef EM_486
+#define MATCH_MACHINE(x) (x == EM_386)
+#else
+#define MATCH_MACHINE(x) (x == EM_386 || x == EM_486)
+#endif
+
+#define SHT_RELM	SHT_REL
+#define Elf32_RelM	Elf32_Rel
+#define ELFCLASSM	ELFCLASS32
+#endif
+
+#if defined(__mc68000__) 
+#define BB_USE_GOT_ENTRIES
+#define BB_GOT_ENTRY_SIZE 4
+#define BB_USE_SINGLE
+
+#define MATCH_MACHINE(x) (x == EM_68K)
+#define SHT_RELM	SHT_RELA
+#define Elf32_RelM	Elf32_Rela
 #endif
 
 #if defined(__mips__)
-// neither used
+/* Account for ELF spec changes.  */
+#ifndef EM_MIPS_RS3_LE
+#ifdef EM_MIPS_RS4_BE
+#define EM_MIPS_RS3_LE	EM_MIPS_RS4_BE
+#else
+#define EM_MIPS_RS3_LE	10
+#endif
+#endif /* !EM_MIPS_RS3_LE */
+
+#define MATCH_MACHINE(x) (x == EM_MIPS || x == EM_MIPS_RS3_LE)
+#define SHT_RELM	SHT_REL
+#define Elf32_RelM	Elf32_Rel
+#define ELFCLASSM	ELFCLASS32
+#define ARCHDATAM       "__dbe_table"
+#endif
+
+#if defined(__powerpc__)
+#define BB_USE_PLT_ENTRIES
+#define BB_PLT_ENTRY_SIZE 16
+#define BB_USE_PLT_LIST
+#define BB_LIST_ARCHTYPE ElfW(Addr) 
+#define BB_USE_LIST
+
+#define MATCH_MACHINE(x) (x == EM_PPC)
+#define SHT_RELM	SHT_RELA
+#define Elf32_RelM	Elf32_Rela
+#define ELFCLASSM	ELFCLASS32
+#define ARCHDATAM       "__ftr_fixup"
+#endif
+
+#if defined(__sh__)
+#define BB_USE_GOT_ENTRIES
+#define BB_GOT_ENTRY_SIZE 4
+#define BB_USE_SINGLE
+
+#define MATCH_MACHINE(x) (x == EM_SH)
+#define SHT_RELM	SHT_RELA
+#define Elf32_RelM	Elf32_Rela
+#define ELFCLASSM	ELFCLASS32
+
+/* the SH changes have only been tested on the SH4 in =little endian= mode */
+/* I'm not sure about big endian, so let's warn: */
+
+#if (defined(__SH4__) || defined(__SH3__)) && defined(__BIG_ENDIAN__)
+#error insmod.c may require changes for use on big endian SH4/SH3
+#endif
+
+/* it may or may not work on the SH1/SH2... So let's error on those
+   also */
+#if (defined(__sh__) && (!(defined(__SH3__) || defined(__SH4__))))
+#error insmod.c may require changes for non-SH3/SH4 use
+#endif
+#endif
+
+#ifndef SHT_RELM
+#error Sorry, but insmod.c does not yet support this architecture...
 #endif
 
 //----------------------------------------------------------------------------
@@ -274,7 +354,11 @@ struct new_module
 #endif
 };
 
+#ifdef ARCHDATAM
+#define ARCHDATA_SEC_NAME ARCHDATAM
+#else
 #define ARCHDATA_SEC_NAME "__archdata"
+#endif
 #define KALLSYMS_SEC_NAME "__kallsyms"
 
 
@@ -359,84 +443,6 @@ static const int MODUTILS_OBJ_H = 1;
 #define ELFDATAM    ELFDATA2LSB
 #elif __BYTE_ORDER == __BIG_ENDIAN
 #define ELFDATAM    ELFDATA2MSB
-#endif
-
-
-/* Machine-specific elf macros for i386 et al.  */
-
-/* the SH changes have only been tested on the SH4 in =little endian= mode */
-/* I'm not sure about big endian, so let's warn: */
-
-#if (defined(__SH4__) || defined(__SH3__)) && defined(__BIG_ENDIAN__)
-#error insmod.c may require changes for use on big endian SH4/SH3
-#endif
-
-/* it may or may not work on the SH1/SH2... So let's error on those
-   also */
-#if (defined(__sh__) && (!(defined(__SH3__) || defined(__SH4__))))
-#error insmod.c may require changes for non-SH3/SH4 use
-#endif
-
-#define ELFCLASSM	ELFCLASS32
-
-
-
-#if defined(__sh__)
-
-#define MATCH_MACHINE(x) (x == EM_SH)
-#define SHT_RELM	SHT_RELA
-#define Elf32_RelM	Elf32_Rela
-
-#elif defined(__arm__)
-
-#define MATCH_MACHINE(x) (x == EM_ARM)
-#define SHT_RELM	SHT_REL
-#define Elf32_RelM	Elf32_Rel
-
-
-#elif defined(__powerpc__)
-
-#define MATCH_MACHINE(x) (x == EM_PPC)
-#define SHT_RELM	SHT_RELA
-#define Elf32_RelM	Elf32_Rela
-
-#elif defined(__mips__)
-
-/* Account for ELF spec changes.  */
-#ifndef EM_MIPS_RS3_LE
-#ifdef EM_MIPS_RS4_BE
-#define EM_MIPS_RS3_LE	EM_MIPS_RS4_BE
-#else
-#define EM_MIPS_RS3_LE	10
-#endif
-#endif /* !EM_MIPS_RS3_LE */
-
-#define MATCH_MACHINE(x) (x == EM_MIPS || x == EM_MIPS_RS3_LE)
-#define SHT_RELM	SHT_REL
-#define Elf32_RelM	Elf32_Rel
-
-#elif defined(__i386__)
-
-/* presumably we can use these for anything but the SH and ARM*/
-/* this is the previous behavior, but it does result in
-   insmod.c being broken on anything except i386 */
-#ifndef EM_486
-#define MATCH_MACHINE(x)  (x == EM_386)
-#else
-#define MATCH_MACHINE(x)  (x == EM_386 || x == EM_486)
-#endif
-
-#define SHT_RELM	SHT_REL
-#define Elf32_RelM	Elf32_Rel
-
-#elif defined(__mc68000__) 
-
-#define MATCH_MACHINE(x)	(x == EM_68K)
-#define SHT_RELM			SHT_RELA
-#define Elf32_RelM			Elf32_Rela
-
-#else
-#error Sorry, but insmod.c does not yet support this architecture...
 #endif
 
 #ifndef ElfW
@@ -599,7 +605,7 @@ static enum obj_reloc arch_apply_relocation (struct obj_file *f,
 				      struct obj_symbol *sym,
 				      ElfW(RelM) *rel, ElfW(Addr) value);
 
-static int arch_create_got (struct obj_file *f);
+static void arch_create_got (struct obj_file *f);
 
 #ifdef BB_FEATURE_NEW_MODULE_INTERFACE
 static int arch_init_module (struct obj_file *f, struct new_module *);
@@ -622,36 +628,33 @@ static const int STRVERSIONLEN = 32;
 static int flag_force_load = 0;
 static int flag_autoclean = 0;
 static int flag_verbose = 0;
+static int flag_quiet = 0;
 static int flag_export = 1;
 
 
 /*======================================================================*/
 
-/* previously, these were named i386_* but since we could be
-   compiling for the sh, I've renamed them to the more general
-   arch_* These structures are the same between the x86 and SH, 
-   and we can't support anything else right now anyway. In the
-   future maybe they should be #if defined'd */
+#if defined(BB_USE_LIST)
 
-/* Done ;-) */
-
-
-
-#if defined(BB_USE_PLT_ENTRIES)
-struct arch_plt_entry
+struct arch_list_entry
 {
-  int offset;
-  int allocated:1;
-  int inited:1;                /* has been set up */
+	struct arch_list_entry *next;
+	BB_LIST_ARCHTYPE addend;
+	int offset;
+	int inited : 1;
 };
+
 #endif
 
-#if defined(BB_USE_GOT_ENTRIES)
-struct arch_got_entry {
+#if defined(BB_USE_SINGLE)
+
+struct arch_single_entry
+{
 	int offset;
-	unsigned offset_done:1;
-	unsigned reloc_done:1;
+	int inited : 1;
+	int allocated : 1;
 };
+
 #endif
 
 #if defined(__mips__)
@@ -679,10 +682,14 @@ struct arch_file {
 struct arch_symbol {
 	struct obj_symbol root;
 #if defined(BB_USE_PLT_ENTRIES)
-	struct arch_plt_entry pltent;
+#if defined(BB_USE_PLT_LIST)
+	struct arch_list_entry *pltent;
+#else
+	struct arch_single_entry pltent;
+#endif
 #endif
 #if defined(BB_USE_GOT_ENTRIES)
-	struct arch_got_entry gotent;
+	struct arch_single_entry gotent;
 #endif
 };
 
@@ -703,8 +710,8 @@ static int n_ext_modules;
 static int n_ext_modules_used;
 extern int delete_module(const char *);
 
-static char m_filename[FILENAME_MAX + 1];
-static char m_fullName[FILENAME_MAX + 1];
+static char m_filename[FILENAME_MAX];
+static char m_fullName[FILENAME_MAX];
 
 
 
@@ -740,15 +747,7 @@ static struct obj_file *arch_new_file(void)
 	struct arch_file *f;
 	f = xmalloc(sizeof(*f));
 
-#if defined(BB_USE_PLT_ENTRIES)
-	f->plt = NULL;
-#endif
-#if defined(BB_USE_GOT_ENTRIES)
-	f->got = NULL;
-#endif
-#if defined(__mips__)
-	f->mips_hi16_list = NULL;
-#endif
+	memset(f, 0, sizeof(*f));
 
 	return &f->root;
 }
@@ -763,12 +762,7 @@ static struct obj_symbol *arch_new_symbol(void)
 	struct arch_symbol *sym;
 	sym = xmalloc(sizeof(*sym));
 
-#if defined(BB_USE_PLT_ENTRIES)
-	memset(&sym->pltent, 0, sizeof(sym->pltent));
-#endif
-#if defined(BB_USE_GOT_ENTRIES)
-	memset(&sym->gotent, 0, sizeof(sym->gotent));
-#endif
+	memset(sym, 0, sizeof(*sym));
 
 	return &sym->root;
 }
@@ -781,85 +775,163 @@ arch_apply_relocation(struct obj_file *f,
 				      ElfW(RelM) *rel, ElfW(Addr) v)
 {
 	struct arch_file *ifile = (struct arch_file *) f;
-#if !(defined(__mips__))
-	struct arch_symbol *isym = (struct arch_symbol *) sym;
-#endif
-
+	enum obj_reloc ret = obj_reloc_ok;
 	ElfW(Addr) *loc = (ElfW(Addr) *) (targsec->contents + rel->r_offset);
 	ElfW(Addr) dot = targsec->header.sh_addr + rel->r_offset;
+#if defined(BB_USE_GOT_ENTRIES) || defined(BB_USE_PLT_ENTRIES)
+	struct arch_symbol *isym = (struct arch_symbol *) sym;
+#endif
 #if defined(BB_USE_GOT_ENTRIES)
 	ElfW(Addr) got = ifile->got ? ifile->got->header.sh_addr : 0;
 #endif
 #if defined(BB_USE_PLT_ENTRIES)
 	ElfW(Addr) plt = ifile->plt ? ifile->plt->header.sh_addr : 0;
-	struct arch_plt_entry *pe;
 	unsigned long *ip;
+#if defined(BB_USE_PLT_LIST)
+	struct arch_list_entry *pe;
+#else
+	struct arch_single_entry *pe;
 #endif
-	enum obj_reloc ret = obj_reloc_ok;
+#endif
 
 	switch (ELF32_R_TYPE(rel->r_info)) {
 
-/* even though these constants seem to be the same for
-   the i386 and the sh, we "#if define" them for clarity
-   and in case that ever changes */
-#if defined(__sh__)
-	case R_SH_NONE:
-#elif defined(__arm__)
+#if defined(__arm__)
 	case R_ARM_NONE:
-#elif defined(__i386__)
-	case R_386_NONE:
-#elif defined(__mc68000__) 
-	case R_68K_NONE:
-#elif defined(__powerpc__)
-	case R_PPC_NONE:
-#elif defined(__mips__)
-	case R_MIPS_NONE:
-#endif
 		break;
 
-#if defined(__sh__)
-	case R_SH_DIR32:
-#elif defined(__arm__)
 	case R_ARM_ABS32:
-#elif defined(__i386__)
-	case R_386_32:	
-#elif defined(__mc68000__) 
-	case R_68K_32:
-#elif defined(__powerpc__)
-	case R_PPC_ADDR32:
-#elif defined(__mips__)
-	case R_MIPS_32:
-#endif
 		*loc += v;
 		break;
-#if defined(__mc68000__)
-    case R_68K_8:
-		if (v > 0xff)
-		ret = obj_reloc_overflow;
+		
+	case R_ARM_GOT32:
+		goto bb_use_got;
+
+	case R_ARM_GOTPC:
+		/* relative reloc, always to _GLOBAL_OFFSET_TABLE_ 
+		 * (which is .got) similar to branch, 
+		 * but is full 32 bits relative */
+
+		assert(got);
+		*loc += got - dot;
+		break;
+
+	case R_ARM_PC24:
+	case R_ARM_PLT32:
+		goto bb_use_plt;
+
+	case R_ARM_GOTOFF: /* address relative to the got */
+		assert(got);
+		*loc += v - got;
+		break;
+
+#elif defined(__i386__)
+
+	case R_386_NONE:
+		break;
+
+	case R_386_32:
+		*loc += v;
+		break;
+
+	case R_386_PLT32:
+	case R_386_PC32:
+		*loc += v - dot;
+		break;
+
+	case R_386_GLOB_DAT:
+	case R_386_JMP_SLOT:
+		*loc = v;
+		break;
+
+	case R_386_RELATIVE:
+		*loc += f->baseaddr;
+		break;
+
+	case R_386_GOTPC:
+		assert(got != 0);
+		*loc += got - dot;
+		break;
+
+	case R_386_GOT32:
+		goto bb_use_got;
+
+	case R_386_GOTOFF:
+		assert(got != 0);
+		*loc += v - got;
+		break;
+
+#elif defined(__mc68000__)
+
+	case R_68K_NONE:
+		break;
+
+	case R_68K_32:
+		*loc += v;
+		break;
+
+	case R_68K_8:
+		if (v > 0xff) {
+			ret = obj_reloc_overflow;
+		}
 		*(char *)loc = v;
 		break;
-    case R_68K_16:
-		if (v > 0xffff)
-		ret = obj_reloc_overflow;
+
+	case R_68K_16:
+		if (v > 0xffff) {
+			ret = obj_reloc_overflow;
+		}
 		*(short *)loc = v;
 		break;
-#endif /* __mc68000__   */
 
-#if defined(__powerpc__)
-	case R_PPC_ADDR16_HA:
-		*(unsigned short *)loc = (v + 0x8000) >> 16;
+	case R_68K_PC8:
+		v -= dot;
+		if ((Elf32_Sword)v > 0x7f || 
+		    (Elf32_Sword)v < -(Elf32_Sword)0x80) {
+			ret = obj_reloc_overflow;
+		}
+		*(char *)loc = v;
 		break;
 
-	case R_PPC_ADDR16_HI:
-		*(unsigned short *)loc = v >> 16;
+	case R_68K_PC16:
+		v -= dot;
+		if ((Elf32_Sword)v > 0x7fff || 
+		    (Elf32_Sword)v < -(Elf32_Sword)0x8000) {
+			ret = obj_reloc_overflow;
+		}
+		*(short *)loc = v;
 		break;
 
-	case R_PPC_ADDR16_LO:
-		*(unsigned short *)loc = v;
+	case R_68K_PC32:
+		*(int *)loc = v - dot;
 		break;
-#endif
 
-#if defined(__mips__)
+	case R_68K_GLOB_DAT:
+	case R_68K_JMP_SLOT:
+		*loc = v;
+		break;
+
+	case R_68K_RELATIVE:
+		*(int *)loc += f->baseaddr;
+		break;
+
+	case R_68K_GOT32:
+		goto bb_use_got;
+
+	case R_68K_GOTOFF:
+		assert(got != 0);
+		*loc += v - got;
+		break;
+
+#elif defined(__mips__)
+
+	case R_MIPS_NONE:
+		break;
+
+	case R_MIPS_32:
+		*loc += v;
+		break;
+
 	case R_MIPS_26:
 		if (v % 4)
 			ret = obj_reloc_dangerous;
@@ -937,60 +1009,92 @@ arch_apply_relocation(struct obj_file *f,
 			*loc = insnlo;
 			break;
 		}
-#endif
 
-#if defined(__arm__)
-#elif defined(__sh__)
-        case R_SH_REL32:
-		*loc += v - dot;
-		break;
-#elif defined(__i386__)
-	case R_386_PLT32:
-	case R_386_PC32:
-		*loc += v - dot;
-		break;
-#elif defined(__mc68000__)
-    case R_68K_PC8:
-		v -= dot;
-		if ((Elf32_Sword)v > 0x7f || (Elf32_Sword)v < -(Elf32_Sword)0x80)
-		ret = obj_reloc_overflow;
-		*(char *)loc = v;
-    break;
-		case R_68K_PC16:
-		v -= dot;
-		if ((Elf32_Sword)v > 0x7fff || (Elf32_Sword)v < -(Elf32_Sword)0x8000)
-		ret = obj_reloc_overflow;
-		*(short *)loc = v;
-		break;
-    case R_68K_PC32:
-		*(int *)loc = v - dot;
-		break;
 #elif defined(__powerpc__)
+
+	case R_PPC_ADDR16_HA:
+		*(unsigned short *)loc = (v + 0x8000) >> 16;
+		break;
+
+	case R_PPC_ADDR16_HI:
+		*(unsigned short *)loc = v >> 16;
+		break;
+
+	case R_PPC_ADDR16_LO:
+		*(unsigned short *)loc = v;
+		break;
+
+	case R_PPC_REL24:
+		goto bb_use_plt;
+
 	case R_PPC_REL32:
 		*loc = v - dot;
 		break;
+
+	case R_PPC_ADDR32:
+		*loc = v;
+		break;
+
+#elif defined(__sh__)
+
+	case R_SH_NONE:
+		break;
+
+	case R_SH_DIR32:
+		*loc += v;
+		break;
+
+	case R_SH_REL32:
+		*loc += v - dot;
+		break;
+		
+	case R_SH_PLT32:
+		*loc = v - dot;
+		break;
+
+	case R_SH_GLOB_DAT:
+	case R_SH_JMP_SLOT:
+		*loc = v;
+		break;
+
+	case R_SH_RELATIVE:
+		*loc = f->baseaddr + rel->r_addend;
+		break;
+
+	case R_SH_GOTPC:
+		assert(got != 0);
+		*loc = got - dot + rel->r_addend;
+		break;
+
+	case R_SH_GOT32:
+		goto bb_use_got;
+
+	case R_SH_GOTOFF:
+		assert(got != 0);
+		*loc = v - got;
+		break;
+
 #endif
 
-#if defined(__sh__)
-        case R_SH_PLT32:
-                *loc = v - dot;
-                break;
-#elif defined(__i386__)
-#endif
+	default:
+        printf("Warning: unhandled reloc %d\n",(int)ELF32_R_TYPE(rel->r_info));
+		ret = obj_reloc_unhandled;
+		break;
 
 #if defined(BB_USE_PLT_ENTRIES)
 
-#if defined(__arm__)
-    case R_ARM_PC24:
-    case R_ARM_PLT32:
-#endif
-#if defined(__powerpc__)
-	case R_PPC_REL24:
-#endif
+	  bb_use_plt:
+
       /* find the plt entry and initialize it if necessary */
       assert(isym != NULL);
 
-      pe = (struct arch_plt_entry*) &isym->pltent;
+#if defined(BB_USE_PLT_LIST)
+      for (pe = isym->pltent; pe != NULL && pe->addend != rel->r_addend;)
+	pe = pe->next;
+      assert(pe != NULL);
+#else
+      pe = &isym->pltent;
+#endif
 
       if (! pe->inited) {
 	  	ip = (unsigned long *) (ifile->plt->contents + pe->offset);
@@ -1033,71 +1137,13 @@ arch_apply_relocation(struct obj_file *f,
       break;
 #endif /* BB_USE_PLT_ENTRIES */
 
-#if defined(__arm__)
-#elif defined(__sh__)
-        case R_SH_GLOB_DAT:
-        case R_SH_JMP_SLOT:
-               	*loc = v;
-                break;
-#elif defined(__i386__)
-	case R_386_GLOB_DAT:
-	case R_386_JMP_SLOT:
-		*loc = v;
-		break;
-#elif defined(__mc68000__)
-	case R_68K_GLOB_DAT:
-	case R_68K_JMP_SLOT:
-		*loc = v;
-		break;
-#endif
-
-#if defined(__arm__)
-#elif defined(__sh__)
-        case R_SH_RELATIVE:
-	        *loc += f->baseaddr + rel->r_addend;
-                break;
-#elif defined(__i386__)
-        case R_386_RELATIVE:
-		*loc += f->baseaddr;
-		break;
-#elif defined(__mc68000__)
-    case R_68K_RELATIVE:
-    	*(int *)loc += f->baseaddr;
-    	break;
-#endif
-
 #if defined(BB_USE_GOT_ENTRIES)
+	  bb_use_got:
 
-#if !defined(__68k__)
-#if defined(__sh__)
-        case R_SH_GOTPC:
-#elif defined(__arm__)
-    case R_ARM_GOTPC:
-#elif defined(__i386__)
-	case R_386_GOTPC:
-#endif
-		assert(got != 0);
-#if defined(__sh__)
-		*loc += got - dot + rel->r_addend;;
-#elif defined(__i386__) || defined(__arm__) || defined(__m68k_)
-		*loc += got - dot;
-#endif
-		break;
-#endif // __68k__
-
-#if defined(__sh__)
-	case R_SH_GOT32:
-#elif defined(__arm__)
-	case R_ARM_GOT32:
-#elif defined(__i386__)
-	case R_386_GOT32:
-#elif defined(__mc68000__)
-	case R_68K_GOT32:
-#endif
 		assert(isym != NULL);
         /* needs an entry in the .got: set it, once */
-		if (!isym->gotent.reloc_done) {
-			isym->gotent.reloc_done = 1;
+		if (!isym->gotent.inited) {
+			isym->gotent.inited = 1;
 			*(ElfW(Addr) *) (ifile->got->contents + isym->gotent.offset) = v;
 		}
         /* make the reloc with_respect_to_.got */
@@ -1108,43 +1154,89 @@ arch_apply_relocation(struct obj_file *f,
 #endif
 		break;
 
-    /* address relative to the got */
-#if !defined(__mc68000__)
-#if defined(__sh__)
-	case R_SH_GOTOFF:
-#elif defined(__arm__)
-	case R_ARM_GOTOFF:
-#elif defined(__i386__)
-	case R_386_GOTOFF:
-#elif defined(__mc68000__)
-	case R_68K_GOTOFF:
-#endif
-		assert(got != 0);
-		*loc += v - got;
-		break;
-#endif // __mc68000__
-
 #endif /* BB_USE_GOT_ENTRIES */
-
-	default:
-        printf("Warning: unhandled reloc %d\n",(int)ELF32_R_TYPE(rel->r_info));
-		ret = obj_reloc_unhandled;
-		break;
 	}
 
 	return ret;
 }
 
-static int arch_create_got(struct obj_file *f)
+#if defined(BB_USE_LIST) 
+
+static int arch_list_add(ElfW(RelM) *rel, struct arch_list_entry **list,
+			  int offset, int size)
+{
+	struct arch_list_entry *pe;
+
+	for (pe = *list; pe != NULL; pe = pe->next) {
+		if (pe->addend == rel->r_addend) {
+			break;
+		}
+	}
+
+	if (pe == NULL) {
+		pe = xmalloc(sizeof(struct arch_list_entry));
+		pe->next = *list;
+		pe->addend = rel->r_addend;
+		pe->offset = offset;
+		pe->inited = 0;
+		*list = pe;
+		return size;
+	}
+	return 0;
+}
+
+#endif
+
+#if defined(BB_USE_SINGLE) 
+
+static int arch_single_init(ElfW(RelM) *rel, struct arch_single_entry *single,
+			     int offset, int size)
+{
+	if (single->allocated == 0) {
+		single->allocated = 1;
+		single->offset = offset;
+		single->inited = 0;
+		return size;
+	}
+	return 0;
+}
+
+#endif
+
+#if defined(BB_USE_GOT_ENTRIES) || defined(BB_USE_PLT_ENTRIES)
+
+static struct obj_section *arch_xsect_init(struct obj_file *f, char *name, 
+					   int offset, int size)
+{
+	struct obj_section *myrelsec = obj_find_section(f, name);
+
+	if (offset == 0) {
+		offset += size;
+	}
+
+	if (myrelsec) {
+		obj_extend_section(myrelsec, offset);
+	} else {
+		myrelsec = obj_create_alloced_section(f, name, 
+						      size, offset);
+		assert(myrelsec);
+	}
+
+	return myrelsec;
+}
+
+#endif
+
+static void arch_create_got(struct obj_file *f)
 {
 #if defined(BB_USE_GOT_ENTRIES) || defined(BB_USE_PLT_ENTRIES)
 	struct arch_file *ifile = (struct arch_file *) f;
 	int i;
 #if defined(BB_USE_GOT_ENTRIES)
-	int got_offset = 0, gotneeded = 0;
+	int got_offset = 0, got_needed = 0, got_allocate;
 #endif
 #if defined(BB_USE_PLT_ENTRIES)
-	int plt_offset = 0, pltneeded = 0;
+	int plt_offset = 0, plt_needed = 0, plt_allocate;
 #endif
     struct obj_section *relsec, *symsec, *strsec;
 	ElfW(RelM) *rel, *relend;
@@ -1154,6 +1246,7 @@ static int arch_create_got(struct obj_file *f)
 
 	for (i = 0; i < f->header.e_shnum; ++i) {
 		relsec = f->sections[i];
+
 		if (relsec->header.sh_type != SHT_RELM)
 			continue;
 
@@ -1167,49 +1260,71 @@ static int arch_create_got(struct obj_file *f)
 
 		for (; rel < relend; ++rel) {
 			extsym = &symtab[ELF32_R_SYM(rel->r_info)];
+			
+#if defined(BB_USE_GOT_ENTRIES)
+			got_allocate = 0;
+#endif
+#if defined(BB_USE_PLT_ENTRIES)
+			plt_allocate = 0;
+#endif
 
 			switch (ELF32_R_TYPE(rel->r_info)) {
-#if defined(__arm__)
-			case R_ARM_GOT32:
-				break;
-#elif defined(__sh__)
-			case R_SH_GOT32:
-				break;
-#elif defined(__i386__)
-			case R_386_GOT32:
-				break;
-#elif defined(__mc68000__)
-			case R_68K_GOT32:
-				break;
-#endif
-
-#if defined(__powerpc__)
-			case R_PPC_REL24:
-				pltneeded = 1;
-				break;
-#endif
 
 #if defined(__arm__)
+
 			case R_ARM_PC24:
 			case R_ARM_PLT32:
-				pltneeded = 1;
+				plt_allocate = 1;
 				break;
 
-			case R_ARM_GOTPC:
 			case R_ARM_GOTOFF:
-				gotneeded = 1;
-				if (got_offset == 0)
-					got_offset = 4;
-#elif defined(__sh__)
-			case R_SH_GOTPC:
-			case R_SH_GOTOFF:
-				gotneeded = 1;
+			case R_ARM_GOTPC:
+				got_needed = 1;
+				continue;
+
+			case R_ARM_GOT32:
+				got_allocate = 1;
+				break;
+
 #elif defined(__i386__)
+
 			case R_386_GOTPC:
 			case R_386_GOTOFF:
-				gotneeded = 1;
-#endif
+				got_needed = 1;
+				continue;
 
+			case R_386_GOT32:
+				got_allocate = 1;
+				break;
+
+#elif defined(__powerpc__)
+
+			case R_PPC_REL24:
+				plt_allocate = 1;
+				break;
+
+#elif defined(__mc68000__)
+
+			case R_68K_GOT32:
+				got_allocate = 1;
+				break;
+
+			case R_68K_GOTOFF:
+				got_needed = 1;
+				continue;
+
+#elif defined(__sh__)
+
+			case R_SH_GOT32:
+				got_allocate = 1; 
+				break;
+
+			case R_SH_GOTPC:
+			case R_SH_GOTOFF:
+				got_needed = 1;
+				continue;
+
+#endif
 			default:
 				continue;
 			}
@@ -1221,49 +1336,46 @@ static int arch_create_got(struct obj_file *f)
 			}
 			intsym = (struct arch_symbol *) obj_find_symbol(f, name);
 #if defined(BB_USE_GOT_ENTRIES)
-			if (!intsym->gotent.offset_done) {
-				intsym->gotent.offset_done = 1;
-				intsym->gotent.offset = got_offset;
-				got_offset += BB_GOT_ENTRY_SIZE;
+			if (got_allocate) {
+				got_offset += arch_single_init(
+					rel, &intsym->gotent, 
+					got_offset, BB_GOT_ENTRY_SIZE);
+
+				got_needed = 1;
 			}
 #endif
 #if defined(BB_USE_PLT_ENTRIES)
-			if (pltneeded && intsym->pltent.allocated == 0) {
-				intsym->pltent.allocated = 1;
-				intsym->pltent.offset = plt_offset;
-				plt_offset += BB_PLT_ENTRY_SIZE;
-				intsym->pltent.inited = 0;
-				pltneeded = 0;
+			if (plt_allocate) {
+#if defined(BB_USE_PLT_LIST) 
+				plt_offset += arch_list_add(
+					rel, &intsym->pltent, 
+					plt_offset, BB_PLT_ENTRY_SIZE);
+#else
+				plt_offset += arch_single_init(
+					rel, &intsym->pltent, 
+					plt_offset, BB_PLT_ENTRY_SIZE);
+#endif
+				plt_needed = 1;
 			}
 #endif
-			}
 		}
+	}
 
 #if defined(BB_USE_GOT_ENTRIES)
-	if (got_offset) {
-		struct obj_section* myrelsec = obj_find_section(f, ".got");
-
-		if (myrelsec) {
-			obj_extend_section(myrelsec, got_offset);
-		} else {
-			myrelsec = obj_create_alloced_section(f, ".got", 
-							    BB_GOT_ENTRY_SIZE,
-							    got_offset);
-			assert(myrelsec);
-		}
-
-		ifile->got = myrelsec;
+	if (got_needed) {
+		ifile->got = arch_xsect_init(f, ".got", got_offset,
+					    BB_GOT_ENTRY_SIZE);
 	}
 #endif
 
 #if defined(BB_USE_PLT_ENTRIES)
-	if (plt_offset)
-		ifile->plt = obj_create_alloced_section(f, ".plt", 
-							BB_PLT_ENTRY_SIZE, 
-							plt_offset);
+	if (plt_needed) {
+		ifile->plt = arch_xsect_init(f, ".plt", plt_offset,
+					    BB_PLT_ENTRY_SIZE);
+	}
 #endif
-#endif
-	return 1;
+
+#endif /* defined(BB_USE_GOT_ENTRIES) || defined(BB_USE_PLT_ENTRIES) */
 }
 
 #ifdef BB_FEATURE_NEW_MODULE_INTERFACE
@@ -1802,7 +1914,7 @@ old_get_module_version(struct obj_file *f, char str[STRVERSIONLEN])
 		return -1;
 
 	p = f->sections[sym->secidx]->contents + sym->value;
-	strncpy(str, p, STRVERSIONLEN);
+	safe_strncpy(str, p, STRVERSIONLEN);
 
 	a = strtoul(p, &p, 10);
 	if (*p != '.')
@@ -2290,7 +2402,7 @@ new_get_module_version(struct obj_file *f, char str[STRVERSIONLEN])
 	p = get_modinfo_value(f, "kernel_version");
 	if (p == NULL)
 		return -1;
-	strncpy(str, p, STRVERSIONLEN);
+	safe_strncpy(str, p, STRVERSIONLEN);
 
 	a = strtoul(p, &p, 10);
 	if (*p != '.')
@@ -2662,7 +2774,9 @@ static int obj_check_undefineds(struct obj_file *f)
 					sym->secidx = SHN_ABS;
 					sym->value = 0;
 				} else {
-					error_msg("unresolved symbol %s", sym->name);
+					if (!flag_quiet) {
+						error_msg("unresolved symbol %s", sym->name);
+					}
 					ret = 0;
 				}
 			}
@@ -3203,7 +3317,117 @@ static void hide_special_symbols(struct obj_file *f)
 				ELFW(ST_INFO) (STB_LOCAL, ELFW(ST_TYPE) (sym->info));
 }
 
+static int obj_gpl_license(struct obj_file *f, const char **license)
+{
+	struct obj_section *sec;
+	/* This list must match *exactly* the list of allowable licenses in
+	 * linux/include/linux/module.h.  Checking for leading "GPL" will not
+	 * work, somebody will use "GPL sucks, this is proprietary".
+	 */
+	static const char *gpl_licenses[] = {
+		"GPL",
+		"GPL v2",
+		"GPL and additional rights",
+		"Dual BSD/GPL",
+		"Dual MPL/GPL",
+	};
 
+	if ((sec = obj_find_section(f, ".modinfo"))) {
+		const char *value, *ptr, *endptr;
+		ptr = sec->contents;
+		endptr = ptr + sec->header.sh_size;
+		while (ptr < endptr) {
+			if ((value = strchr(ptr, '=')) && strncmp(ptr, "license", value-ptr) == 0) {
+				int i;
+				if (license)
+					*license = value+1;
+				for (i = 0; i < sizeof(gpl_licenses)/sizeof(gpl_licenses[0]); ++i) {
+					if (strcmp(value+1, gpl_licenses[i]) == 0)
+						return(0);
+				}
+				return(2);
+			}
+			if (strchr(ptr, '\0'))
+				ptr = strchr(ptr, '\0') + 1;
+			else
+				ptr = endptr;
+		}
+	}
+	return(1);
+}
+
+#define TAINT_FILENAME                  "/proc/sys/kernel/tainted"
+#define TAINT_PROPRIETORY_MODULE        (1<<0)
+#define TAINT_FORCED_MODULE             (1<<1)
+#define TAINT_UNSAFE_SMP                (1<<2)
+#define TAINT_URL						"http://www.tux.org/lkml/#export-tainted"
+
+static void set_tainted(struct obj_file *f, int fd, char *m_name, 
+		int kernel_has_tainted, int taint, const char *text1, const char *text2)
+{
+	char buf[80];
+	int oldval;
+	static int first = 1;
+	if (fd < 0 && !kernel_has_tainted)
+		return;		/* New modutils on old kernel */
+	printf("Warning: loading %s will taint the kernel: %s%s\n",
+			m_name, text1, text2);
+	if (first) {
+		printf("  See %s for information about tainted modules\n", TAINT_URL);
+		first = 0;
+	}
+	if (fd >= 0) {
+		read(fd, buf, sizeof(buf)-1);
+		buf[sizeof(buf)-1] = '\0';
+		oldval = strtoul(buf, NULL, 10);
+		sprintf(buf, "%d\n", oldval | taint);
+		write(fd, buf, strlen(buf));
+	}
+}
+
+/* Check if loading this module will taint the kernel. */
+static void check_tainted_module(struct obj_file *f, char *m_name)
+{
+	static const char tainted_file[] = TAINT_FILENAME;
+	int fd, kernel_has_tainted;
+	const char *ptr;
+
+	kernel_has_tainted = 1;
+	if ((fd = open(tainted_file, O_RDWR)) < 0) {
+		if (errno == ENOENT)
+			kernel_has_tainted = 0;
+		else if (errno == EACCES)
+			kernel_has_tainted = 1;
+		else {
+			perror(tainted_file);
+			kernel_has_tainted = 0;
+		}
+	}
+
+	switch (obj_gpl_license(f, &ptr)) {
+		case 0:
+			break;
+		case 1:
+			set_tainted(f, fd, m_name, kernel_has_tainted, TAINT_PROPRIETORY_MODULE, "no license", "");
+			break;
+		case 2:
+			/* The module has a non-GPL license so we pretend that the
+			 * kernel always has a taint flag to get a warning even on
+			 * kernels without the proc flag.
+			 */
+			set_tainted(f, fd, m_name, 1, TAINT_PROPRIETORY_MODULE, "non-GPL license - ", ptr);
+			break;
+		default:
+			set_tainted(f, fd, m_name, 1, TAINT_PROPRIETORY_MODULE, "Unexpected return from obj_gpl_license", "");
+			break;
+	}
+
+	if (flag_force_load)
+		set_tainted(f, fd, m_name, 1, TAINT_FORCED_MODULE, "forced load", "");
+
+	if (fd >= 0)
+		close(fd);
+}
 
 extern int insmod_main( int argc, char **argv)
 {
@@ -3211,13 +3435,13 @@ extern int insmod_main( int argc, char **argv)
 	int k_crcs;
 	int k_new_syscalls;
 	int len;
-	char *tmp;
+	char *tmp, *tmp1;
 	unsigned long m_size;
 	ElfW(Addr) m_addr;
 	FILE *fp;
 	struct obj_file *f;
 	struct stat st;
-	char m_name[FILENAME_MAX + 1] = "\0";
+	char m_name[FILENAME_MAX] = "\0";
 	int exit_status = EXIT_FAILURE;
 	int m_has_modinfo;
 #ifdef BB_FEATURE_INSMOD_VERSION_CHECKING
@@ -3228,7 +3452,7 @@ extern int insmod_main( int argc, char **argv)
 #endif
 
 	/* Parse any options */
-	while ((opt = getopt(argc, argv, "fkvxLo:")) > 0) {
+	while ((opt = getopt(argc, argv, "fkqsvxLo:")) > 0) {
 		switch (opt) {
 			case 'f':			/* force loading */
 				flag_force_load = 1;
@@ -3236,14 +3460,23 @@ extern int insmod_main( int argc, char **argv)
 			case 'k':			/* module loaded by kerneld, auto-cleanable */
 				flag_autoclean = 1;
 				break;
+			case 's':			/* log to syslog */
+				/* log to syslog -- not supported              */
+				/* but kernel needs this for request_module(), */
+				/* as this calls: modprobe -k -s -- <module>   */
+				/* so silently ignore this flag                */
+				break;
 			case 'v':			/* verbose output */
 				flag_verbose = 1;
+				break;
+			case 'q':			/* silent */
+				flag_quiet = 1;
 				break;
 			case 'x':			/* do not export externs */
 				flag_export = 0;
 				break;
 			case 'o':			/* name the output module */
-				strncpy(m_name, optarg, FILENAME_MAX);
+				safe_strncpy(m_name, optarg, sizeof(m_name));
 				break;
 			case 'L':			/* Stub warning */
 				/* This is needed for compatibility with modprobe.
@@ -3261,20 +3494,29 @@ extern int insmod_main( int argc, char **argv)
 	}
 
 	/* Grab the module name */
-	if ((tmp = strrchr(argv[optind], '/')) != NULL) {
-		tmp++;
-	} else {
-		tmp = argv[optind];
-	}
+	tmp1 = xstrdup(argv[optind]);
+	tmp = basename(tmp1);
 	len = strlen(tmp);
 
-	if (len > 2 && tmp[len - 2] == '.' && tmp[len - 1] == 'o')
-		len -= 2;
-	memcpy(m_fullName, tmp, len);
-	m_fullName[len]='\0';
-	if (*m_name == '\0') {
-		strcpy(m_name, m_fullName);
+	if (len > 2 && tmp[len - 2] == '.' && tmp[len - 1] == 'o') {
+		len-=2;
+		tmp[len] = '\0';
 	}
+	/* Make sure there is space for the terminal NULL */
+	len += 1;
+
+	if (len >= sizeof(m_fullName)) {
+		len = sizeof(m_fullName);
+	}
+	safe_strncpy(m_fullName, tmp, len);
+	if (tmp1)
+		free(tmp1);
+	if (*m_name == '\0') {
+		safe_strncpy(m_name, m_fullName, sizeof(m_name));
+	}
+	len = strlen(m_fullName);
+	if (len > (sizeof(m_fullName)-3))
+		error_msg_and_die("%s: no module by that name found", m_fullName);
 	strcat(m_fullName, ".o");
 
 	/* Get a filedesc for the module.  Check we we have a complete path */
@@ -3335,32 +3577,33 @@ extern int insmod_main( int argc, char **argv)
 
 #ifdef BB_FEATURE_INSMOD_VERSION_CHECKING
 	/* Version correspondence?  */
-
-	if (uname(&uts_info) < 0)
-		uts_info.release[0] = '\0';
-	if (m_has_modinfo) {
-		m_version = new_get_module_version(f, m_strversion);
-	} else {
-		m_version = old_get_module_version(f, m_strversion);
-		if (m_version == -1) {
-			error_msg("couldn't find the kernel version the module was "
-					"compiled for");
-			goto out;
-		}
-	}
-
-	if (strncmp(uts_info.release, m_strversion, STRVERSIONLEN) != 0) {
-		if (flag_force_load) {
-			error_msg("Warning: kernel-module version mismatch\n"
-					"\t%s was compiled for kernel version %s\n"
-					"\twhile this kernel is version %s",
-					m_filename, m_strversion, uts_info.release);
+	if (!flag_quiet) {
+		if (uname(&uts_info) < 0)
+			uts_info.release[0] = '\0';
+		if (m_has_modinfo) {
+			m_version = new_get_module_version(f, m_strversion);
 		} else {
-			error_msg("kernel-module version mismatch\n"
-					"\t%s was compiled for kernel version %s\n"
-					"\twhile this kernel is version %s.",
-					m_filename, m_strversion, uts_info.release);
-			goto out;
+			m_version = old_get_module_version(f, m_strversion);
+			if (m_version == -1) {
+				error_msg("couldn't find the kernel version the module was "
+						"compiled for");
+				goto out;
+			}
+		}
+
+		if (strncmp(uts_info.release, m_strversion, STRVERSIONLEN) != 0) {
+			if (flag_force_load) {
+				error_msg("Warning: kernel-module version mismatch\n"
+						"\t%s was compiled for kernel version %s\n"
+						"\twhile this kernel is version %s",
+						m_filename, m_strversion, uts_info.release);
+			} else {
+				error_msg("kernel-module version mismatch\n"
+						"\t%s was compiled for kernel version %s\n"
+						"\twhile this kernel is version %s.",
+						m_filename, m_strversion, uts_info.release);
+				goto out;
+			}
 		}
 	}
 	k_crcs = 0;
@@ -3414,6 +3657,7 @@ extern int insmod_main( int argc, char **argv)
 		goto out;
 	}
 	obj_allocate_commons(f);
+	check_tainted_module(f, m_name);
 
 	/* done with the module name, on to the optional var=value arguments */
 	++optind;

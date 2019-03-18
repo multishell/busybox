@@ -424,9 +424,8 @@ static char *parse_cmd_str(struct sed_cmd * const sed_cmd, const char *const cmd
 
 	/* second part (if present) will begin with a comma */
 	if (cmdstr[idx] == ',') {
-		/* Avoid potential undefined operation on `idx' by using a tmp var */
-		int foo = get_address(sed_cmd, &cmdstr[++idx], &sed_cmd->end_line, &sed_cmd->end_match);
-		idx += foo;
+		idx++;
+		idx += get_address(sed_cmd, &cmdstr[idx], &sed_cmd->end_line, &sed_cmd->end_match);
 	}
 
 	/* last part (mandatory) will be a command */

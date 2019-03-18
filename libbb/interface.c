@@ -3,7 +3,7 @@
  *              that either displays or sets the characteristics of
  *              one or more of the system's networking interfaces.
  *
- * Version:     $Id: interface.c,v 1.5 2001/10/27 03:28:53 andersen Exp $
+ * Version:     $Id: interface.c,v 1.7 2002/09/17 06:36:56 andersen Exp $
  *
  * Author:      Fred N. van Kempen, <waltje@uwalt.nl.mugnet.org>
  *              and others.  Copyright 1993 MicroWalt Corporation
@@ -89,6 +89,10 @@
 #define KRELEASE(maj,min,patch) ((maj) * 65536 + (min)*256 + (patch))
 
 static int procnetdev_vsn = 1;
+
+#ifdef DEBUG
+#include <resolv.h>
+#endif
 
 
 /* Ugh.  But libc5 doesn't provide POSIX types.  */
@@ -403,7 +407,7 @@ static int INET_rresolve(char *name, size_t len, struct sockaddr_in *s_in,
     /* Grmpf. -FvK */
     if (s_in->sin_family != AF_INET) {
 #ifdef DEBUG
-	fprintf(stderr, _("rresolve: unsupport address family %d !\n"), s_in->sin_family);
+	fprintf(stderr, "rresolve: unsupport address family %d !\n", s_in->sin_family);
 #endif
 	errno = EAFNOSUPPORT;
 	return (-1);
@@ -1867,7 +1871,7 @@ static void print_bytes_scaled(unsigned long long ull, const char *end)
 		}
 	}
 
-	printf("X bytes:%Lu (%Lu.%lu %sb)%s", ull, int_part, frac_part, ext, end);
+	printf("X bytes:%Lu (%Lu.%lu %siB)%s", ull, int_part, frac_part, ext, end);
 }
 
 static void ife_print(struct interface *ptr)

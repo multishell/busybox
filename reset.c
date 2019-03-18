@@ -29,7 +29,7 @@
 
 extern int reset_main(int argc, char **argv)
 {
-       printf("\033c");
+	   printf("\033[?25h\033c\033[J");
        return EXIT_SUCCESS;
 }
 

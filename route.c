@@ -360,7 +360,7 @@ INET_setroute(int action, int options, char **args)
 #define RTF_REJECT      0x0200          /* Reject route                 */
 #endif
 
-static void displayroutes(void)
+static void displayroutes(int numeric)
 {
 	char buff[256];
 	int  nl = 0 ;
@@ -410,9 +410,9 @@ static void displayroutes(void)
  				dest.s_addr = d;
  				gw.s_addr   = g;
  				mask.s_addr = m;
- 				strcpy(sdest,  (dest.s_addr==0 ? "default" :
+ 				strcpy(sdest,  (numeric == 0 && dest.s_addr==0 ? "default" :
   					inet_ntoa(dest)));
- 				strcpy(sgw,    (gw.s_addr==0   ? "*"       :
+ 				strcpy(sgw,    (numeric == 0 && gw.s_addr==0   ? "*"       :
   					inet_ntoa(gw)));
  				printf("%-16s%-16s%-16s%-6s%-6d %-2d %7d %s\n",
  					sdest, sgw,
@@ -427,12 +427,19 @@ static void displayroutes(void)
 int route_main(int argc, char **argv)
 {
 	int what = 0;
+	int numeric = 0;
 
 	argc--;
 	argv++;
 
+	if (argc>0 && strcmp(argv[0], "-n")==0) {
+		numeric = 1;
+		argc--;
+		argv++;
+	}
+
 	if (*argv == NULL) {
-		displayroutes();
+		displayroutes(numeric);
 		return EXIT_SUCCESS;
 	} else {
 		/* check verb */

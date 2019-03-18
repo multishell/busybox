@@ -1502,13 +1502,86 @@ Example:
 
 =item B<modprobe>
 
-modprobe [FILE ...]
+modprobe modprobe	 [  B<-adnqv>  ] [ B<-C> config ] module [ symbol=value ... ]
+modprobe [ B<-adnqv> ] [ B<-C> config ] [ B<-t> type ] pattern
+modprobe B<-l> [ B<-C> config ] [ B<-t> type ] pattern
+modprobe B<-c> [ B<-C> config ]
+modprobe B<-r> [ B<-dnv> ] [ B<-C> config ] [ module ...]
+modprobe B<-V>
 
-Used for hight level module loading and unloading.
+
+Used to load kernel modules and automatically load their dependancies.USAGE:
+
+	modprobe	 [  -adnqv  ] [ -C config ] module [ symbol=value ... ]
+	modprobe [ -adnqv ] [ -C config ] [ -t type ] pattern
+	modprobe -l [ -C config ] [ -t type ] pattern
+	modprobe -c [ -C config ]
+	modprobe -r [ -dnv ] [ -C config ] [ module ...]
+	modprobe -V
+
+OPTIONS
+
+	-a (*** not supported ***)
+	   Load all matching modules instead of stopping after
+	   the first successful loading.
+
+	-c (*** not supported ***)
+	   Show the currently used configuration.
+
+	-d
+	   Show  information about the internal representation
+	   of the stack of modules.
+
+	-k
+	   Set 'autoclean' on loaded	 modules.   Used  by  the
+	   kernel  when it calls on modprobe to satify a miss­
+	   ing feature (supplied as a module).  The -q  option
+	   is implied by -k.	 These options will automatically
+	   be sent to insmod.
+
+	-l (*** not supported ***)
+	   List matching modules.
+
+	-n
+	   Don't actually perform the action, just  show  what
+	   would be done.
+
+	-q
+	   Do  not  complain about insmod failing to install a
+	   module.  Continue as  normal,  but  silently,  with
+	   other  possibilities  for	 modprobe  to test.  This
+	   option will automatically be sent to insmod.
+
+	-r
+	   Remove module (stacks) or do  autoclean,	depending
+	   on  whether  there are any modules mentioned on the
+	   command line.
+
+	-s
+	   Report via syslog instead of stderr.  This  options
+	   will automatically be sent to insmod.
+
+	-t type (*** not supported ***)
+	   Only consider modules of this type (tag).
+
+	-v
+	   Print all commands as they are executed.
+
+	-V
+	   Show the release version of modprobe.
+
+	-C configfile (*** not supported ***)
+	   Use  the	file configfile instead of (the optional)
+	   /etc/modules.conf	 to  specify  the  configuration.
+	   The  environment	variable  MODULECONF  can also be
+	   used to select (and override) a different	 configu­
+	   ration  file from the default /etc/modules.conf (or
+	   /etc/conf.modules (depreciated)).
 
 Example:
 
-	$ modprobe cdrom
+	$ modprobe pcnet_cs
+	$ modprobe -r pcnet_cs
 
 -------------------------------
 
@@ -2125,6 +2198,18 @@ Options:
 time [OPTION]... COMMAND [ARGS...]
 
 Runs the program COMMAND with arguments ARGS.  When COMMAND finishes,
+
+-------------------------------
+
+=item B<top>
+
+top [B<-d> <seconds>]
+
+top provides an view of processor activity in real time.
+This utility reads the status for all processes in /proc each <seconds>
+and shows the status for however many processes will fit on the screen.
+This utility will not show processes that are started after program startup,
+but it will show the EXIT status for and PIDs that exit while it is running.
 
 -------------------------------
 

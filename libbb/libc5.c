@@ -9,7 +9,7 @@
 #include <unistd.h>
 
 
-#if __GNU_LIBRARY__ < 5
+#if ! defined __dietlibc__ &&  __GNU_LIBRARY__ < 5
 
 
 /* Copyright (C) 1991 Free Software Foundation, Inc.
@@ -72,6 +72,7 @@ ssize_t getline(char **linebuf, size_t *n, FILE *file)
 }
 
 
+#ifndef __uClinux__
 /*
  * daemon implementation for uClibc
  *
@@ -126,6 +127,7 @@ int daemon( int nochdir, int noclose )
     }
     return(0);
 }
+#endif /* __uClinux__ */
 
 
 /*-

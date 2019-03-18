@@ -2,7 +2,7 @@
 /*
  * Mini head implementation for busybox
  *
- * Copyright (C) 1999,2000 by Lineo, inc. and John Beppu
+ * Copyright (C) 1999 by Lineo, inc. and John Beppu
  * Copyright (C) 1999,2000,2001 by John Beppu <beppu@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -25,6 +25,7 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include "busybox.h"
 
 static int head(int len, FILE *fp)
@@ -47,12 +48,17 @@ int head_main(int argc, char **argv)
 	FILE *fp;
 	int need_headers, opt, len = 10, status = EXIT_SUCCESS;
 
+	if (( argc >= 2 ) && ( argv [1][0] == '-' ) && isdigit ( argv [1][1] )) {
+		len = atoi ( &argv [1][1] );
+		optind = 2;
+	}
+
 	/* parse argv[] */
 	while ((opt = getopt(argc, argv, "n:")) > 0) {
 		switch (opt) {
 		case 'n':
 			len = atoi(optarg);
-			if (len >= 1)
+			if (len >= 0)
 				break;
 			/* fallthrough */
 		default:

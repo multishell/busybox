@@ -18,7 +18,7 @@
 #
 
 PROG      := busybox
-VERSION   := 0.60.3
+VERSION   := 0.60.4
 BUILDTIME := $(shell TZ=UTC date -u "+%Y.%m.%d-%H:%M%z")
 export VERSION
 
@@ -90,7 +90,7 @@ STRIP = $(CROSS)strip
 
 # To compile vs uClibc, just use the compiler wrapper built by uClibc...
 # Everything should compile and work as expected these days...
-#CC=/usr/i386-linux-uclibc/usr/bin/i386-uclibc-gcc
+#CC=/usr/i386-linux-uclibc/bin/i386-uclibc-gcc
 
 # To compile vs some other alternative libc, you may need to use/adjust
 # the following lines to meet your needs...
@@ -110,15 +110,48 @@ STRIP = $(CROSS)strip
 #CROSS_CFLAGS+=-nostdinc -I$(LIBCDIR)/include -I$(GCCINCDIR)
 #GCCINCDIR = $(shell gcc -print-search-dirs | sed -ne "s/install: \(.*\)/\1include/gp")
 
-# use '-Os' optimization if available, else use -O2
-OPTIMIZATION := ${shell if $(CC) -Os -S -o /dev/null -xc /dev/null >/dev/null 2>&1; \
-	then echo "-Os"; else echo "-O2" ; fi}
-
 WARNINGS = -Wall -Wshadow
 
 ARFLAGS = -r
 
-#
+
+TARGET_ARCH:=${shell $(CC) -dumpmachine | sed -e s'/-.*//' \
+		-e 's/i.86/i386/' \
+		-e 's/sparc.*/sparc/' \
+		-e 's/arm.*/arm/g' \
+		-e 's/m68k.*/m68k/' \
+		-e 's/ppc/powerpc/g' \
+		-e 's/v850.*/v850/g' \
+		-e 's/sh[234]/sh/' \
+		-e 's/mips.*/mips/' \
+		}
+
+#--------------------------------------------------------
+# Arch specific compiler optimization stuff should go here.
+# Unless you want to override the defaults, do not set anything
+# for OPTIMIZATION...
+
+# use '-Os' optimization if available, else use -O2
+OPTIMIZATION := ${shell if $(CC) -Os -S -o /dev/null -xc /dev/null >/dev/null 2>&1; \
+	then echo "-Os"; else echo "-O2" ; fi}
+
+# Some nice architecture specific optimizations
+ifeq ($(strip $(TARGET_ARCH)),arm)
+	OPTIMIZATION+=-fstrict-aliasing
+endif
+ifeq ($(strip $(TARGET_ARCH)),i386)
+	OPTIMIZATION+=-march=i386
+	OPTIMIZATION+=${shell if $(CC) -mpreferred-stack-boundary=2 -S -o /dev/null -xc \
+		/dev/null >/dev/null 2>&1; then echo "-mpreferred-stack-boundary=2"; fi}
+	OPTIMIZATION+=${shell if $(CC) -falign-functions=1 -falign-jumps=0 -falign-loops=0 \
+		-S -o /dev/null -xc /dev/null >/dev/null 2>&1; then echo \
+		"-falign-functions=1 -falign-jumps=0 -falign-loops=0"; else \
+		if $(CC) -malign-functions=0 -malign-jumps=0 -S -o /dev/null -xc \
+		/dev/null >/dev/null 2>&1; then echo "-malign-functions=0 -malign-jumps=0"; fi; fi}
+endif
+OPTIMIZATIONS:=$(OPTIMIZATION) -fomit-frame-pointer
+
+
 #--------------------------------------------------------
 # If you're going to do a lot of builds with a non-vanilla configuration,
 # it makes sense to adjust parameters above, so you can type "make"
@@ -126,23 +159,6 @@ ARFLAGS = -r
 # every time.  The stuff below, on the other hand, is probably less
 # prone to casual user adjustment.
 # 
-
-TARGET_ARCH=${shell $(CC) -dumpmachine | sed -e s'/-linux//' -e 's/i.86/i386/' -e 's/sparc.*/sparc/' \
-		-e 's/arm.*/arm/g' -e 's/m68k.*/m68k/' -e 's/ppc/powerpc/g'}
-# Some nice architecture specific optimizations
-ifeq ($(strip $(TARGET_ARCH)),arm)
-	OPTIMIZATION+=-fstrict-aliasing
-endif
-ifeq ($(strip $(TARGET_ARCH)),i386)
-	OPTIMIZATION+=-march=i386
-	OPTIMIZATION += ${shell if $(CC) -mpreferred-stack-boundary=2 -S -o /dev/null -xc \
-		/dev/null >/dev/null 2>&1; then echo "-mpreferred-stack-boundary=2"; fi}
-	OPTIMIZATION += ${shell if $(CC) -malign-functions=0 -malign-jumps=0 -S -o /dev/null -xc \
-		/dev/null >/dev/null 2>&1; then echo "-malign-functions=0 -malign-jumps=0"; fi}
-	CFLAGS+=-pipe
-else
-	CFLAGS+=-pipe
-endif
 ifeq ($(strip $(DOLFS)),true)
     # For large file support
     CFLAGS+=-D_FILE_OFFSET_BITS=64 -D__USE_FILE_OFFSET64
@@ -165,7 +181,7 @@ ifeq ($(strip $(DODEBUG)),true)
     LDFLAGS += -Wl,-warn-common
     STRIPCMD    = /bin/true -Since_we_are_debugging
 else
-    CFLAGS  += $(WARNINGS) $(OPTIMIZATION) -fomit-frame-pointer -D_GNU_SOURCE
+    CFLAGS  += $(WARNINGS) $(OPTIMIZATIONS) -D_GNU_SOURCE
     LDFLAGS += -s -Wl,-warn-common
     STRIPCMD    = $(STRIP) -s --remove-section=.note --remove-section=.comment
 endif
@@ -257,7 +273,7 @@ endif
 LIBBB	  = libbb
 LIBBB_LIB = libbb.a
 LIBBB_CSRC= ask_confirmation.c chomp.c concat_path_file.c copy_file.c \
-copy_file_chunk.c libc5.c device_open.c error_msg.c \
+copy_file_chunk.c libc5.c device_open.c error_msg.c inode_hash.c \
 error_msg_and_die.c fgets_str.c find_mount_point.c find_pid_by_name.c \
 find_root_device.c full_read.c full_write.c get_console.c \
 get_last_path_component.c get_line_from_file.c gz_open.c human_readable.c \
@@ -426,7 +442,7 @@ clean:
 	- rm -f multibuild.log Config.h.orig *.gdb *.elf
 	- rm -rf docs/busybox _install libpwd.a libbb.a pod2htm*
 	- rm -f busybox busybox.links libbb/loop.h *~ slist.mk core applet_source_list
-	- find -name \*.o -exec rm -f {} \;
+	- find . -name \*.o -exec rm -f {} \;
 
 distclean: clean
 	- cd tests && $(MAKE) distclean

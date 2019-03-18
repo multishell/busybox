@@ -168,7 +168,9 @@ extern int tar_main(int argc, char **argv)
 	int tostdoutFlag = FALSE;
 	int status       = FALSE;
 	int opt;
+#if defined BB_FEATURE_TAR_GZIP
 	pid_t pid;
+#endif
 
 	if (argc <= 1)
 		show_usage();

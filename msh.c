@@ -47,10 +47,10 @@
 #include "busybox.h"
 
 /* define this to use fork on MMU-systems instead of vfork */
-#if !defined(__UCLIBC__) || defined(__UCLIBC_HAS_MMU__)
-#define USE_FORK
-#else
+#if defined(__uClinux__)
 #undef USE_FORK
+#else
+#define USE_FORK
 #endif
 
 #ifdef test
@@ -2506,7 +2506,11 @@ int *pforked;
 	warn(cp);
 	if (!execflg)
 		trap[0] = NULL;
+#ifdef __uClinux__
+	_exit(1);
+#else
 	leave();
+#endif
 	/* NOTREACHED */
 }
 

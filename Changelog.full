@@ -1,454 +1,371 @@
-2002-04-27  Erik Andersen  <andersen@dillweed>
+2002-09-18  Erik Andersen  <andersen@dillweed>
 
-	* /var/cvs/busybox.stable/libbb/libbb.h, /var/cvs/busybox.stable/hush.c, /var/cvs/busybox.stable/init.c, /var/cvs/busybox.stable/insmod.c, /var/cvs/busybox.stable/lash.c, /var/cvs/busybox.stable/Makefile, /var/cvs/busybox.stable/ash.c:
-	Scrub up some uClibc-isms that needed attention
+	* top.c:
+	Backport vodz's patch, plus Manuel's tweak to change TracePid to TracerPid.
+	Now works on i386 (2.4.19) and arm (2.4.6).
 
-	* /var/cvs/busybox.stable/nslookup.c:
-	uClibc supports struct _res these days...
+	* libbb/copy_file.c, libbb/inode_hash.c, libbb/libbb.h, Makefile, du.c:
+	Backport copy_file and inode_hash from unstable.  This fixes the last
+	of the bugs I know about, so we should be set for a release
 	 -Erik
 
-	* /var/cvs/busybox.stable/telnet.c: Minor scrubbing
+	* modprobe.c: Fix a silly bug
 
-	* /var/cvs/busybox.stable/usage.h: missed a spot
+	* klogd.c:
+	patch from John Hall <john.hall@optionexist.co.uk> to change the
+	klogd specific messages to facility LOG_SYSLOG and tidies up some
+	of the priorities.
 
-	* /var/cvs/busybox.stable/dd.c, /var/cvs/busybox.stable/usage.h:
-	Backport trunc fix from Matt Kraai.  Add noerror option.
+2002-09-17  Erik Andersen  <andersen@dillweed>
+
+	* usage.h: Fixup top usage
+
+	* debian/Config.h-udeb, debian/Config.h-deb, debian/Config.h-static, Config.h, applets.h, top.c, usage.h:
+	Add a new 'top' applet
 	 -Erik
 
-	* /var/cvs/busybox.stable/ls.c:
-	Teach ls to now single column-ize things
+	* reset.c: clear screen and reset console too
 
-2002-04-26  Erik Andersen  <andersen@dillweed>
-
-	* /var/cvs/busybox.stable/ash.c, /var/cvs/busybox.stable/msh.c:
-	Ensure that getenv("PATH") stays current, since otherwise cmdedit
-	(which calls getenv("PATH")) would not operate upon the current
-	PATH settings, which was really quite iritating.
+	* reset.c: re-enable the cursor, in case it got disabled
 	 -Erik
 
-	* /var/cvs/busybox.stable/vi.c:
-	modifying_cmds gets used uninitialized in the check context function,
-	which causes it to segfault when you press a key.
-
-	* /var/cvs/busybox.stable/nc.c, /var/cvs/busybox.stable/usage.h:
-	Document netcat options and add -e support
+	* ash.c: Geez...  I should get some sleep....
 	 -Erik
 
-	* /var/cvs/busybox.stable/ps.c:
-	Patch from Cliff L. Biffle <cbiffle@safety.net> to display memory
-	usage in the ps listing
-
-	* /var/cvs/busybox.stable/ls.c: Silence a silly warning
-
-	* /var/cvs/busybox.stable/sed.c: Backport sed fix from Matt Kraai
-
-2002-04-24  Erik Andersen  <andersen@dillweed>
-
-	* /var/cvs/busybox.stable/ash.c:
-	vodz noted this line (as imported from Debian) is wrong, and has since
-	been fixed upstream.
-
-	* /var/cvs/busybox.stable/cmdedit.c: Apply last_patch37 from vodz
-
-	* /var/cvs/busybox.stable/modprobe.c:
-	Patch from Robert Griebl <griebl@gmx.de> to make modprobe properly
-	support module dependancies.
-
-2002-04-17  Erik Andersen  <andersen@dillweed>
-
-	* /var/cvs/busybox.stable/ls.c:
-	ls could mis-color certain entries when previous commands
-	had failed.  Explicitly 0 out errno to prevent that.
+	* ash.c: Fix a stupid typo.
 	 -Erik
 
-2002-04-15  Erik Andersen  <andersen@dillweed>
-
-	* /var/cvs/busybox.stable/tftp.c:
-	Patch from Ben Low <ben@titr.uow.edu.au> to allow tftp to work
-	with stdin as well as stdout.
-
-2002-04-13  Erik Andersen  <andersen@dillweed>
-
-	* /var/cvs/busybox.stable/pwd_grp/__getgrent.c:
-	Patch from Jim Treadway <jim@stardot-tech.com>:
-	    The internal __getgrent function doesn't allocate enough memory to hold
-	    the trailing NULL pointer in the gr_mem member of the returned 'struct
-	    group *'.
-
-	* /var/cvs/busybox.stable/usage.h:
-	Patch from Jim Treadway -- fix a missing "\" in usage.h
-
-	* /var/cvs/busybox.stable/libbb/xfuncs.c: Silly me
-
-	* /var/cvs/busybox.stable/makedevs.c:
-	Teach makedevs to not segfault quite so much
-
-	* /var/cvs/busybox.stable/syslogd.c:
-	Patch from Larry Doolittle to teach syslogd to not give up when errno is EINTR
-
-	* /var/cvs/busybox.stable/mount.c:
-	Patch from Kevin Hilman <khilman@equator.com> to fix potential
-	memory corruption from long pathnames in /etc/fstab.
-
-	* /var/cvs/busybox.stable/Makefile: Add a 'make uninstall' target
-
-	* /var/cvs/busybox.stable/pidof.c:
-	Patch from Jim Treadway <jim@stardot-tech.com> to teach
-	pidof to not add trailing spaces when not needed.
-
-	* /var/cvs/busybox.stable/cmdedit.c:
-	Patch from Jim Treadway and Vladimir Oleynik to Add CTRL-K
-	and fix CTRL-L support for cmdedit.c
-
-	* /var/cvs/busybox.stable/libbb/libbb.h, /var/cvs/busybox.stable/libbb/xfuncs.c:
-	Use a wrapper for strlen()
-
-	* /var/cvs/busybox.stable/hush.c:
-	Nice patch from Wolfgang Denk <wd@denx.de> to provide hush with
-	shell loops (for, while, until) and control operators (||, &&)
-
-	* /var/cvs/busybox.stable/tftp.c:
-	Backport the bugfixed tftp applet from unstable.
-
-	* /var/cvs/busybox.stable/tftp.c:
-	Teach tftp to direct the fetched file to stdout when the
-	user specifies "-l -"
+	* klogd.c: I am an idiot.
 	 -Erik
 
-	* /var/cvs/busybox.stable/gunzip.c:
-	Make it work properly when no args are supplied.
+	* syslogd.c: Vodz' last_patch57:
+	    Ok. Patch with reduce size ready.
+	    Notes: syslogd imposible close logsocket,
+	    the real programm write logmessages (hmm, cycle loop?)
+
+	    (Excuse me - this have small tab-formats rewroting also)
+
+	       text    data     bss     dec     hex filename
+	       2913     332   12388   15633    3d11 syslogd.o
+	       3109     332    9252   12693    3195 syslogd_old.o
+
+	* syslogd.c: Oops!  I'm an idiot.
 	 -Erik
 
-	* /var/cvs/busybox.stable/halt.c: Update copyright notice
+	* libbb/copy_file.c: Apply vodz' last_patch56
 
-	* /var/cvs/busybox.stable/ash.c:
-	make ash prompt the same as other shells if cmdedit and fancyprompt
-	are enabled.  Backported patch from Tim Riker.
+	* fbset.c: Support setting depth
 
-	* /var/cvs/busybox.stable/kill.c, /var/cvs/busybox.stable/mknod.c, /var/cvs/busybox.stable/mount.c, /var/cvs/busybox.stable/poweroff.c, /var/cvs/busybox.stable/pwd.c, /var/cvs/busybox.stable/reboot.c, /var/cvs/busybox.stable/sleep.c, /var/cvs/busybox.stable/tar.c:
-	Some minor copyright updates
-
-2002-04-12  Erik Andersen  <andersen@dillweed>
-
-	* /var/cvs/busybox.stable/insmod.c:
-	Fix insanely broken endianness handling
-
-2002-04-09  Erik Andersen  <andersen@dillweed>
-
-	* /var/cvs/busybox.stable/losetup.c, /var/cvs/busybox.stable/traceroute.c:
-	Fix some silly bugs
+	* debian/Config.h-deb, debian/Config.h-static, debian/Config.h-udeb:
+	Minor adaptions for uClinux (not that it matters here)
 	 -Erik
 
-2002-04-06  Erik Andersen  <andersen@dillweed>
+	* ps.c, reboot.c:
+	More patches from David McCullough <davidm@snapgear.com>
 
-	* /var/cvs/busybox.stable/usage.h: Oops.  Missed a spot.
-
-	* /var/cvs/busybox.stable/du.c, /var/cvs/busybox.stable/usage.h:
-	Patch from Edward Betts <edward@debian.org> to add -x switch to du.c
-
-	* /var/cvs/busybox.stable/hush.c, /var/cvs/busybox.stable/lash.c, /var/cvs/busybox.stable/libbb/dirname.c, /var/cvs/busybox.stable/libbb/libbb.h:
-	Update some uClibc specific stuff
-
-	* /var/cvs/busybox.stable/busybox.c, /var/cvs/busybox.stable/mkswap.c, /var/cvs/busybox.stable/mount.c:
-	Several size optimizations from vodz, backported from
-	the Mar 26th lash_patch35.
-
-	* /var/cvs/busybox.stable/sed.c:
-	Avoid potential undefined operation on `idx' by using a tmp var
+	* Config.h, ash.c, msh.c, syslogd.c: More uClinux adaptations
 	 -Erik
 
-	* /var/cvs/busybox.stable/libbb/unarchive.c:
-	Sync up format and argument
+	* ping.c, route.c, sed.c, usage.h, tar.c, uudecode.c, libbb/arith.c, libbb/copy_file.c:
+	Some cleanup patches from David McCullough
 
-	* /var/cvs/busybox.stable/Config.h:
-	Switch default shell to ash.  Just because that what I usually use.
+	* libbb/Makefile, libbb/gz_open.c, libbb/libbb.h, libbb/libc5.c, free.c, head.c, klogd.c, mk_loop_h.sh, msh.c, tail.c:
+	A batch of uClinux support patches from David McCullough <davidm@snapgear.com>
+
+	* libbb/arith.c, ash.c:
+	Backport ash from busybox unstable tree, as it seems more solid
+	these days thanks to Vladimir, Manuel, and Aaron.
 	 -Erik
 
-	* /var/cvs/busybox.stable/telnet.c:
-	Patch from Przemyslaw Czerpak <druzus@polbox.com>:
-
-	 1. busybox-telnet dosn't inform server about the size of terminal screen.
-	    In the world of xterminals and frame buffers it's rather horrible
-	    to use fixed 80x24 region in upper-left corner of screen/window.
-
-	 2. If client sends character 0x0d to the server then sends character 0x0a
-	   the server eat the second byte (0x0a) - it's described in telnet RFC.
-	    Client should send two bytes ( 0x0d + 0x0a or 0x0d + 0x00 ) insted of
-	    one 0x0d byte.
-
-	 3. busybox telnet implementation wasn't 8bit clean (look at 0xff byte).
-	    I need it because I have to use binray transfer like rz/sz. So when
-	    I resloved the problem (2) I corrected this one two.
-
-	I then changed BB_FEATURE_TELNET_NAWS to use BB_FEATURE_AUTOWIDTH
-	instead, since that was what it was doing...
-
-	This also contains a small cleanup patch from vodz.
-
-2002-03-29  Erik Andersen  <andersen@dillweed>
-
-	* /var/cvs/busybox.stable/init.c:
-	Oops.  Provide a controlling tty to askfirst processes as well
+	* libbb/interface.c: Use "MiB" not "Mb"
 	 -Erik
 
-2002-03-21  Erik Andersen  <andersen@dillweed>
+2002-09-16  Erik Andersen  <andersen@dillweed>
 
-	* /var/cvs/busybox.stable/Makefile:
-	remove busybox binary on a 'make clean'
-
-	* /var/cvs/busybox.stable/msh.c:
-	Patch from Jim Treadway <jim@stardot-tech.com> to fix a stupid
-	bug I added, where I checked for defines before adding include
-	files (Doh!), and fixes variable evaluation in subshells, so
-	things like "A = 1; B = `eval $A`; echo $B" can now work.
-
-2002-03-20  Erik Andersen  <andersen@dillweed>
-
-	* /var/cvs/busybox.stable/init.c:
-	Rewind messages to avoid odd formatting
-
-	* /var/cvs/busybox.stable/cmdedit.c:
-	Patch from vodz to fix a potential segfault in cmdedit
-
-	* /var/cvs/busybox.stable/tftp.c:
-	Patch from Jeff Studer <jstuder@aquilagroup.com> to supply a defaults for
-	localfilename from remotefilename, and for remotefilename from localfilename
-	when the other one is not supplied.
-
-	* /var/cvs/busybox.stable/Makefile:
-	Update dmalloc options, per suggestions from Glenn
-
-	* /var/cvs/busybox.stable/libbb/unzip.c, /var/cvs/busybox.stable/gunzip.c:
-	Allow gunzip to work on multiple archives, and add in a -v option
-	for use with -t
+	* xargs.c:
+	Backport vodz' last_patch55, but remove bb_asprintf (unstable only)
 	 -Erik
 
-	* /var/cvs/busybox.stable/libbb/unzip.c:
-	Teach unzip() to return meaningful error codes
+	* Makefile: Bump version in preparation for a release
 
-	* /var/cvs/busybox.stable/libbb/unzip.c:
-	Reinitialize initial shift register value on each pass.
+	* libbb/copy_file.c: Let people force overwrite links
 	 -Erik
 
-	* /var/cvs/busybox.stable/msh.c:
-	Re-add mmu-less support, thanks to a patch from Stefan Soucek, with some
-	additional changes suggested by Miles Bader.  Defaults to using fork as usual
-	unless compiled with uClibc for an mmu-less system.
+	* debian/Config.h-deb, debian/Config.h-udeb, debian/changelog:
+	update preparing for a release...
+
+	* libbb/copy_file.c:
+	Properly honor FILEUTILS_INTERACTIVE and FILEUTILS_FORCE for
+	file all file types (not just regular files and dirs).  Unlink
+	destination files when needed.
 	 -Erik
 
-	* /var/cvs/busybox.stable/syslogd.c:
-	Add missing " " after the word on, as reported by Jason Luther
-	back in mid-december.
+	* debian/Config.h-udeb: Fix debian bug #158706
+
+	* mount.c:
+	Backport patch from unstable to provide support for mount -t <type>,
+	fixing bug #1255.
+
+	* libbb/unzip.c:
+	Patch from Matthias Lang <matthias@corelatus.se> to fix gunzip
+	error handling and prevent gunzip from hanging.
+
+	* init.c: Backport typo
+
+	* init.c: Let people run SHUTDOWN actions prior to killing everything
 	 -Erik
 
-	* /var/cvs/busybox.stable/ls.c: Fix comment
+	* pwd_grp/initgroups.c:
+	Doh!  Fix stupid typo noticed by John Mullin <john.mullin@homenetcomm.com>
 
-	* /var/cvs/busybox.stable/Config.h, /var/cvs/busybox.stable/ls.c:
-	Patch from J.W.Janssen <JanWillem.Janssen@lxtreme.nl> to provide color ls
-	support, modified by me to not spew color codes when stdout is not a tty (i.e.
-	'ls | more').  Looks pretty nice.
+	* dpkg.c: Fix a silly typo, noticed by Michael Smith <msmith@cbnco.com>
+
+	* kill.c: Update kill applet, per vodz' last_patch52
+
+	* chvt.c, deallocvt.c, libbb/get_console.c, libbb/libbb.h, setkeycodes.c:
+	Cleanup get_console_fd() from vodz' last_patch52
+
+	* ls.c: Don't assume we know the type of uid and gid
 	 -Erik
 
-	* /var/cvs/busybox.stable/msh.c: Silence a silly warning
-
-	* /var/cvs/busybox.stable/Config.h: losetup support
-
-	* /var/cvs/busybox.stable/applets.h, /var/cvs/busybox.stable/losetup.c, /var/cvs/busybox.stable/usage.h:
-	Add losetup applet from Matt Kraai
-
-	* /var/cvs/busybox.stable/wget.c: Backport wget fix from Matt Kraai
-
-2002-03-16  Erik Andersen  <andersen@dillweed>
-
-	* /var/cvs/busybox.stable/busybox.h: Cleanup PATH_MAX include
-
-2002-03-12  Erik Andersen  <andersen@dillweed>
-
-	* /var/cvs/busybox.stable/pwd_grp/setgroups.c, /var/cvs/busybox.stable/libbb/module_syscalls.c, /var/cvs/busybox.stable/libbb/syscalls.c:
-	Cleanup a libc5 hack
-
-2002-03-05  Erik Andersen  <andersen@dillweed>
-
-	* /var/cvs/busybox.stable/init.c:
-	Update init.c for better syle conformance, properly detach from
-	terminal when necessary, better code reuse, FIFO inittab file
-	reading/executing, allow init to be halted and restarted, etc.
-	Tested and it works for me.
+	* insmod.c, lsmod.c: Support module tainting
 	 -Erik
 
-2002-02-28  Erik Andersen  <andersen@dillweed>
+2002-09-10  Erik Andersen  <andersen@dillweed>
 
-	* /var/cvs/busybox.stable/find.c, /var/cvs/busybox.stable/usage.h, /var/cvs/busybox.stable/Config.h:
-	Patch from Geoffrey Espin to support find -newer <file>
+	* tftp.c:
+	Fix for handling of "tftp -l -" from Jean Wolter <jw5@os.inf.tu-dresden.de>
 
-	* /var/cvs/busybox.stable/cp.c: Fix cp -r and -R behavior
-
-	* /var/cvs/busybox.stable/chmod.c: Fix chmod arg handling
-
-	* /var/cvs/busybox.stable/cmdedit.c:
-	Patch from vodz to add ^L clear to shell
-
-	* /var/cvs/busybox.stable/libbb/loop.c, /var/cvs/busybox.stable/libbb/libbb.h:
-	Fix loop device support
-
-	* /var/cvs/busybox.stable/gzip.c: Support handling multiple files
-
-2002-02-26  kraai  <kraai@dillweed>
-
-	* /var/cvs/busybox.stable/libbb/xfuncs.c:
-	* libbb/xfuncs.c (xmalloc, xcalloc): Do not exit if a zero-length buffer is
-	  requested.
-	  (xrealloc): Simplify.
-
-2002-01-26  Erik Andersen  <andersen@dillweed>
-
-	* /var/cvs/busybox.stable/busybox.h:
-	If PATH_MAX isn't defined, define it ourselves
-
-2002-01-25  Erik Andersen  <andersen@dillweed>
-
-	* /var/cvs/busybox.stable/init.c:
-	make 'init -q' not assume init's pid==1
-
-2002-01-09  Erik Andersen  <andersen@dillweed>
-
-	* /var/cvs/busybox.stable/Changelog:
-	Spelling fixes from Larry Doolittle
-
-	* /var/cvs/busybox.stable/Config.h, /var/cvs/busybox.stable/ash.c:
-	Move ash job control support into the config file to
-	avoid surpring people.
+	* pwd_grp/putpwent.c: Yipe.  uid and gid were reversed.
 	 -Erik
 
-2002-01-06  Erik Andersen  <andersen@dillweed>
+2002-08-26  Erik Andersen  <andersen@dillweed>
 
-	* /var/cvs/busybox.stable/init.c:
-	Do not depend on getopt arg reordering or PATH
-
-2001-12-29  Erik Andersen  <andersen@dillweed>
-
-	* /var/cvs/busybox.stable/Makefile:
-	Adjust things to allow for arch specific optimizations.  I managed to
-	cut over 10k off the x86 build with carefully selected options...
+	* init.c, telnet.c: Eliminate use of obsolete sys_errlist[]
 	 -Erik
 
-	* /var/cvs/busybox.stable/insmod.c: Cleanup some silly warnings
+2002-08-25  Erik Andersen  <andersen@dillweed>
+
+	* init.c: Patch from Thomas Gleixner <tglx@linutronix.de> to do
+	automatic child reaping to avoid zombies
+
+2002-08-15  Erik Andersen  <andersen@dillweed>
+
+	* libbb/libc5.c: I'm was an idiot and messed up the dietlibc junk
+
+2002-08-13  Erik Andersen  <andersen@dillweed>
+
+	* libbb/libc5.c: Try to be a touch more dietlibc friendly
+
+2002-08-05  Erik Andersen  <andersen@dillweed>
+
+	* syslogd.c:
+	Oops.  Code things so it actually works this time around...
 	 -Erik
 
-2001-12-22  Erik Andersen  <andersen@dillweed>
+	* syslogd.c:
+	Joel Coltoff <joel@wmi.com> noticed that following a recent
+	change in uClibc that changed opening the /dev/log socket as
+	SOCK_STREAM to SOCK_DGRAM, busybox syslogd no longer worked
+	since it needed a matching change.  This fixes it so it
+	works once again.
 
-	* /var/cvs/busybox.stable/README: Update URLs
+2002-08-01  Erik Andersen  <andersen@dillweed>
 
-2001-12-20  Erik Andersen  <andersen@dillweed>
+	* pwd_grp/initgroups.c:
+	Joseph Chiu <josephc@idealab.com> found an off-by-one bug.  oops!
 
-	* /var/cvs/busybox.stable/pristine_setup.sh: Remove irrelevant warning
+2002-07-31  Erik Andersen  <andersen@dillweed>
 
-2001-12-17  Erik Andersen  <andersen@dillweed>
+	* lash.c:
+	A couple of small bugfixes from Marshall M. Midden <m4@brecis.com>
 
-	* /var/cvs/busybox.stable/Changelog, /var/cvs/busybox.stable/init.c, /var/cvs/busybox.stable/scripts/inittab, /var/cvs/busybox.stable/usage.h:
-	Add in a restart init action
+	* Makefile: Update default uClibc toolchain dir.  Be more portable with
+	find, for those that prefer programming on *BSD, etc.
 
-	* /var/cvs/busybox.stable/debian/changelog:
-	Update to the latest debian changelog
+2002-07-29  Erik Andersen  <andersen@dillweed>
 
-2001-12-16  Erik Andersen  <andersen@dillweed>
+	* init.c: Kill a silly warning
 
-	* /var/cvs/busybox.stable/Makefile:
-	Yipe.  Don't do static builds by default
+	* init.c: Patch from Tim Riker to allow tty* in inittab if the tty
+	actually exists -- serial console is not the issue...
 
-	* /var/cvs/busybox.stable/Changelog, /var/cvs/busybox.stable/wget.c:
-	Make wget do only one DNS lookup to avoid problems with round-robin
-	DNS lookups.
+2002-07-23  Erik Andersen  <andersen@dillweed>
 
-	* /var/cvs/busybox.stable/Changelog: More updates
+	* kill.c: Support kill
 
-	* /var/cvs/busybox.stable/insmod.c: Make big endian insmod work.
+	* kill.c: Adjust indentation
 
-	* /var/cvs/busybox.stable/tftp.c:
-	Can't use RESERVE_BB_BUFFER since buf size isn't const
+2002-07-04  Erik Andersen  <andersen@dillweed>
 
-2001-12-11  kraai  <kraai@dillweed>
+	* ash.c:
+	Patch from Stewart Brodie <stewart.brodie@pace.co.uk> to fix ash:
 
-	* /var/cvs/busybox.stable/debian/changelog, /var/cvs/busybox.stable/wc.c:
-	Fix wc (noted by David Kimdon).
+	When alias support is not configured, ash believes that command parameters
+	that look like dd's "if=/dev/zero" are requests to set a temporary
+	environment variable whilst dd is running, even though it appears after the
+	command name.  This is caused by the re-use of the checkalias global variable
+	to indicate when both alias checking and environment variable checking.  The
+	failure to reset this flag is due to the reset action being performed only
+	inside the feature check ASH_ALIAS.  Hence ash works as expected when
+	aliases are configured in, and fails when not.
 
-2001-12-06  Erik Andersen  <andersen@dillweed>
+	Example script using 'date' with different settings of TZ:
 
-	* /var/cvs/busybox.stable/Changelog, /var/cvs/busybox.stable/mount.c:
-	* Frank P. MacLachlan <fpm-plutus@tgs.indyme.com> avoid a potential
-	NULL pointer problem in mount.
+	# TZ=Europe/London
+	# export TZ
+	# date
+	Thu May 30 17:18:49 BST 2002
+	# TZ=America/New_York date
+	Thu May 30 12:19:10 EDT 2002
+	# date
+	Thu May 30 17:19:12 BST 2002
+	# date TZ=America/New_York
+	Thu May 30 12:19:30 EDT 2002    <----- wrong, should be BST time (or error!)
+	# date
+	Thu May 30 17:19:35 BST 2002
 
-	* /var/cvs/busybox.stable/Changelog: Note halt/reboot/poweroff fix
+	Attached is a patch against revision 1.52 of ash.c which moves the checks so
+	that checkalias is updated regardless of whether ASH_ALIAS is set.
+	With this patch applied, the command shown above which should generate an
+	error does generate an error.
 
-	* /var/cvs/busybox.stable/halt.c, /var/cvs/busybox.stable/kill.c, /var/cvs/busybox.stable/libbb/find_pid_by_name.c, /var/cvs/busybox.stable/libbb/libbb.h, /var/cvs/busybox.stable/pidof.c, /var/cvs/busybox.stable/poweroff.c, /var/cvs/busybox.stable/reboot.c:
-	If find_pid_by_name() had an error, it was returning -1, but storing
-	that into a pid_t, which is unsigned on a number archs.  Furthermore,
-	find_pid_by_name() would _never_ return an error if the intended proces
-	was "init", but instead would return 1, meaning we would fail to work
-	on 2.4.x kernels running an initrd...
+	I have tested this patch with the 'dd' command too and that now works
+	correctly.
+
+2002-07-03  Erik Andersen  <andersen@dillweed>
+
+	* init.c: This is last_patch48 from vodz.  More cleanups, kills a bit
+	of dead code, fixes one blatent bug.
+
+	* init.c:
+	Apply last_patch47 from vodz to fix several problems, such as the ash "job
+	control turned off" bug, console_setup() was called with a closed file
+	descriptor, setsid() inconsistancy, and silly string handling bugs.   I have
+	modified his patch to allow the askfirst init actions to have a controlling
+	terminal.
 	 -Erik
 
-	* /var/cvs/busybox.stable/Makefile:
-	Cleanup STRIP and other minor updates
+	* init.c: Fix from vodz so that complex init commands actually work
 
-	* /var/cvs/busybox.stable/debian/changelog: Bah.  Fix version number
+	* dutmp.c:
+	Patch from Danny Lepage <danny.lepage@cognicase.com> to fix dutmp
+	when used with uClibc
 
-	* /var/cvs/busybox.stable/debian/Config.h-deb, /var/cvs/busybox.stable/debian/changelog:
-	Update deb stuff
+	* init.c: Patch from till busch <buti@gmx.at> -- unblock all signals
+	in exec_signal() before calling exec()
 
-	* /var/cvs/busybox.stable/Changelog, /var/cvs/busybox.stable/wc.c:
-	Backport Glenn's wc fixes, making it smaller and fixing the severe
-	efficiency problems.
+	* usage.h: Silly spelling fix
 
-	* /var/cvs/busybox.stable/Changelog: Update Changelog
+2002-07-02  Erik Andersen  <andersen@dillweed>
 
-	* /var/cvs/busybox.stable/Makefile, /var/cvs/busybox.stable/busybox.spec:
-	Bump version to 0.60.3-pre
-
-	* /var/cvs/busybox.stable/Config.h: Add in the time applet
-
-	* /var/cvs/busybox.stable/applets.h, /var/cvs/busybox.stable/time.c, /var/cvs/busybox.stable/usage.h:
-	Add in the time applet.  Yeah, this is supposed to be stable, but
-	someone really wanted this, and it makes 0 difference to any other
-	existing code... :)
+	* insmod.c, modprobe.c:
+	David Frascone <dave@frascone.com> noticed two problems.  First, modprobe was
+	trying to call 'insmod -q', which wasn't supported.  Secondly, when modprobe
+	was fed blank lines from modules.dep, we ended up calling xstrndup(ptr, -1),
+	which with suitably bad results.  David provided a patch to catch the blank
+	lines, and I have added insmod -q support.  So modprobe should work again.
 	 -Erik
 
-	* /var/cvs/busybox.stable/libbb/get_last_path_component.c:
-	Backport Manuel's get_last_path_component cleanup, since the old one
-	sucked so badly...
+2002-06-23  Erik Andersen  <andersen@dillweed>
+
+	* Makefile: Rework compiler optimization
 	 -Erik
 
-	* /var/cvs/busybox.stable/libbb/concat_path_file.c, /var/cvs/busybox.stable/libbb/error_msg.c:
-	More copyright fixups
-
-	* /var/cvs/busybox.stable/libbb/loop.c, /var/cvs/busybox.stable/libbb/mode_string.c, /var/cvs/busybox.stable/libbb/mtab.c, /var/cvs/busybox.stable/libbb/mtab_file.c, /var/cvs/busybox.stable/libbb/my_getgrgid.c, /var/cvs/busybox.stable/libbb/my_getgrnam.c, /var/cvs/busybox.stable/libbb/my_getpwnam.c, /var/cvs/busybox.stable/libbb/my_getpwnamegid.c, /var/cvs/busybox.stable/libbb/my_getpwuid.c, /var/cvs/busybox.stable/libbb/parse_mode.c, /var/cvs/busybox.stable/libbb/parse_number.c, /var/cvs/busybox.stable/libbb/perror_msg.c, /var/cvs/busybox.stable/libbb/perror_msg_and_die.c, /var/cvs/busybox.stable/libbb/read_package_field.c, /var/cvs/busybox.stable/libbb/recursive_action.c, /var/cvs/busybox.stable/libbb/remove_file.c, /var/cvs/busybox.stable/libbb/safe_read.c, /var/cvs/busybox.stable/libbb/safe_strncpy.c, /var/cvs/busybox.stable/libbb/simplify_path.c, /var/cvs/busybox.stable/libbb/syslog_msg_with_name.c, /var/cvs/busybox.stable/libbb/time_string.c, /var/cvs/busybox.stable/libbb/trim.c, /var/cvs/busybox.stable/libbb/u_signal_names.c, /var/cvs/busybox.stable/libbb/vdprintf.c, /var/cvs/busybox.stable/libbb/verror_msg.c, /var/cvs/busybox.stable/libbb/vherror_msg.c, /var/cvs/busybox.stable/libbb/vperror_msg.c, /var/cvs/busybox.stable/libbb/wfopen.c, /var/cvs/busybox.stable/libbb/xfuncs.c, /var/cvs/busybox.stable/libbb/xgethostbyname.c, /var/cvs/busybox.stable/libbb/xregcomp.c, /var/cvs/busybox.stable/libbb/ask_confirmation.c, /var/cvs/busybox.stable/libbb/chomp.c, /var/cvs/busybox.stable/libbb/copy_file_chunk.c, /var/cvs/busybox.stable/libbb/device_open.c, /var/cvs/busybox.stable/libbb/error_msg.c, /var/cvs/busybox.stable/libbb/error_msg_and_die.c, /var/cvs/busybox.stable/libbb/find_mount_point.c, /var/cvs/busybox.stable/libbb/find_pid_by_name.c, /var/cvs/busybox.stable/libbb/find_root_device.c, /var/cvs/busybox.stable/libbb/full_read.c, /var/cvs/busybox.stable/libbb/full_write.c, /var/cvs/busybox.stable/libbb/get_console.c, /var/cvs/busybox.stable/libbb/get_last_path_component.c, /var/cvs/busybox.stable/libbb/gz_open.c, /var/cvs/busybox.stable/libbb/herror_msg.c, /var/cvs/busybox.stable/libbb/herror_msg_and_die.c, /var/cvs/busybox.stable/libbb/inode_hash.c, /var/cvs/busybox.stable/libbb/isdirectory.c, /var/cvs/busybox.stable/libbb/kernel_version.c, /var/cvs/busybox.stable/libbb/libbb.h:
-	Update copyright info, remove the widespead sash attibution that was
-	actually only vald in one case...
+	* Makefile: Be much more compiler specific about optimizations.
 	 -Erik
 
-	* /var/cvs/busybox.stable/libbb/fgets_str.c:
-	Backport from from Matt Kraai to return NULL if EOF is encountered before
-	terminating_string.
+2002-06-22  Erik Andersen  <andersen@dillweed>
 
-	* /var/cvs/busybox.stable/libbb/get_line_from_file.c:
-	Backport fix from Matt Kraai so that NULL is treated as end of line.
-
-	* /var/cvs/busybox.stable/more.c:
-	Fix running more on files in the (broken) procfs that claim 0 length
-	when that isn't actually true.
+	* mount.c: Backport mount.  This fixes some buffer overflows per vodz'
+	last_patch46 and brings a few other little things like noauto.
 	 -Erik
 
-	* /var/cvs/busybox.stable/grep.c:
-	Silly bug where CONTEXT and EGRE_ALIAS were wrongly coupled.  Fix
-	thanks to Karl M. Hegbloom.
+2002-06-18  Erik Andersen  <andersen@dillweed>
+
+	* insmod.c:
+	As noted by Yves Lavoie ing. <yves.lavoie.ing@sympatico.ca>, don't
+	lose the last letter of the module name.
+
+2002-06-15  Erik Andersen  <andersen@dillweed>
+
+	* date.c: Don't use the _d GNU-ism
+
+2002-06-08  Erik Andersen  <andersen@dillweed>
+
+	* makedevs.c:
+	vodz' last_patch42_2, which is an updated fix for buffer overflows
+	noted by Gerardo Puga
+
+2002-06-06  Erik Andersen  <andersen@dillweed>
+
+	* dos2unix.c, lash.c, makedevs.c, modprobe.c, syslogd.c, libbb/vdprintf.c:
+	Plug some buffer overflows, per work done by Gerardo Puga <gpuga@gioia.ing.unlp.edu.ar>
+
+	* makedevs.c, insmod.c: Fix buffer overflows noted by Gerardo Puga
 	 -Erik
 
-2001-11-30  kraai  <kraai@dillweed>
+	* traceroute.c: Some cleanups suggested by Gyepi SAM
 
-	* /var/cvs/busybox.stable/libbb/unzip.c:
-	Unwind bit buffer after decompression.
+	* lash.c:
+	Fix a buffer overflow found by Gerardo Puga <gpuga@gioia.ing.unlp.edu.ar>
+	 -Erik
 
-2001-11-21  Erik Andersen  <andersen@dillweed>
+	* libbb/interface.c:
+	Backport patch from Gyepi SAM <gyepi@praxis-sw.com>:
+	    When DEBUG is defined
+	    1. need to include resolv.h (for _resinit())
+	    2. remove _() call around string. It appears to be a remnant of i18n or some such notion
 
-	* /var/cvs/busybox.stable/init.c: Fix dangling comma
+	* ash.c:
+	Patch from vodz to only setenv PATH when PATH changes, which is much
+	smarter than my quick fix.
+
+	* stty.c: last_patch41 from vodz to fix stty -F and similar
+
+	* modprobe.c: backport Robert Griebl's cleanup of my modprobe changes.
+
+2002-06-01  Erik Andersen  <andersen@dillweed>
+
+	* modprobe.c: Oops.  Properly simulate fgets
+	 -Erik
+
+	* modprobe.c:
+	Since the kernel can call modprobe from a kernel thread, avoid
+	using insane amount of stack and bypass stdio (we don't need it)
+	to be sure it doesn't use much stack space either.  This patch
+	fixes Oopses I was seeing on the tuxscreen phone.
+	 -Erik
+
+2002-05-24  Erik Andersen  <andersen@dillweed>
+
+	* insmod.c:
+	Patch from Magnus Damm <damm@opensource.se> to rework things
+	greatly, and keep the arch specific relocations together,
+	fixes R_PPC_ADDR32 handling so powerpc can work, and changes the
+	tlb tables to be linked lists (again so powerpc can work).
+
+2002-05-15  Erik Andersen  <andersen@dillweed>
+
+	* init.c: Doh!  Remember to close the /etc/inittab file descriptor.
+	 -Erik
+
+2002-05-05  Erik Andersen  <andersen@dillweed>
+
+	* nc.c:
+	Tom Oehser noticed that we need to use SO_REUSEADDR to make things
+	work as expected.
+
+2002-05-03  Erik Andersen  <andersen@dillweed>
+
+	* modprobe.c: Fix show_only to match modutils behavior
+
+	* modprobe.c: Make verbose and show_only work as expected
+
+	* insmod.c:
+	Patch from Robert Griebl <griebl@gmx.de> to ignore the -s flag
+
+2002-04-30  Erik Andersen  <andersen@dillweed>
+
+	* gunzip.c: Backported Matt Kraai's gunzip fix
 

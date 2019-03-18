@@ -38,7 +38,7 @@ static const int KILLALL = 1;
 
 extern int kill_main(int argc, char **argv)
 {
-	int whichApp, sig = SIGTERM;
+	int whichApp, sig = SIGTERM, quiet, errors;
 	const char *name;
 
 #ifdef BB_KILLALL
@@ -48,6 +48,8 @@ extern int kill_main(int argc, char **argv)
 	whichApp = KILL;
 #endif
 
+	errors=0;
+	quiet=0;
 	argc--;
 	argv++;
 	/* Parse any options */
@@ -57,44 +59,49 @@ extern int kill_main(int argc, char **argv)
 	while (argc > 0 && **argv == '-') {
 		while (*++(*argv)) {
 			switch (**argv) {
-			case 'l':
-				if(argc>1) {
-					for(argv++; *argv; argv++) {
-						name = u_signal_names(*argv, &sig, -1);
-						if(name!=NULL)
-							printf("%s\n", name);
-					}
-				} else {
-					int col = 0;
-					for(sig=1; sig < NSIG; sig++) {
-						name = u_signal_names(0, &sig, 1);
-						if(name==NULL)  /* unnamed */
-							continue;
-						col += printf("%2d) %-16s", sig, name);
-						if (col > 60) {
-							printf("\n");
-							col = 0;
+#ifdef BB_KILLALL
+				case 'q':
+					quiet++;
+					break;
+#endif
+				case 'l':
+					if(argc>1) {
+						for(argv++; *argv; argv++) {
+							name = u_signal_names(*argv, &sig, -1);
+							if(name!=NULL)
+								printf("%s\n", name);
 						}
-					}
-					printf("\n");
-				}
-				return EXIT_SUCCESS;
-			case '-':
-				show_usage();
-			default:
-				name = u_signal_names(*argv, &sig, 0);
-				if(name==NULL)
-					error_msg_and_die( "bad signal name: %s", *argv);
-								argc--;
-								argv++;
-								goto do_it_now;
+					} else {
+						int col = 0;
+						for(sig=1; sig < NSIG; sig++) {
+							name = u_signal_names(0, &sig, 1);
+							if(name==NULL)  /* unnamed */
+								continue;
+							col += printf("%2d) %-16s", sig, name);
+							if (col > 60) {
+								printf("\n");
+								col = 0;
 							}
+						}
+						printf("\n");
+					}
+					return EXIT_SUCCESS;
+				case '-':
+					show_usage();
+				default:
+					name = u_signal_names(*argv, &sig, 0);
+					if(name==NULL)
+						error_msg_and_die( "bad signal name: %s", *argv);
+					argc--;
+					argv++;
+					goto do_it_now;
+			}
 			argc--;
 			argv++;
 		}
 	}
 
-  do_it_now:
+do_it_now:
 
 	if (whichApp == KILL) {
 		/* Looks like they want to do a kill. Do that */
@@ -104,40 +111,44 @@ extern int kill_main(int argc, char **argv)
 			if (!isdigit(**argv))
 				perror_msg_and_die( "Bad PID");
 			pid = strtol(*argv, NULL, 0);
-			if (kill(pid, sig) != 0) 
-				perror_msg_and_die( "Could not kill pid '%d'", pid);
+			if (kill(pid, sig) != 0) {
+				perror_msg( "Could not kill pid '%d'", pid);
+				errors++;
+			}
 			argv++;
 		}
 	} 
 #ifdef BB_KILLALL
 	else {
-		int all_found = TRUE;
 		pid_t myPid=getpid();
 		/* Looks like they want to do a killall.  Do that */
 		while (--argc >= 0) {
 			long* pidList;
 
-			pidList = find_pid_by_name( *argv);
+			pidList = find_pid_by_name(*argv);
 			if (!pidList || *pidList<=0) {
-				all_found = FALSE;
-				error_msg_and_die( "%s: no process killed", *argv);
+				errors++;
+				if (!quiet)
+					error_msg( "%s: no process killed", *argv);
+			} else {
+				for(; *pidList!=0; pidList++) {
+					if (*pidList==myPid)
+						continue;
+					if (kill(*pidList, sig) != 0) {
+						errors++;
+						if (!quiet)
+							perror_msg( "Could not kill pid '%d'", *pidList);
+					}
+				}
 			}
 
-			for(; pidList && *pidList!=0; pidList++) {
-				if (*pidList==myPid)
-					continue;
-				if (kill(*pidList, sig) != 0) 
-					perror_msg_and_die( "Could not kill pid '%d'", *pidList);
-			}
 			/* Note that we don't bother to free the memory
 			 * allocated in find_pid_by_name().  It will be freed
 			 * upon exit, so we can save a byte or two */
 			argv++;
 		}
-		if (all_found == FALSE)
-			return EXIT_FAILURE;
 	}
 #endif
 
-	return EXIT_SUCCESS;
+	return errors;
 }

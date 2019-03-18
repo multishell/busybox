@@ -82,16 +82,14 @@ static int open_a_console(char *fnam)
  * if tty_name is non-NULL, try this one instead.
  */
 
-int get_console_fd(char *tty_name)
+int get_console_fd(void)
 {
 	int fd;
 
-	if (tty_name) {
-		if (-1 == (fd = open_a_console(tty_name)))
-			return -1;
-		else
-			return fd;
-	}
+	if (-1 == (fd = open_a_console("/dev/console")))
+		return -1;
+	else
+		return fd;
 
 	fd = open_a_console(CURRENT_TTY);
 	if (fd >= 0)

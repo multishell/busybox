@@ -48,6 +48,8 @@
 # include <sys/syslog.h>
 #endif
 
+#define INIT_BUFFS_SIZE 256
+
 /* From <linux/vt.h> */
 struct vt_stat {
 	unsigned short v_active;        /* active vt */
@@ -146,21 +148,20 @@ static const struct init_action_type actions[] = {
 /* Set up a linked list of init_actions, to be read from inittab */
 struct init_action {
 	pid_t pid;
-	char command[256];
-	char terminal[256];
+	char command[INIT_BUFFS_SIZE];
+	char terminal[INIT_BUFFS_SIZE];
 	struct init_action *next;
 	int action;
 };
 
 /* Static variables */
 static struct init_action *init_action_list = NULL;
-static char *secondConsole = VC_2;
-static char *thirdConsole  = VC_3;
-static char *fourthConsole = VC_4;
-static char *log           = VC_5;
 static int  kernelVersion  = 0;
 static char termType[32]   = "TERM=linux";
 static char console[32]    = _PATH_CONSOLE;
+#ifndef BB_SYSLOGD
+static char *log           = VC_5;
+#endif
 static sig_atomic_t got_cont = 0;
 static const int LOG = 0x1;
 static const int CONSOLE = 0x2;
@@ -218,15 +219,9 @@ static void message(int device, char *fmt, ...)
 	/* Take full control of the log tty, and never close it.
 	 * It's mine, all mine!  Muhahahaha! */
 	if (log_fd < 0) {
-		if (log == NULL) {
-			/* don't even try to log, because there is no such console */
-			log_fd = -2;
-			/* log to main console instead */
-			device = CONSOLE;
-		} else if ((log_fd = device_open(log, O_RDWR|O_NDELAY)) < 0) {
+		if ((log_fd = device_open(log, O_RDWR|O_NDELAY)) < 0) {
 			log_fd = -2;
 			fprintf(stderr, "Bummer, can't write to log on %s!\n", log);
-			log = NULL;
 			device = CONSOLE;
 		}
 	}
@@ -376,19 +371,12 @@ static void console_init(void)
 		/* Perhaps we should panic here? */
 		safe_strncpy(console, "/dev/null", sizeof(console));
 	} else {
-		/* check for serial console and disable logging to tty5 & 
-		 * running a shell to tty2-4 */
+		/* check for serial console */
 		if (ioctl(0, TIOCGSERIAL, &sr) == 0) {
-			log = NULL;
-			secondConsole = NULL;
-			thirdConsole = NULL;
-			fourthConsole = NULL;
 			/* Force the TERM setting to vt102 for serial console --
-			 * iff TERM is set to linux (the default) */
+			 * if TERM is set to linux (the default) */
 			if (strcmp( termType, "TERM=linux" ) == 0)
 				safe_strncpy(termType, "TERM=vt102", sizeof(termType));
-			message(LOG | CONSOLE,
-					"\rserial console detected.  Disabling virtual terminals.\n");
 		}
 		close(fd);
 	}
@@ -443,9 +431,10 @@ static void check_memory(void)
 static pid_t run(struct init_action *a)
 {
 	struct stat sb;
-	int i, j, fd, junk; 
+	int i, j, junk;
 	pid_t pid, pgrp, tmp_pid;
-	char *s, *tmpCmd, *cmd[255], *cmdpath, buf[255];
+	char *s, *tmpCmd, *cmd[INIT_BUFFS_SIZE], *cmdpath;
+	char buf[INIT_BUFFS_SIZE+6];    /* INIT_BUFFS_SIZE+strlen("exec ")+1 */
 	sigset_t nmask, omask;
 	char *environment[MAXENV+1] = {
 		termType,
@@ -486,14 +475,10 @@ static pid_t run(struct init_action *a)
 	if ((pid = fork()) == 0) 
 	{
 		/* Clean up */
-		ioctl(0, TIOCNOTTY, 0);
 		close(0);
 		close(1);
 		close(2);
 		sigprocmask(SIG_SETMASK, &omask, NULL);
-
-		/* Create a new session and make ourself the process group leader */
-		setsid();
 
 		/* Reset signal handlers that were set by the parent process */
 		signal(SIGUSR1, SIG_DFL);
@@ -505,8 +490,13 @@ static pid_t run(struct init_action *a)
 		signal(SIGSTOP, SIG_DFL);
 		signal(SIGTSTP, SIG_DFL);
 
+		/* Create a new session and make ourself the process
+		 * group leader for non-interactive jobs */
+		if ((a->action & (RESPAWN))==0)
+			setsid();
+
 		/* Open the new terminal device */
-		if ((fd = device_open(a->terminal, O_RDWR|O_NOCTTY)) < 0) {
+		if ((device_open(a->terminal, O_RDWR|O_NOCTTY)) < 0) {
 			if (stat(a->terminal, &sb) != 0) {
 				message(LOG | CONSOLE, "\rdevice '%s' does not exist.\n",
 						a->terminal);
@@ -515,19 +505,26 @@ static pid_t run(struct init_action *a)
 			message(LOG | CONSOLE, "\rBummer, can't open %s\n", a->terminal);
 			_exit(1);
 		}
+
+		/* Non-interactive jobs should not get a controling tty */
+		if ((a->action & (RESPAWN))==0)
+			(void)ioctl(0, TIOCSCTTY, 0);
+
 		/* Make sure the terminal will act fairly normal for us */
 		set_term(0);
+		/* Setup stdout, stderr for the new process so
+		 * they point to the supplied terminal */
+		dup(0);
+		dup(0);
 
-		/* If the init Action requires up to wait, then force the
+		/* For interactive jobs, create a new session 
+		 * and become the process group leader */
+		if ((a->action & (RESPAWN)))
+			setsid();
+
+		/* If the init Action requires us to wait, then force the
 		 * supplied terminal to be the controlling tty. */
-		if (a->action & (SYSINIT|WAIT|CTRLALTDEL|SHUTDOWN|RESTART|ASKFIRST)) {
-
-			/* Take over the controlling tty */
-			ioctl(fd, TIOCSCTTY, 1);
-			/* Setup stdin, stdout, stderr for the new process so 
-			 * they point to the supplied terminal */
-			dup(fd);
-			dup(fd);
+		if (a->action & (SYSINIT|WAIT|CTRLALTDEL|SHUTDOWN|RESTART)) {
 
 			/* Now fork off another process to just hang around */
 			if ((pid = fork()) < 0) {
@@ -544,13 +541,11 @@ static pid_t run(struct init_action *a)
 				signal(SIGCHLD, SIG_DFL);
 
 				/* Wait for child to exit */
-				while ((tmp_pid = waitpid(pid, &junk, 0)) != pid) {
-					if (tmp_pid < 0 && errno == ECHILD)
-						break;
-				}
+				while ((tmp_pid = waitpid(pid, &junk, 0)) != pid)
+					;
 
 				/* See if stealing the controlling tty back is necessary */
-				pgrp = tcgetpgrp(tmp_pid);
+				pgrp = tcgetpgrp(0);
 				if (pgrp != getpid())
 					_exit(0);
 
@@ -561,7 +556,7 @@ static pid_t run(struct init_action *a)
 				}       
 				if (pid == 0) {
 					setsid();
-					ioctl(tmp_pid, TIOCSCTTY, 1);
+					ioctl(0, TIOCSCTTY, 1);
 					_exit(0);
 				}       
 				while((tmp_pid = waitpid(pid, &junk, 0)) != pid) {
@@ -572,29 +567,23 @@ static pid_t run(struct init_action *a)
 			}
 
 			/* Now fall though to actually execute things */
-		} else {
-			dup(fd);
-			dup(fd);
 		}
 
 		/* See if any special /bin/sh requiring characters are present */
 		if (strpbrk(a->command, "~`!$^&*()=|\\{}[];\"'<>?") != NULL) {
 			cmd[0] = SHELL;
 			cmd[1] = "-c";
-			strcpy(buf, "exec ");
-			safe_strncpy(buf + sizeof("exec "), a->command, 
-					sizeof(buf) - sizeof("exec "));
+			strcat(strcpy(buf, "exec "), a->command);
 			cmd[2] = buf;
 			cmd[3] = NULL;
 		} else {
 			/* Convert command (char*) into cmd (char**, one word per string) */
-			safe_strncpy(buf, a->command, sizeof(buf));
+			strcpy(buf, a->command);
 			s = buf;
 			for (tmpCmd = buf, i = 0;
 					(tmpCmd = strsep(&s, " \t")) != NULL;) {
 				if (*tmpCmd != '\0') {
 					cmd[i] = tmpCmd;
-					tmpCmd++;
 					i++;
 				}
 			}
@@ -717,6 +706,11 @@ static void shutdown_system(void)
 {
 	sigset_t block_signals;
 
+	/* run everything to be run at "shutdown".  This is done _prior_
+	 * to killing everything, in case people wish to use scripts to
+	 * shut things down gracefully... */
+	run_actions(SHUTDOWN);
+
 	/* first disable all our signals */
 	sigemptyset(&block_signals);
 	sigaddset(&block_signals, SIGHUP);
@@ -746,9 +740,6 @@ static void shutdown_system(void)
 	kill(-1, SIGKILL);
 	sleep(1);
 
-	/* run everything to be run at "shutdown" */
-	run_actions(SHUTDOWN);
-
 	sync();
 	if (kernelVersion > 0 && kernelVersion <= KERNEL_VERSION(2,2,11)) {
 		/* bdflush, kupdate not needed for kernels >2.2.11 */
@@ -760,15 +751,31 @@ static void shutdown_system(void)
 static void exec_signal(int sig)
 {
 	struct init_action *a, *tmp;
+	sigset_t unblock_signals;
+	
 	for (a = init_action_list; a; a = tmp) {
 		tmp = a->next;
 		if (a->action & RESTART) {
 			shutdown_system();
+
+			/* unblock all signals, blocked in shutdown_system() */
+			sigemptyset(&unblock_signals);
+			sigaddset(&unblock_signals, SIGHUP);
+			sigaddset(&unblock_signals, SIGCHLD);
+			sigaddset(&unblock_signals, SIGUSR1);
+			sigaddset(&unblock_signals, SIGUSR2);
+			sigaddset(&unblock_signals, SIGINT);
+			sigaddset(&unblock_signals, SIGTERM);
+			sigaddset(&unblock_signals, SIGCONT);
+			sigaddset(&unblock_signals, SIGSTOP);
+			sigaddset(&unblock_signals, SIGTSTP);
+			sigprocmask(SIG_UNBLOCK, &unblock_signals, NULL);
+
 			message(CONSOLE|LOG, "\rTrying to re-exec %s\n", a->command);
 			execl(a->command, a->command, NULL);
 	
 			message(CONSOLE|LOG, "\rexec of '%s' failed: %s\n", 
-				a->command, sys_errlist[errno]);
+				a->command, strerror(errno));
 			sync();
 			sleep(2);
 			init_reboot(RB_HALT_SYSTEM);
@@ -785,9 +792,7 @@ static void halt_signal(int sig)
 			/* Seems the s390 console is Wierd(tm). */
 			"\rThe system is halted. You may reboot now.\n"
 #else
-			/* secondConsole is NULL for a serial console */
-			"\rThe system is halted. Press %s or turn off power\n",
-			(secondConsole == NULL)? "Reset" : "CTRL-ALT-DEL"
+			"\rThe system is halted. Press Reset or turn off power\n"
 #endif
 		   );
 	sync();
@@ -848,12 +853,8 @@ static void new_init_action(int action, char *command, char *cons)
 	if (*cons == '\0')
 		cons = console;
 
-	/* If BusyBox detects that a serial console is in use, then entries
-	 * not refering to the console or null devices will _not_ be run.
-	 * The exception to this rule is the null device.
-	 */
-	if (secondConsole == NULL && strcmp(cons, console)
-		&& strcmp(cons, "/dev/null"))
+	/* do not run entries if console device is not available */
+	if (access(cons, R_OK|W_OK))
 		return;
 	if (strcmp(cons, "/dev/null") == 0 && (action & ASKFIRST))
 		return;
@@ -871,9 +872,9 @@ static void new_init_action(int action, char *command, char *cons)
 	} else {
 		init_action_list = new_action;
 	}
-	safe_strncpy(new_action->command, command, 255);
+	strcpy(new_action->command, command);
 	new_action->action = action;
-	safe_strncpy(new_action->terminal, cons, 255);
+	strcpy(new_action->terminal, cons);
 	new_action->pid = 0;
 //    message(LOG|CONSOLE, "command='%s' action='%d' terminal='%s'\n",
 //      new_action->command, new_action->action, new_action->terminal);
@@ -907,7 +908,7 @@ static void parse_inittab(void)
 {
 #ifdef BB_FEATURE_USE_INITTAB
 	FILE *file;
-	char buf[256], lineAsRead[256], tmpConsole[256];
+	char buf[INIT_BUFFS_SIZE], lineAsRead[INIT_BUFFS_SIZE], tmpConsole[INIT_BUFFS_SIZE];
 	char *id, *runlev, *action, *command, *eol;
 	const struct init_action_type *a = actions;
 	int foundIt;
@@ -927,17 +928,11 @@ static void parse_inittab(void)
 #endif
 		/* Prepare to restart init when a HUP is received */
 		new_init_action(RESTART, "/sbin/init", console);
-		/* Askfirst shell on tty1 */
+		/* Askfirst shell on tty1-4 */
 		new_init_action(ASKFIRST, LOGIN_SHELL, console);
-		/* Askfirst shell on tty2 */
-		if (secondConsole != NULL)
-			new_init_action(ASKFIRST, LOGIN_SHELL, secondConsole);
-		/* Askfirst shell on tty3 */
-		if (thirdConsole != NULL)
-			new_init_action(ASKFIRST, LOGIN_SHELL, thirdConsole);
-		/* Askfirst shell on tty4 */
-		if (fourthConsole != NULL)
-			new_init_action(ASKFIRST, LOGIN_SHELL, fourthConsole);
+		new_init_action(ASKFIRST, LOGIN_SHELL, VC_2);
+		new_init_action(ASKFIRST, LOGIN_SHELL, VC_3);
+		new_init_action(ASKFIRST, LOGIN_SHELL, VC_4);
 		/* sysinit */
 		new_init_action(SYSINIT, INIT_SCRIPT, console);
 
@@ -945,7 +940,7 @@ static void parse_inittab(void)
 #ifdef BB_FEATURE_USE_INITTAB
 	}
 
-	while (fgets(buf, 255, file) != NULL) {
+	while (fgets(buf, INIT_BUFFS_SIZE, file) != NULL) {
 		foundIt = FALSE;
 		/* Skip leading spaces */
 		for (id = buf; *id == ' ' || *id == '\t'; id++);
@@ -998,7 +993,7 @@ static void parse_inittab(void)
 			if (strcmp(a->name, action) == 0) {
 				if (*id != '\0') {
 					strcpy(tmpConsole, "/dev/");
-					strncat(tmpConsole, id, 200);
+					strncat(tmpConsole, id, INIT_BUFFS_SIZE-6);
 					id = tmpConsole;
 				}
 				new_init_action(a->action, command, id);
@@ -1013,6 +1008,7 @@ static void parse_inittab(void)
 			message(LOG | CONSOLE, "\rBad inittab entry: %s\n", lineAsRead);
 		}
 	}
+	fclose(file);
 	return;
 #endif /* BB_FEATURE_USE_INITTAB */
 }
@@ -1057,6 +1053,7 @@ extern int init_main(int argc, char **argv)
 	signal(SIGCONT, cont_handler);
 	signal(SIGSTOP, stop_handler);
 	signal(SIGTSTP, stop_handler);
+	signal(SIGCHLD, SIG_IGN);
 
 	/* Turn off rebooting via CTL-ALT-DEL -- we get a 
 	 * SIGINT on CAD so we can shut things down gracefully... */
@@ -1066,15 +1063,19 @@ extern int init_main(int argc, char **argv)
 	/* Figure out what kernel this is running */
 	kernelVersion = get_kernel_revision();
 
+	/* Figure out where the default console should be */
+	console_init();
+
 	/* Close whatever files are open, and reset the console. */
 	close(0);
 	close(1);
 	close(2);
 
-	/* Figure out where the default console should be */
-	console_init();
-
+	if(device_open(console, O_RDWR|O_NOCTTY)==0) {
 	set_term(0);
+		close(0);
+	}
+
 	chdir("/");
 	setsid();
 
@@ -1091,12 +1092,9 @@ extern int init_main(int argc, char **argv)
 	if (argc > 1 && (!strcmp(argv[1], "single") ||
 					 !strcmp(argv[1], "-s") || !strcmp(argv[1], "1"))) {
 		/* Ask first then start a shell on tty2-4 */
-		if (secondConsole != NULL)
-			new_init_action(ASKFIRST, LOGIN_SHELL, secondConsole);
-		if (thirdConsole != NULL)
-			new_init_action(ASKFIRST, LOGIN_SHELL, thirdConsole);
-		if (fourthConsole != NULL)
-			new_init_action(ASKFIRST, LOGIN_SHELL, fourthConsole);
+		new_init_action(ASKFIRST, LOGIN_SHELL, VC_2);
+		new_init_action(ASKFIRST, LOGIN_SHELL, VC_3);
+		new_init_action(ASKFIRST, LOGIN_SHELL, VC_4);
 		/* Start a shell on tty1 */
 		new_init_action(RESPAWN, LOGIN_SHELL, console);
 	} else {

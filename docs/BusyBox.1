@@ -130,7 +130,7 @@
 .\" ========================================================================
 .\"
 .IX Title "BUSYBOX 1"
-.TH BUSYBOX 1 "2002-04-27" "version 0.60.3" "BusyBox"
+.TH BUSYBOX 1 "2002-09-18" "version 0.60.4" "BusyBox"
 .UC
 .SH "NAME"
 BusyBox \- The Swiss Army Knife of Embedded Linux
@@ -1670,14 +1670,100 @@ Example:
 \&\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
 .IP "\fBmodprobe\fR" 4
 .IX Item "modprobe"
-modprobe [\s-1FILE\s0 ...]
+modprobe modprobe	 [  \fB\-adnqv\fR  ] [ \fB\-C\fR config ] module [ symbol=value ... ]
+modprobe [ \fB\-adnqv\fR ] [ \fB\-C\fR config ] [ \fB\-t\fR type ] pattern
+modprobe \fB\-l\fR [ \fB\-C\fR config ] [ \fB\-t\fR type ] pattern
+modprobe \fB\-c\fR [ \fB\-C\fR config ]
+modprobe \fB\-r\fR [ \fB\-dnv\fR ] [ \fB\-C\fR config ] [ module ...]
+modprobe \fB\-V\fR
 .Sp
-Used for hight level module loading and unloading.
+Used to load kernel modules and automatically load their dependancies.USAGE:
 .Sp
+.Vb 6
+\&        modprobe         [  -adnqv  ] [ -C config ] module [ symbol=value ... ]
+\&        modprobe [ -adnqv ] [ -C config ] [ -t type ] pattern
+\&        modprobe -l [ -C config ] [ -t type ] pattern
+\&        modprobe -c [ -C config ]
+\&        modprobe -r [ -dnv ] [ -C config ] [ module ...]
+\&        modprobe -V
+.Ve
+\&\s-1OPTIONS\s0
+.Sp
+.Vb 3
+\&        -a (*** not supported ***)
+\&           Load all matching modules instead of stopping after
+\&           the first successful loading.
+.Ve
+.Vb 2
+\&        -c (*** not supported ***)
+\&           Show the currently used configuration.
+.Ve
+.Vb 3
+\&        -d
+\&           Show  information about the internal representation
+\&           of the stack of modules.
+.Ve
+.Vb 6
+\&        -k
+\&           Set 'autoclean' on loaded     modules.   Used  by  the
+\&           kernel  when it calls on modprobe to satify a miss­
+\&           ing feature (supplied as a module).  The -q  option
+\&           is implied by -k.     These options will automatically
+\&           be sent to insmod.
+.Ve
+.Vb 2
+\&        -l (*** not supported ***)
+\&           List matching modules.
+.Ve
+.Vb 3
+\&        -n
+\&           Don't actually perform the action, just  show  what
+\&           would be done.
+.Ve
+.Vb 5
+\&        -q
+\&           Do  not  complain about insmod failing to install a
+\&           module.  Continue as  normal,  but  silently,  with
+\&           other  possibilities  for     modprobe  to test.  This
+\&           option will automatically be sent to insmod.
+.Ve
+.Vb 4
+\&        -r
+\&           Remove module (stacks) or do  autoclean,     depending
+\&           on  whether  there are any modules mentioned on the
+\&           command line.
+.Ve
+.Vb 3
+\&        -s
+\&           Report via syslog instead of stderr.  This  options
+\&           will automatically be sent to insmod.
+.Ve
+.Vb 2
+\&        -t type (*** not supported ***)
+\&           Only consider modules of this type (tag).
+.Ve
+.Vb 2
+\&        -v
+\&           Print all commands as they are executed.
+.Ve
+.Vb 2
+\&        -V
+\&           Show the release version of modprobe.
+.Ve
+.Vb 7
+\&        -C configfile (*** not supported ***)
+\&           Use  the     file configfile instead of (the optional)
+\&           /etc/modules.conf     to  specify  the  configuration.
+\&           The  environment     variable  MODULECONF  can also be
+\&           used to select (and override) a different     configu­
+\&           ration  file from the default /etc/modules.conf (or
+\&           /etc/conf.modules (depreciated)).
+.Ve
 Example:
 .Sp
-.Vb 1
-\&        $ modprobe cdrom
+.Vb 2
+\&        $ modprobe pcnet_cs
+\&        $ modprobe -r pcnet_cs
 .Ve
 \&\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
 .IP "\fBmore\fR" 4
@@ -2297,6 +2383,17 @@ Options:
 time [\s-1OPTION\s0]... \s-1COMMAND\s0 [\s-1ARGS\s0...]
 .Sp
 Runs the program \s-1COMMAND\s0 with arguments \s-1ARGS\s0.  When \s-1COMMAND\s0 finishes,
+.Sp
+\&\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
+.IP "\fBtop\fR" 4
+.IX Item "top"
+top [\fB\-d\fR <seconds>]
+.Sp
+top provides an view of processor activity in real time.
+This utility reads the status for all processes in /proc each <seconds>
+and shows the status for however many processes will fit on the screen.
+This utility will not show processes that are started after program startup,
+but it will show the \s-1EXIT\s0 status for and PIDs that exit while it is running.
 .Sp
 \&\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-
 .IP "\fBtouch\fR" 4

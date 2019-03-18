@@ -37,6 +37,7 @@ extern FILE *gz_open(FILE *compressed_file, int *pid)
 		error_msg("pipe error");
 		return(NULL);
 	}
+#ifndef __uClinux__
 	if ((*pid = fork()) == -1) {
 		error_msg("fork failed");
 		return(NULL);
@@ -50,6 +51,9 @@ extern FILE *gz_open(FILE *compressed_file, int *pid)
 		close(unzip_pipe[1]);
 		exit(EXIT_SUCCESS);
 	}
+#else
+	return NULL;
+#endif /* __uClinux__ */
 	close(unzip_pipe[1]);
 	if (unzip_pipe[0] == -1) {
 		error_msg("gzip stream init failed");

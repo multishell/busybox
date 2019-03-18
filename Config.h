@@ -119,6 +119,7 @@
 //#define BB_TELNET
 //#define BB_TFTP
 //#define BB_TIME
+//#define BB_TOP
 #define BB_TOUCH
 //#define BB_TR
 //#define BB_TRACEROUTE
@@ -314,7 +315,7 @@
 //#define BB_FEATURE_FBSET_READMODE
 //
 // Support insmod/lsmod/rmmod for post 2.1 kernels
-//#define BB_FEATURE_NEW_MODULE_INTERFACE
+#define BB_FEATURE_NEW_MODULE_INTERFACE
 //
 // Support insmod/lsmod/rmmod for pre 2.1 kernels
 //#define BB_FEATURE_OLD_MODULE_INTERFACE
@@ -420,7 +421,8 @@
 // mere mortals so leave this stuff alone.
 //
 #include <features.h>
-#if defined __UCLIBC__ && ! defined __UCLIBC_HAS_MMU__
+#if defined(__uClinux__)
+	#undef BB_ASH			/* Not even a chance it will work */
 	#undef BB_RPM2CPIO		/* Uses gz_open(), which uses fork() */
 	#undef BB_DPKG_DEB		/* Uses gz_open(), which uses fork() */
 	#undef BB_FEATURE_TAR_GZIP	/* Uses fork() */

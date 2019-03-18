@@ -1,3 +1,15 @@
+busybox (1:0.60.4-1) unstable; urgency=low
+  
+  * New version released.  See Changelog for non-Debian specific details.
+  * enable uname for the debian-installer (closes: #158706)
+  * enable losetup for the boot floppies (closes: #138060)
+  * init behaves itself better consoles go missing (closes: #129626)
+  * In 'free', buffers change as buffered data increases (closes: #148396)
+  * Functions for debootstrap added to the .udeb (closes: #124388)
+  * This bug is not reproducable (closes: #127522)
+
+ -- Erik Andersen <andersee@debian.org>  Wed, 18 Sep 2002 14:13:05 -0600
+
 busybox (1:0.60.3-1) unstable; urgency=low
   
   * New version released.  See Changelog for non-Debian specific details.

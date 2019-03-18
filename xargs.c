@@ -28,8 +28,10 @@
 
 int xargs_main(int argc, char **argv)
 {
-	char *cmd_to_be_executed = NULL;
-	char *file_to_act_on = NULL;
+	char *cmd_to_be_executed;
+	char *file_to_act_on;
+	int i;
+	int len;
 
 	/*
 	 * No options are supported in this version of xargs; no getopt.
@@ -42,37 +44,37 @@ int xargs_main(int argc, char **argv)
 	 * once with no args and xargs will echo the filename. Simple.
 	 */
 
+	argv++;
+	len = argc;     /* arg = count for ' ' + trailing '\0' */
 	/* Store the command to be executed (taken from the command line) */
 	if (argc == 1) {
 		/* default behavior is to echo all the filenames */
-		cmd_to_be_executed = xstrdup("/bin/echo ");
+		argv[0] = "/bin/echo";
+		len++;  /* space for trailing '\0' */
 	} else {
-		/* concatenate all the arguments passed to xargs together */
-		int i;
-		int len = 1; /* for the '\0' */
-		cmd_to_be_executed = xmalloc(80);
-		for (i = 1; i < argc; i++) {
-			len += strlen(argv[i]);
-			len += 1;  /* for the space between the args */
-			cmd_to_be_executed = xrealloc(cmd_to_be_executed, len);
-			strcat(cmd_to_be_executed, argv[i]);
-			strcat(cmd_to_be_executed, " ");
+		argc--;
 		}
+	/* concatenate all the arguments passed to xargs together */
+	for (i = 0; i < argc; i++)
+		len += strlen(argv[i]);
+	cmd_to_be_executed = xmalloc (len);
+	for (i = len = 0; i < argc; i++) {
+		len = sprintf(cmd_to_be_executed + len, "%s ", argv[i]);
 	}
 
 	/* Now, read in one line at a time from stdin, and store this 
 	 * line to be used later as an argument to the command */
 	while ((file_to_act_on = get_line_from_file(stdin)) !=NULL) {
 
-		FILE *cmd_output = NULL;
-		char *output_line = NULL;
-		char *execstr = NULL;
+		FILE *cmd_output;
+		char *output_line;
+		char *execstr;
 
 		/* eat the newline off the filename. */
 		chomp(file_to_act_on);
 
 		/* eat blank lines */
-		if (strlen(file_to_act_on) == 0)
+		if (file_to_act_on[0] == 0)
 			continue;
 
 		/* assemble the command and execute it */
@@ -80,6 +82,7 @@ int xargs_main(int argc, char **argv)
 				strlen(file_to_act_on) + 1, sizeof(char));
 		strcat(execstr, cmd_to_be_executed);
 		strcat(execstr, file_to_act_on);
+		
 		cmd_output = popen(execstr, "r");
 		if (cmd_output == NULL)
 			perror_msg_and_die("popen");

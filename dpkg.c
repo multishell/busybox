@@ -1141,7 +1141,7 @@ void remove_package(const unsigned int package_num)
 	printf("Removing %s ...\n", package_name);
 
 	/* run prerm script */
-	return_value = run_package_script(package_name, "prem");
+	return_value = run_package_script(package_name, "prerm");
 	if (return_value == -1) {
 		error_msg_and_die("script failed, prerm failure");
 	}

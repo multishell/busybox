@@ -1,6 +1,6 @@
 /* vi: set sw=4 ts=4: */
 /*
- * $Id: ping.c,v 1.46 2001/07/17 01:12:36 andersen Exp $
+ * $Id: ping.c,v 1.47 2002/09/17 07:56:26 andersen Exp $
  * Mini ping implementation for busybox
  *
  * Copyright (C) 1999 by Randolph Chung <tausq@debian.org>
@@ -216,7 +216,7 @@ static void ping(const char *host)
 	/* listen for replies */
 	while (1) {
 		struct sockaddr_in from;
-		size_t fromlen = sizeof(from);
+		socklen_t fromlen = sizeof(from);
 
 		if ((c = recvfrom(pingsock, packet, sizeof(packet), 0,
 						  (struct sockaddr *) &from, &fromlen)) < 0) {

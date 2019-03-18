@@ -1,3 +1,19 @@
+0.60.4
+
+    Stable Release
+
+    New Applets & New Features:
+	* Added new a 'top' applet (by special request)
+	* Lots of small uClinux adjustments
+
+    Bugfixes:
+	* This release has _lots_ of bugfixes.  See Changelog.full 
+	    for the complete list of what was changed.
+
+	 -Erik Andersen, 18 September 2002
+
+
+
 0.60.3
 
     Stable Release
