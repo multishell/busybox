@@ -114,7 +114,7 @@ extern int tryopen_main(int argc, char** argv);
 extern int umount_main(int argc, char** argv);
 extern int update_main(int argc, char** argv);
 extern int uname_main(int argc, char** argv);
-extern int zcat_main(int argc, char** argv);
+extern int gunzip_main (int argc, char** argv);
 extern int gzip_main(int argc, char** argv);
 
 
@@ -158,6 +158,10 @@ extern void erase_mtab(const char * name);
 extern void whine_if_fstab_is_missing();
 #endif
 
+#if defined BB_NFSMOUNT
+int nfsmount(const char *spec, const char *node, unsigned long *flags,
+	char **extra_opts, char **mount_opts, int running_bg);
+#endif
 
 #if defined (BB_FSCK_MINIX) || defined (BB_MKFS_MINIX)
 

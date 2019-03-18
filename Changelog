@@ -1,4 +1,37 @@
+0.36
+	* fixed dd so it properly defaults to stdin and stdout when no 
+	    if= and of= are set (fix thanks to Eric Delaunay).
+	* Don't try to close the file descriptor of a pipein tar. (fix also from
+	    Eric Delaunay).
+	* Made createPath be quiet (again thanks to Eric Delaunay).
+	* If BB_CONSOLE_CMD_IF_RC_SCRIPT_EXITS is defined, then whatever
+	    command you define it as will be run if the init script exits.
+	* Updated install.sh to make it more robust (thanks to Adam Di Carlo)
+	* NFS support added to mount by Eric Delaunay.  It costs 10k when compiled
+	    in, but that is still a big win for those that use NFS.
+	* Made 'rm -f' be silent for non-existant files (thanks to Eric Delaunay).
+	* changed zcat.c to gunzip.c.  It now obeys the principle of least surprise 
+	    and acts as god intended gunzip and zcat to act.  They answer --help and
+	    obey the '-c' flag.
+	* Fixed a bug in mv which caused it to not move files when the destination
+	    was a directory.
+	* Fixed a decimal-instead-of-octal bug causing mkdir to make directories
+	    with very wrong permissions.
+	* chmod would overwrite file permissions instead of modifying them.
+	    Now it properly modifies permissions.
+	* Init now sends warnings destined for the console to /dev/console to ensure
+	    they show up on whatever the active console it.  Otherwise important
+	    messages (for example that the system is rebooting) were not seen when
+	    switched to a different VT.
+
+	-Erik Andersen, Nov 17, 1999
+	
 0.35
+	* gzip now obeys the principle of least surprise and acts like god intended 
+	    (i.e. it accepts a file name, answers --help, and obeys the '-c' flag 
+	    and only then outputs to stdout).
+	* Fixed more.c to compile autowidth on sparc and set initial winsize 
+	    to 0,0 in case the TIOCGWINSZ ioctl fails.  Fix thanks to Eric Delaunay.
 	* Fixed tar so it now works as expected (it had TRUE/FALSE backwards)
 	* tar now accepts --help
 	* chmod, chown, and chgrp usage now works
@@ -6,9 +39,11 @@
 	* umount now parses options correctly
 	* tar can now unpack tarballs containing device special files, 
 	    sockets, and fifos (though it can't pack them up) thanks 
-	    to Matt Porter.
+	    to Matt Porter.  Creating archives containing these is still
+	    left to the interested student.
+	* fixed up the license in more.c to properly point to Bruce Perens.
 
-	-Erik Andersen
+	-Erik Andersen, Nov  11, 1999
 
 0.34
 	* ls -l now displays link names outside the current directory,
@@ -30,7 +65,7 @@
 	* ls -l now bypasses libc6 nss when displaying user/group names.
 	    Now uses my_getpwuid and my_getgrgid.
 
-	 -Erik Andersen
+	 -Erik Andersen, Nov  8, 1999
 
 0.33
 	* Fixed a bug where init could hang instead of rebooting.
@@ -42,7 +77,7 @@
 	    state the real root device name)
 	* merged some redundant code from mtab.c/df.c into utility.c
 
-	 -Erik Andersen
+	 -Erik Andersen, Nov  5, 1999
 
 0.32
 	* More changes -- many thanks to Lineo for paying me to work on
@@ -71,7 +106,7 @@
 	    as the name suggests.  Fix thanks to Matt Porter <porter@debian.org>.
 
 
-	 -Erik Andersen
+	 -Erik Andersen, Nov  4, 1999
 
 0.31
 	* I added a changelog for version 0.30. 
@@ -86,7 +121,7 @@
 	    it wasn't supported before GNU libc 2.1, and some folks use
 	    glibc 2.0.7 since it is much smaller than that latest and greatest.
 
-	 -Erik Andersen
+	 -Erik Andersen, Oct 21, 1999
 
 0.30
 	Major changes -- lots of stuff rewritten. Many thanks to Lineo for
@@ -155,7 +190,11 @@
 		    * sfdisk -- Added from util-linux (minus internationalization and such).
 	    * Probably some other changes that I forgot to document...
 
-	 -Erik Andersen
+	 -Erik Andersen, Oct 20, 1999
+
+0.29	
+	This version was a messy pre-alpha.  stay away or it will bite you.
+	 -Erik Andersen, Sep 24, 1999
 	
 0.28	
 	mini-netcat (mnc) rewritten.

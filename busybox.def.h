@@ -17,7 +17,7 @@
 //#define BB_FDFLUSH
 #define BB_FIND
 #define BB_FSCK_MINIX
-//#define BB_MKFS_MINIX
+#define BB_MKFS_MINIX
 #define BB_CHVT
 #define BB_DEALLOCVT
 #define BB_GREP
@@ -37,6 +37,7 @@
 //#define BB_MNC
 #define BB_MORE
 #define BB_MOUNT
+#define BB_NFSMOUNT
 //#define BB_MT
 //#define BB_MTAB
 #define BB_MV
@@ -54,12 +55,12 @@
 #define BB_SYNC
 #define BB_TAR
 #define BB_TOUCH
-//#define BB_TRUE_FALSE  // Supplied by ash
+#define BB_TRUE_FALSE
 #define BB_UMOUNT
 #define BB_UPDATE
 #define BB_UNAME
-#define BB_ZCAT
 #define BB_GZIP
+#define BB_GUNZIP
 // Don't turn BB_UTILITY off.  It contains support code 
 // that compiles to 0 if everything else if turned off.
 #define BB_UTILITY

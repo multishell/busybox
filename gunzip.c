@@ -4,11 +4,11 @@
 
 #include "internal.h"
 
-static const char	zcat_usage[] = "zcat\n"
-"\n"
-"\tuncompress gzipped data from stdin to stdout\n";
-
-
+static const char gunzip_usage[] =
+    "gunzip [OPTION]... FILE\n\n"
+    "Uncompress FILE (or standard input if FILE is '-').\n\n"
+    "Options:\n"
+    "\t-c\tWrite output to standard output\n";
 
 /* gzip (GNU zip) -- compress files with zip algorithm and 'compress' interface
  * Copyright (C) 1992-1993 Jean-loup Gailly
@@ -220,9 +220,6 @@ extern long bytes_in;   /* number of input bytes */
 extern long bytes_out;  /* number of output bytes */
 extern long header_bytes;/* number of bytes in gzip header */
 
-extern int  ifd;        /* input file descriptor */
-extern int  ofd;        /* output file descriptor */
-
 extern long ifile_size; /* input file size, -1 for devices (debug only) */
 
 typedef int file_t;     /* Do not use stdio */
@@ -262,7 +259,6 @@ extern int exit_code;      /* program exit code */
 extern int verbose;        /* be verbose (-v) */
 extern int level;          /* compression level */
 extern int test;           /* check .z file integrity */
-extern int to_stdout;      /* output to stdout (-c) */
 extern int save_orig_name; /* set if original name must be saved */
 
 #define get_byte()  (inptr < insize ? inbuf[inptr++] : fill_inbuf(0))
@@ -681,18 +677,48 @@ long header_bytes;   /* number of bytes in gzip header */
 
 /* local functions */
 
-local void treat_stdin  OF((void));
 local int  get_method   OF((int in));
-local void do_exit      OF((int exitcode));
-      int main          OF((int argc, char **argv));
-int (*work) OF((int infile, int outfile)) = unzip; /* function to call */
+local void do_exit(int exitcode) __attribute__ ((noreturn));
 
 #define strequ(s1, s2) (strcmp((s1),(s2)) == 0)
 
 /* ======================================================================== */
-int zcat_main (int argc, char * * argv)
+int gunzip_main (int argc, char** argv)
 {
     int file_count;     /* number of files to precess */
+    int to_stdout = 0;
+    int fromstdin = 0;
+    int result;
+    int inFileNum;
+    int outFileNum;
+    int delInputFile=0;
+    struct stat statBuf;
+    char* delFileName; 
+    char ifname[MAX_PATH_LEN]; /* input file name */
+    char ofname[MAX_PATH_LEN]; /* output file name */
+
+    if (argc==1)
+	usage(gunzip_usage);
+    
+    if (strcmp(*argv, "zcat")==0)
+	to_stdout = 1;
+
+    /* Parse any options */
+    while (--argc > 0 && **(++argv) == '-') {
+	if (*((*argv)+1) == '\0') {
+	    fromstdin = 1;
+	    to_stdout = 1;
+	}
+	while (*(++(*argv))) {
+	    switch (**argv) {
+	    case 'c':
+		to_stdout = 1;
+		break;
+	    default:
+		usage(gunzip_usage);
+	    }
+	}
+    }
 
     foreground = signal(SIGINT, SIG_IGN) != SIG_IGN;
     if (foreground) {
@@ -723,31 +749,90 @@ int zcat_main (int argc, char * * argv)
     ALLOC(ush, tab_prefix1, 1L<<(BITS-1));
 #endif
 
-    /* And get to work */
-    treat_stdin();
+    if (fromstdin==1) {
+	strcpy(ofname, "stdin");
 
-    do_exit(exit_code);
-    return exit_code; /* just to avoid lint warning */
-}
+	inFileNum=fileno(stdin);
+	ifile_size = -1L; /* convention for unknown size */
+    } else {
+	/* Open up the input file */
+	if (*argv=='\0')
+	    usage(gunzip_usage);
+	strncpy(ifname, *argv, MAX_PATH_LEN);
 
-/* ========================================================================
- * Compress or decompress stdin
- */
-local void treat_stdin()
-{
-    ifile_size = -1L; /* convention for unknown size */
-
-    clear_bufs(); /* clear input and output buffers */
-    part_nb = 0;
-
-    method = get_method(ifd);
-
-    if (method < 0) {
-      do_exit(exit_code); /* error message already emitted */
+	/* Open input fille */
+	inFileNum=open( ifname, O_RDONLY);
+	if (inFileNum < 0) {
+	    perror(ifname);
+	    do_exit(WARNING);
+	}
+	/* Get the time stamp on the input file. */
+	result = stat(ifname, &statBuf);
+	if (result < 0) {
+	    perror(ifname);
+	    do_exit(WARNING);
+	}
+	ifile_size = statBuf.st_size;
     }
 
-    (*work)(fileno(stdin), fileno(stdout));
+    if (to_stdout==1) {
+	/* And get to work */
+	strcpy(ofname, "stdout");
+	outFileNum=fileno(stdout);
 
+	clear_bufs(); /* clear input and output buffers */
+	part_nb = 0;
+
+	/* Actually do the compression/decompression. */
+	unzip(inFileNum, outFileNum);
+
+    } else {
+	char* pos;
+
+	/* And get to work */
+	strncpy(ofname, ifname, MAX_PATH_LEN-4);
+	pos=strstr(ofname, ".gz");
+	if (pos != NULL) {
+	    *pos='\0';
+	    delInputFile=1;
+	} else {
+	    pos=strstr(ofname, ".tgz");
+	    if (pos != NULL) {
+		*pos='\0';
+		strcat( pos, ".tar");
+		delInputFile=1;
+	    }
+	}
+
+	/* Open output fille */
+	outFileNum=open( ofname, O_RDWR|O_CREAT|O_EXCL|O_NOFOLLOW);
+	if (outFileNum < 0) {
+	    perror(ofname);
+	    do_exit(WARNING);
+	}
+	/* Set permissions on the file */
+	fchmod(outFileNum, statBuf.st_mode);
+
+	clear_bufs(); /* clear input and output buffers */
+	part_nb = 0;
+
+	/* Actually do the compression/decompression. */
+	result=unzip(inFileNum, outFileNum);
+	
+	close( outFileNum);
+	close( inFileNum);
+	/* Delete the original file */
+	if (result == OK)
+	    delFileName=ifname;
+	else
+	    delFileName=ofname;
+
+	if (delInputFile == 1 && unlink (delFileName) < 0) {
+	    perror (delFileName);
+	    exit( FALSE);
+	}
+    }
+    do_exit(exit_code);
 }
 
 
@@ -795,7 +880,6 @@ local int get_method(in)
 	    exit_code = ERROR;
 	    return -1;
 	}
-	work = unzip;
 	flags  = (uch)get_byte();
 
 	(ulg)get_byte(); /* Ignore time stamp */
@@ -940,6 +1024,10 @@ int unzip(in, out)
 
     ifd = in;
     ofd = out;
+    method = get_method(ifd);
+    if (method < 0) {
+      do_exit(exit_code); /* error message already emitted */
+    }
 
     updcrc(NULL, 0);           /* initialize crc */
 
@@ -1074,6 +1162,7 @@ int fill_inbuf(eof_ok)
     insize = 0;
     errno = 0;
     do {
+	fprintf(stderr, "hi\n");
 	len = read(ifd, (char*)inbuf+insize, INBUFSIZ-insize);
         if (len == 0 || len == EOF) break;
 	insize += len;
