@@ -17,7 +17,7 @@
 
 
 PROG=busybox
-VERSION=0.36
+VERSION=0.37
 BUILDTIME=$(shell date "+%Y%m%d-%H%M")
 
 # Comment out the following to make a debuggable build
@@ -36,7 +36,7 @@ GCCMINVERSION=`$(CC) --version | sed -n "s/^\([0-9]\)\.\([0-9].*\)[\.].*/\2/p"`
 
 GCCSUPPORTSOPTSIZE=$(shell \
 if ( test $(GCCMAJVERSION) -eq 2 ) ; then \
-    if ( test $(GCCMINVERSION) -ge 95 ) ; then \
+    if ( test $(GCCMINVERSION) -ge 91 ) ; then \
 	echo "true"; \
     else \
 	echo "false"; \
@@ -101,7 +101,7 @@ force:
 
 $(OBJECTS):  busybox.def.h internal.h Makefile
 
-install: busybox
+install: busybox busybox.links
 	./install.sh $(PREFIX)
 
 whichversion:

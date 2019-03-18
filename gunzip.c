@@ -1162,7 +1162,6 @@ int fill_inbuf(eof_ok)
     insize = 0;
     errno = 0;
     do {
-	fprintf(stderr, "hi\n");
 	len = read(ifd, (char*)inbuf+insize, INBUFSIZ-insize);
         if (len == 0 || len == EOF) break;
 	insize += len;

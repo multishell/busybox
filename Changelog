@@ -1,3 +1,25 @@
+0.37
+	* Wrote a micro syslogd, and a logger util (to log things to the syslog
+	    from the command line or scripts)  With both compiled in, costs 4k.
+	* Fixed 'make install' so symlinks are installed in their proper locations.
+	* Changed the build system slightly so that features can now be enabled
+	    or disabled from the busybox.defs.h header file, without trying to 
+	    compile in a source file named after that featue (unless that file exists).
+	* Several options are now moved into busybox.defs.h
+	* Now 'rm -R' and 'rm -r' both work.
+	* dd now properly handles input beyond 1 block from stdin.
+	* Fixed a bug where tar unpacked everything a directories. Moved some code 
+	    from createPath into mkdir where it belonged, thereby making tar work properly.
+	* Fixed an off-by-one bug in cat.  Given a list of file it wouldn't cat out the
+	    last file in the list.
+	* Fixed 'ls -ln' so numeric group/uid are presented properly, and fixed 'ls -l' 
+	    so when uid/gid is not in /etc/{passwd,group} the numeric group/uid are 
+	    presented properly.  
+	* Also added a TODO.
+
+
+	-Erik Andrsen
+
 0.36
 	* fixed dd so it properly defaults to stdin and stdout when no 
 	    if= and of= are set (fix thanks to Eric Delaunay).

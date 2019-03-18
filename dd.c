@@ -29,9 +29,15 @@
 
 
 #include "internal.h"
+#include <features.h>
 #include <stdio.h>
 #include <fcntl.h>
 #include <errno.h>
+#if (__GLIBC__ == 2) && (__GLIBC_MINOR__ >= 1)
+#include <inttypes.h>
+#else
+typedef unsigned long long int uintmax_t;
+#endif
 
 static const char dd_usage[] =
 "dd [if=name] [of=name] [bs=n] [count=n]\n\n"
@@ -92,26 +98,19 @@ static long getNum (const char *cp)
 
 extern int dd_main (int argc, char **argv)
 {
-    const char *inFile;
-    const char *outFile;
+    const char *inFile = NULL;
+    const char *outFile = NULL;
     char *cp;
     int inFd;
     int outFd;
     int inCc = 0;
     int outCc;
-    int skipBlocks;
-    int blockSize;
-    long count;
-    long intotal;
-    long outTotal;
+    size_t blockSize = 512;
+    //uintmax_t skipBlocks = 0;
+    uintmax_t count = (uintmax_t)-1;
+    uintmax_t intotal;
+    uintmax_t outTotal;
     unsigned char *buf;
-
-    inFile = NULL;
-    outFile = NULL;
-    blockSize = 512;
-    skipBlocks = 0;
-    count = 1;
-
 
     argc--;
     argv++;
@@ -125,14 +124,14 @@ extern int dd_main (int argc, char **argv)
 	else if (strncmp("count", *argv, 5) == 0) {
 	    count = getNum ((strchr(*argv, '='))+1);
 	    if (count <= 0) {
-		fprintf (stderr, "Bad count value %ld\n", count);
+		fprintf (stderr, "Bad count value %s\n", *argv);
 		goto usage;
 	    }
 	}
 	else if (strncmp(*argv, "bs", 2) == 0) {
 	    blockSize = getNum ((strchr(*argv, '='))+1);
 	    if (blockSize <= 0) {
-		fprintf (stderr, "Bad block size value %d\n", blockSize);
+		fprintf (stderr, "Bad block size value %s\n", *argv);
 		goto usage;
 	    }
 	}
@@ -163,7 +162,7 @@ extern int dd_main (int argc, char **argv)
     outTotal = 0;
 
     if (inFile == NULL)
-	inFd = STDIN;
+	inFd = fileno(stdin);
     else
 	inFd = open (inFile, 0);
 
@@ -174,7 +173,7 @@ extern int dd_main (int argc, char **argv)
     }
 
     if (outFile == NULL)
-	outFd = STDOUT;
+	outFd = fileno(stdout);
     else
 	outFd = creat (outFile, 0666);
 
@@ -191,6 +190,8 @@ extern int dd_main (int argc, char **argv)
 	if (inCc < 0) {
 	    perror (inFile);
 	    goto cleanup;
+	} else if (inCc == 0) {
+	    goto cleanup;
 	}
 	intotal += inCc;
 	cp = buf;
@@ -201,6 +202,8 @@ extern int dd_main (int argc, char **argv)
 	    outCc = write (outFd, cp, inCc);
 	    if (outCc < 0) {
 		perror (outFile);
+		goto cleanup;
+	    } else if (outCc == 0) {
 		goto cleanup;
 	    }
 
@@ -218,9 +221,9 @@ extern int dd_main (int argc, char **argv)
     close (outFd);
     free (buf);
 
-    printf ("%ld+%d records in\n", intotal / blockSize,
+    printf ("%ld+%d records in\n", (long)(intotal / blockSize),
 	    (intotal % blockSize) != 0);
-    printf ("%ld+%d records out\n", outTotal / blockSize,
+    printf ("%ld+%d records out\n", (long)(outTotal / blockSize),
 	    (outTotal % blockSize) != 0);
     exit( TRUE);
   usage:

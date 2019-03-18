@@ -28,6 +28,7 @@
 #define BB_LN
 #define BB_LOADFONT
 #define BB_LOADKMAP
+//#define BB_LOGGER
 #define BB_LS
 //#define BB_MAKEDEVS
 //#define BB_MATH
@@ -53,6 +54,7 @@
 #define BB_SLEEP
 #define BB_SWAPONOFF
 #define BB_SYNC
+//#define BB_SYSLOGD
 #define BB_TAR
 #define BB_TOUCH
 #define BB_TRUE_FALSE
@@ -64,3 +66,23 @@
 // Don't turn BB_UTILITY off.  It contains support code 
 // that compiles to 0 if everything else if turned off.
 #define BB_UTILITY
+//
+//
+//
+// This is where feature definitions go.  Generally speaking,
+// turning this stuff off makes things a bit smaller (and less 
+// pretty/useful).
+//
+//
+//Enable init being called as /linuxrc
+#define BB_FEATURE_LINUXRC
+// Use termios to manipulate the screen ('more' is prettier with this on)
+#define BB_FEATURE_USE_TERMIOS
+// calculate terminal & column widths
+#define BB_FEATURE_AUTOWIDTH
+// show username/groupnames (bypasses libc6 NSS)
+#define BB_FEATURE_LS_USERNAME	
+// show file timestamps
+#define BB_FEATURE_LS_TIMESTAMPS
+// enable ls -p and -F
+#define BB_FEATURE_LS_FILETYPES	

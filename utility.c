@@ -481,10 +481,8 @@ extern void createPath (const char *name, int mode)
     char *cpOld;
     char buf[NAME_MAX];
 
-    strcpy (buf, name);
-
+    strcpy( buf, name);
     cp = strchr (buf, '/');
-
     while (cp) {
 	cpOld = cp;
 	cp = strchr (cp + 1, '/');
