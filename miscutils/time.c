@@ -410,7 +410,7 @@ static void run_command(char *const *cmd, resource_t * resp)
 	else if (pid == 0) {	/* If child.  */
 		/* Don't cast execvp arguments; that causes errors on some systems,
 		   versus merely warnings if the cast is left off.  */
-		execvp(cmd[0], cmd);
+		BB_EXECVP(cmd[0], cmd);
 		bb_error_msg("cannot run %s", cmd[0]);
 		_exit(errno == ENOENT ? 127 : 126);
 	}
@@ -427,6 +427,7 @@ static void run_command(char *const *cmd, resource_t * resp)
 	signal(SIGQUIT, quit_signal);
 }
 
+int time_main(int argc, char **argv);
 int time_main(int argc, char **argv)
 {
 	resource_t res;

@@ -41,6 +41,7 @@ static char *__from_cpuset(cpu_set_t *mask)
 
 #define OPT_p 1
 
+int taskset_main(int argc, char** argv);
 int taskset_main(int argc, char** argv)
 {
 	cpu_set_t mask, new_mask;
@@ -62,7 +63,7 @@ int taskset_main(int argc, char** argv)
 		aff = *++argv; /* <aff> <cmd...> */
 	if (aff) {
 		unsigned i = 0;
-		unsigned long l = xstrtol_range(aff, 16, 1, ULONG_MAX);
+		unsigned long l = xstrtol_range(aff, 0, 1, LONG_MAX);
 
 		CPU_ZERO(&new_mask);
 		while (i < CPU_SETSIZE && l >= (1<<i)) {
@@ -90,7 +91,7 @@ int taskset_main(int argc, char** argv)
 		goto print_aff;
 	}
 	++argv;
-	execvp(*argv, argv);
+	BB_EXECVP(*argv, argv);
 	bb_perror_msg_and_die("%s", *argv);
 }
 #undef OPT_p

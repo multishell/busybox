@@ -80,6 +80,7 @@ static void fileaction_dobackup(char *filename, int fileref);
 static void fileaction_setowngrp(char *filename, int fileref);
 static void loop_through_files(int filetag, void (*fileaction)(char *filename, int fileref));
 
+int rpm_main(int argc, char **argv);
 int rpm_main(int argc, char **argv)
 {
 	int opt = 0, func = 0, rpm_fd, offset;
@@ -202,7 +203,7 @@ static void extract_cpio_gz(int fd) {
 	if ((magic[0] != 0x1f) || (magic[1] != 0x8b)) {
 		bb_error_msg_and_die("invalid gzip magic");
 	}
-	check_header_gzip(archive_handle->src_fd);
+	check_header_gzip_or_die(archive_handle->src_fd);
 	xchdir("/"); /* Install RPM's to root */
 
 	archive_handle->src_fd = open_transformer(archive_handle->src_fd, inflate_gunzip);

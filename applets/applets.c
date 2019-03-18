@@ -12,8 +12,13 @@
  * Licensed under GPLv2 or later, see file License in this tarball for details.
  */
 
-#include "busybox.h"
 #include <assert.h>
+#include "busybox.h"
+
+#define PROTOTYPES
+#include "applets.h"
+#undef PROTOTYPES
+
 
 /* Apparently uclibc defines __GLIBC__ (compat trick?). Oh well. */
 #if ENABLE_STATIC && defined(__GLIBC__) && !defined(__UCLIBC__)
@@ -106,7 +111,7 @@ static char *get_trimmed_slice(char *s, char *e)
 }
 
 
-#define parse_error(x)  { err=x; goto pe_label; }
+#define parse_error(x)  do { errmsg = x; goto pe_label; } while(0)
 
 /* Don't depend on the tools to combine strings. */
 static const char config_file[] = CONFIG_FILE;
@@ -130,7 +135,7 @@ static void parse_config_file(void)
 	struct BB_suid_config *sct;
 	struct BB_applet *applet;
 	FILE *f;
-	char *err;
+	const char *errmsg;
 	char *s;
 	char *e;
 	int i, lc, section;
@@ -307,7 +312,7 @@ static void parse_config_file(void)
 
  pe_label:
 	fprintf(stderr, "Parse error in %s, line %d: %s\n",
-			config_file, lc, err);
+			config_file, lc, errmsg);
 
 	fclose(f);
 	/* Release any allocated memory before returning. */
@@ -316,7 +321,6 @@ static void parse_config_file(void)
 		free(sct_head);
 		sct_head = sct;
 	}
-	return;
 }
 
 #else

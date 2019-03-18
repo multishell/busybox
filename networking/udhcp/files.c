@@ -21,15 +21,14 @@
 /* on these functions, make sure you datatype matches */
 static int read_ip(const char *line, void *arg)
 {
-	struct in_addr *addr = arg;
-	struct hostent *host;
-	int retval = 1;
+	len_and_sockaddr *lsa;
+	int retval = 0;
 
-	if (!inet_aton(line, addr)) {
-		host = gethostbyname(line);
-		if (host)
-			addr->s_addr = *((unsigned long *) host->h_addr_list[0]);
-		else retval = 0;
+	lsa = host_and_af2sockaddr(line, 0, AF_INET);
+	if (lsa) {
+		*(struct in_addr*)arg = lsa->sin.sin_addr;
+		free(lsa);
+		retval = 1;
 	}
 	return retval;
 }
@@ -101,20 +100,15 @@ static void attach_option(struct option_set **opt_list,
 {
 	struct option_set *existing, *new, **curr;
 
-	/* add it to an existing option */
 	existing = find_option(*opt_list, option->code);
-	if (existing) {
-		DEBUG("Attaching option %s to existing member of list", option->name);
-		if (option->flags & OPTION_LIST) {
-			if (existing->data[OPT_LEN] + length <= 255) {
-				existing->data = realloc(existing->data,
-						existing->data[OPT_LEN] + length + 2);
-				memcpy(existing->data + existing->data[OPT_LEN] + 2, buffer, length);
-				existing->data[OPT_LEN] += length;
-			} /* else, ignore the data, we could put this in a second option in the future */
-		} /* else, ignore the new data */
-	} else {
+	if (!existing) {
 		DEBUG("Attaching option %s to list", option->name);
+
+#if ENABLE_FEATURE_RFC3397
+		if ((option->flags & TYPE_MASK) == OPTION_STR1035)
+			/* reuse buffer and length for RFC1035-formatted string */
+			buffer = dname_enc(NULL, 0, buffer, &length);
+#endif
 
 		/* make a new option */
 		new = xmalloc(sizeof(struct option_set));
@@ -129,7 +123,41 @@ static void attach_option(struct option_set **opt_list,
 
 		new->next = *curr;
 		*curr = new;
+#if ENABLE_FEATURE_RFC3397
+		if ((option->flags & TYPE_MASK) == OPTION_STR1035 && buffer != NULL)
+			free(buffer);
+#endif
+		return;
 	}
+
+	/* add it to an existing option */
+	DEBUG("Attaching option %s to existing member of list", option->name);
+	if (option->flags & OPTION_LIST) {
+#if ENABLE_FEATURE_RFC3397
+		if ((option->flags & TYPE_MASK) == OPTION_STR1035)
+			/* reuse buffer and length for RFC1035-formatted string */
+			buffer = dname_enc(existing->data + 2,
+					existing->data[OPT_LEN], buffer, &length);
+#endif
+		if (existing->data[OPT_LEN] + length <= 255) {
+			existing->data = xrealloc(existing->data,
+					existing->data[OPT_LEN] + length + 3);
+			if ((option->flags & TYPE_MASK) == OPTION_STRING) {
+				/* ' ' can bring us to 256 - bad */
+				if (existing->data[OPT_LEN] + length >= 255)
+					return;
+				/* add space separator between STRING options in a list */
+				existing->data[existing->data[OPT_LEN] + 2] = ' ';
+				existing->data[OPT_LEN]++;
+			}
+			memcpy(existing->data + existing->data[OPT_LEN] + 2, buffer, length);
+			existing->data[OPT_LEN] += length;
+		} /* else, ignore the data, we could put this in a second option in the future */
+#if ENABLE_FEATURE_RFC3397
+		if ((option->flags & TYPE_MASK) == OPTION_STR1035 && buffer != NULL)
+			free(buffer);
+#endif
+	} /* else, ignore the new data */
 }
 
 
@@ -175,6 +203,9 @@ static int read_opt(const char *const_line, void *arg)
 			if (retval) retval = read_ip(val, buffer + 4);
 			break;
 		case OPTION_STRING:
+#if ENABLE_FEATURE_RFC3397
+		case OPTION_STR1035:
+#endif
 			length = strlen(val);
 			if (length > 0) {
 				if (length > 254) length = 254;

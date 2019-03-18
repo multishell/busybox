@@ -33,7 +33,7 @@
 #include <time.h>
 #if ENABLE_FEATURE_WTMP
 extern void updwtmp(const char *filename, const struct utmp *ut);
-static void update_utmp(char *line);
+static void update_utmp(const char *line);
 #endif
 #endif  /* LOGIN_PROCESS */
 
@@ -85,10 +85,10 @@ static void update_utmp(char *line);
 struct options {
 	int flags;                      /* toggle switches, see below */
 	unsigned timeout;               /* time-out period */
-	char *login;                    /* login program */
-	char *tty;                      /* name of tty */
-	char *initstring;               /* modem init string */
-	char *issue;                    /* alternative issue file */
+	const char *login;                    /* login program */
+	const char *tty;                      /* name of tty */
+	const char *initstring;               /* modem init string */
+	const char *issue;                    /* alternative issue file */
 	int numspeed;                   /* number of baud rates to try */
 	int speeds[MAX_SPEED];          /* baud rates to be tried */
 };
@@ -187,7 +187,7 @@ static void parse_args(int argc, char **argv, struct options *op)
 		const char *p = op->initstring;
 		char *q;
 
-		q = op->initstring = xstrdup(op->initstring);
+		op->initstring = q = xstrdup(op->initstring);
 		/* copy optarg into op->initstring decoding \ddd
 		   octal codes into chars */
 		while (*p) {
@@ -233,7 +233,7 @@ static void xdup2(int srcfd, int dstfd, const char *tty)
 }
 
 /* open_tty - set up tty as standard { input, output, error } */
-static void open_tty(char *tty, struct termios *tp, int local)
+static void open_tty(const char *tty, struct termios *tp, int local)
 {
 	int chdir_to_root = 0;
 
@@ -264,7 +264,7 @@ static void open_tty(char *tty, struct termios *tp, int local)
 		 */
 
 		if ((fcntl(0, F_GETFL, 0) & O_RDWR) != O_RDWR)
-			bb_error_msg_and_die("%s: not open for read/write", tty);
+			bb_error_msg_and_die("stdin is not open for read/write");
 	}
 
 	/* Replace current standard output/error fd's with new ones */
@@ -314,7 +314,8 @@ static void open_tty(char *tty, struct termios *tp, int local)
 			strcpy(vcsa, "vcsa");
 			strcpy(vcsa + 4, tty + 3);
 
-			id = (gr = getgrnam("sys")) ? gr->gr_gid : 0;
+			gr = getgrnam("sys");
+			id = gr ? gr->gr_gid : 0;
 			chown(vcs, 0, id);
 			chmod(vcs, 0600);
 			chown(vcsa, 0, id);
@@ -628,8 +629,8 @@ static void termios_final(struct options *op, struct termios *tp, struct chardat
 		tp->c_cflag |= CS7;
 		break;
 	}
-	/* Account for upper case without lower case. */
 
+	/* Account for upper case without lower case. */
 #ifdef HANDLE_ALLCAPS
 	if (cp->capslock) {
 		tp->c_iflag |= IUCLC;
@@ -654,7 +655,7 @@ static void termios_final(struct options *op, struct termios *tp, struct chardat
 #ifdef SYSV_STYLE
 #if ENABLE_FEATURE_UTMP
 /* update_utmp - update our utmp entry */
-static void update_utmp(char *line)
+static void update_utmp(const char *line)
 {
 	struct utmp ut;
 	struct utmp *utp;
@@ -710,6 +711,7 @@ static void update_utmp(char *line)
 #endif /* SYSV_STYLE */
 
 
+int getty_main(int argc, char **argv);
 int getty_main(int argc, char **argv)
 {
 	int nullfd;

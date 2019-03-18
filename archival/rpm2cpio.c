@@ -49,6 +49,7 @@ static void skip_header(int rpm_fd)
 }
 
 /* No getopt required */
+int rpm2cpio_main(int argc, char **argv);
 int rpm2cpio_main(int argc, char **argv)
 {
 	struct rpm_lead lead;
@@ -78,7 +79,7 @@ int rpm2cpio_main(int argc, char **argv)
 		bb_error_msg_and_die("invalid gzip magic");
 	}
 
-	check_header_gzip(rpm_fd);
+	check_header_gzip_or_die(rpm_fd);
 	if (inflate_gunzip(rpm_fd, STDOUT_FILENO) < 0) {
 		bb_error_msg("error inflating");
 	}

@@ -25,10 +25,11 @@
 #define FLAG_CLOSE  1
 #define FLAG_SMART  2
 
+int eject_main(int argc, char **argv);
 int eject_main(int argc, char **argv)
 {
 	unsigned long flags;
-	char *device;
+	const char *device;
 	int dev, cmd;
 
 	opt_complementary = "?:?1:t--T:T--t";

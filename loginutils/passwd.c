@@ -53,7 +53,7 @@ static void crypt_make_salt(char *p, int cnt)
 static char* new_password(const struct passwd *pw, uid_t myuid, int algo)
 {
 	char salt[sizeof("$N$XXXXXXXX")]; /* "$N$XXXXXXXX" or "XX" */
-	char *orig = "";
+	char *orig = (char*)"";
 	char *newp = NULL;
 	char *cipher = NULL;
 	char *cp = NULL;
@@ -229,6 +229,7 @@ static int update_passwd(const char *filename, const char *username,
 }
 
 
+int passwd_main(int argc, char **argv);
 int passwd_main(int argc, char **argv)
 {
 	enum {
@@ -241,7 +242,7 @@ int passwd_main(int argc, char **argv)
 		/*STATE_ALGO_des = 0x20, not needed yet */
 	};
 	unsigned opt;
-	char *opt_a = "";
+	const char *opt_a = "";
 	const char *filename;
 	char *myname;
 	char *name;
@@ -250,6 +251,13 @@ int passwd_main(int argc, char **argv)
 	uid_t myuid;
 	struct rlimit rlimit_fsize;
 	char c;
+
+#if ENABLE_FEATURE_SHADOWPASSWDS
+	/* Using _r function to avoid pulling in static buffers */
+	struct spwd spw;
+	struct spwd *result;
+	char buffer[256];
+#endif
 
 	logmode = LOGMODE_BOTH;
 	openlog(applet_name, LOG_NOWAIT, LOG_AUTH);
@@ -277,17 +285,14 @@ int passwd_main(int argc, char **argv)
 
 	filename = bb_path_passwd_file;
 #if ENABLE_FEATURE_SHADOWPASSWDS
-	{
-		struct spwd *sp = getspnam(name);
-		if (!sp) {
-			/* LOGMODE_BOTH */
-			bb_error_msg("no record of %s in %s, using %s",
-					name, bb_path_shadow_file,
-					bb_path_passwd_file);
-		} else {
-			filename = bb_path_shadow_file;
-			pw->pw_passwd = sp->sp_pwdp;
-		}
+	if (getspnam_r(pw->pw_name, &spw, buffer, sizeof(buffer), &result)) {
+		/* LOGMODE_BOTH */
+		bb_error_msg("no record of %s in %s, using %s",
+				name, bb_path_shadow_file,
+				bb_path_passwd_file);
+	} else {
+		filename = bb_path_shadow_file;
+		pw->pw_passwd = spw.sp_pwdp;
 	}
 #endif
 

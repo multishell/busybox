@@ -337,7 +337,6 @@ extern int insmod_ng_main( int argc, char **argv);
 
 
 #ifndef MODUTILS_MODULE_H
-/* Why? static const int MODUTILS_MODULE_H = 1;*/
 
 /*======================================================================*/
 /* For sizeof() which are related to the module platform and not to the
@@ -494,7 +493,6 @@ int delete_module(const char *);
 
 
 #ifndef MODUTILS_OBJ_H
-/* Why? static const int MODUTILS_OBJ_H = 1; */
 
 /* The relocatable object is manipulated using elfin types.  */
 
@@ -1784,7 +1782,7 @@ static int arch_single_init(ElfW(RelM) *rel, struct arch_single_entry *single,
 
 #if defined(USE_GOT_ENTRIES) || defined(USE_PLT_ENTRIES)
 
-static struct obj_section *arch_xsect_init(struct obj_file *f, char *name,
+static struct obj_section *arch_xsect_init(struct obj_file *f, const char *name,
 					   int offset, int size)
 {
 	struct obj_section *myrelsec = obj_find_section(f, name);
@@ -2542,7 +2540,7 @@ new_process_module_arguments(struct obj_file *f, int argc, char **argv)
 					} else {
 						/* last string */
 						str = q;
-						q = "";
+						q = (char*)"";
 					}
 				}
 
@@ -3947,6 +3945,7 @@ static void print_load_map(struct obj_file *f)
 void print_load_map(struct obj_file *f);
 #endif
 
+int insmod_main( int argc, char **argv);
 int insmod_main( int argc, char **argv)
 {
 	char *opt_o, *arg1;
@@ -4260,6 +4259,7 @@ static const char *moderror(int err)
 	}
 }
 
+int insmod_ng_main(int argc, char **argv);
 int insmod_ng_main(int argc, char **argv)
 {
 	long ret;

@@ -23,8 +23,6 @@
 
 #include "busybox.h"
 #include <getopt.h>
-#include "cmdedit.h"
-
 #include <glob.h>
 #define expand_t	glob_t
 
@@ -32,7 +30,7 @@
 #define CONFIG_LASH_PIPE_N_REDIRECTS
 #define CONFIG_LASH_JOB_CONTROL
 
-static const int MAX_READ = 128;	/* size of input buffer for `read' builtin */
+enum { MAX_READ = 128 }; /* size of input buffer for 'read' builtin */
 #define JOB_STATUS_FORMAT "[%d] %-22s %.40s\n"
 
 
@@ -92,8 +90,8 @@ struct job {
 };
 
 struct built_in_command {
-	char *cmd;					/* name */
-	char *descr;				/* description */
+	const char *cmd;   /* name */
+	const char *descr; /* description */
 	int (*function) (struct child_prog *);	/* function ptr */
 };
 
@@ -124,7 +122,7 @@ static int busy_loop(FILE * input);
 /* Table of built-in functions (these are non-forking builtins, meaning they
  * can change global variables in the parent shell process but they will not
  * work with pipes and redirects; 'unset foo | whatever' will not work) */
-static struct built_in_command bltins[] = {
+static const struct built_in_command bltins[] = {
 	{"bg", "Resume a job in the background", builtin_fg_bg},
 	{"cd", "Change working directory", builtin_cd},
 	{"exec", "Exec command, replacing this shell with the exec'd process", builtin_exec},
@@ -162,8 +160,8 @@ static int last_return_code;
 static int last_bg_pid;
 static unsigned int last_jobid;
 static int shell_terminal;
-static char *PS1;
-static char *PS2 = "> ";
+static const char *PS1;
+static const char *PS2 = "> ";
 
 
 #ifdef DEBUG_SHELL
@@ -219,7 +217,7 @@ static int builtin_cd(struct child_prog *child)
 		bb_perror_msg("cd: %s", newdir);
 		return EXIT_FAILURE;
 	}
-	cwd = xgetcwd((char *)cwd);
+	cwd = xrealloc_getcwd_or_warn((char *)cwd);
 	if (!cwd)
 		cwd = bb_msg_unknown;
 	return EXIT_SUCCESS;
@@ -305,17 +303,17 @@ static int builtin_fg_bg(struct child_prog *child)
 /* built-in 'help' handler */
 static int builtin_help(struct child_prog ATTRIBUTE_UNUSED *dummy)
 {
-	struct built_in_command *x;
+	const struct built_in_command *x;
 
 	printf("\nBuilt-in commands:\n"
 		   "-------------------\n");
 	for (x = bltins; x->cmd; x++) {
-		if (x->descr==NULL)
+		if (x->descr == NULL)
 			continue;
 		printf("%s\t%s\n", x->cmd, x->descr);
 	}
 	for (x = bltins_forking; x->cmd; x++) {
-		if (x->descr==NULL)
+		if (x->descr == NULL)
 			continue;
 		printf("%s\t%s\n", x->cmd, x->descr);
 	}
@@ -327,7 +325,7 @@ static int builtin_help(struct child_prog ATTRIBUTE_UNUSED *dummy)
 static int builtin_jobs(struct child_prog *child)
 {
 	struct job *job;
-	char *status_string;
+	const char *status_string;
 
 	for (job = child->family->job_list->head; job; job = job->next) {
 		if (job->running_progs == job->stopped_progs)
@@ -344,7 +342,7 @@ static int builtin_jobs(struct child_prog *child)
 /* built-in 'pwd' handler */
 static int builtin_pwd(struct child_prog ATTRIBUTE_UNUSED *dummy)
 {
-	cwd = xgetcwd((char *)cwd);
+	cwd = xrealloc_getcwd_or_warn((char *)cwd);
 	if (!cwd)
 		cwd = bb_msg_unknown;
 	puts(cwd);
@@ -367,7 +365,7 @@ static int builtin_export(struct child_prog *child)
 	res = putenv(v);
 	if (res)
 		bb_perror_msg("export");
-#ifdef CONFIG_FEATURE_SH_FANCY_PROMPT
+#ifdef CONFIG_FEATURE_EDITING_FANCY_PROMPT
 	if (strncmp(v, "PS1=", 4)==0)
 		PS1 = getenv("PS1");
 #endif
@@ -615,7 +613,7 @@ static inline void restore_redirects(int squirrel[])
 
 static inline void cmdedit_set_initial_prompt(void)
 {
-#ifndef CONFIG_FEATURE_SH_FANCY_PROMPT
+#if !ENABLE_FEATURE_EDITING_FANCY_PROMPT
 	PS1 = NULL;
 #else
 	PS1 = getenv("PS1");
@@ -624,26 +622,32 @@ static inline void cmdedit_set_initial_prompt(void)
 #endif
 }
 
-static inline void setup_prompt_string(char **prompt_str)
+static inline const char* setup_prompt_string(void)
 {
-#ifndef CONFIG_FEATURE_SH_FANCY_PROMPT
+#if !ENABLE_FEATURE_EDITING_FANCY_PROMPT
 	/* Set up the prompt */
 	if (shell_context == 0) {
-		free(PS1);
-		PS1=xmalloc(strlen(cwd)+4);
-		sprintf(PS1, "%s %c ", cwd, ( geteuid() != 0 ) ? '$': '#');
-		*prompt_str = PS1;
+		char *ns;
+		free((char*)PS1);
+		ns = xmalloc(strlen(cwd)+4);
+		sprintf(ns, "%s %c ", cwd, (geteuid() != 0) ? '$': '#');
+		PS1 = ns;
+		return ns;
 	} else {
-		*prompt_str = PS2;
+		return PS2;
 	}
 #else
-	*prompt_str = (shell_context==0)? PS1 : PS2;
+	return (shell_context==0)? PS1 : PS2;
 #endif
 }
 
+#if ENABLE_FEATURE_EDITING
+static line_input_t *line_input_state;
+#endif
+
 static int get_command(FILE * source, char *command)
 {
-	char *prompt_str;
+	const char *prompt_str;
 
 	if (source == NULL) {
 		if (local_pending_command) {
@@ -657,16 +661,16 @@ static int get_command(FILE * source, char *command)
 	}
 
 	if (source == stdin) {
-		setup_prompt_string(&prompt_str);
+		prompt_str = setup_prompt_string();
 
-#ifdef CONFIG_FEATURE_COMMAND_EDITING
+#if ENABLE_FEATURE_EDITING
 		/*
 		** enable command line editing only while a command line
 		** is actually being read; otherwise, we'll end up bequeathing
 		** atexit() handlers and other unwanted stuff to our
 		** child processes (rob@sysgo.de)
 		*/
-		cmdedit_read_input(prompt_str, command);
+		read_line_input(prompt_str, command, BUFSIZ, line_input_state);
 		return 0;
 #else
 		fputs(prompt_str, stdout);
@@ -795,7 +799,7 @@ static int expand_arguments(char *command)
 				break;
 			case '!':
 				if (last_bg_pid==-1)
-					*(var)='\0';
+					*var = '\0';
 				else
 					var = itoa(last_bg_pid);
 				break;
@@ -851,7 +855,7 @@ static int expand_arguments(char *command)
 		}
 		if (var == NULL) {
 			/* Seems we got an un-expandable variable.  So delete it. */
-			var = "";
+			var = (char*)"";
 		}
 		{
 			int subst_len = strlen(var);
@@ -1126,7 +1130,7 @@ empty_command_in_pipe:
  */
 static int pseudo_exec(struct child_prog *child)
 {
-	struct built_in_command *x;
+	const struct built_in_command *x;
 
 	/* Check if the command matches any of the non-forking builtins.
 	 * Depending on context, this might be redundant.  But it's
@@ -1225,7 +1229,7 @@ static int run_command(struct job *newjob, int inbg, int outpipe[2])
 	int i;
 	int nextin, nextout;
 	int pipefds[2];				/* pipefd[0] is for reading */
-	struct built_in_command *x;
+	const struct built_in_command *x;
 	struct child_prog *child;
 
 	nextin = 0, nextout = 1;
@@ -1498,12 +1502,17 @@ static inline void setup_job_control(void)
 }
 #endif
 
+int lash_main(int argc_l, char **argv_l);
 int lash_main(int argc_l, char **argv_l)
 {
 	unsigned opt;
 	FILE *input = stdin;
 	argc = argc_l;
 	argv = argv_l;
+
+#if ENABLE_FEATURE_EDITING
+	line_input_state = new_line_input_t(FOR_SHELL);
+#endif
 
 	/* These variables need re-initializing when recursing */
 	last_jobid = 0;
@@ -1560,13 +1569,13 @@ int lash_main(int argc_l, char **argv_l)
 	}
 
 	/* initialize the cwd -- this is never freed...*/
-	cwd = xgetcwd(0);
+	cwd = xrealloc_getcwd_or_warn(NULL);
 	if (!cwd)
 		cwd = bb_msg_unknown;
 
 	if (ENABLE_FEATURE_CLEAN_UP) atexit(free_memory);
 
-	if (ENABLE_FEATURE_COMMAND_EDITING) cmdedit_set_initial_prompt();
+	if (ENABLE_FEATURE_EDITING) cmdedit_set_initial_prompt();
 	else PS1 = NULL;
 
 	return (busy_loop(input));

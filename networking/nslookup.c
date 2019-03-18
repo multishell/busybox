@@ -47,24 +47,11 @@
  * ns3.kernel.org  internet address = 204.152.191.36
  */
 
-static int sockaddr_to_dotted(struct sockaddr *saddr, char *buf, int buflen)
-{
-	if (buflen <= 0) return -1;
-	buf[0] = '\0';
-	if (saddr->sa_family == AF_INET) {
-		inet_ntop(AF_INET, &((struct sockaddr_in*)saddr)->sin_addr, buf, buflen);
-		return 0;
-	}
-	if (saddr->sa_family == AF_INET6) {
-		inet_ntop(AF_INET6, &((struct sockaddr_in6*)saddr)->sin6_addr, buf, buflen);
-		return 0;
-	}
-	return -1;
-}
-
 static int print_host(const char *hostname, const char *header)
 {
-	char str[128];	/* IPv6 address will fit, hostnames hopefully too */
+	/* We can't use xhost2sockaddr() - we want to get ALL addresses,
+	 * not just one */
+
 	struct addrinfo *result = NULL;
 	int rc;
 	struct addrinfo hint;
@@ -76,25 +63,58 @@ static int print_host(const char *hostname, const char *header)
 	hint.ai_socktype = SOCK_STREAM;
 	// hint.ai_flags = AI_CANONNAME;
 	rc = getaddrinfo(hostname, NULL /*service*/, &hint, &result);
+
 	if (!rc) {
 		struct addrinfo *cur = result;
+		unsigned cnt = 0;
+
+		printf("%-10s %s\n", header, hostname);
 		// printf("%s\n", cur->ai_canonname); ?
 		while (cur) {
-			sockaddr_to_dotted(cur->ai_addr, str, sizeof(str));
-			printf("%s  %s\nAddress: %s", header, hostname, str);
-			str[0] = ' ';
-			if (getnameinfo(cur->ai_addr, cur->ai_addrlen, str+1, sizeof(str)-1, NULL, 0, NI_NAMEREQD))
-				str[0] = '\0';
-			puts(str);
+			char *dotted, *revhost;
+			dotted = xmalloc_sockaddr2dotted_noport(cur->ai_addr, cur->ai_addrlen);
+			revhost = xmalloc_sockaddr2hostonly_noport(cur->ai_addr, cur->ai_addrlen);
+
+			printf("Address %u: %s%c", ++cnt, dotted, revhost ? ' ' : '\n');
+			if (revhost) {
+				puts(revhost);
+				if (ENABLE_FEATURE_CLEAN_UP)
+					free(revhost);
+			}
+			if (ENABLE_FEATURE_CLEAN_UP)
+				free(dotted);
 			cur = cur->ai_next;
 		}
 	} else {
-		bb_error_msg("getaddrinfo('%s') failed: %s", hostname, gai_strerror(rc));
+#if ENABLE_VERBOSE_RESOLUTION_ERRORS
+		bb_error_msg("can't resolve '%s': %s", hostname, gai_strerror(rc));
+#else
+		bb_error_msg("can't resolve '%s'", hostname);
+#endif
 	}
-	freeaddrinfo(result);
+	if (ENABLE_FEATURE_CLEAN_UP)
+		freeaddrinfo(result);
 	return (rc != 0);
 }
 
+/* lookup the default nameserver and display it */
+static void server_print(void)
+{
+	char *server;
+
+	server = xmalloc_sockaddr2dotted_noport((struct sockaddr*)&_res.nsaddr_list[0],
+			sizeof(struct sockaddr_in));
+	/* I honestly don't know what to do if DNS server has _IPv6 address_.
+	 * Probably it is listed in
+	 * _res._u._ext_.nsaddrs[MAXNS] (of type "struct sockaddr_in6*" each)
+	 * but how to find out whether resolver uses
+	 * _res.nsaddr_list[] or _res._u._ext_.nsaddrs[], or both?
+	 * Looks like classic design from hell, BIND-grade. Hard to surpass. */
+	print_host(server, "Server:");
+	if (ENABLE_FEATURE_CLEAN_UP)
+		free(server);
+	puts("");
+}
 
 /* alter the global _res nameserver structure to use
    an explicit dns server instead of what is in /etc/resolv.h */
@@ -108,42 +128,28 @@ static void set_default_dns(char *server)
 	}
 }
 
-
-/* lookup the default nameserver and display it */
-static void server_print(void)
-{
-	char str[INET6_ADDRSTRLEN];
-
-	sockaddr_to_dotted((struct sockaddr*)&_res.nsaddr_list[0], str, sizeof(str));
-	print_host(str, "Server:");
-	puts("");
-}
-
-
+int nslookup_main(int argc, char **argv);
 int nslookup_main(int argc, char **argv)
 {
-	/*
-	* initialize DNS structure _res used in printing the default
-	* name server and in the explicit name server option feature.
-	*/
-
-	res_init();
-
-	/*
-	* We allow 1 or 2 arguments.
-	* The first is the name to be looked up and the second is an
-	* optional DNS server with which to do the lookup.
-	* More than 3 arguments is an error to follow the pattern of the
-	* standard nslookup
-	*/
+	/* We allow 1 or 2 arguments.
+	 * The first is the name to be looked up and the second is an
+	 * optional DNS server with which to do the lookup.
+	 * More than 3 arguments is an error to follow the pattern of the
+	 * standard nslookup */
 
 	if (argc < 2 || *argv[1] == '-' || argc > 3)
 		bb_show_usage();
-	else if(argc == 3)
+
+	/* initialize DNS structure _res used in printing the default
+	 * name server and in the explicit name server option feature. */
+	res_init();
+	/* rfc2133 says this enables IPv6 lookups */
+	/* (but it also says "may be enabled in /etc/resolv.conf|) */
+	/*_res.options |= RES_USE_INET6;*/
+
+	if(argc == 3)
 		set_default_dns(argv[2]);
 
 	server_print();
-	return print_host(argv[1], "Name:  ");
+	return print_host(argv[1], "Name:");
 }
-
-/* $Id: nslookup.c,v 1.33 2004/10/13 07:25:01 andersen Exp $ */

@@ -83,6 +83,22 @@ config FEATURE_FIND_EXEC
 	  Support the 'find -exec' option for executing commands based upon
 	  the files matched.
 
+config FEATURE_FIND_USER
+	bool "Enable username/uid matching (-user) option"
+	default y
+	depends on FIND
+	help
+	  Support the 'find -user' option for searching by username or uid.
+
+config FEATURE_FIND_NOT
+	bool "Enable the 'not' (!) operator"
+	default y
+	depends on FIND
+	help
+	  Support the '!' operator to invert the test results. If 'Enable
+	  full-blown desktop' is enabled, then will also support the
+	  non-POSIX notation '-not'.
+
 config GREP
 	bool "grep"
 	default n

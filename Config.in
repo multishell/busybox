@@ -231,6 +231,14 @@ config SELINUX
 
 	  Most people will leave this set to 'N'.
 
+config FEATURE_EXEC_PREFER_APPLETS
+	bool "exec prefers applets"
+	default n
+	help
+	  This is an experimental option which directs applets about to
+	  call 'exec' to try and find an applicable busybox applet before
+	  searching the executable path for a binary or symlink to execute.
+
 config BUSYBOX_EXEC_PATH
 	string "Path to BusyBox executable"
 	default "/proc/self/exe"
@@ -344,16 +352,25 @@ config DEBUG
 
 	  Most people should answer N.
 
-config DEBUG_PESSIMIZE
-	bool "Disable compiler optimizations."
+config WERROR
+	bool "Abort compilation on any warning"
 	default n
-	depends on DEBUG
 	help
-	  The compiler's optimization of source code can eliminate and reorder
-	  code, resulting in an executable that's hard to understand when
-	  stepping through it with a debugger.  This switches it off, resulting
-	  in a much bigger executable that more closely matches the source
-	  code.
+	  Selecting this will add -Werror to gcc command line.
+
+	  Most people should answer N.
+
+# Seems to be unused
+#config DEBUG_PESSIMIZE
+#	bool "Disable compiler optimizations."
+#	default n
+#	depends on DEBUG
+#	help
+#	  The compiler's optimization of source code can eliminate and reorder
+#	  code, resulting in an executable that's hard to understand when
+#	  stepping through it with a debugger.  This switches it off, resulting
+#	  in a much bigger executable that more closely matches the source
+#	  code.
 
 choice
 	prompt "Additional debugging library"
@@ -418,31 +435,30 @@ config INSTALL_NO_USR
 	  that you really want this behaviour.
 
 choice
-       prompt "Applets links"
-       default INSTALL_APPLET_SYMLINKS
-       help
-         Choose how you install applets links.
+	prompt "Applets links"
+	default INSTALL_APPLET_SYMLINKS
+	help
+	  Choose how you install applets links.
 
 config INSTALL_APPLET_SYMLINKS
-       bool "as soft-links"
-       help
-         Install applets as soft-links to the busybox binary. This needs some
-         free inodes on the filesystem, but might help with filesystem
-         generators that can't cope with hard-links.
+	bool "as soft-links"
+	help
+	  Install applets as soft-links to the busybox binary. This needs some
+	  free inodes on the filesystem, but might help with filesystem
+	  generators that can't cope with hard-links.
 
 config INSTALL_APPLET_HARDLINKS
-       bool "as hard-links"
-       help
-         Install applets as hard-links to the busybox binary. This might count
-         on a filesystem with few inodes.
+	bool "as hard-links"
+	help
+	  Install applets as hard-links to the busybox binary. This might count
+	  on a filesystem with few inodes.
 
 config INSTALL_APPLET_DONT
-       bool
-       prompt "not installed"
-       depends on FEATURE_INSTALLER || FEATURE_SH_STANDALONE_SHELL
-       help
-         Do not install applet links. Useful when using the -install feature
-         or a standalone shell for rescue pruposes.
+	bool "not installed"
+	depends on FEATURE_INSTALLER || FEATURE_SH_STANDALONE_SHELL || FEATURE_EXEC_PREFER_APPLETS
+	help
+	  Do not install applet links. Useful when using the -install feature
+	  or a standalone shell for rescue pruposes.
 
 endchoice
 
@@ -477,3 +493,4 @@ source procps/Config.in
 source shell/Config.in
 source sysklogd/Config.in
 source runit/Config.in
+source selinux/Config.in

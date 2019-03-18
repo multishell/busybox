@@ -327,7 +327,7 @@ static int timingout;
 static struct servent *sp;
 static uid_t uid;
 
-static char *CONFIG = _PATH_INETDCONF;
+static const char *CONFIG = _PATH_INETDCONF;
 
 static FILE *fconfig;
 static char line[1024];
@@ -1246,8 +1246,8 @@ inetd_setproctitle(char *a, int s)
 #endif
 
 
-int
-inetd_main(int argc, char *argv[])
+int inetd_main(int argc, char *argv[]);
+int inetd_main(int argc, char *argv[])
 {
 	servtab_t *sep;
 	struct passwd *pwd;
@@ -1707,7 +1707,7 @@ chargen_dg(int s, servtab_t *sep ATTRIBUTE_UNUSED)
  * some seventy years Bell Labs was asleep.
  */
 
-static u_int machtime(void)
+static unsigned machtime(void)
 {
 	struct timeval tv;
 
@@ -1715,14 +1715,14 @@ static u_int machtime(void)
 		fprintf(stderr, "Unable to get time of day\n");
 		return 0L;
 	}
-	return htonl((u_int) tv.tv_sec + 2208988800UL);
+	return htonl((unsigned) tv.tv_sec + 2208988800UL);
 }
 
 /* ARGSUSED */
 static void
 machtime_stream(int s, servtab_t *sep ATTRIBUTE_UNUSED)
 {
-	u_int result;
+	unsigned result;
 
 	result = machtime();
 	(void) write(s, (char *) &result, sizeof(result));
@@ -1732,7 +1732,7 @@ machtime_stream(int s, servtab_t *sep ATTRIBUTE_UNUSED)
 static void
 machtime_dg(int s, servtab_t *sep ATTRIBUTE_UNUSED)
 {
-	u_int result;
+	unsigned result;
 	/* struct sockaddr_storage ss; */
 	struct sockaddr sa;
 	struct sockaddr_in *dg_sin;

@@ -37,7 +37,7 @@
 #include "common.h"
 
 
-int read_interface(char *interface, int *ifindex, uint32_t *addr, uint8_t *arp)
+int read_interface(const char *interface, int *ifindex, uint32_t *addr, uint8_t *arp)
 {
 	int fd;
 	struct ifreq ifr;
@@ -88,7 +88,7 @@ int read_interface(char *interface, int *ifindex, uint32_t *addr, uint8_t *arp)
 }
 
 
-int listen_socket(uint32_t ip, int port, char *inf)
+int listen_socket(uint32_t ip, int port, const char *inf)
 {
 	struct ifreq interface;
 	int fd;
@@ -112,7 +112,7 @@ int listen_socket(uint32_t ip, int port, char *inf)
 	}
 
 	strncpy(interface.ifr_name, inf, IFNAMSIZ);
-	if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, (char *)&interface, sizeof(interface)) < 0) {
+	if (setsockopt(fd, SOL_SOCKET, SO_BINDTODEVICE, &interface, sizeof(interface)) < 0) {
 		close(fd);
 		return -1;
 	}

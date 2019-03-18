@@ -62,11 +62,18 @@ static ssize_t tail_read(int fd, char *buf, size_t count)
 
 static const char header_fmt[] = "\n==> %s <==\n";
 
+static unsigned eat_num(const char *p) {
+	if (*p == '-') p++;
+	else if (*p == '+') { p++; status = 1; }
+	return xatou_sfx(p, tail_suffixes);
+}
+
+int tail_main(int argc, char **argv);
 int tail_main(int argc, char **argv)
 {
 	unsigned count = 10;
 	unsigned sleep_period = 1;
-	int from_top = 0;
+	bool from_top;
 	int header_threshhold = 1;
 	const char *str_c, *str_n, *str_s;
 
@@ -80,19 +87,12 @@ int tail_main(int argc, char **argv)
 	char *s, *buf;
 	const char *fmt;
 
-	void eat_num(const char *p) {
-		if (*p == '-') p++;
-		else if (*p == '+') { p++; from_top = 1; }
-		count = xatou_sfx(p, tail_suffixes);
-	}
-
-
 #if ENABLE_INCLUDE_SUSv2 || ENABLE_FEATURE_FANCY_TAIL
 	/* Allow legacy syntax of an initial numeric option without -n. */
 	if (argc >= 2 && (argv[1][0] == '+' || argv[1][0] == '-')
 	 && isdigit(argv[1][1])
 	) {
-		argv[0] = "-n";
+		argv[0] = (char*)"-n";
 		argv--;
 		argc++;
 	}
@@ -102,8 +102,8 @@ int tail_main(int argc, char **argv)
 #define FOLLOW (opt & 0x1)
 #define COUNT_BYTES (opt & 0x2)
 	//if (opt & 0x1) // -f
-	if (opt & 0x2) eat_num(str_c); // -c
-	if (opt & 0x4) eat_num(str_n); // -n
+	if (opt & 0x2) count = eat_num(str_c); // -c
+	if (opt & 0x4) count = eat_num(str_n); // -n
 #if ENABLE_FEATURE_FANCY_TAIL
 	if (opt & 0x8) header_threshhold = INT_MAX; // -q
 	if (opt & 0x10) sleep_period = xatou(str_s); // -s
@@ -111,10 +111,11 @@ int tail_main(int argc, char **argv)
 #endif
 	argc -= optind;
 	argv += optind;
+	from_top = status;
 
 	/* open all the files */
 	fds = xmalloc(sizeof(int) * (argc + 1));
-	nfiles = i = 0;
+	status = nfiles = i = 0;
 	if (argc == 0) {
 		struct stat statbuf;
 

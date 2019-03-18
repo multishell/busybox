@@ -45,8 +45,8 @@
  * (no output)
  */
 
-#include "busybox.h"
 #include <fnmatch.h>
+#include "busybox.h"
 
 USE_FEATURE_FIND_XDEV(static dev_t *xdev_dev;)
 USE_FEATURE_FIND_XDEV(static int xdev_count;)
@@ -55,31 +55,35 @@ typedef int (*action_fp)(const char *fileName, struct stat *statbuf, void *);
 
 typedef struct {
 	action_fp f;
+#if ENABLE_FEATURE_FIND_NOT
+	smallint invert;
+#endif
 } action;
 #define ACTS(name, arg...) typedef struct { action a; arg; } action_##name;
 #define ACTF(name)         static int func_##name(const char *fileName, struct stat *statbuf, action_##name* ap)
                         ACTS(print)
-                        ACTS(name,  char *pattern;)
+                        ACTS(name,  const char *pattern;)
 USE_FEATURE_FIND_PRINT0(ACTS(print0))
 USE_FEATURE_FIND_TYPE(  ACTS(type,  int type_mask;))
-USE_FEATURE_FIND_PERM(  ACTS(perm,  char perm_char; int perm_mask;))
-USE_FEATURE_FIND_MTIME( ACTS(mtime, char mtime_char; int mtime_days;))
-USE_FEATURE_FIND_MMIN(  ACTS(mmin,  char mmin_char; int mmin_mins;))
+USE_FEATURE_FIND_PERM(  ACTS(perm,  char perm_char; mode_t perm_mask;))
+USE_FEATURE_FIND_MTIME( ACTS(mtime, char mtime_char; unsigned mtime_days;))
+USE_FEATURE_FIND_MMIN(  ACTS(mmin,  char mmin_char; unsigned mmin_mins;))
 USE_FEATURE_FIND_NEWER( ACTS(newer, time_t newer_mtime;))
 USE_FEATURE_FIND_INUM(  ACTS(inum,  ino_t inode_num;))
-USE_FEATURE_FIND_EXEC(  ACTS(exec,  char **exec_argv; int *subst_count; int exec_argc;))
+USE_FEATURE_FIND_EXEC(  ACTS(exec,  char **exec_argv; unsigned int *subst_count; int exec_argc;))
+USE_FEATURE_FIND_USER(  ACTS(user,  int uid;))
 USE_DESKTOP(            ACTS(paren, action ***subexpr;))
 USE_DESKTOP(            ACTS(size,  off_t size;))
 USE_DESKTOP(            ACTS(prune))
 
 static action ***actions;
-static int need_print = 1;
+static smalluint need_print = 1;
 
 
 #if ENABLE_FEATURE_FIND_EXEC
-static int count_subst(const char *str)
+static unsigned int count_subst(const char *str)
 {
-	int count = 0;
+	unsigned int count = 0;
 	while ((str = strstr(str, "{}"))) {
 		count++;
 		str++;
@@ -88,7 +92,7 @@ static int count_subst(const char *str)
 }
 
 
-static char* subst(const char *src, int count, const char* filename)
+static char* subst(const char *src, unsigned int count, const char* filename)
 {
 	char *buf, *dst, *end;
 	int flen = strlen(filename);
@@ -117,12 +121,20 @@ static int exec_actions(action ***appp, const char *fileName, struct stat *statb
 	cur_group = -1;
 	while ((app = appp[++cur_group])) {
 		cur_action = -1;
-		do {
+		while (1) {
 			ap = app[++cur_action];
-		} while (ap && (rc = ap->f(fileName, statbuf, ap)));
-		if (!ap) {
-			/* all actions in group were successful */
-			break;
+			if (!ap) {
+				/* all actions in group were successful */
+				return rc;
+			}
+			rc = ap->f(fileName, statbuf, ap);
+#if ENABLE_FEATURE_FIND_NOT
+			if (ap->invert) rc = !rc;
+#endif
+			if (!rc) {
+				/* current group failed, try next */
+				break;
+			}
 		}
 	}
 	return rc;
@@ -147,20 +159,27 @@ ACTF(type)
 #if ENABLE_FEATURE_FIND_PERM
 ACTF(perm)
 {
-	return !((isdigit(ap->perm_char) && (statbuf->st_mode & 07777) == ap->perm_mask)
-	        || (ap->perm_char == '-' && (statbuf->st_mode & ap->perm_mask) == ap->perm_mask)
-	        || (ap->perm_char == '+' && (statbuf->st_mode & ap->perm_mask) != 0));
+	/* -perm +mode: at least one of perm_mask bits are set */
+	if (ap->perm_char == '+')
+		return (statbuf->st_mode & ap->perm_mask) != 0;
+	/* -perm -mode: all of perm_mask are set */
+	if (ap->perm_char == '-')
+		return (statbuf->st_mode & ap->perm_mask) == ap->perm_mask;
+	/* -perm mode: file mode must match perm_mask */
+	return (statbuf->st_mode & 07777) == ap->perm_mask;
 }
 #endif
 #if ENABLE_FEATURE_FIND_MTIME
 ACTF(mtime)
 {
 	time_t file_age = time(NULL) - statbuf->st_mtime;
-	time_t mtime_secs = ap->mtime_days * 24 * 60 * 60;
-	return !((isdigit(ap->mtime_char) && file_age >= mtime_secs
-	                                  && file_age < mtime_secs + 24 * 60 * 60)
-	        || (ap->mtime_char == '+' && file_age >= mtime_secs + 24 * 60 * 60)
-	        || (ap->mtime_char == '-' && file_age < mtime_secs));
+	time_t mtime_secs = ap->mtime_days * 24*60*60;
+	if (ap->mtime_char == '+')
+		return file_age >= mtime_secs + 24*60*60;
+	if (ap->mtime_char == '-')
+		return file_age < mtime_secs;
+	/* just numeric mtime */
+	return file_age >= mtime_secs && file_age < (mtime_secs + 24*60*60);
 }
 #endif
 #if ENABLE_FEATURE_FIND_MMIN
@@ -168,22 +187,24 @@ ACTF(mmin)
 {
 	time_t file_age = time(NULL) - statbuf->st_mtime;
 	time_t mmin_secs = ap->mmin_mins * 60;
-	return !((isdigit(ap->mmin_char) && file_age >= mmin_secs
-	                                 && file_age < mmin_secs + 60)
-	        || (ap->mmin_char == '+' && file_age >= mmin_secs + 60)
-	        || (ap->mmin_char == '-' && file_age < mmin_secs));
+	if (ap->mmin_char == '+')
+		return file_age >= mmin_secs + 60;
+	if (ap->mmin_char == '-')
+		return file_age < mmin_secs;
+	/* just numeric mmin */
+	return file_age >= mmin_secs && file_age < (mmin_secs + 60);
 }
 #endif
 #if ENABLE_FEATURE_FIND_NEWER
 ACTF(newer)
 {
-	return (ap->newer_mtime >= statbuf->st_mtime);
+	return (ap->newer_mtime < statbuf->st_mtime);
 }
 #endif
 #if ENABLE_FEATURE_FIND_INUM
 ACTF(inum)
 {
-	return (statbuf->st_ino != ap->inode_num);
+	return (statbuf->st_ino == ap->inode_num);
 }
 #endif
 #if ENABLE_FEATURE_FIND_EXEC
@@ -200,6 +221,13 @@ ACTF(exec)
 	for (i = 0; i < ap->exec_argc; i++)
 		free(argv[i]);
 	return rc == 0; /* return 1 if success */
+}
+#endif
+
+#if ENABLE_FEATURE_FIND_USER
+ACTF(user)
+{
+	return (statbuf->st_uid == ap->uid);
 }
 #endif
 
@@ -264,7 +292,7 @@ static int fileAction(const char *fileName, struct stat *statbuf, void* junk, in
 
 
 #if ENABLE_FEATURE_FIND_TYPE
-static int find_type(char *type)
+static int find_type(const char *type)
 {
 	int mask = 0;
 
@@ -299,11 +327,22 @@ static int find_type(char *type)
 }
 #endif
 
-action*** parse_params(char **argv)
+#if ENABLE_FEATURE_FIND_PERM || ENABLE_FEATURE_FIND_MTIME \
+ || ENABLE_FEATURE_FIND_MMIN
+static const char* plus_minus_num(const char* str)
+{
+	if (*str == '-' || *str == '+')
+		str++;
+	return str;
+}
+#endif
+
+static action*** parse_params(char **argv)
 {
 	action*** appp;
-	int cur_group = 0;
-	int cur_action = 0;
+	unsigned cur_group = 0;
+	unsigned cur_action = 0;
+	USE_FEATURE_FIND_NOT( smallint invert_flag = 0; )
 
 	action* alloc_action(int sizeof_struct, action_fp f)
 	{
@@ -312,11 +351,13 @@ action*** parse_params(char **argv)
 		appp[cur_group][cur_action++] = ap = xmalloc(sizeof_struct);
 		appp[cur_group][cur_action] = NULL;
 		ap->f = f;
+		USE_FEATURE_FIND_NOT( ap->invert = invert_flag; )
+		USE_FEATURE_FIND_NOT( invert_flag = 0; )
 		return ap;
 	}
 #define ALLOC_ACTION(name) (action_##name*)alloc_action(sizeof(action_##name), (action_fp) func_##name)
 
-	appp = xzalloc(2 * sizeof(*appp)); /* appp[0],[1] == NULL */
+	appp = xzalloc(2 * sizeof(appp[0])); /* appp[0],[1] == NULL */
 
 // Actions have side effects and return a true or false value
 // We implement: -print, -print0, -exec
@@ -332,14 +373,15 @@ action*** parse_params(char **argv)
 // expr1 , expr2         List; both expr1 and expr2 are always evaluated
 // We implement: (), -a, -o
 
+//XXX: TODO: Use index_in_str_array here
 	while (*argv) {
-		char *arg = argv[0];
-		char *arg1 = argv[1];
+		const char *arg = argv[0];
+		const char *arg1 = argv[1];
 	/* --- Operators --- */
 		if (strcmp(arg, "-a") == 0
 		    USE_DESKTOP(|| strcmp(arg, "-and") == 0)
 		) {
-			/* no special handling required */
+			/* no further special handling required */
 		}
 		else if (strcmp(arg, "-o") == 0
 		         USE_DESKTOP(|| strcmp(arg, "-or") == 0)
@@ -347,19 +389,30 @@ action*** parse_params(char **argv)
 			/* start new OR group */
 			cur_group++;
 			appp = xrealloc(appp, (cur_group+2) * sizeof(*appp));
-			appp[cur_group] = NULL;
+			/*appp[cur_group] = NULL; - already NULL */
 			appp[cur_group+1] = NULL;
 			cur_action = 0;
 		}
+#if ENABLE_FEATURE_FIND_NOT
+		else if (LONE_CHAR(arg, '!')
+		         USE_DESKTOP(|| strcmp(arg, "-not") == 0)
+		) {
+			/* also handles "find ! ! -name 'foo*'" */
+			invert_flag ^= 1;
+		}
+#endif
 
 	/* --- Tests and actions --- */
 		else if (strcmp(arg, "-print") == 0) {
 			need_print = 0;
+			/* GNU find ignores '!' here: "find ! -print" */
+			USE_FEATURE_FIND_NOT( invert_flag = 0; )
 			(void) ALLOC_ACTION(print);
 		}
 #if ENABLE_FEATURE_FIND_PRINT0
 		else if (strcmp(arg, "-print0") == 0) {
 			need_print = 0;
+			USE_FEATURE_FIND_NOT( invert_flag = 0; )
 			(void) ALLOC_ACTION(print0);
 		}
 #endif
@@ -391,10 +444,11 @@ action*** parse_params(char **argv)
 			if (!*++argv)
 				bb_error_msg_and_die(bb_msg_requires_arg, arg);
 			ap = ALLOC_ACTION(perm);
-			ap->perm_mask = xstrtol_range(arg1, 8, 0, 07777);
 			ap->perm_char = arg1[0];
-			if (ap->perm_char == '-')
-				ap->perm_mask = -ap->perm_mask;
+			arg1 = plus_minus_num(arg1);
+			ap->perm_mask = 0;
+			if (!bb_parse_mode(arg1, &ap->perm_mask))
+				bb_error_msg_and_die("invalid mode: %s", arg1);
 		}
 #endif
 #if ENABLE_FEATURE_FIND_MTIME
@@ -403,10 +457,8 @@ action*** parse_params(char **argv)
 			if (!*++argv)
 				bb_error_msg_and_die(bb_msg_requires_arg, arg);
 			ap = ALLOC_ACTION(mtime);
-			ap->mtime_days = xatol(arg1);
 			ap->mtime_char = arg1[0];
-			if (ap->mtime_char == '-')
-				ap->mtime_days = -ap->mtime_days;
+			ap->mtime_days = xatoul(plus_minus_num(arg1));
 		}
 #endif
 #if ENABLE_FEATURE_FIND_MMIN
@@ -415,10 +467,8 @@ action*** parse_params(char **argv)
 			if (!*++argv)
 				bb_error_msg_and_die(bb_msg_requires_arg, arg);
 			ap = ALLOC_ACTION(mmin);
-			ap->mmin_mins = xatol(arg1);
 			ap->mmin_char = arg1[0];
-			if (ap->mmin_char == '-')
-				ap->mmin_mins = -ap->mmin_mins;
+			ap->mmin_mins = xatoul(plus_minus_num(arg1));
 		}
 #endif
 #if ENABLE_FEATURE_FIND_NEWER
@@ -446,6 +496,7 @@ action*** parse_params(char **argv)
 			int i;
 			action_exec *ap;
 			need_print = 0;
+			USE_FEATURE_FIND_NOT( invert_flag = 0; )
 			ap = ALLOC_ACTION(exec);
 			ap->exec_argv = ++argv; /* first arg after -exec */
 			ap->exec_argc = 0;
@@ -465,11 +516,22 @@ action*** parse_params(char **argv)
 				ap->subst_count[i] = count_subst(ap->exec_argv[i]);
 		}
 #endif
+#if ENABLE_FEATURE_FIND_USER
+		else if (strcmp(arg, "-user") == 0) {
+			action_user *ap;
+			if (!*++argv)
+				bb_error_msg_and_die(bb_msg_requires_arg, arg);
+			ap = ALLOC_ACTION(user);
+			ap->uid = bb_strtou(arg1, NULL, 10);
+			if (errno)
+				ap->uid = xuname2uid(arg1);
+		}
+#endif
 #if ENABLE_DESKTOP
 		else if (LONE_CHAR(arg, '(')) {
 			action_paren *ap;
 			char **endarg;
-			int nested = 1;
+			unsigned nested = 1;
 
 			endarg = argv;
 			while (1) {
@@ -484,10 +546,11 @@ action*** parse_params(char **argv)
 			}
 			ap = ALLOC_ACTION(paren);
 			ap->subexpr = parse_params(argv + 1);
-			*endarg = ")"; /* restore NULLed parameter */
+			*endarg = (char*) ")"; /* restore NULLed parameter */
 			argv = endarg;
 		}
 		else if (strcmp(arg, "-prune") == 0) {
+			USE_FEATURE_FIND_NOT( invert_flag = 0; )
 			(void) ALLOC_ACTION(prune);
 		}
 		else if (strcmp(arg, "-size") == 0) {
@@ -508,6 +571,7 @@ action*** parse_params(char **argv)
 }
 
 
+int find_main(int argc, char **argv);
 int find_main(int argc, char **argv)
 {
 	int dereference = FALSE;
@@ -518,13 +582,15 @@ int find_main(int argc, char **argv)
 	for (firstopt = 1; firstopt < argc; firstopt++) {
 		if (argv[firstopt][0] == '-')
 			break;
+		if (ENABLE_FEATURE_FIND_NOT && LONE_CHAR(argv[firstopt], '!'))
+			break;
 #if ENABLE_DESKTOP
 		if (LONE_CHAR(argv[firstopt], '('))
 			break;
 #endif
 	}
 	if (firstopt == 1) {
-		argv[0] = ".";
+		argv[0] = (char*)".";
 		argv--;
 		firstopt++;
 	}
@@ -540,7 +606,7 @@ int find_main(int argc, char **argv)
 	while ((arg = argp[0])) {
 		if (strcmp(arg, "-follow") == 0) {
 			dereference = TRUE;
-			argp[0] = "-a";
+			argp[0] = (char*)"-a";
 		}
 #if ENABLE_FEATURE_FIND_XDEV
 		else if (strcmp(arg, "-xdev") == 0) {
@@ -556,7 +622,7 @@ int find_main(int argc, char **argv)
 					xdev_dev[i-1] = stbuf.st_dev;
 				}
 			}
-			argp[0] = "-a";
+			argp[0] = (char*)"-a";
 		}
 #endif
 		argp++;

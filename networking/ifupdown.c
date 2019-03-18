@@ -36,22 +36,19 @@ struct interface_defn_t;
 
 typedef int execfn(char *command);
 
-struct method_t
-{
-	char *name;
+struct method_t {
+	const char *name;
 	int (*up)(struct interface_defn_t *ifd, execfn *e);
 	int (*down)(struct interface_defn_t *ifd, execfn *e);
 };
 
-struct address_family_t
-{
-	char *name;
+struct address_family_t {
+	const char *name;
 	int n_methods;
 	const struct method_t *method;
 };
 
-struct mapping_defn_t
-{
+struct mapping_defn_t {
 	struct mapping_defn_t *next;
 
 	int max_matches;
@@ -65,14 +62,12 @@ struct mapping_defn_t
 	char **mapping;
 };
 
-struct variable_t
-{
+struct variable_t {
 	char *name;
 	char *value;
 };
 
-struct interface_defn_t
-{
+struct interface_defn_t {
 	const struct address_family_t *address_family;
 	const struct method_t *method;
 
@@ -82,8 +77,7 @@ struct interface_defn_t
 	struct variable_t *option;
 };
 
-struct interfaces_file_t
-{
+struct interfaces_file_t {
 	llist_t *autointerfaces;
 	llist_t *ifaces;
 	struct mapping_defn_t *mappings;
@@ -105,7 +99,7 @@ enum {
 
 static char **my_environ;
 
-static char *startup_PATH;
+static const char *startup_PATH;
 
 #if ENABLE_FEATURE_IFUPDOWN_IPV4 || ENABLE_FEATURE_IFUPDOWN_IPV6
 
@@ -427,7 +421,7 @@ static int static_up(struct interface_defn_t *ifd, execfn *exec)
 	result += execute("ifconfig %iface% %address% netmask %netmask%"
 				"[[ broadcast %broadcast%]][[ pointopoint %pointopoint%]] ",
 				ifd, exec);
- 	result += execute("[[route add default gw %gateway% %iface%]]", ifd, exec);
+	result += execute("[[route add default gw %gateway% %iface%]]", ifd, exec);
 	return ((result == 3) ? 3 : 0);
 #endif
 }
@@ -842,7 +836,7 @@ static struct interfaces_file_t *read_interfaces(const char *filename)
 	return defn;
 }
 
-static char *setlocalenv(char *format, const char *name, const char *value)
+static char *setlocalenv(const char *format, const char *name, const char *value)
 {
 	char *result;
 	char *here;
@@ -1010,7 +1004,7 @@ static int popen2(FILE **in, FILE **out, char *command, ...)
 		close(infd[1]);
 		close(outfd[0]);
 		close(outfd[1]);
-		execvp(command, argv);
+		BB_EXECVP(command, argv);
 		exit(127);
 	default:			/* parent */
 		*in = fdopen(infd[1], "w");
@@ -1089,6 +1083,7 @@ static llist_t *find_iface_state(llist_t *state_list, const char *iface)
 	return NULL;
 }
 
+int ifupdown_main(int argc, char **argv);
 int ifupdown_main(int argc, char **argv)
 {
 	int (*cmds)(struct interface_defn_t *) = NULL;
@@ -1096,7 +1091,8 @@ int ifupdown_main(int argc, char **argv)
 	llist_t *state_list = NULL;
 	llist_t *target_list = NULL;
 	const char *interfaces = "/etc/network/interfaces";
-	int any_failures = 0;
+	FILE *state_fp;
+	bool any_failures = 0;
 
 	cmds = iface_down;
 	if (applet_name[2] == 'u') {
@@ -1122,6 +1118,19 @@ int ifupdown_main(int argc, char **argv)
 	startup_PATH = getenv("PATH");
 	if (!startup_PATH) startup_PATH = "";
 
+	/* Read the previous state from the state file */
+	state_fp = fopen("/var/run/ifstate", "r");
+	if (state_fp) {
+		char *start, *end_ptr;
+		while ((start = xmalloc_fgets(state_fp)) != NULL) {
+			/* We should only need to check for a single character */
+			end_ptr = start + strcspn(start, " \t\n");
+			*end_ptr = '\0';
+			llist_add_to(&state_list, start);
+		}
+		fclose(state_fp);
+	}
+
 	/* Create a list of interfaces to work on */
 	if (DO_ALL) {
 		if (cmds == iface_up) {
@@ -1146,8 +1155,8 @@ int ifupdown_main(int argc, char **argv)
 		char *iface;
 		char *liface;
 		char *pch;
-		int okay = 0;
-		int cmds_ret;
+		bool okay = 0;
+		unsigned cmds_ret;
 
 		iface = xstrdup(target_list->data);
 		target_list = target_list->link;
@@ -1171,7 +1180,7 @@ int ifupdown_main(int argc, char **argv)
 				}
 			} else {
 				/* ifdown */
-				if (iface_state) {
+				if (!iface_state) {
 					bb_error_msg("interface %s not configured", iface);
 					continue;
 				}
@@ -1233,7 +1242,7 @@ int ifupdown_main(int argc, char **argv)
 			llist_t *iface_state = find_iface_state(state_list, iface);
 
 			if (cmds == iface_up) {
-				char *newiface = xasprintf("%s=%s", iface, liface);
+				char * const newiface = xasprintf("%s=%s", iface, liface);
 				if (iface_state == NULL) {
 					llist_add_to_end(&state_list, newiface);
 				} else {
@@ -1241,7 +1250,8 @@ int ifupdown_main(int argc, char **argv)
 					iface_state->data = newiface;
 				}
 			} else {
-				/* Remove an interface from the linked list */
+				/* Remove an interface from state_list */
+				llist_unlink(&state_list, iface_state);
 				free(llist_pop(&iface_state));
 			}
 		}
@@ -1249,8 +1259,6 @@ int ifupdown_main(int argc, char **argv)
 
 	/* Actually write the new state */
 	if (!NO_ACT) {
-		FILE *state_fp;
-
 		state_fp = xfopen("/var/run/ifstate", "w");
 		while (state_list) {
 			if (state_list->data) {

@@ -238,9 +238,10 @@ static int recv_pack(unsigned char *buf, int len, struct sockaddr_ll *FROM)
 	return 1;
 }
 
+int arping_main(int argc, char **argv);
 int arping_main(int argc, char **argv)
 {
-	char *device = "eth0";
+	const char *device = "eth0";
 	int ifindex;
 	char *source = NULL;
 	char *target;
@@ -305,13 +306,11 @@ int arping_main(int argc, char **argv)
 	}
 
 	if (!inet_aton(target, &dst)) {
-		struct hostent *hp;
-
-		hp = gethostbyname2(target, AF_INET);
-		if (!hp) {
-			bb_error_msg_and_die("invalid or unknown target %s", target);
-		}
-		memcpy(&dst, hp->h_addr, 4);
+		len_and_sockaddr *lsa;
+		lsa = xhost_and_af2sockaddr(target, 0, AF_INET);
+		memcpy(&dst, &lsa->sin.sin_addr.s_addr, 4);
+		if (ENABLE_FEATURE_CLEAN_UP)
+			free(lsa);
 	}
 
 	if (source && !inet_aton(source, &src)) {
@@ -335,13 +334,12 @@ int arping_main(int argc, char **argv)
 			saddr.sin_addr = src;
 			xbind(probe_fd, (struct sockaddr *) &saddr, sizeof(saddr));
 		} else if (!(cfg & dad)) {
-			static const int on = 1;
 			socklen_t alen = sizeof(saddr);
 
 			saddr.sin_port = htons(1025);
 			saddr.sin_addr = dst;
 
-			if (setsockopt(probe_fd, SOL_SOCKET, SO_DONTROUTE, (char *) &on, sizeof(on)) == -1)
+			if (setsockopt(probe_fd, SOL_SOCKET, SO_DONTROUTE, &const_int_1, sizeof(const_int_1)) == -1)
 				bb_perror_msg("warning: setsockopt(SO_DONTROUTE)");
 			xconnect(probe_fd, (struct sockaddr *) &saddr, sizeof(saddr));
 			if (getsockname(probe_fd, (struct sockaddr *) &saddr, &alen) == -1) {

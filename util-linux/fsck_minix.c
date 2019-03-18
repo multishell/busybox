@@ -131,13 +131,19 @@ static int dirsize = 16;
 static int namelen = 14;
 
 static char *inode_buffer;
-//xzalloc?
-static char super_block_buffer[BLOCK_SIZE];
+
+static struct {
+	char super_block_buffer[BLOCK_SIZE];
+	char add_zone_ind_blk[BLOCK_SIZE];
+	char add_zone_dind_blk[BLOCK_SIZE];
+	USE_FEATURE_MINIX2(char add_zone_tind_blk[BLOCK_SIZE];)
+	char check_file_blk[BLOCK_SIZE];
+} *blockbuf;
 
 #define Inode1 (((struct minix1_inode *) inode_buffer)-1)
 #define Inode2 (((struct minix2_inode *) inode_buffer)-1)
 
-#define Super (*(struct minix_super_block *)super_block_buffer)
+#define Super (*(struct minix_super_block *)(blockbuf->super_block_buffer))
 
 #if ENABLE_FEATURE_MINIX2
 # define ZONES    ((unsigned)(version2 ? Super.s_zones : Super.s_nzones))
@@ -174,19 +180,34 @@ static char *zone_map;
 static unsigned char *inode_count;
 static unsigned char *zone_count;
 
-static int bit(char *a, unsigned i)
+/* Before you ask "where they come from?": */
+/* setbit/clrbit are supplied by sys/param.h */
+
+static int minix_bit(const char *a, unsigned i)
 {
-	return (a[i >> 3] & (1<<(i & 7))) != 0;
+	return (a[i >> 3] & (1<<(i & 7)));
 }
 
-#define inode_in_use(x) (bit(inode_map,(x)))
-#define zone_in_use(x) (bit(zone_map,(x)-FIRSTZONE+1))
+static void minix_setbit(char *a, unsigned i)
+{
+	setbit(a, i);
+	changed = 1;
+}
+static void minix_clrbit(char *a, unsigned i)
+{
+	clrbit(a, i);
+	changed = 1;
+}
 
-#define mark_inode(x) (setbit(inode_map,(x)),changed=1)
-#define unmark_inode(x) (clrbit(inode_map,(x)),changed=1)
+/* Note: do not assume 0/1, it is 0/nonzero */
+#define zone_in_use(x)  (minix_bit(zone_map,(x)-FIRSTZONE+1))
+#define inode_in_use(x) (minix_bit(inode_map,(x)))
 
-#define mark_zone(x) (setbit(zone_map,(x)-FIRSTZONE+1),changed=1)
-#define unmark_zone(x) (clrbit(zone_map,(x)-FIRSTZONE+1),changed=1)
+#define mark_inode(x)   (minix_setbit(inode_map,(x)))
+#define unmark_inode(x) (minix_clrbit(inode_map,(x)))
+
+#define mark_zone(x)   (minix_setbit(zone_map,(x)-FIRSTZONE+1))
+#define unmark_zone(x) (minix_clrbit(zone_map,(x)-FIRSTZONE+1))
 
 
 static void recursive_check(unsigned ino);
@@ -529,7 +550,7 @@ static void write_super_block(void)
 
 	if (BLOCK_SIZE != lseek(IN, BLOCK_SIZE, SEEK_SET))
 		die("seek failed in write_super_block");
-	if (BLOCK_SIZE != write(IN, super_block_buffer, BLOCK_SIZE))
+	if (BLOCK_SIZE != write(IN, blockbuf->super_block_buffer, BLOCK_SIZE))
 		die("cannot write super-block");
 }
 
@@ -572,7 +593,7 @@ static void read_superblock(void)
 {
 	if (BLOCK_SIZE != lseek(IN, BLOCK_SIZE, SEEK_SET))
 		die("seek failed");
-	if (BLOCK_SIZE != read(IN, super_block_buffer, BLOCK_SIZE))
+	if (BLOCK_SIZE != read(IN, blockbuf->super_block_buffer, BLOCK_SIZE))
 		die("cannot read super block");
 	/* already initialized to:
 	namelen = 14;
@@ -652,8 +673,8 @@ static struct minix1_inode *get_inode(unsigned nr)
 			if (repair) {
 				if (ask("Mark as 'in use'", 1))
 					mark_inode(nr);
-			} else {
-				errors_uncorrected = 1;
+				else
+					errors_uncorrected = 1;
 			}
 		}
 		if (S_ISDIR(inode->i_mode))
@@ -812,7 +833,7 @@ static int add_zone2(uint32_t *znr, smallint *corrected)
 
 static void add_zone_ind(uint16_t *znr, smallint *corrected)
 {
-	static char blk[BLOCK_SIZE];
+#define blk (blockbuf->add_zone_ind_blk)
 	int i;
 	int block;
 	smallint chg_blk = 0;
@@ -825,12 +846,13 @@ static void add_zone_ind(uint16_t *znr, smallint *corrected)
 		add_zone(i + (uint16_t *) blk, &chg_blk);
 	if (chg_blk)
 		write_block(block, blk);
+#undef blk
 }
 
 #if ENABLE_FEATURE_MINIX2
 static void add_zone_ind2(uint32_t *znr, smallint *corrected)
 {
-	static char blk[BLOCK_SIZE];
+#define blk (blockbuf->add_zone_ind_blk)
 	int i;
 	int block;
 	smallint chg_blk = 0;
@@ -843,12 +865,13 @@ static void add_zone_ind2(uint32_t *znr, smallint *corrected)
 		add_zone2(i + (uint32_t *) blk, &chg_blk);
 	if (chg_blk)
 		write_block(block, blk);
+#undef blk
 }
 #endif
 
 static void add_zone_dind(uint16_t *znr, smallint *corrected)
 {
-	static char blk[BLOCK_SIZE];
+#define blk (blockbuf->add_zone_dind_blk)
 	int i;
 	int block;
 	smallint chg_blk = 0;
@@ -861,12 +884,13 @@ static void add_zone_dind(uint16_t *znr, smallint *corrected)
 		add_zone_ind(i + (uint16_t *) blk, &chg_blk);
 	if (chg_blk)
 		write_block(block, blk);
+#undef blk
 }
 
 #if ENABLE_FEATURE_MINIX2
 static void add_zone_dind2(uint32_t *znr, smallint *corrected)
 {
-	static char blk[BLOCK_SIZE];
+#define blk (blockbuf->add_zone_dind_blk)
 	int i;
 	int block;
 	smallint chg_blk = 0;
@@ -879,11 +903,12 @@ static void add_zone_dind2(uint32_t *znr, smallint *corrected)
 		add_zone_ind2(i + (uint32_t *) blk, &chg_blk);
 	if (chg_blk)
 		write_block(block, blk);
+#undef blk
 }
 
 static void add_zone_tind2(uint32_t *znr, smallint *corrected)
 {
-	static char blk[BLOCK_SIZE];
+#define blk (blockbuf->add_zone_tind_blk)
 	int i;
 	int block;
 	smallint chg_blk = 0;
@@ -896,6 +921,7 @@ static void add_zone_tind2(uint32_t *znr, smallint *corrected)
 		add_zone_dind2(i + (uint32_t *) blk, &chg_blk);
 	if (chg_blk)
 		write_block(block, blk);
+#undef blk
 }
 #endif
 
@@ -939,7 +965,7 @@ static void check_zones2(unsigned i)
 
 static void check_file(struct minix1_inode *dir, unsigned offset)
 {
-	static char blk[BLOCK_SIZE];
+#define blk (blockbuf->check_file_blk)
 	struct minix1_inode *inode;
 	int ino;
 	char *name;
@@ -985,12 +1011,13 @@ static void check_file(struct minix1_inode *dir, unsigned offset)
 	if (inode && S_ISDIR(inode->i_mode))
 		recursive_check(ino);
 	pop_filename();
+#undef blk
 }
 
 #if ENABLE_FEATURE_MINIX2
 static void check_file2(struct minix2_inode *dir, unsigned offset)
 {
-	static char blk[BLOCK_SIZE];
+#define blk (blockbuf->check_file_blk)
 	struct minix2_inode *inode;
 	int ino;
 	char *name;
@@ -1036,6 +1063,7 @@ static void check_file2(struct minix2_inode *dir, unsigned offset)
 	if (inode && S_ISDIR(inode->i_mode))
 		recursive_check2(ino);
 	pop_filename();
+#undef blk
 }
 #endif
 
@@ -1109,7 +1137,8 @@ static void check_counts(void)
 		}
 		if (Inode1[i].i_nlinks != inode_count[i]) {
 			printf("Inode %d (mode=%07o), i_nlinks=%d, counted=%d. ",
-				   i, Inode1[i].i_mode, Inode1[i].i_nlinks, inode_count[i]);
+				i, Inode1[i].i_mode, Inode1[i].i_nlinks,
+				inode_count[i]);
 			if (ask("Set i_nlinks to count", 1)) {
 				Inode1[i].i_nlinks = inode_count[i];
 				changed = 1;
@@ -1117,7 +1146,7 @@ static void check_counts(void)
 		}
 	}
 	for (i = FIRSTZONE; i < ZONES; i++) {
-		if (zone_in_use(i) == zone_count[i])
+		if ((zone_in_use(i) != 0) == zone_count[i])
 			continue;
 		if (!zone_count[i]) {
 			if (bad_zone(i))
@@ -1160,8 +1189,8 @@ static void check_counts2(void)
 		}
 		if (Inode2[i].i_nlinks != inode_count[i]) {
 			printf("Inode %d (mode=%07o), i_nlinks=%d, counted=%d. ",
-				   i, Inode2[i].i_mode, Inode2[i].i_nlinks,
-				   inode_count[i]);
+				i, Inode2[i].i_mode, Inode2[i].i_nlinks,
+				inode_count[i]);
 			if (ask("Set i_nlinks to count", 1)) {
 				Inode2[i].i_nlinks = inode_count[i];
 				changed = 1;
@@ -1169,7 +1198,7 @@ static void check_counts2(void)
 		}
 	}
 	for (i = FIRSTZONE; i < ZONES; i++) {
-		if (zone_in_use(i) == zone_count[i])
+		if ((zone_in_use(i) != 0) == zone_count[i])
 			continue;
 		if (!zone_count[i]) {
 			if (bad_zone(i))
@@ -1207,12 +1236,14 @@ static void check2(void)
 void check2(void);
 #endif
 
+int fsck_minix_main(int argc, char **argv);
 int fsck_minix_main(int argc, char **argv)
 {
 	struct termios tmp;
 	int retcode = 0;
 
 	xfunc_error_retval = 8;
+	blockbuf = xzalloc(sizeof(*blockbuf));
 
 	alloc_current_name();
 #if ENABLE_FEATURE_CLEAN_UP

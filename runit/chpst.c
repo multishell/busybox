@@ -255,6 +255,7 @@ static void envuidgid(int, char **);
 static void envdir(int, char **);
 static void softlimit(int, char **);
 
+int chpst_main(int argc, char **argv);
 int chpst_main(int argc, char **argv)
 {
 	if (applet_name[3] == 'd') envdir(argc, argv);
@@ -309,7 +310,7 @@ int chpst_main(int argc, char **argv)
 	if (OPT_nostdin) close(0);
 	if (OPT_nostdout) close(1);
 	if (OPT_nostderr) close(2);
-	execvp(argv[0], argv);
+	BB_EXECVP(argv[0], argv);
 	bb_perror_msg_and_die("exec %s", argv[0]);
 }
 
@@ -321,7 +322,7 @@ static void setuidgid(int argc, char **argv)
 	if (!account) bb_show_usage();
 	if (!*++argv) bb_show_usage();
 	suidgid((char*)account);
-	execvp(argv[0], argv);
+	BB_EXECVP(argv[0], argv);
 	bb_perror_msg_and_die("exec %s", argv[0]);
 }
 
@@ -333,7 +334,7 @@ static void envuidgid(int argc, char **argv)
 	if (!account) bb_show_usage();
 	if (!*++argv) bb_show_usage();
 	euidgid((char*)account);
-	execvp(argv[0], argv);
+	BB_EXECVP(argv[0], argv);
 	bb_perror_msg_and_die("exec %s", argv[0]);
 }
 
@@ -345,7 +346,7 @@ static void envdir(int argc, char **argv)
 	if (!dir) bb_show_usage();
 	if (!*++argv) bb_show_usage();
 	edir(dir);
-	execvp(argv[0], argv);
+	BB_EXECVP(argv[0], argv);
 	bb_perror_msg_and_die("exec %s", argv[0]);
 }
 
@@ -368,6 +369,6 @@ static void softlimit(int argc, char **argv)
 	argv += optind;
 	if (!argv[0]) bb_show_usage();
 	slimit();
-	execvp(argv[0], argv);
+	BB_EXECVP(argv[0], argv);
 	bb_perror_msg_and_die("exec %s", argv[0]);
 }

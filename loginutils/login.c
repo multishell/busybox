@@ -211,6 +211,7 @@ static void alarm_handler(int sig ATTRIBUTE_UNUSED)
 	exit(EXIT_SUCCESS);
 }
 
+int login_main(int argc, char **argv);
 int login_main(int argc, char **argv)
 {
 	enum {
@@ -356,7 +357,7 @@ auth_failed:
 				setenv("LOGIN_UID", utoa(pw->pw_uid), 1);
 				setenv("LOGIN_GID", utoa(pw->pw_gid), 1);
 				setenv("LOGIN_SHELL", pw->pw_shell, 1);
-				execvp(script, t_argv);
+				BB_EXECVP(script, t_argv);
 				exit(1);
 			default: /* parent */
 				wait(NULL);

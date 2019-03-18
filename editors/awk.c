@@ -12,34 +12,34 @@
 #include <math.h>
 
 
-#define	MAXVARFMT	240
-#define	MINNVBLOCK	64
+#define	MAXVARFMT       240
+#define	MINNVBLOCK      64
 
 /* variable flags */
-#define	VF_NUMBER	0x0001	/* 1 = primary type is number */
-#define	VF_ARRAY	0x0002	/* 1 = it's an array */
+#define	VF_NUMBER       0x0001	/* 1 = primary type is number */
+#define	VF_ARRAY        0x0002	/* 1 = it's an array */
 
-#define	VF_CACHED	0x0100	/* 1 = num/str value has cached str/num eq */
-#define	VF_USER		0x0200	/* 1 = user input (may be numeric string) */
-#define	VF_SPECIAL	0x0400	/* 1 = requires extra handling when changed */
-#define	VF_WALK		0x0800	/* 1 = variable has alloc'd x.walker list */
-#define	VF_FSTR		0x1000	/* 1 = string points to fstring buffer */
-#define	VF_CHILD	0x2000	/* 1 = function arg; x.parent points to source */
-#define	VF_DIRTY	0x4000	/* 1 = variable was set explicitly */
+#define	VF_CACHED       0x0100	/* 1 = num/str value has cached str/num eq */
+#define	VF_USER         0x0200	/* 1 = user input (may be numeric string) */
+#define	VF_SPECIAL      0x0400	/* 1 = requires extra handling when changed */
+#define	VF_WALK         0x0800	/* 1 = variable has alloc'd x.walker list */
+#define	VF_FSTR         0x1000	/* 1 = var::string points to fstring buffer */
+#define	VF_CHILD        0x2000	/* 1 = function arg; x.parent points to source */
+#define	VF_DIRTY        0x4000	/* 1 = variable was set explicitly */
 
 /* these flags are static, don't change them when value is changed */
-#define	VF_DONTTOUCH (VF_ARRAY | VF_SPECIAL | VF_WALK | VF_CHILD | VF_DIRTY)
+#define	VF_DONTTOUCH    (VF_ARRAY | VF_SPECIAL | VF_WALK | VF_CHILD | VF_DIRTY)
 
 /* Variable */
 typedef struct var_s {
-	unsigned short type;		/* flags */
+	unsigned short type;            /* flags */
 	double number;
 	char *string;
 	union {
-		int aidx;				/* func arg idx (for compilation stage) */
-		struct xhash_s *array;	/* array ptr */
-		struct var_s *parent;	/* for func args, ptr to actual parameter */
-		char **walker;			/* list of array elements (for..in) */
+		int aidx;               /* func arg idx (for compilation stage) */
+		struct xhash_s *array;  /* array ptr */
+		struct var_s *parent;   /* for func args, ptr to actual parameter */
+		char **walker;          /* list of array elements (for..in) */
 	} x;
 } var;
 
@@ -47,7 +47,7 @@ typedef struct var_s {
 typedef struct chain_s {
 	struct node_s *first;
 	struct node_s *last;
-	char *programname;
+	const char *programname;
 } chain;
 
 /* Function */
@@ -399,7 +399,7 @@ static int nextrec, nextfile;
 static node *break_ptr, *continue_ptr;
 static rstream *iF;
 static xhash *vhash, *ahash, *fdhash, *fnhash;
-static char *programname;
+static const char *programname;
 static short lineno;
 static int is_f0_split;
 static int nfields;
@@ -703,7 +703,7 @@ static var *setvar_i(var *v, double value)
 	return v;
 }
 
-static char *getvar_s(var *v)
+static const char *getvar_s(var *v)
 {
 	/* if v is numeric and has no cached string, convert it to string */
 	if ((v->type & (VF_NUMBER | VF_CACHED)) == VF_NUMBER) {
@@ -740,7 +740,7 @@ static var *copyvar(var *dest, const var *src)
 {
 	if (dest != src) {
 		clrvar(dest);
-		dest->type |= (src->type & ~VF_DONTTOUCH);
+		dest->type |= (src->type & ~(VF_DONTTOUCH | VF_FSTR));
 		dest->number = src->number;
 		if (src->string)
 			dest->string = xstrdup(src->string);
@@ -995,7 +995,7 @@ static node *new_node(uint32_t info)
 	return n;
 }
 
-static node *mk_re_node(char *s, node *n, regex_t *re)
+static node *mk_re_node(const char *s, node *n, regex_t *re)
 {
 	n->info = OC_REGEXP;
 	n->l.re = re;
@@ -1347,7 +1347,7 @@ static void parse_program(char *p)
 
 /* -------- program execution part -------- */
 
-static node *mk_splitter(char *s, tsplitter *spl)
+static node *mk_splitter(const char *s, tsplitter *spl)
 {
 	regex_t *re, *ire;
 	node *n;
@@ -1375,7 +1375,7 @@ static node *mk_splitter(char *s, tsplitter *spl)
 static regex_t *as_regex(node *op, regex_t *preg)
 {
 	var *v;
-	char *s;
+	const char *s;
 
 	if ((op->info & OPCLSMASK) == OC_REGEXP) {
 		return icase ? op->r.ire : op->l.re;
@@ -1419,7 +1419,7 @@ static void fsrealloc(int size)
 	nfields = size;
 }
 
-static int awk_split(char *s, node *spl, char **slist)
+static int awk_split(const char *s, node *spl, char **slist)
 {
 	int l, n = 0;
 	char c[4];
@@ -1427,7 +1427,8 @@ static int awk_split(char *s, node *spl, char **slist)
 	regmatch_t pmatch[2];
 
 	/* in worst case, each char would be a separate field */
-	*slist = s1 = xstrndup(s, strlen(s) * 2 + 3);
+	*slist = s1 = xzalloc(strlen(s) * 2 + 3);
+	strcpy(s1, s);
 
 	c[0] = c[1] = (char)spl->info;
 	c[2] = c[3] = '\0';
@@ -1436,8 +1437,9 @@ static int awk_split(char *s, node *spl, char **slist)
 	if ((spl->info & OPCLSMASK) == OC_REGEXP) {		/* regex split */
 		while (*s) {
 			l = strcspn(s, c+2);
-			if (regexec(icase ? spl->r.ire : spl->l.re, s, 1, pmatch, 0) == 0 &&
-			pmatch[0].rm_so <= l) {
+			if (regexec(icase ? spl->r.ire : spl->l.re, s, 1, pmatch, 0) == 0
+			 && pmatch[0].rm_so <= l
+			) {
 				l = pmatch[0].rm_so;
 				if (pmatch[0].rm_eo == 0) { l++; pmatch[0].rm_eo++; }
 			} else {
@@ -1510,7 +1512,8 @@ static void split_f0(void)
 static void handle_special(var *v)
 {
 	int n;
-	char *b, *sep, *s;
+	char *b;
+	const char *sep, *s;
 	int sl, l, len, i, bsize;
 
 	if (!(v->type & VF_SPECIAL))
@@ -1737,7 +1740,8 @@ static int fmt_num(char *b, int size, const char *format, double n, int int_as_i
 static char *awk_printf(node *n)
 {
 	char *b = NULL;
-	char *fmt, *s, *s1, *f;
+	char *fmt, *s, *f;
+	const char *s1;
 	int i, j, incr, bsize;
 	char c, c1;
 	var *v, *arg;
@@ -1793,10 +1797,11 @@ static char *awk_printf(node *n)
  * all matches. If src or dst is NULL, use $0. If ex=TRUE, enable
  * subexpression matching (\1-\9)
  */
-static int awk_sub(node *rn, char *repl, int nm, var *src, var *dest, int ex)
+static int awk_sub(node *rn, const char *repl, int nm, var *src, var *dest, int ex)
 {
 	char *ds = NULL;
-	char *sp, *s;
+	const char *s;
+	const char *sp;
 	int c, i, j, di, rl, so, eo, nbs, n, dssize;
 	regmatch_t pmatch[10];
 	regex_t sreg, *re;
@@ -1865,7 +1870,7 @@ static var *exec_builtin(node *op, var *res)
 	var *tv;
 	node *an[4];
 	var  *av[4];
-	char *as[4];
+	const char *as[4];
 	regmatch_t pmatch[2];
 	regex_t sreg, *re;
 	static tsplitter tspl;
@@ -1998,8 +2003,10 @@ static var *exec_builtin(node *op, var *res)
 			tt = getvar_i(av[1]);
 		else
 			time(&tt);
-		s = (nargs > 0) ? as[0] : "%a %b %d %H:%M:%S %Z %Y";
-		i = strftime(buf, MAXVARFMT, s, localtime(&tt));
+		//s = (nargs > 0) ? as[0] : "%a %b %d %H:%M:%S %Z %Y";
+		i = strftime(buf, MAXVARFMT,
+			((nargs > 0) ? as[0] : "%a %b %d %H:%M:%S %Z %Y"),
+			localtime(&tt));
 		buf[i] = '\0';
 		setvar_s(res, buf);
 		break;
@@ -2054,7 +2061,7 @@ static var *evaluate(node *op, var *res)
 	var *v1;
 	union {
 		var *v;
-		char *s;
+		const char *s;
 		double d;
 		int i;
 	} L, R;
@@ -2168,7 +2175,7 @@ static var *evaluate(node *op, var *res)
 			} else {	/* OC_PRINTF */
 				L.s = awk_printf(op1);
 				fputs(L.s, X.F);
-				free(L.s);
+				free((char*)L.s);
 			}
 			fflush(X.F);
 			break;
@@ -2610,7 +2617,7 @@ static rstream *next_input_file(void)
 {
 	static rstream rsm;
 	FILE *F = NULL;
-	char *fname, *ind;
+	const char *fname, *ind;
 	static int files_happen = FALSE;
 
 	if (rsm.F) fclose(rsm.F);
@@ -2637,10 +2644,12 @@ static rstream *next_input_file(void)
 	return &rsm;
 }
 
+int awk_main(int argc, char **argv);
 int awk_main(int argc, char **argv)
 {
 	unsigned opt;
-	char *opt_F, *opt_v, *opt_W;
+	char *opt_F, *opt_W;
+	llist_t *opt_v = NULL;
 	int i, j, flen;
 	var *v;
 	var tv;
@@ -2693,12 +2702,16 @@ int awk_main(int argc, char **argv)
 		}
 		free(s);
 	}
-
+	opt_complementary = "v::";
 	opt = getopt32(argc, argv, "F:v:f:W:", &opt_F, &opt_v, &programname, &opt_W);
 	argv += optind;
 	argc -= optind;
 	if (opt & 0x1) setvar_s(V[FS], opt_F); // -F
-	if (opt & 0x2) if (!is_assignment(opt_v)) bb_show_usage(); // -v
+	opt_v = llist_rev(opt_v);
+	while (opt_v) { /* -v */
+		if (!is_assignment(llist_pop(&opt_v)))
+			bb_show_usage();
+	}
 	if (opt & 0x4) { // -f
 		char *s = s; /* die, gcc, die */
 		FILE *from_file = afopen(programname, "r");

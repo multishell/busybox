@@ -14,7 +14,8 @@ extern int show_details;
 extern int show_raw;
 extern int resolve_hosts;
 extern int oneline;
-extern char * _SL_;
+//FIXME! Appears in two .h files!
+extern const char * _SL_;
 
 #ifndef IPPROTO_ESP
 #define IPPROTO_ESP	50
@@ -43,8 +44,7 @@ typedef struct
 #define AF_DECnet 12
 #endif
 
-struct dn_naddr
-{
+struct dn_naddr {
 	unsigned short          a_len;
 	unsigned char a_addr[DN_MAXADDL];
 };
@@ -76,10 +76,10 @@ extern int get_s8(int8_t *val, char *arg, int base);
 extern const char *format_host(int af, int len, void *addr, char *buf, int buflen);
 extern const char *rt_addr_n2a(int af, int len, void *addr, char *buf, int buflen);
 
-void invarg(const char * const, const char * const) ATTRIBUTE_NORETURN;
-void duparg(char *, char *) ATTRIBUTE_NORETURN;
-void duparg2(char *, char *) ATTRIBUTE_NORETURN;
-int matches(char *arg, char *pattern);
+void invarg(const char *, const char *) ATTRIBUTE_NORETURN;
+void duparg(const char *, const char *) ATTRIBUTE_NORETURN;
+void duparg2(const char *, const char *) ATTRIBUTE_NORETURN;
+int matches(const char *arg, const char *pattern);
 extern int inet_addr_match(inet_prefix *a, inet_prefix *b, int bits);
 
 const char *dnet_ntop(int af, const void *addr, char *str, size_t len);

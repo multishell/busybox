@@ -1,6 +1,6 @@
 VERSION = 1
-PATCHLEVEL = 4
-SUBLEVEL = 2
+PATCHLEVEL = 5
+SUBLEVEL = 0
 EXTRAVERSION =
 NAME = Unnamed
 
@@ -299,9 +299,9 @@ AFLAGS_KERNEL	=
 
 # Use LINUXINCLUDE when you must reference the include/ directory.
 # Needed to be compatible with the O= option
-CFLAGS		:=
-CPPFLAGS	:=
-AFLAGS		:=
+CFLAGS		:= $(CFLAGS)
+CPPFLAGS	:= $(CPPFLAGS)
+AFLAGS		:= $(AFLAGS)
 
 # Read KERNELRELEASE from .kernelrelease (if it exists)
 KERNELRELEASE = $(shell cat .kernelrelease 2> /dev/null)
@@ -442,6 +442,7 @@ libs-y		:= \
 		networking/udhcp/ \
 		procps/ \
 		runit/ \
+		selinux/ \
 		shell/ \
 		sysklogd/ \
 		util-linux/ \
@@ -480,7 +481,7 @@ endif
 # The all: target is the default when no target is given on the
 # command line.
 # This allow a user to issue only 'make' to build a kernel including modules
-# Defaults busybox but it is usually overriden in the arch makefile
+# Defaults busybox but it is usually overridden in the arch makefile
 all: busybox
 
 -include $(srctree)/arch/$(ARCH)/Makefile
@@ -562,7 +563,7 @@ busybox-all  := $(core-y) $(libs-y)
 # May be overridden by arch/$(ARCH)/Makefile
 quiet_cmd_busybox__ ?= LINK    $@
       cmd_busybox__ ?= $(srctree)/scripts/trylink $(CC) $(LDFLAGS) \
-      -o $@ \
+      -o $@ -Wl,-M \
       -Wl,--warn-common -Wl,--sort-common -Wl,--gc-sections \
       -Wl,--start-group $(busybox-all) -Wl,--end-group
 
@@ -905,7 +906,7 @@ endif # CONFIG_MODULES
 
 # Directories & files removed with 'make clean'
 CLEAN_DIRS  += $(MODVERDIR)
-CLEAN_FILES +=	busybox* System.map \
+CLEAN_FILES +=	busybox* System.map .kernelrelease \
                 .tmp_kallsyms* .tmp_version .tmp_busybox* .tmp_System.map
 
 # Directories & files removed with 'make mrproper'

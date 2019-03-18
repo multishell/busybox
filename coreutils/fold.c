@@ -38,6 +38,7 @@ static int adjust_column(int column, char c)
 	return column;
 }
 
+int fold_main(int argc, char **argv);
 int fold_main(int argc, char **argv)
 {
 	char *w_opt;
@@ -66,7 +67,7 @@ int fold_main(int argc, char **argv)
 
 	argv += optind;
 	if (!*argv) {
-		*--argv = "-";
+		*--argv = (char*)"-";
 	}
 
 	do {

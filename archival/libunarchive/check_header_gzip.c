@@ -2,12 +2,11 @@
 /*
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
-#include <stdlib.h>
-#include <unistd.h>
-#include "libbb.h"
-#include "unarchive.h" /* for external decl of check_header_gzip */
 
-void check_header_gzip(int src_fd)
+#include "libbb.h"
+#include "unarchive.h" /* for external decl of check_header_gzip_or_die */
+
+void check_header_gzip_or_die(int src_fd)
 {
 	union {
 		unsigned char raw[8];
@@ -30,7 +29,7 @@ void check_header_gzip(int src_fd)
 
 	if (header.formatted.flags & 0x04) {
 		/* bit 2 set: extra field present */
-		unsigned char extra_short;
+		unsigned extra_short;
 
 		extra_short = xread_char(src_fd) + (xread_char(src_fd) << 8);
 		while (extra_short > 0) {
@@ -57,6 +56,4 @@ void check_header_gzip(int src_fd)
 		xread_char(src_fd);
 		xread_char(src_fd);
 	}
-
-	return;
 }

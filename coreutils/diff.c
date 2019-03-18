@@ -65,18 +65,25 @@
 #define FLAG_U	(1<<12)
 #define	FLAG_w	(1<<13)
 
-/* XXX: FIXME: the following variables should be static, but gcc currently
+/* The following variables should be static, but gcc currently
  * creates a much bigger object if we do this. [which version of gcc? --vda] */
 /* 4.x, IIRC also 3.x --bernhard */
+/* Works for gcc 3.4.3. Sizes without and with "static":
+   # size busybox.t[34]/coreutils/diff.o
+   text    data     bss     dec     hex filename
+   6969       8     305    7282    1c72 busybox.t3/coreutils/diff.o
+   6969       8     305    7282    1c72 busybox.t4/coreutils/diff.o
+   --vda
+ */
 /* This is the default number of lines of context. */
-int context = 3;
-int status;
-char *start;
-const char *label1;
-const char *label2;
-struct stat stb1, stb2;
-char **dl;
-USE_FEATURE_DIFF_DIR(int dl_count;)
+static int context = 3;
+static int status;
+static char *start;
+static const char *label1;
+static const char *label2;
+static struct stat stb1, stb2;
+USE_FEATURE_DIFF_DIR(static char **dl;)
+USE_FEATURE_DIFF_DIR(static int dl_count;)
 
 struct cand {
 	int x;
@@ -84,7 +91,7 @@ struct cand {
 	int pred;
 };
 
-struct line {
+static struct line {
 	int serial;
 	int value;
 } *file[2];
@@ -109,7 +116,7 @@ static int clen;
 static int len[2];
 static int pref, suff;	/* length of prefix and suffix */
 static int slen[2];
-static smallint anychange;
+static bool anychange;
 static long *ixnew;		/* will be overlaid on file[1] */
 static long *ixold;		/* will be overlaid on klist */
 static struct cand *clist;	/* merely a free storage pot for candidates */
@@ -188,7 +195,7 @@ static int readhash(FILE * f)
 
 	sum = 1;
 	space = 0;
-	if (!(option_mask32 & FLAG_b) && !(option_mask32 & FLAG_w)) {
+	if (!(option_mask32 & (FLAG_b | FLAG_w))) {
 		for (i = 0; (t = getc(f)) != '\n'; i++) {
 			if (t == EOF) {
 				if (i == 0)
@@ -241,19 +248,18 @@ static int files_differ(FILE * f1, FILE * f2, int flags)
 {
 	size_t i, j;
 
-	if ((flags & (D_EMPTY1 | D_EMPTY2)) || stb1.st_size != stb2.st_size ||
-		(stb1.st_mode & S_IFMT) != (stb2.st_mode & S_IFMT))
+	if ((flags & (D_EMPTY1 | D_EMPTY2)) || stb1.st_size != stb2.st_size
+	 || (stb1.st_mode & S_IFMT) != (stb2.st_mode & S_IFMT)
+	) {
 		return 1;
+	}
 	while (1) {
 		i = fread(bb_common_bufsiz1,            1, BUFSIZ/2, f1);
 		j = fread(bb_common_bufsiz1 + BUFSIZ/2, 1, BUFSIZ/2, f2);
 		if (i != j)
 			return 1;
-		if (i == 0 && j == 0) {
-			if (ferror(f1) || ferror(f2))
-				return 1;
-			return 0;
-		}
+		if (i == 0)
+			return (ferror(f1) || ferror(f2));
 		if (memcmp(bb_common_bufsiz1,
 		           bb_common_bufsiz1 + BUFSIZ/2, i) != 0)
 			return 1;
@@ -337,11 +343,11 @@ static void equiv(struct line *a, int n, struct line *b, int m, int *c)
 
 static int isqrt(int n)
 {
-	int y, x = 1;
+	int y, x;
 
 	if (n == 0)
 		return 0;
-
+	x = 1;
 	do {
 		y = x;
 		x = n / x;
@@ -647,7 +653,6 @@ static void fetch(long *f, int a, int b, FILE * lb, int ch)
 			}
 		}
 	}
-	return;
 }
 
 
@@ -828,66 +833,66 @@ static void output(char *file1, FILE * f1, char *file2, FILE * f2)
 }
 
 /*
- *      The following code uses an algorithm due to Harold Stone,
- *      which finds a pair of longest identical subsequences in
- *      the two files.
+ * The following code uses an algorithm due to Harold Stone,
+ * which finds a pair of longest identical subsequences in
+ * the two files.
  *
- *      The major goal is to generate the match vector J.
- *      J[i] is the index of the line in file1 corresponding
- *      to line i file0. J[i] = 0 if there is no
- *      such line in file1.
+ * The major goal is to generate the match vector J.
+ * J[i] is the index of the line in file1 corresponding
+ * to line i file0. J[i] = 0 if there is no
+ * such line in file1.
  *
- *      Lines are hashed so as to work in core. All potential
- *      matches are located by sorting the lines of each file
- *      on the hash (called ``value''). In particular, this
- *      collects the equivalence classes in file1 together.
- *      Subroutine equiv replaces the value of each line in
- *      file0 by the index of the first element of its
- *      matching equivalence in (the reordered) file1.
- *      To save space equiv squeezes file1 into a single
- *      array member in which the equivalence classes
- *      are simply concatenated, except that their first
- *      members are flagged by changing sign.
+ * Lines are hashed so as to work in core. All potential
+ * matches are located by sorting the lines of each file
+ * on the hash (called ``value''). In particular, this
+ * collects the equivalence classes in file1 together.
+ * Subroutine equiv replaces the value of each line in
+ * file0 by the index of the first element of its
+ * matching equivalence in (the reordered) file1.
+ * To save space equiv squeezes file1 into a single
+ * array member in which the equivalence classes
+ * are simply concatenated, except that their first
+ * members are flagged by changing sign.
  *
- *      Next the indices that point into member are unsorted into
- *      array class according to the original order of file0.
+ * Next the indices that point into member are unsorted into
+ * array class according to the original order of file0.
  *
- *      The cleverness lies in routine stone. This marches
- *      through the lines of file0, developing a vector klist
- *      of "k-candidates". At step i a k-candidate is a matched
- *      pair of lines x,y (x in file0 y in file1) such that
- *      there is a common subsequence of length k
- *      between the first i lines of file0 and the first y
- *      lines of file1, but there is no such subsequence for
- *      any smaller y. x is the earliest possible mate to y
- *      that occurs in such a subsequence.
+ * The cleverness lies in routine stone. This marches
+ * through the lines of file0, developing a vector klist
+ * of "k-candidates". At step i a k-candidate is a matched
+ * pair of lines x,y (x in file0 y in file1) such that
+ * there is a common subsequence of length k
+ * between the first i lines of file0 and the first y
+ * lines of file1, but there is no such subsequence for
+ * any smaller y. x is the earliest possible mate to y
+ * that occurs in such a subsequence.
  *
- *      Whenever any of the members of the equivalence class of
- *      lines in file1 matable to a line in file0 has serial number
- *      less than the y of some k-candidate, that k-candidate
- *      with the smallest such y is replaced. The new
- *      k-candidate is chained (via pred) to the current
- *      k-1 candidate so that the actual subsequence can
- *      be recovered. When a member has serial number greater
- *      that the y of all k-candidates, the klist is extended.
- *      At the end, the longest subsequence is pulled out
- *      and placed in the array J by unravel
+ * Whenever any of the members of the equivalence class of
+ * lines in file1 matable to a line in file0 has serial number
+ * less than the y of some k-candidate, that k-candidate
+ * with the smallest such y is replaced. The new
+ * k-candidate is chained (via pred) to the current
+ * k-1 candidate so that the actual subsequence can
+ * be recovered. When a member has serial number greater
+ * that the y of all k-candidates, the klist is extended.
+ * At the end, the longest subsequence is pulled out
+ * and placed in the array J by unravel
  *
- *      With J in hand, the matches there recorded are
- *      checked against reality to assure that no spurious
- *      matches have crept in due to hashing. If they have,
- *      they are broken, and "jackpot" is recorded--a harmless
- *      matter except that a true match for a spuriously
- *      mated line may now be unnecessarily reported as a change.
+ * With J in hand, the matches there recorded are
+ * checked against reality to assure that no spurious
+ * matches have crept in due to hashing. If they have,
+ * they are broken, and "jackpot" is recorded--a harmless
+ * matter except that a true match for a spuriously
+ * mated line may now be unnecessarily reported as a change.
  *
- *      Much of the complexity of the program comes simply
- *      from trying to minimize core utilization and
- *      maximize the range of doable problems by dynamically
- *      allocating what is needed and reusing what is not.
- *      The core requirements for problems larger than somewhat
- *      are (in words) 2*length(file0) + length(file1) +
- *      3*(number of k-candidates installed),  typically about
- *      6n words for files of length n.
+ * Much of the complexity of the program comes simply
+ * from trying to minimize core utilization and
+ * maximize the range of doable problems by dynamically
+ * allocating what is needed and reusing what is not.
+ * The core requirements for problems larger than somewhat
+ * are (in words) 2*length(file0) + length(file1) +
+ * 3*(number of k-candidates installed),  typically about
+ * 6n words for files of length n.
  */
 static unsigned diffreg(char * ofile1, char * ofile2, int flags)
 {
@@ -1044,15 +1049,10 @@ static int add_to_dirlist(const char *filename,
 		struct stat ATTRIBUTE_UNUSED * sb, void *userdata,
 		int depth ATTRIBUTE_UNUSED)
 {
+	/* +2: with space for eventual trailing NULL */
+	dl = xrealloc(dl, (dl_count+2) * sizeof(dl[0]));
+	dl[dl_count] = xstrdup(filename + (int)(ptrdiff_t)userdata);
 	dl_count++;
-	dl = xrealloc(dl, dl_count * sizeof(char *));
-	dl[dl_count - 1] = xstrdup(filename);
-	if (option_mask32 & FLAG_r) {
-		int *pp = (int *) userdata;
-		int path_len = *pp + 1;
-
-		dl[dl_count - 1] = &(dl[dl_count - 1])[path_len];
-	}
 	return TRUE;
 }
 
@@ -1060,27 +1060,19 @@ static int add_to_dirlist(const char *filename,
 /* This returns a sorted directory listing. */
 static char **get_dir(char *path)
 {
-	int i;
-	char **retval;
+	dl_count = 0;
+	dl = NULL;
 
 	/* If -r has been set, then the recursive_action function will be
 	 * used. Unfortunately, this outputs the root directory along with
 	 * the recursed paths, so use void *userdata to specify the string
-	 * length of the root directory. It can then be removed in
-	 * add_to_dirlist. */
+	 * length of the root directory - '(void*)(strlen(path)+)'.
+	 * add_to_dirlist then removes root dir prefix. */
 
-	int path_len = strlen(path);
-	void *userdata = &path_len;
-
-	/* Reset dl_count - there's no need to free dl as xrealloc does
-	 * the job nicely. */
-	dl_count = 0;
-
-	/* Now fill dl with a listing. */
-	if (option_mask32 & FLAG_r)
+	if (option_mask32 & FLAG_r) {
 		recursive_action(path, TRUE, TRUE, FALSE, add_to_dirlist, NULL,
-						 userdata, 0);
-	else {
+					(void*)(strlen(path)+1), 0);
+	} else {
 		DIR *dp;
 		struct dirent *ep;
 
@@ -1088,7 +1080,7 @@ static char **get_dir(char *path)
 		while ((ep = readdir(dp))) {
 			if (!strcmp(ep->d_name, "..") || LONE_CHAR(ep->d_name, '.'))
 				continue;
-			add_to_dirlist(ep->d_name, NULL, NULL, 0);
+			add_to_dirlist(ep->d_name, NULL, (void*)(int)0, 0);
 		}
 		closedir(dp);
 	}
@@ -1096,12 +1088,8 @@ static char **get_dir(char *path)
 	/* Sort dl alphabetically. */
 	qsort(dl, dl_count, sizeof(char *), dir_strcmp);
 
-	/* Copy dl so that we can return it. */
-	retval = xmalloc(dl_count * sizeof(char *));
-	for (i = 0; i < dl_count; i++)
-		retval[i] = xstrdup(dl[i]);
-
-	return retval;
+	dl[dl_count] = NULL;
+	return dl;
 }
 
 
@@ -1109,11 +1097,9 @@ static void diffdir(char *p1, char *p2)
 {
 	char **dirlist1, **dirlist2;
 	char *dp1, *dp2;
-	int dirlist1_count, dirlist2_count;
 	int pos;
 
 	/* Check for trailing slashes. */
-
 	dp1 = last_char_is(p1, '/');
 	if (dp1 != NULL)
 		*dp1 = '\0';
@@ -1124,11 +1110,7 @@ static void diffdir(char *p1, char *p2)
 	/* Get directory listings for p1 and p2. */
 
 	dirlist1 = get_dir(p1);
-	dirlist1_count = dl_count;
-	dirlist1[dirlist1_count] = NULL;
 	dirlist2 = get_dir(p2);
-	dirlist2_count = dl_count;
-	dirlist2[dirlist2_count] = NULL;
 
 	/* If -S was set, find the starting point. */
 	if (start) {
@@ -1170,9 +1152,10 @@ static void diffdir(char *p1, char *p2)
 #endif
 
 
+int diff_main(int argc, char **argv);
 int diff_main(int argc, char **argv)
 {
-	smallint gotstdin = 0;
+	bool gotstdin = 0;
 	char *U_opt;
 	char *f1, *f2;
 	llist_t *L_arg = NULL;
@@ -1197,7 +1180,7 @@ int diff_main(int argc, char **argv)
 		L_arg = L_arg->link;
 	}
 	if (option_mask32 & FLAG_U)
-		context = xatou_range(U_opt, 1, INT_MAX);
+		context = xatoi_u(U_opt);
 
 	/*
 	 * Do sanity checks, fill in stb1 and stb2 and call the appropriate

@@ -26,7 +26,7 @@ struct host_info {
 static void parse_url(char *url, struct host_info *h);
 static FILE *open_socket(len_and_sockaddr *lsa);
 static char *gethdr(char *buf, size_t bufsiz, FILE *fp, int *istrunc);
-static int ftpcmd(char *s1, char *s2, FILE *fp, char *buf);
+static int ftpcmd(const char *s1, const char *s2, FILE *fp, char *buf);
 
 /* Globals (can be accessed from signal handlers */
 static off_t content_len;        /* Content-length of the file */
@@ -37,7 +37,7 @@ static off_t transferred;        /* Number of bytes transferred so far */
 static int chunked;                     /* chunked transfer encoding */
 #if ENABLE_FEATURE_WGET_STATUSBAR
 static void progressmeter(int flag);
-static char *curfile;                   /* Name of current file being transferred */
+static const char *curfile;             /* Name of current file being transferred */
 static struct timeval start;            /* Time a transfer started */
 enum {
 	STALLTIME = 5                   /* Seconds when xfer considered "stalled" */
@@ -86,6 +86,7 @@ static char *base64enc(unsigned char *p, char *buf, int len)
 }
 #endif
 
+int wget_main(int argc, char **argv);
 int wget_main(int argc, char **argv)
 {
 	char buf[512];
@@ -156,7 +157,7 @@ int wget_main(int argc, char **argv)
 	if (headers_llist) {
 		int size = 1;
 		char *cp;
-		llist_t *ll = headers_llist = rev_llist(headers_llist);
+		llist_t *ll = headers_llist = llist_rev(headers_llist);
 		while (ll) {
 			size += strlen(ll->data) + 2;
 			ll = ll->link;
@@ -190,18 +191,18 @@ int wget_main(int argc, char **argv)
 		// Dirty hack. Needed because bb_get_last_path_component
 		// will destroy trailing / by storing '\0' in last byte!
 		if (!last_char_is(target.path, '/')) {
-			fname_out =
+			fname_out = bb_get_last_path_component(target.path);
 #if ENABLE_FEATURE_WGET_STATUSBAR
-				curfile =
+			curfile = fname_out;
 #endif
-				bb_get_last_path_component(target.path);
 		}
 		if (!fname_out || !fname_out[0]) {
-			fname_out =
+			/* bb_get_last_path_component writes
+			 * to last '/' only. We don't have one here... */
+			fname_out = (char*)"index.html";
 #if ENABLE_FEATURE_WGET_STATUSBAR
-				curfile =
+			curfile = fname_out;
 #endif
-				"index.html";
 		}
 		if (dir_prefix != NULL)
 			fname_out = concat_path_file(dir_prefix, fname_out);
@@ -233,11 +234,11 @@ int wget_main(int argc, char **argv)
 	/* We want to do exactly _one_ DNS lookup, since some
 	 * sites (i.e. ftp.us.debian.org) use round-robin DNS
 	 * and we want to connect to only one IP... */
-	lsa = host2sockaddr(server.host, server.port);
+	lsa = xhost2sockaddr(server.host, server.port);
 	if (!(opt & WGET_OPT_QUIET)) {
-		fprintf(stderr, "Connecting to %s [%s]\n", server.host,
+		fprintf(stderr, "Connecting to %s (%s)\n", server.host,
 				xmalloc_sockaddr2dotted(&lsa->sa, lsa->len));
-		/* We leak xmalloc_sockaddr2dotted result */
+		/* We leak result of xmalloc_sockaddr2dotted */
 	}
 
 	if (use_proxy || !target.is_ftp) {
@@ -260,14 +261,6 @@ int wget_main(int argc, char **argv)
 			 * Send HTTP request.
 			 */
 			if (use_proxy) {
-//				const char *format = "GET %stp://%s:%d/%s HTTP/1.1\r\n";
-//#if ENABLE_FEATURE_WGET_IP6_LITERAL
-//				if (strchr(target.host, ':'))
-//					format = "GET %stp://[%s]:%d/%s HTTP/1.1\r\n";
-//#endif
-//				fprintf(sfp, format,
-//					target.is_ftp ? "f" : "ht", target.host,
-//					ntohs(target.port), target.path);
 				fprintf(sfp, "GET %stp://%s/%s HTTP/1.1\r\n",
 					target.is_ftp ? "f" : "ht", target.host,
 					target.path);
@@ -361,7 +354,7 @@ int wget_main(int argc, char **argv)
 							server.port = target.port;
 						}
 						free(lsa);
-						lsa = host2sockaddr(server.host, server.port);
+						lsa = xhost2sockaddr(server.host, server.port);
 						break;
 					}
 				}
@@ -568,28 +561,6 @@ static void parse_url(char *src_url, struct host_info *h)
 	}
 
 	sp = h->host;
-
-//host2sockaddr does this itself
-//#if ENABLE_FEATURE_WGET_IP6_LITERAL
-//	if (sp[0] == '[') {
-//		char *ep;
-//
-//		ep = sp + 1;
-//		while (*ep == ':' || isxdigit(*ep))
-//			ep++;
-//		if (*ep == ']') {
-//			h->host++;
-//			*ep = '\0';
-//			sp = ep + 1;
-//		}
-//	}
-//#endif
-//
-//	p = strchr(sp, ':');
-//	if (p != NULL) {
-//		*p = '\0';
-//		h->port = htons(xatou16(p + 1));
-//	}
 }
 
 
@@ -654,7 +625,7 @@ static char *gethdr(char *buf, size_t bufsiz, FILE *fp, int *istrunc)
 	return hdrval;
 }
 
-static int ftpcmd(char *s1, char *s2, FILE *fp, char *buf)
+static int ftpcmd(const char *s1, const char *s2, FILE *fp, char *buf)
 {
 	int result;
 	if (s1) {
@@ -834,5 +805,4 @@ progressmeter(int flag)
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	$Id: wget.c,v 1.75 2004/10/08 08:27:40 andersen Exp $
  */

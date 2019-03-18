@@ -372,7 +372,6 @@ static void free_instance(struct fsck_instance *i)
 	if (i->base_device)
 		free(i->base_device);
 	free(i);
-	return;
 }
 
 static struct fs_info *create_fs_device(const char *device, const char *mntpnt,
@@ -1322,6 +1321,7 @@ static void PRS(int argc, char *argv[])
 	    max_running = atoi(tmp);
 }
 
+int fsck_main(int argc, char *argv[]);
 int fsck_main(int argc, char *argv[])
 {
 	int i, status = 0;

@@ -18,6 +18,7 @@ static const struct option setconsole_long_options[] = {
 
 #define OPT_SETCONS_RESET 1
 
+int setconsole_main(int argc, char **argv);
 int setconsole_main(int argc, char **argv)
 {
 	unsigned long flags;
@@ -37,7 +38,7 @@ int setconsole_main(int argc, char **argv)
 		device = argv[optind];
 	} else {
 		if (flags & OPT_SETCONS_RESET)
-			device = CONSOLE_DEV;
+			device = DEV_CONSOLE;
 	}
 
 	if (-1 == ioctl(xopen(device, O_RDONLY), TIOCCONS)) {

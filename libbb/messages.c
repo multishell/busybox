@@ -40,6 +40,9 @@ const char bb_path_motd_file[] = "/etc/motd";
 const char bb_default_login_shell[] = LIBBB_DEFAULT_LOGIN_SHELL;
 const char bb_dev_null[] = "/dev/null";
 
+const int const_int_0;
+const int const_int_1 = 1;
+
 #include <utmp.h>
 /* This is usually something like "/var/adm/wtmp" or "/var/log/wtmp" */
 const char bb_path_wtmp_file[] =
@@ -52,3 +55,7 @@ WTMP_FILE;
 #endif
 
 char bb_common_bufsiz1[BUFSIZ+1];
+
+struct globals;
+/* Make it reside in R/W memory: */
+struct globals *const ptr_to_globals __attribute__ ((section (".data")));

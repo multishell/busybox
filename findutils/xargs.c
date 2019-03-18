@@ -60,7 +60,7 @@ static int xargs_exec(char *const *args)
 
 	if (p == 0) {
 		/* vfork -- child */
-		execvp(args[0], args);
+		BB_EXECVP(args[0], args);
 		exec_errno = errno;     /* set error to shared stack */
 		_exit(1);
 	}
@@ -387,6 +387,7 @@ enum {
 	USE_FEATURE_XARGS_SUPPORT_TERMOPT(     "x") \
 	USE_FEATURE_XARGS_SUPPORT_ZERO_TERM(   "0")
 
+int xargs_main(int argc, char **argv);
 int xargs_main(int argc, char **argv)
 {
 	char **args;
@@ -416,7 +417,7 @@ int xargs_main(int argc, char **argv)
 	argv += optind;
 	if (!argc) {
 		/* default behavior is to echo all the filenames */
-		*argv = "echo";
+		*argv = (char*)"echo";
 		argc++;
 	}
 

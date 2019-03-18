@@ -64,7 +64,7 @@ enum {
  * flags */
 
 struct {
-	char *name;
+	const char *name;
 	long flags;
 } static mount_options[] = {
 	// MS_FLAGS set a bit.  ~MS_FLAGS disable that bit.  0 flags are NOPs.
@@ -122,7 +122,7 @@ struct {
 #define VECTOR_SIZE(v) (sizeof(v) / sizeof((v)[0]))
 
 /* Append mount options to string */
-static void append_mount_options(char **oldopts, char *newopts)
+static void append_mount_options(char **oldopts, const char *newopts)
 {
 	if (*oldopts && **oldopts) {
 		/* do not insert options which are already there */
@@ -303,7 +303,7 @@ static int mount_it_now(struct mntent *mp, int vfsflags, char *filteropts)
 		fsname = 0;
 		if (!mp->mnt_type || !*mp->mnt_type) { /* bind mount */
 			mp->mnt_fsname = fsname = bb_simplify_path(mp->mnt_fsname);
-			mp->mnt_type = "bind";
+			mp->mnt_type = (char*)"bind";
 		}
 		mp->mnt_freq = mp->mnt_passno = 0;
 
@@ -687,6 +687,8 @@ get_mountport(struct sockaddr_in *server_addr,
 	static struct pmap p = {0, 0, 0, 0};
 
 	server_addr->sin_port = PMAPPORT;
+/* glibc 2.4 (still) has pmap_getmaps(struct sockaddr_in *).
+ * I understand it like "IPv6 for this is not 100% ready" */
 	pmap = pmap_getmaps(server_addr);
 
 	if (version > MAX_NFSPROT)
@@ -1342,7 +1344,7 @@ prepare_kernel_data:
 
 do_mount: /* perform actual mount */
 
-	mp->mnt_type = "nfs";
+	mp->mnt_type = (char*)"nfs";
 	retval = mount_it_now(mp, vfsflags, (char*)&data);
 	goto ret;
 
@@ -1386,16 +1388,19 @@ static int singlemount(struct mntent *mp, int ignore_busy)
 
 	// Treat fstype "auto" as unspecified.
 
-	if (mp->mnt_type && !strcmp(mp->mnt_type,"auto")) mp->mnt_type = 0;
+	if (mp->mnt_type && strcmp(mp->mnt_type,"auto") == 0)
+		mp->mnt_type = 0;
 
 	// Might this be an CIFS filesystem?
 
-	if (ENABLE_FEATURE_MOUNT_CIFS &&
-		(!mp->mnt_type || !strcmp(mp->mnt_type,"cifs")) &&
-		(mp->mnt_fsname[0]==mp->mnt_fsname[1] && (mp->mnt_fsname[0]=='/' || mp->mnt_fsname[0]=='\\')))
-	{
-		struct hostent *he;
-		char ip[32], *s;
+	if (ENABLE_FEATURE_MOUNT_CIFS
+	 && (!mp->mnt_type || strcmp(mp->mnt_type,"cifs") == 0)
+	 && (mp->mnt_fsname[0]=='/' || mp->mnt_fsname[0]=='\\')
+	 && mp->mnt_fsname[0]==mp->mnt_fsname[1]
+	) {
+		len_and_sockaddr *lsa;
+		char *ip, *dotted;
+		char *s;
 
 		rc = 1;
 		// Replace '/' with '\' and verify that unc points to "//server/share".
@@ -1406,38 +1411,43 @@ static int singlemount(struct mntent *mp, int ignore_busy)
 		// get server IP
 
 		s = strrchr(mp->mnt_fsname, '\\');
-		if (s == mp->mnt_fsname+1) goto report_error;
-		*s = 0;
-		he = gethostbyname(mp->mnt_fsname+2);
+		if (s <= mp->mnt_fsname+1) goto report_error;
+		*s = '\0';
+		lsa = host2sockaddr(mp->mnt_fsname+2, 0);
 		*s = '\\';
-		if (!he) goto report_error;
+		if (!lsa) goto report_error;
 
-		// Insert ip=... option into string flags.  (NOTE: Add IPv6 support.)
+		// insert ip=... option into string flags.
 
-		sprintf(ip, "ip=%d.%d.%d.%d", he->h_addr[0], he->h_addr[1],
-				he->h_addr[2], he->h_addr[3]);
+		dotted = xmalloc_sockaddr2dotted_noport(&lsa->sa, lsa->len);
+		ip = xasprintf("ip=%s", dotted);
 		parse_mount_options(ip, &filteropts);
 
 		// compose new unc '\\server-ip\share'
+		// (s => slash after hostname)
 
-		mp->mnt_fsname = xasprintf("\\\\%s%s", ip+3,
-					strchr(mp->mnt_fsname+2,'\\'));
+		mp->mnt_fsname = xasprintf("\\\\%s%s", dotted, s);
 
 		// lock is required
 		vfsflags |= MS_MANDLOCK;
 
-		mp->mnt_type = "cifs";
+		mp->mnt_type = (char*)"cifs";
 		rc = mount_it_now(mp, vfsflags, filteropts);
-		if (ENABLE_FEATURE_CLEAN_UP) free(mp->mnt_fsname);
+		if (ENABLE_FEATURE_CLEAN_UP) {
+			free(mp->mnt_fsname);
+			free(ip);
+			free(dotted);
+			free(lsa);
+		}
 		goto report_error;
 	}
 
 	// Might this be an NFS filesystem?
 
-	if (ENABLE_FEATURE_MOUNT_NFS &&
-		(!mp->mnt_type || !strcmp(mp->mnt_type,"nfs")) &&
-		strchr(mp->mnt_fsname, ':') != NULL)
-	{
+	if (ENABLE_FEATURE_MOUNT_NFS
+	 && (!mp->mnt_type || !strcmp(mp->mnt_type,"nfs"))
+	 && strchr(mp->mnt_fsname, ':') != NULL
+	) {
 		rc = nfsmount(mp, vfsflags, filteropts);
 		goto report_error;
 	}
@@ -1445,8 +1455,9 @@ static int singlemount(struct mntent *mp, int ignore_busy)
 	// Look at the file.  (Not found isn't a failure for remount, or for
 	// a synthetic filesystem like proc or sysfs.)
 
-	if (!lstat(mp->mnt_fsname, &st) && !(vfsflags & (MS_REMOUNT | MS_BIND | MS_MOVE)))
-	{
+	if (!lstat(mp->mnt_fsname, &st)
+	 && !(vfsflags & (MS_REMOUNT | MS_BIND | MS_MOVE))
+	) {
 		// Do we need to allocate a loopback device for it?
 
 		if (ENABLE_FEATURE_MOUNT_LOOP && S_ISREG(st.st_mode)) {
@@ -1474,10 +1485,9 @@ static int singlemount(struct mntent *mp, int ignore_busy)
 
 	if (mp->mnt_type || (vfsflags & (MS_REMOUNT | MS_BIND | MS_MOVE)))
 		rc = mount_it_now(mp, vfsflags, filteropts);
-
-	// Loop through filesystem types until mount succeeds or we run out
-
 	else {
+		// Loop through filesystem types until mount succeeds
+		// or we run out
 
 		/* Initialize list of block backed filesystems.  This has to be
 		 * done here so that during "mount -a", mounts after /proc shows up
@@ -1506,8 +1516,9 @@ static int singlemount(struct mntent *mp, int ignore_busy)
 		}
 	}
 
-report_error:
-	if (ENABLE_FEATURE_CLEAN_UP) free(filteropts);
+ report_error:
+	if (ENABLE_FEATURE_CLEAN_UP)
+		free(filteropts);
 
 	if (rc && errno == EBUSY && ignore_busy) rc = 0;
 	if (rc < 0)
@@ -1522,6 +1533,7 @@ report_error:
 
 const char must_be_root[] = "you must be root";
 
+int mount_main(int argc, char **argv);
 int mount_main(int argc, char **argv)
 {
 	enum { OPT_ALL = 0x10 };
@@ -1612,9 +1624,9 @@ int mount_main(int argc, char **argv)
 
 	// If we have a shared subtree flag, don't worry about fstab or mtab.
 
-	if (ENABLE_FEATURE_MOUNT_FLAGS &&
-			(i & (MS_SHARED | MS_PRIVATE | MS_SLAVE | MS_UNBINDABLE)))
-	{
+	if (ENABLE_FEATURE_MOUNT_FLAGS
+	 && (i & (MS_SHARED | MS_PRIVATE | MS_SLAVE | MS_UNBINDABLE))
+	) {
 		rc = mount("", argv[0], "", i, "");
 		if (rc) bb_perror_msg_and_die("%s", argv[0]);
 		goto clean_up;

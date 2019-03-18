@@ -74,6 +74,7 @@ enum {
 	NEW_MOD_INITIALIZING = 64
 };
 
+int lsmod_main(int argc, char **argv);
 int lsmod_main(int argc, char **argv)
 {
 	struct module_info info;
@@ -139,6 +140,7 @@ int lsmod_main(int argc, char **argv)
 
 #else /* CONFIG_FEATURE_QUERY_MODULE_INTERFACE */
 
+int lsmod_main(int argc, char **argv);
 int lsmod_main(int argc, char **argv)
 {
 	FILE *file = xfopen("/proc/modules", "r");
@@ -161,7 +163,7 @@ int lsmod_main(int argc, char **argv)
 				printf("  %s", tok);
 				tok = strtok(NULL, "\n");
 				if (!tok)
-					tok = "";
+					tok = (char*)"";
 				/* New-style has commas, or -.  If so,
 				truncate (other fields might follow). */
 				else if (strchr(tok, ',')) {
@@ -170,9 +172,11 @@ int lsmod_main(int argc, char **argv)
 					if (tok[strlen(tok)-1] == ',')
 						tok[strlen(tok)-1] = '\0';
 				} else if (tok[0] == '-'
-						&& (tok[1] == '\0' || isspace(tok[1])))
-					tok = "";
-					printf(" %s", tok);
+				 && (tok[1] == '\0' || isspace(tok[1]))
+				) {
+					tok = (char*)"";
+				}
+				printf(" %s", tok);
 			}
 			puts("");
 			free(line);

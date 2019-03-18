@@ -16,13 +16,14 @@
 
 #include "busybox.h"
 
+int yes_main(int argc, char **argv);
 int yes_main(int argc, char **argv)
 {
 	static const char fmt_str[] = " %s";
 	const char *fmt;
 	char **first_arg;
 
-	*argv = "y";
+	*argv = (char*)"y";
 	if (argc != 1) {
 		++argv;
 	}

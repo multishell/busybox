@@ -11,11 +11,13 @@
 #include <stdlib.h>
 #include "busybox.h"
 
+int pwd_main(int argc, char **argv);
 int pwd_main(int argc, char **argv)
 {
 	char *buf;
 
-	if ((buf = xgetcwd(NULL)) != NULL) {
+	buf = xrealloc_getcwd_or_warn(NULL);
+	if (buf != NULL) {
 		puts(buf);
 		fflush_stdout_and_exit(EXIT_SUCCESS);
 	}

@@ -3,6 +3,7 @@
  * Mini mv implementation for busybox
  *
  * Copyright (C) 2000 by Matt Kraai <kraai@alumni.carnegiemellon.edu>
+ * SELinux support by Yuichi Nakamura <ynakam@hitachisoft.jp>
  *
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
@@ -35,6 +36,7 @@ static const struct option mv_long_options[] = {
 
 static const char fmt[] = "cannot overwrite %sdirectory with %sdirectory";
 
+int mv_main(int argc, char **argv);
 int mv_main(int argc, char **argv)
 {
 	struct stat dest_stat;
@@ -43,6 +45,7 @@ int mv_main(int argc, char **argv)
 	unsigned long flags;
 	int dest_exists;
 	int status = 0;
+	int copy_flag = 0;
 
 #if ENABLE_FEATURE_MV_LONG_OPTIONS
 	applet_long_options = mv_long_options;
@@ -112,8 +115,11 @@ DO_MOVE:
 						goto RET_1;
 					}
 				}
-				if ((copy_file(*argv, dest,
-					FILEUTILS_RECUR | FILEUTILS_PRESERVE_STATUS) >= 0) &&
+				copy_flag = FILEUTILS_RECUR | FILEUTILS_PRESERVE_STATUS;
+#if ENABLE_SELINUX
+				copy_flag |= FILEUTILS_PRESERVE_SECURITY_CONTEXT;
+#endif
+				if ((copy_file(*argv, dest, copy_flag) >= 0) &&
 					(remove_file(*argv, FILEUTILS_RECUR | FILEUTILS_FORCE) >= 0)) {
 					goto RET_0;
 				}

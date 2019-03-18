@@ -207,7 +207,6 @@
 //#undef CONFIG_FEATURE_TRACEROUTE_USE_ICMP
 //#define CONFIG_FEATURE_TRACEROUTE_USE_ICMP
 
-#include "inet_common.h"
 
 #include <net/if.h>
 #include <arpa/inet.h>
@@ -217,6 +216,7 @@
 #include <netinet/ip_icmp.h>
 
 #include "busybox.h"
+#include "inet_common.h"
 
 
 /*
@@ -247,7 +247,7 @@ struct ipovly {
 /*
  * UDP kernel structures and variables.
  */
-struct  udpiphdr {
+struct udpiphdr {
 	struct  ipovly ui_i;            /* overlaid ip structure */
 	struct  udphdr ui_u;            /* udp header */
 };
@@ -268,7 +268,7 @@ struct  udpiphdr {
 struct hostinfo {
 	char *name;
 	int n;
-	u_int32_t *addrs;
+	uint32_t *addrs;
 };
 
 /* Data section of the probe packet */
@@ -279,7 +279,7 @@ struct outdata {
 };
 
 struct IFADDRLIST {
-	u_int32_t addr;
+	uint32_t addr;
 	char device[sizeof(struct ifreq)];
 };
 
@@ -299,9 +299,9 @@ static struct icmp *outicmp;           /* last output (icmp) packet */
 
 #if ENABLE_FEATURE_TRACEROUTE_SOURCE_ROUTE
 /* Maximum number of gateways (include room for one noop) */
-#define NGATEWAYS ((int)((MAX_IPOPTLEN - IPOPT_MINOFF - 1) / sizeof(u_int32_t)))
+#define NGATEWAYS ((int)((MAX_IPOPTLEN - IPOPT_MINOFF - 1) / sizeof(uint32_t)))
 /* loose source route gateway list (including room for final destination) */
-static u_int32_t gwlist[NGATEWAYS + 1];
+static uint32_t gwlist[NGATEWAYS + 1];
 #endif
 
 static int s;                          /* receive (icmp) socket file descriptor */
@@ -429,7 +429,7 @@ ifaddrlist(struct IFADDRLIST **ipaddrp)
 
 
 static void
-setsin(struct sockaddr_in *addr_sin, u_int32_t addr)
+setsin(struct sockaddr_in *addr_sin, uint32_t addr)
 {
 	memset(addr_sin, 0, sizeof(*addr_sin));
 #ifdef HAVE_SOCKADDR_SA_LEN
@@ -448,8 +448,8 @@ findsaddr(const struct sockaddr_in *to, struct sockaddr_in *from)
 {
 	int i, n;
 	FILE *f;
-	u_int32_t mask;
-	u_int32_t dest, tmask;
+	uint32_t mask;
+	uint32_t dest, tmask;
 	struct IFADDRLIST *al;
 	char buf[256], tdevice[256], device[256];
 
@@ -641,7 +641,7 @@ send_probe(int seq, int ttl, struct timeval *tp)
 		int nshorts, i;
 
 		sp = (uint16_t *)outip;
-		nshorts = (u_int)packlen / sizeof(uint16_t);
+		nshorts = (unsigned)packlen / sizeof(uint16_t);
 		i = 0;
 		printf("[ %d bytes", packlen);
 		while (--nshorts >= 0) {
@@ -776,7 +776,7 @@ packet_ok(unsigned char *buf, int cc, struct sockaddr_in *from, int seq)
 #if ENABLE_FEATURE_TRACEROUTE_VERBOSE
 	if (verbose) {
 		int i;
-		u_int32_t *lp = (u_int32_t *)&icp->icmp_ip;
+		uint32_t *lp = (uint32_t *)&icp->icmp_ip;
 
 		printf("\n%d bytes from %s to "
 		       "%s: icmp type %d (%s) code %d\n",
@@ -803,7 +803,8 @@ inetname(struct sockaddr_in *from)
 	char name[257];
 
 	if (!nflag && from->sin_addr.s_addr != INADDR_ANY) {
-		if (INET_rresolve(name, sizeof(name), from, 0x4000, 0xffffffff) >= 0)
+		if (INET_rresolve(name, sizeof(name), from, 0x4000,
+						0xffffffff) >= 0)
 			n = name;
 	}
 	ina = inet_ntoa(from->sin_addr);
@@ -838,11 +839,11 @@ gethostinfo(const char *host)
 	struct hostent *hp;
 	struct hostinfo *hi;
 	char **p;
-	u_int32_t addr, *ap;
+	uint32_t addr, *ap;
 
 	hi = xzalloc(sizeof(*hi));
 	addr = inet_addr(host);
-	if ((int32_t)addr != -1) {
+	if (addr != 0xffffffff) {
 		hi->name = xstrdup(host);
 		hi->n = 1;
 		hi->addrs = xzalloc(sizeof(hi->addrs[0]));
@@ -874,7 +875,7 @@ freehostinfo(struct hostinfo *hi)
 
 #if ENABLE_FEATURE_TRACEROUTE_SOURCE_ROUTE
 static void
-getaddr(u_int32_t *ap, const char *host)
+getaddr(uint32_t *ap, const char *host)
 {
 	struct hostinfo *hi;
 
@@ -885,14 +886,12 @@ getaddr(u_int32_t *ap, const char *host)
 #endif
 
 
-int
-traceroute_main(int argc, char *argv[])
+int traceroute_main(int argc, char *argv[]);
+int traceroute_main(int argc, char *argv[])
 {
-	static const int on = 1;
-
 	int code, n;
 	unsigned char *outp;
-	u_int32_t *ap;
+	uint32_t *ap;
 	struct sockaddr_in *from = (struct sockaddr_in *)&wherefrom;
 	struct sockaddr_in *to = (struct sockaddr_in *)&whereto;
 	struct hostinfo *hi;
@@ -915,7 +914,7 @@ traceroute_main(int argc, char *argv[])
 	int nprobes = 3;
 	char *nprobes_str = NULL;
 	char *waittime_str = NULL;
-	u_int pausemsecs = 0;
+	unsigned pausemsecs = 0;
 	char *pausemsecs_str = NULL;
 	int first_ttl = 1;
 	char *first_ttl_str = NULL;
@@ -1041,21 +1040,19 @@ traceroute_main(int argc, char *argv[])
 		bb_show_usage();
 	}
 
-	/* Insure the socket fds won't be 0, 1 or 2 */
-	do n = xopen(bb_dev_null, O_RDONLY); while (n < 2);
-	if (n > 2)
-		close(n);
+	/* Ensure the socket fds won't be 0, 1 or 2 */
+	bb_sanitize_stdio();
 
 	s = xsocket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 
 #if TRACEROUTE_SO_DEBUG
 	if (op & USAGE_OP_DEBUG)
-		(void)setsockopt(s, SOL_SOCKET, SO_DEBUG, (char *)&on,
-		    sizeof(on));
+		setsockopt(s, SOL_SOCKET, SO_DEBUG,
+				&const_int_1, sizeof(const_int_1));
 #endif
 	if (op & USAGE_OP_BYPASS_ROUTE)
-		(void)setsockopt(s, SOL_SOCKET, SO_DONTROUTE, (char *)&on,
-		    sizeof(on));
+		setsockopt(s, SOL_SOCKET, SO_DONTROUTE,
+				&const_int_1, sizeof(const_int_1));
 
 	sndsock = xsocket(AF_INET, SOCK_RAW, IPPROTO_RAW);
 
@@ -1087,32 +1084,31 @@ traceroute_main(int argc, char *argv[])
 #endif /* CONFIG_FEATURE_TRACEROUTE_SOURCE_ROUTE */
 
 #ifdef SO_SNDBUF
-	if (setsockopt(sndsock, SOL_SOCKET, SO_SNDBUF, (char *)&packlen,
-	    sizeof(packlen)) < 0) {
+	if (setsockopt(sndsock, SOL_SOCKET, SO_SNDBUF, &packlen, sizeof(packlen)) < 0) {
 		bb_perror_msg_and_die("SO_SNDBUF");
 	}
 #endif
 #ifdef IP_HDRINCL
-	if (setsockopt(sndsock, IPPROTO_IP, IP_HDRINCL, (char *)&on,
-	    sizeof(on)) < 0 && errno != ENOPROTOOPT) {
+	if (setsockopt(sndsock, IPPROTO_IP, IP_HDRINCL, &const_int_1, sizeof(const_int_1)) < 0
+	 && errno != ENOPROTOOPT
+	) {
 		bb_perror_msg_and_die("IP_HDRINCL");
 	}
 #else
 #ifdef IP_TOS
-	if (tos_str && setsockopt(sndsock, IPPROTO_IP, IP_TOS,
-	    (char *)&tos, sizeof(tos)) < 0) {
+	if (tos_str && setsockopt(sndsock, IPPROTO_IP, IP_TOS, &tos, sizeof(tos)) < 0) {
 		bb_perror_msg_and_die("setsockopt tos %d", tos);
 	}
 #endif
 #endif
 #if TRACEROUTE_SO_DEBUG
 	if (op & USAGE_OP_DEBUG)
-		(void)setsockopt(sndsock, SOL_SOCKET, SO_DEBUG, (char *)&on,
-		    sizeof(on));
+		setsockopt(sndsock, SOL_SOCKET, SO_DEBUG,
+				&const_int_1, sizeof(const_int_1));
 #endif
 	if (op & USAGE_OP_BYPASS_ROUTE)
-		(void)setsockopt(sndsock, SOL_SOCKET, SO_DONTROUTE, (char *)&on,
-		    sizeof(on));
+		setsockopt(sndsock, SOL_SOCKET, SO_DONTROUTE,
+				&const_int_1, sizeof(const_int_1));
 
 	/* Revert to non-privileged user after opening sockets */
 	xsetgid(getgid());
@@ -1211,7 +1207,7 @@ traceroute_main(int argc, char *argv[])
 	(void)fflush(stderr);
 
 	for (ttl = first_ttl; ttl <= max_ttl; ++ttl) {
-		u_int32_t lastaddr = 0;
+		uint32_t lastaddr = 0;
 		int gotlastaddr = 0;
 		int got_there = 0;
 		int unreachable = 0;

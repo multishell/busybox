@@ -16,6 +16,9 @@
  * conjunction with -m.
  */
 
+/* Nov 28, 2006      Yoshinori Sato <ysato@users.sourceforge.jp>: Add SELinux Support.
+ */
+
 #include <stdlib.h>
 #include <unistd.h>
 #include <getopt.h> /* struct option */
@@ -25,10 +28,14 @@
 static const struct option mkdir_long_options[] = {
 	{ "mode", 1, NULL, 'm' },
 	{ "parents", 0, NULL, 'p' },
+#if ENABLE_SELINUX
+	{ "context", 1, NULL, 'Z' },
+#endif
 	{ 0, 0, 0, 0 }
 };
 #endif
 
+int mkdir_main(int argc, char **argv);
 int mkdir_main(int argc, char **argv)
 {
 	mode_t mode = (mode_t)(-1);
@@ -36,11 +43,14 @@ int mkdir_main(int argc, char **argv)
 	int flags = 0;
 	unsigned opt;
 	char *smode;
+#if ENABLE_SELINUX
+	security_context_t scontext;
+#endif
 
 #if ENABLE_FEATURE_MKDIR_LONG_OPTIONS
 	applet_long_options = mkdir_long_options;
 #endif
-	opt = getopt32(argc, argv, "m:p", &smode);
+	opt = getopt32(argc, argv, "m:p" USE_SELINUX("Z:"), &smode USE_SELINUX(,&scontext));
 	if (opt & 1) {
 		mode = 0777;
 		if (!bb_parse_mode(smode, &mode)) {
@@ -49,6 +59,12 @@ int mkdir_main(int argc, char **argv)
 	}
 	if (opt & 2)
 		flags |= FILEUTILS_RECUR;
+#if ENABLE_SELINUX
+	if (opt & 4) {
+		selinux_or_die();
+		setfscreatecon_or_die(scontext);
+	}
+#endif
 
 	if (optind == argc) {
 		bb_show_usage();

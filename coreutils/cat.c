@@ -14,7 +14,7 @@
 
 int bb_cat(char **argv)
 {
-	static char *const argv_dash[] = { "-", NULL };
+	static const char *const argv_dash[] = { "-", NULL };
 	FILE *f;
 	int retval = EXIT_SUCCESS;
 
@@ -34,6 +34,7 @@ int bb_cat(char **argv)
 	return retval;
 }
 
+int cat_main(int argc, char **argv);
 int cat_main(int argc, char **argv)
 {
 	getopt32(argc, argv, "u");

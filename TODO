@@ -130,7 +130,6 @@ Bernhard Fischer <busybox@busybox.net> suggests to look at these:
     make bb_common_bufsiz1 configurable, size wise.
     make pipesize configurable, size wise.
     Use bb_common_bufsiz1 throughout applets!
-  Add chrt applet. Please CC Bernhard if you suggest a patch.
 
 As yet unclaimed:
 
@@ -154,6 +153,10 @@ patch
   And while we're at it, a new patch filename quoting format is apparently
   coming soon:  http://marc.theaimsgroup.com/?l=git&m=112927316408690&w=2
 ---
+ps / top
+  Add support for both RSS and VSIZE rather than just one or the other.
+  Or make it a build option.
+---
 man
   It would be nice to have a man command.  Not one that handles troff or
   anything, just one that can handle preformatted ascii man pages, possibly
@@ -169,6 +172,10 @@ stty / catv
   stty's visible() function and catv's guts are identical. Merge them into
   an appropriate libbb function.
 ----
+struct suffix_mult
+  Several duplicate users of: grep -r "1024\*1024" * -B2 -A1
+  Merge to a single size_suffixes[] in libbb.
+  Users: head tail od_bloaty hexdump and (partially as it wouldn't hurt) svlogd
 
 Architectural issues:
 

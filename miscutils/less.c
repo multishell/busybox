@@ -21,6 +21,8 @@
  *   redirected input has been read from stdin
  */
 
+#include <sched.h>	/* sched_yield() */
+
 #include "busybox.h"
 #if ENABLE_FEATURE_LESS_REGEXP
 #include "xregex.h"
@@ -46,8 +48,12 @@ enum {
 	REAL_KEY_LEFT = 'D',
 	REAL_PAGE_UP = '5',
 	REAL_PAGE_DOWN = '6',
-	REAL_KEY_HOME = '7',
+	REAL_KEY_HOME = '7', // vt100? linux vt? or what?
 	REAL_KEY_END = '8',
+	REAL_KEY_HOME_ALT = '1', // ESC [1~ (vt100? linux vt? or what?)
+	REAL_KEY_END_ALT = '4', // ESC [4~
+	REAL_KEY_HOME_XTERM = 'H',
+	REAL_KEY_END_XTERM = 'F',
 
 /* These are the special codes assigned by this program to the special keys */
 	KEY_UP = 20,
@@ -196,17 +202,35 @@ static void read_lines(void)
 		terminated = 0;
 		while (1) {
 			char c;
+			/* if no unprocessed chars left, eat more */
 			if (readpos >= readeof) {
+				smallint yielded = 0;
+
 				ndelay_on(0);
+ read_again:
 				eof_error = safe_read(0, readbuf, sizeof(readbuf));
-				ndelay_off(0);
 				readpos = 0;
 				readeof = eof_error;
 				if (eof_error < 0) {
+					if (errno == EAGAIN && !yielded) {
+			/* We can hit EAGAIN while searching for regexp match.
+			 * Yield is not 100% reliable solution in general,
+			 * but for less it should be good enough -
+			 * we give stdin supplier some CPU time to produce
+			 * more input. We do it just once.
+			 * Currently, we do not stop when we found the Nth
+			 * occurrence we were looking for. We read till end
+			 * (or double EAGAIN). TODO? */
+						sched_yield();
+						yielded = 1;
+						goto read_again;
+					}
 					readeof = 0;
 					if (errno != EAGAIN)
 						print_statusline("read error");
 				}
+				ndelay_off(0);
+
 				if (eof_error <= 0) {
 					goto reached_eof;
 				}
@@ -337,6 +361,23 @@ static void status_print(void)
 		return;
 	}
 	print_hilite(p);
+}
+
+static void cap_cur_fline(int nlines)
+{
+	int diff;
+	if (cur_fline < 0)
+		cur_fline = 0;
+	if (cur_fline + max_displayed_line > max_fline + TILDES) {
+		cur_fline -= nlines;
+		if (cur_fline < 0)
+			cur_fline = 0;
+		diff = max_fline - (cur_fline + max_displayed_line) + TILDES;
+		/* As the number of lines requested was too large, we just move
+		to the end of the file */
+		if (diff > 0)
+			cur_fline += diff;
+	}
 }
 
 static char controls[] =
@@ -476,18 +517,9 @@ static void buffer_fill_and_print(void)
 /* Move the buffer up and down in the file in order to scroll */
 static void buffer_down(int nlines)
 {
-	int diff;
 	cur_fline += nlines;
 	read_lines();
-
-	if (cur_fline + max_displayed_line > max_fline + TILDES) {
-		cur_fline -= nlines;
-		diff = max_fline - (cur_fline + max_displayed_line) + TILDES;
-		/* As the number of lines requested was too large, we just move
-		to the end of the file */
-		if (diff > 0)
-			cur_fline += diff;
-	}
+	cap_cur_fline(nlines);
 	buffer_fill_and_print();
 }
 
@@ -507,6 +539,8 @@ static void buffer_line(int linenum)
 	read_lines();
 	if (linenum + max_displayed_line > max_fline)
 		linenum = max_fline - max_displayed_line + TILDES;
+	if (linenum < 0)
+		linenum = 0;
 	cur_fline = linenum;
 	buffer_fill_and_print();
 }
@@ -607,6 +641,14 @@ static int less_getch(void)
 		i = input[2] - REAL_PAGE_UP;
 		if (i < 4)
 			return 24 + i;
+		if (input[2] == REAL_KEY_HOME_XTERM)
+			return KEY_HOME;
+		if (input[2] == REAL_KEY_HOME_ALT)
+			return KEY_HOME;
+		if (input[2] == REAL_KEY_END_XTERM)
+			return KEY_END;
+		if (input[2] == REAL_KEY_END_ALT)
+			return KEY_END;
 		return 0;
 	}
 	/* Reject almost all control chars */
@@ -735,20 +777,31 @@ static void colon_process(void)
 }
 
 #if ENABLE_FEATURE_LESS_REGEXP
-static int normalize_match_pos(int match)
+static void normalize_match_pos(int match)
 {
-	match_pos = match;
 	if (match >= num_matches)
-		match_pos = num_matches - 1;
+		match = num_matches - 1;
 	if (match < 0)
-		match_pos = 0;
-	return match_pos;
+		match = 0;
+	match_pos = match;
 }
 
 static void goto_match(int match)
 {
-	if (num_matches)
-		buffer_line(match_lines[normalize_match_pos(match)]);
+	if (!pattern_valid)
+		return;
+	if (match < 0)
+		match = 0;
+	/* Try to find next match if eof isn't reached yet */
+	if (match >= num_matches && eof_error > 0) {
+		cur_fline = MAXLINES; /* look as far as needed */
+		read_lines();
+		cap_cur_fline(cur_fline);
+	}
+	if (num_matches) {
+		normalize_match_pos(match);
+		buffer_line(match_lines[match_pos]);
+	}
 }
 
 static void fill_match_lines(unsigned pos)
@@ -801,15 +854,10 @@ static void regex_process(void)
 		free(err);
 		return;
 	}
+
 	pattern_valid = 1;
 	match_pos = 0;
-
 	fill_match_lines(0);
-
-	if (num_matches == 0 || max_fline <= max_displayed_line) {
-		buffer_print();
-		return;
-	}
 	while (match_pos < num_matches) {
 		if (match_lines[match_pos] > cur_fline)
 			break;
@@ -817,7 +865,11 @@ static void regex_process(void)
 	}
 	if (option_mask32 & LESS_STATE_MATCH_BACKWARDS)
 		match_pos--;
-	buffer_line(match_lines[normalize_match_pos(match_pos)]);
+
+	/* It's possible that no matches are found yet.
+	 * goto_match() will read input looking for match,
+	 * if needed */
+	goto_match(match_pos);
 }
 #endif
 
@@ -863,13 +915,13 @@ static void number_process(int first_digit)
 		break;
 	case 'g': case '<': case 'G': case '>':
 		cur_fline = num + max_displayed_line;
-	 	read_lines();
+		read_lines();
 		buffer_line(num - 1);
 		break;
 	case 'p': case '%':
 		num = num * (max_fline / 100); /* + max_fline / 2; */
 		cur_fline = num + max_displayed_line;
-	 	read_lines();
+		read_lines();
 		buffer_line(num);
 		break;
 #if ENABLE_FEATURE_LESS_REGEXP
@@ -1181,6 +1233,7 @@ static void sig_catcher(int sig ATTRIBUTE_UNUSED)
 	exit(1);
 }
 
+int less_main(int argc, char **argv);
 int less_main(int argc, char **argv)
 {
 	int keypress;
@@ -1198,6 +1251,9 @@ int less_main(int argc, char **argv)
 	 * is not a tty and turns into cat. This makes sense. */
 	if (!isatty(STDOUT_FILENO))
 		return bb_cat(argv);
+	kbd_fd = open(CURRENT_TTY, O_RDONLY);
+	if (kbd_fd < 0)
+		return bb_cat(argv);
 
 	if (!num_files) {
 		if (isatty(STDIN_FILENO)) {
@@ -1207,8 +1263,6 @@ int less_main(int argc, char **argv)
 		}
 	} else
 		filename = xstrdup(files[0]);
-
-	kbd_fd = xopen(CURRENT_TTY, O_RDONLY);
 
 	get_terminal_width_height(kbd_fd, &width, &max_displayed_line);
 	/* 20: two tabstops + 4 */

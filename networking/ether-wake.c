@@ -105,9 +105,11 @@ static inline void get_dest_addr(const char *arg, struct ether_addr *eaddr);
 static inline int get_fill(unsigned char *pkt, struct ether_addr *eaddr, int broadcast);
 static inline int get_wol_pw(const char *ethoptarg, unsigned char *wol_passwd);
 
+int ether_wake_main(int argc, char *argv[]);
 int ether_wake_main(int argc, char *argv[])
 {
-	char *ifname = "eth0", *pass = NULL;
+	const char *ifname = "eth0";
+	char *pass = NULL;
 	unsigned long flags;
 	unsigned char wol_passwd[6];
 	int wol_passwd_sz = 0;
@@ -223,8 +225,6 @@ static inline void get_dest_addr(const char *hostid, struct ether_addr *eaddr)
 #if !defined(__UCLIBC__)
 	} else if (ether_hostton(hostid, eaddr) == 0) {
 		bb_debug_msg("Station address for hostname %s is %s\n\n", hostid, ether_ntoa(eaddr));
-#else
-# warning Need to implement ether_hostton() for uClibc
 #endif
 	} else
 		bb_show_usage();

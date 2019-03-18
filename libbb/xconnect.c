@@ -9,14 +9,13 @@
 #include <netinet/in.h>
 #include "libbb.h"
 
-static const int one = 1;
 int setsockopt_reuseaddr(int fd)
 {
-	return setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+	return setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &const_int_1, sizeof(const_int_1));
 }
 int setsockopt_broadcast(int fd)
 {
-	return setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &one, sizeof(one));
+	return setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &const_int_1, sizeof(const_int_1));
 }
 
 void xconnect(int s, const struct sockaddr *s_addr, socklen_t addrlen)
@@ -60,7 +59,7 @@ unsigned bb_lookup_port(const char *port, const char *protocol, unsigned default
 
 /* "Old" networking API - only IPv4 */
 
-
+/*
 void bb_lookup_host(struct sockaddr_in *s_in, const char *host)
 {
 	struct hostent *he;
@@ -71,18 +70,19 @@ void bb_lookup_host(struct sockaddr_in *s_in, const char *host)
 	memcpy(&(s_in->sin_addr), he->h_addr_list[0], he->h_length);
 }
 
+
 int xconnect_tcp_v4(struct sockaddr_in *s_addr)
 {
 	int s = xsocket(AF_INET, SOCK_STREAM, 0);
 	xconnect(s, (struct sockaddr*) s_addr, sizeof(*s_addr));
 	return s;
 }
-
+*/
 
 /* "New" networking API */
 
 
-int get_nport(len_and_sockaddr *lsa)
+int get_nport(const len_and_sockaddr *lsa)
 {
 #if ENABLE_FEATURE_IPV6
 	if (lsa->sa.sa_family == AF_INET6) {
@@ -92,8 +92,8 @@ int get_nport(len_and_sockaddr *lsa)
 	if (lsa->sa.sa_family == AF_INET) {
 		return lsa->sin.sin_port;
 	}
-	return -1;
 	/* What? UNIX socket? IPX?? :) */
+	return -1;
 }
 
 void set_nport(len_and_sockaddr *lsa, unsigned port)
@@ -111,13 +111,19 @@ void set_nport(len_and_sockaddr *lsa, unsigned port)
 	/* What? UNIX socket? IPX?? :) */
 }
 
-/* peer: "1.2.3.4[:port]", "www.google.com[:port]"
- * port: if neither of above specifies port #
- */
-static len_and_sockaddr* str2sockaddr(const char *host, int port, int ai_flags)
+/* We hijack this constant to mean something else */
+/* It doesn't hurt because we will remove this bit anyway */
+#define DIE_ON_ERROR AI_CANONNAME
+
+/* host: "1.2.3.4[:port]", "www.google.com[:port]"
+ * port: if neither of above specifies port # */
+static len_and_sockaddr* str2sockaddr(
+		const char *host, int port,
+USE_FEATURE_IPV6(sa_family_t af,)
+		int ai_flags)
 {
 	int rc;
-	len_and_sockaddr *r; // = NULL;
+	len_and_sockaddr *r = NULL;
 	struct addrinfo *result = NULL;
 	const char *org_host = host; /* only for error msg */
 	const char *cp;
@@ -147,33 +153,59 @@ static len_and_sockaddr* str2sockaddr(const char *host, int port, int ai_flags)
 	}
 
 	memset(&hint, 0 , sizeof(hint));
-	/* hint.ai_family = AF_UNSPEC; - zero anyway */
 #if !ENABLE_FEATURE_IPV6
 	hint.ai_family = AF_INET; /* do not try to find IPv6 */
+#else
+	hint.ai_family = af;
 #endif
 	/* Needed. Or else we will get each address thrice (or more)
 	 * for each possible socket type (tcp,udp,raw...): */
 	hint.ai_socktype = SOCK_STREAM;
-	hint.ai_flags = ai_flags;
+	hint.ai_flags = ai_flags & ~DIE_ON_ERROR;
 	rc = getaddrinfo(host, NULL, &hint, &result);
-	if (rc || !result)
-		bb_error_msg_and_die("bad address '%s'", org_host);
+	if (rc || !result) {
+		bb_error_msg("bad address '%s'", org_host);
+		if (ai_flags & DIE_ON_ERROR)
+			sleep_and_die();
+		goto ret;
+	}
 	r = xmalloc(offsetof(len_and_sockaddr, sa) + result->ai_addrlen);
 	r->len = result->ai_addrlen;
 	memcpy(&r->sa, result->ai_addr, result->ai_addrlen);
 	set_nport(r, htons(port));
+ ret:
 	freeaddrinfo(result);
 	return r;
 }
+#if !ENABLE_FEATURE_IPV6
+#define str2sockaddr(host, port, af, ai_flags) str2sockaddr(host, port, ai_flags)
+#endif
+
+#if ENABLE_FEATURE_IPV6
+len_and_sockaddr* host_and_af2sockaddr(const char *host, int port, sa_family_t af)
+{
+	return str2sockaddr(host, port, af, 0);
+}
+
+len_and_sockaddr* xhost_and_af2sockaddr(const char *host, int port, sa_family_t af)
+{
+	return str2sockaddr(host, port, af, DIE_ON_ERROR);
+}
+#endif
 
 len_and_sockaddr* host2sockaddr(const char *host, int port)
 {
-	return str2sockaddr(host, port, 0);
+	return str2sockaddr(host, port, AF_UNSPEC, 0);
 }
 
-static len_and_sockaddr* dotted2sockaddr(const char *host, int port)
+len_and_sockaddr* xhost2sockaddr(const char *host, int port)
 {
-	return str2sockaddr(host, port, NI_NUMERICHOST);
+	return str2sockaddr(host, port, AF_UNSPEC, DIE_ON_ERROR);
+}
+
+len_and_sockaddr* xdotted2sockaddr(const char *host, int port)
+{
+	return str2sockaddr(host, port, AF_UNSPEC, AI_NUMERICHOST | DIE_ON_ERROR);
 }
 
 int xsocket_stream(len_and_sockaddr **lsap)
@@ -206,10 +238,7 @@ int create_and_bind_stream_or_die(const char *bindaddr, int port)
 	len_and_sockaddr *lsa;
 
 	if (bindaddr && bindaddr[0]) {
-		lsa = dotted2sockaddr(bindaddr, port);
-		/* currently NULL check is in str2sockaddr */
-		//if (!lsa)
-		//	bb_error_msg_and_die("bad address '%s'", bindaddr);
+		lsa = xdotted2sockaddr(bindaddr, port);
 		/* user specified bind addr dictates family */
 		fd = xsocket(lsa->sa.sa_family, SOCK_STREAM, 0);
 	} else {
@@ -227,10 +256,7 @@ int create_and_connect_stream_or_die(const char *peer, int port)
 	int fd;
 	len_and_sockaddr *lsa;
 
-	lsa = host2sockaddr(peer, port);
-	/* currently NULL check is in str2sockaddr */
-	//if (!lsa)
-	//	bb_error_msg_and_die("bad address '%s'", peer);
+	lsa = xhost2sockaddr(peer, port);
 	fd = xsocket(lsa->sa.sa_family, SOCK_STREAM, 0);
 	setsockopt_reuseaddr(fd);
 	xconnect(fd, &lsa->sa, lsa->len);
@@ -245,18 +271,36 @@ int xconnect_stream(const len_and_sockaddr *lsa)
 	return fd;
 }
 
+/* We hijack this constant to mean something else */
+/* It doesn't hurt because we will add this bit anyway */
+#define IGNORE_PORT NI_NUMERICSERV
 static char* sockaddr2str(const struct sockaddr *sa, socklen_t salen, int flags)
 {
 	char host[128];
 	char serv[16];
 	int rc = getnameinfo(sa, salen,
 			host, sizeof(host),
+	/* can do ((flags & IGNORE_PORT) ? NULL : serv) but why bother? */
 			serv, sizeof(serv),
-			flags | NI_NUMERICSERV /* do not resolve port# */
+			/* do not resolve port# into service _name_ */
+			flags | NI_NUMERICSERV
 	);
-	if (rc) return NULL;
-// We probably need to use [%s]:%s for IPv6...
-	return xasprintf("%s:%s", host, serv);
+	if (rc)
+		return NULL;
+	if (flags & IGNORE_PORT)
+		return xstrdup(host);
+#if ENABLE_FEATURE_IPV6
+	if (sa->sa_family == AF_INET6) {
+		if (strchr(host, ':')) /* heh, it's not a resolved hostname */
+			return xasprintf("[%s]:%s", host, serv);
+		/*return xasprintf("%s:%s", host, serv);*/
+		/* - fall through instead */
+	}
+#endif
+	/* For now we don't support anything else, so it has to be INET */
+	/*if (sa->sa_family == AF_INET)*/
+		return xasprintf("%s:%s", host, serv);
+	/*return xstrdup(host);*/
 }
 
 char* xmalloc_sockaddr2host(const struct sockaddr *sa, socklen_t salen)
@@ -264,7 +308,23 @@ char* xmalloc_sockaddr2host(const struct sockaddr *sa, socklen_t salen)
 	return sockaddr2str(sa, salen, 0);
 }
 
+/* Unused
+char* xmalloc_sockaddr2host_noport(const struct sockaddr *sa, socklen_t salen)
+{
+	return sockaddr2str(sa, salen, IGNORE_PORT);
+}
+*/
+
+char* xmalloc_sockaddr2hostonly_noport(const struct sockaddr *sa, socklen_t salen)
+{
+	return sockaddr2str(sa, salen, NI_NAMEREQD | IGNORE_PORT);
+}
 char* xmalloc_sockaddr2dotted(const struct sockaddr *sa, socklen_t salen)
 {
 	return sockaddr2str(sa, salen, NI_NUMERICHOST);
+}
+
+char* xmalloc_sockaddr2dotted_noport(const struct sockaddr *sa, socklen_t salen)
+{
+	return sockaddr2str(sa, salen, NI_NUMERICHOST | IGNORE_PORT);
 }

@@ -7,7 +7,7 @@
 #include <sys/mtio.h>
 
 struct mt_opcodes {
-	char *name;
+	const char *name;
 	short value;
 };
 
@@ -50,6 +50,7 @@ static const struct mt_opcodes opcodes[] = {
 	{0, 0}
 };
 
+int mt_main(int argc, char **argv);
 int mt_main(int argc, char **argv)
 {
 	const char *file = "/dev/tape";

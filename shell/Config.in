@@ -107,7 +107,7 @@ config ASH_BUILTIN_ECHO
 	select ECHO
 	depends on ASH
 	help
-	  Enable support for echo, built in to ash.
+	  Enable support for echo, builtin to ash.
 
 config ASH_BUILTIN_TEST
 	bool "Builtin version of 'test'"
@@ -115,7 +115,7 @@ config ASH_BUILTIN_TEST
 	select TEST
 	depends on ASH
 	help
-	  Enable support for test, built in to ash.
+	  Enable support for test, builtin to ash.
 
 config ASH_CMDCMD
 	bool "'command' command to override shell builtins"
@@ -239,57 +239,5 @@ config FEATURE_SH_STANDALONE_SHELL
 	  run '/bin/busybox'.  If you do not have the busybox binary sitting in
 	  that exact location with that exact name, this option will not work at
 	  all.
-
-config FEATURE_COMMAND_EDITING
-	bool "Command line editing"
-	default n
-	depends on MSH || LASH || HUSH || ASH
-	help
-	  Enable command editing in shell.
-
-config FEATURE_COMMAND_EDITING_VI
-	bool "vi-style line editing commands"
-	default n
-	depends on FEATURE_COMMAND_EDITING
-	help
-	  Enable vi-style line editing in the shell.  This mode can be
-	  turned on and off with "set -o vi" and "set +o vi".
-
-config FEATURE_COMMAND_HISTORY
-	int "History size"
-	range 0 99999
-	default 15
-	depends on FEATURE_COMMAND_EDITING
-	help
-	  Specify command history size in shell.
-
-config FEATURE_COMMAND_SAVEHISTORY
-	bool "History saving"
-	default n
-	depends on ASH && FEATURE_COMMAND_EDITING
-	help
-	  Enable history saving in ash shell.
-
-config FEATURE_COMMAND_TAB_COMPLETION
-	bool "Tab completion"
-	default n
-	depends on FEATURE_COMMAND_EDITING
-	help
-	  Enable tab completion in shell.
-
-config FEATURE_COMMAND_USERNAME_COMPLETION
-	bool "Username completion"
-	default n
-	depends on FEATURE_COMMAND_TAB_COMPLETION
-	help
-	  Enable username completion in shell.
-
-config FEATURE_SH_FANCY_PROMPT
-	bool "Fancy shell prompts"
-	default n
-	depends on FEATURE_COMMAND_EDITING
-	help
-	  Setting this option allows for prompts to use things like \w and
-	  \$ and also using escape codes.
 
 endmenu

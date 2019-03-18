@@ -16,6 +16,7 @@
 
 #include "busybox.h"
 
+int setarch_main(int ATTRIBUTE_UNUSED argc, char **argv);
 int setarch_main(int ATTRIBUTE_UNUSED argc, char **argv)
 {
 	int pers = -1;
@@ -45,7 +46,7 @@ retry:
 	if (personality(pers) >= 0) {
 
 		/* Try to execute the program */
-		execvp(argv[0], argv);
+		BB_EXECVP(argv[0], argv);
 	}
 
 	bb_perror_msg_and_die("%s", argv[0]);

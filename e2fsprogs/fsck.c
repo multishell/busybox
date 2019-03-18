@@ -677,7 +677,7 @@ static void execute(const char *type, const char *device, const char *mntpt,
 				 * Use "fsck -s" to avoid... */
 				close(0);
 			}
-			execvp(argv[0], argv);
+			BB_EXECVP(argv[0], argv);
 			bb_perror_msg_and_die("%s", argv[0]);
 		}
 	}
@@ -1173,6 +1173,7 @@ static void signal_cancel(int sig ATTRIBUTE_UNUSED)
 	cancel_requested = 1;
 }
 
+int fsck_main(int argc, char *argv[]);
 int fsck_main(int argc, char *argv[])
 {
 	int i, status = 0;

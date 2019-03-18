@@ -60,7 +60,7 @@
        "[-vn]	[-H type] [-i if] -a [hostname]\n" \
        "[-v]		  [-i if] -d hostname [pub]\n" \
        "[-v]	[-H type] [-i if] -s hostname hw_addr [temp]\n" \
-       "[-v] 	[-H type] [-i if] -s hostname hw_addr [netmask nm] pub\n" \
+       "[-v]	[-H type] [-i if] -s hostname hw_addr [netmask nm] pub\n" \
        "[-v]	[-H type] [-i if] -Ds hostname ifa [netmask nm] pub\n"
 #define arp_full_usage \
        "Manipulate the system ARP cache" \
@@ -152,16 +152,16 @@
        "[-jy] [[month] year]"
 #define cal_full_usage \
        "Display a calendar" \
-       "\n\nOptions:\n" \
-       "	-j	Use julian dates\n" \
-       "	-y	Display the entire year"
+       "\n\nOptions:" \
+       "\n	-j	Use julian dates" \
+       "\n	-y	Display the entire year"
 
 #define cat_trivial_usage \
        "[-u] [FILE]..."
 #define cat_full_usage \
        "Concatenate FILE(s) and print them to stdout" \
-       "\n\nOptions:\n" \
-       "	-u	Ignored since unbuffered i/o is always used"
+       "\n\nOptions:" \
+       "\n	-u	Ignored since unbuffered i/o is always used"
 #define cat_example_usage \
        "$ cat /proc/uptime\n" \
        "110716.72 17.67"
@@ -198,24 +198,22 @@
        "	-R	Recursively list subdirectories\n" \
        "	-v	Set the file's version/generation number"
 
-#define chgrp_trivial_usage \
-       "[-Rh"USE_DESKTOP("cvf")"]... GROUP FILE..."
-#define chgrp_full_usage \
-       "Change the group membership of each FILE to GROUP" \
-       "\n\nOptions:\n" \
-       "	-R	Changes files and directories recursively\n" \
-       "	-h	Do not dereference symbolic links" \
-	USE_DESKTOP( \
-       "\n	-c	List changed files" \
-       "\n	-v	List all files" \
-       "\n	-f	Hide errors" \
-	)
-#define chgrp_example_usage \
-       "$ ls -l /tmp/foo\n" \
-       "-r--r--r--    1 andersen andersen        0 Apr 12 18:25 /tmp/foo\n" \
-       "$ chgrp root /tmp/foo\n" \
-       "$ ls -l /tmp/foo\n" \
-       "-r--r--r--    1 andersen root            0 Apr 12 18:25 /tmp/foo\n"
+#define chcon_trivial_usage \
+       "[OPTIONS] CONTEXT FILE...\n" \
+       "	chcon [OPTIONS] [-u USER] [-r ROLE] [-l RANGE] [-t TYPE] FILE...\n" \
+       "	chcon [OPTIONS] --reference=RFILE FILE...\n"
+#define chcon_full_usage \
+       "Change the security context of each FILE to CONTEXT\n" \
+       "\n	-v, --verbose		Verbose" \
+       "\n	-c, --changes		Report changes made" \
+       "\n	-h, --no-dereference	Affect symlinks instead of their targets" \
+       "\n	-f, --silent, --quiet	Suppress most error messages" \
+       "\n	--reference=RFILE	Use RFILE's group instead of using a CONTEXT value" \
+       "\n	-u, --user=USER		Set user USER in the target security context" \
+       "\n	-r, --role=ROLE		Set role ROLE in the target security context" \
+       "\n	-t, --type=TYPE		Set type TYPE in the target security context" \
+       "\n	-l, --range=RANGE	Set range RANGE in the target security context" \
+       "\n	-R, --recursive		Recurse subdirectories" \
 
 #define chmod_trivial_usage \
        "[-R"USE_DESKTOP("cvf")"] MODE[,MODE]... FILE..."
@@ -239,13 +237,38 @@
        "$ ls -l /tmp/foo\n" \
        "-r--r--r--    1 root     root            0 Apr 12 18:25 /tmp/foo\n"
 
+#define chgrp_trivial_usage \
+       "[-RhLHP"USE_DESKTOP("cvf")"]... GROUP FILE..."
+#define chgrp_full_usage \
+       "Change the group membership of each FILE to GROUP" \
+       "\n\nOptions:" \
+       "\n	-R	Recurse directories" \
+       "\n	-h	Affect symlinks instead of symlink targets" \
+       "\n	-L	Traverse all symlinks to directories" \
+       "\n	-H	Traverse symlinks on command line only" \
+       "\n	-P	Do not traverse symlinks (default)" \
+	USE_DESKTOP( \
+       "\n	-c	List changed files" \
+       "\n	-v	Verbose" \
+       "\n	-f	Hide errors" \
+	)
+#define chgrp_example_usage \
+       "$ ls -l /tmp/foo\n" \
+       "-r--r--r--    1 andersen andersen        0 Apr 12 18:25 /tmp/foo\n" \
+       "$ chgrp root /tmp/foo\n" \
+       "$ ls -l /tmp/foo\n" \
+       "-r--r--r--    1 andersen root            0 Apr 12 18:25 /tmp/foo\n"
+
 #define chown_trivial_usage \
-       "[-Rh"USE_DESKTOP("cvf")"]...  OWNER[<.|:>[GROUP]] FILE..."
+       "[-RhLHP"USE_DESKTOP("cvf")"]...  OWNER[<.|:>[GROUP]] FILE..."
 #define chown_full_usage \
        "Change the owner and/or group of each FILE to OWNER and/or GROUP" \
        "\n\nOptions:" \
-       "\n	-R	Changes files and directories recursively" \
-       "\n	-h	Do not dereference symbolic links" \
+       "\n	-R	Recurse directories" \
+       "\n	-h	Affect symlinks instead of symlink targets" \
+       "\n	-L	Traverse all symlinks to directories" \
+       "\n	-H	Traverse symlinks on command line only" \
+       "\n	-P	Do not traverse symlinks (default)" \
 	USE_DESKTOP( \
        "\n	-c	List changed files" \
        "\n	-v	List all files" \
@@ -269,7 +292,7 @@
        "Change the process state and run specified program" \
        "\n\nOptions:\n" \
        "	-u user[:grp]	Set uid and gid\n" \
-       "	-U user[:grp] 	Set environment variables UID and GID\n" \
+       "	-U user[:grp]	Set environment variables UID and GID\n" \
        "	-e dir		Set environment variables as specified by files\n" \
        "			in the directory: file=1st_line_of_file\n" \
        "	-/ dir		Chroot to dir\n" \
@@ -354,7 +377,7 @@
        "Clear screen"
 
 #define cmp_trivial_usage \
-       "[-l] [-s] FILE1 [FILE2]"
+       "[-l] [-s] FILE1 [FILE2" USE_DESKTOP(" [SKIP1 [SKIP2]") "]]"
 #define cmp_full_usage \
        "Compares FILE1 vs stdin if FILE2 is not specified" \
        "\n\nOptions:\n" \
@@ -382,19 +405,38 @@
 #define bbsh_full_usage \
        "The bbsh shell (command interpreter)"
 
+#define chrt_trivial_usage \
+	"[OPTION]... [prio] [pid | command [arg]...]"
+#define chrt_full_usage \
+	"manipulate real-time attributes of a process" \
+	"\n\nOptions:\n" \
+	"	-p	operate on pid\n" \
+	"	-r	set scheduling policy to SCHED_RR\n" \
+	"	-f	set scheduling policy to SCHED_FIFO\n" \
+	"	-o	set scheduling policy to SCHED_OTHER\n" \
+	"	-m	show min and max priorities"
+
+#define chrt_example_usage \
+	"$ chrt -r 4 sleep 900 ; x=$!\n" \
+	"$ chrt -f -p 3 $x\n" \
+	"You need CAP_SYS_NICE privileges to set scheduling attributes of a process"
+
 #define cp_trivial_usage \
        "[OPTION]... SOURCE DEST"
 #define cp_full_usage \
        "Copy SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY" \
-       "\n\nOptions:\n" \
-       "	-a	Same as -dpR\n" \
-       "	-d,-P	Preserve links\n" \
-       "	-H,-L	Dereference all symlinks (implied by default)\n" \
-       "	-p	Preserve file attributes if possible\n" \
-       "	-f	Force, overwrite\n" \
-       "	-i	Interactive, prompt before overwrite\n" \
-       "	-R,-r	Copy directories recursively\n" \
-       "	-l,-s	Create (sym)links"
+       "\n\nOptions:" \
+       "\n	-a	Same as -dpR" \
+	USE_SELINUX( \
+       "\n	-c	Preserves security context" \
+	) \
+       "\n	-d,-P	Preserve links" \
+       "\n	-H,-L	Dereference all symlinks (default)" \
+       "\n	-p	Preserve file attributes if possible" \
+       "\n	-f	Force overwrite" \
+       "\n	-i	Prompt before overwrite" \
+       "\n	-R,-r	Recurse directories" \
+       "\n	-l,-s	Create (sym)links"
 
 #define cpio_trivial_usage \
        "-[dimtuv][F cpiofile]"
@@ -680,8 +722,8 @@
        " bytes." \
        "\n\nOptions:\n" \
        "	-a	Show sizes of files in addition to directories\n" \
-       "	-H	Follow symbolic links that are FILE command line args\n" \
-       "	-L	Follow all symbolic links encountered\n" \
+       "	-H	Follow symlinks that are FILE command line args\n" \
+       "	-L	Follow all symlinks encountered\n" \
        "	-d N	Limit output to directories (and files with -a) of depth < N\n" \
        "	-c	Output a grand total\n" \
        "	-l	Count sizes many times if hard linked\n" \
@@ -892,7 +934,7 @@
        "Search for files in a directory hierarchy.  The default PATH is\n" \
        "the current directory; default EXPRESSION is '-print'\n" \
        "\nEXPRESSION may consist of:\n" \
-       "	-follow		Dereference symbolic links\n" \
+       "	-follow		Dereference symlinks\n" \
        "	-name PATTERN	File name (leading directories removed) matches PATTERN\n" \
        "	-print		Print (default and assumed)" \
 	USE_FEATURE_FIND_PRINT0( \
@@ -1013,6 +1055,9 @@
        "	-6	When using port/proto only search IPv6 space\n" \
        "	-SIGNAL	When used with -k, this signal will be used to kill"
 
+#define getenforce_trivial_usage
+#define getenforce_full_usage
+
 #define getopt_trivial_usage \
        "[OPTIONS]..."
 #define getopt_full_usage \
@@ -1047,6 +1092,11 @@
        " esac\n" \
        "done\n"
 
+#define getsebool_trivial_usage \
+       "-a or getsebool boolean..."
+#define getsebool_full_usage \
+       "	-a	Show all SELinux booleans"
+
 #define getty_trivial_usage \
        "[OPTIONS]... baud_rate,... line [termtype]"
 #define getty_full_usage \
@@ -1065,36 +1115,38 @@
        "	-H login_host	Log login_host into the utmp file as the hostname"
 
 #define grep_trivial_usage \
-       "[-rihHnqvso" \
+       "[-HhrilLnqvso" \
+	USE_DESKTOP("w") \
+	"eF" \
 	USE_FEATURE_GREP_EGREP_ALIAS("E") \
 	USE_FEATURE_GREP_CONTEXT("ABC") \
        "] PATTERN [FILEs...]"
 #define grep_full_usage \
        "Search for PATTERN in each FILE or standard input" \
-       "\n\nOptions:\n" \
-       "	-H	Prefix output lines with filename where match was found\n" \
-       "	-h	Suppress the prefixing filename on output\n" \
-       "	-r	Recurse subdirectories\n" \
-       "	-i	Ignore case distinctions\n" \
-       "	-l	List names of files that match\n" \
-       "	-L	List names of files that do not match\n" \
-       "	-n	Print line number with output lines\n" \
-       "	-q	Be quiet. Returns 0 if PATTERN was found, 1 otherwise\n" \
-       "	-v	Select non-matching lines\n" \
-       "	-s	Suppress file open/read error messages\n" \
-       "	-c	Only print count of matching lines\n" \
-       "	-f	Read PATTERN from file\n" \
-       "	-o	Show only the part of a line that matches PATTERN\n" \
-       "	-e	PATTERN is a regular expression\n" \
-       "	-F	PATTERN is a set of newline-separated strings" \
+       "\n\nOptions:" \
+       "\n	-H	Prefix output lines with filename where match was found" \
+       "\n	-h	Suppress the prefixing filename on output" \
+       "\n	-r	Recurse subdirectories" \
+       "\n	-i	Ignore case distinctions" \
+       "\n	-l	List names of files that match" \
+       "\n	-L	List names of files that do not match" \
+       "\n	-n	Print line number with output lines" \
+       "\n	-q	Be quiet. Returns 0 if PATTERN was found, 1 otherwise" \
+       "\n	-v	Select non-matching lines" \
+       "\n	-s	Suppress file open/read error messages" \
+       "\n	-c	Only print count of matching lines" \
+       "\n	-f	Read PATTERN from file" \
+       "\n	-o	Show only the part of a line that matches PATTERN" \
+	USE_DESKTOP( \
+       "\n	-w	Match whole words only") \
+       "\n	-e	PATTERN is a regular expression" \
+       "\n	-F	PATTERN is a set of newline-separated strings" \
 	USE_FEATURE_GREP_EGREP_ALIAS( \
        "\n	-E	PATTERN is an extended regular expression") \
 	USE_FEATURE_GREP_CONTEXT( \
-       "\n	-A	Print NUM lines of trailing context") \
-	USE_FEATURE_GREP_CONTEXT( \
-       "\n	-B	Print NUM lines of leading context") \
-	USE_FEATURE_GREP_CONTEXT( \
-       "\n	-C	Print NUM lines of output context")
+       "\n	-A	Print NUM lines of trailing context" \
+       "\n	-B	Print NUM lines of leading context" \
+       "\n	-C	Print NUM lines of output context") \
 
 #define grep_example_usage \
        "$ grep root /etc/passwd\n" \
@@ -1276,15 +1328,18 @@
        "	-d STRING	URL decode STRING"
 
 #define hwclock_trivial_usage \
-       "[-r|--show] [-s|--hctosys] [-w|--systohc] [-l|--localtime] [-u|--utc]"
+       "[-r|--show] [-s|--hctosys] [-w|--systohc]" \
+       " [-l|--localtime] [-u|--utc]" \
+       " [-f FILE]"
 #define hwclock_full_usage \
-       "Query and set the hardware clock (RTC)" \
+       "Query and set a hardware clock (RTC)" \
        "\n\nOptions:\n" \
        "	-r	Read hardware clock and print result\n" \
        "	-s	Set the system time from the hardware clock\n" \
        "	-w	Set the hardware clock to the current system time\n" \
        "	-u	The hardware clock is kept in coordinated universal time\n" \
-       "	-l	The hardware clock is kept in local time"
+       "	-l	The hardware clock is kept in local time\n" \
+       "	-f FILE	Use the specified clock (e.g. /dev/rtc2)"
 
 #define id_trivial_usage \
        "[OPTIONS]... [USERNAME]"
@@ -1292,7 +1347,8 @@
        "Print information for USERNAME or the current user" \
        "\n\nOptions:\n" \
 	USE_SELINUX( \
-       "	-c	Prints only the security context\n") \
+       "	-Z	prints only the security context\n" \
+	) \
        "	-g	Prints only the group ID\n" \
        "	-u	Prints only the user ID\n" \
        "	-n	Print a name instead of a number\n" \
@@ -1511,7 +1567,10 @@
        "	-m	Set permission modes\n" \
        "	-o	Set ownership\n" \
        "	-p	Preserve date\n" \
-       "	-s	Strip symbol tables"
+       "	-s	Strip symbol tables" \
+	USE_SELINUX( \
+       "\n	-Z	Set security context of copy" \
+	)
 
 #define ip_trivial_usage \
        "[OPTIONS] {address | link | route | tunnel | rule} {COMMAND}"
@@ -1575,7 +1634,7 @@
 #define iplink_trivial_usage \
        "{ set DEVICE { up | down | arp { on | off } | show [ DEVICE ] }"
 #define iplink_full_usage \
-       "iplink set DEVICE { up | down | arp { on | off } |\n" \
+       "iplink set DEVICE { up | down | arp | multicast { on | off } |\n" \
        "			dynamic { on | off } |\n" \
        "			mtu MTU }\n" \
        "iplink show [ DEVICE ]"
@@ -1689,7 +1748,7 @@
        "Create a link named LINK_NAME or DIRECTORY to the specified TARGET.\n" \
        "You may use '--' to indicate that all following arguments are non-options." \
        "\n\nOptions:\n" \
-       "	-s	Make symbolic links instead of hard links\n" \
+       "	-s	Make symlinks instead of hardlinks\n" \
        "	-f	Remove existing destination files\n" \
        "	-n	No dereference symlinks - treat like normal file\n" \
        "	-b	Make a backup of the target (if exists) before link operation\n" \
@@ -1766,7 +1825,7 @@
 
 #define ls_trivial_usage \
        "[-1Aa" USE_FEATURE_LS_TIMESTAMPS("c") "Cd" \
-	USE_FEATURE_LS_TIMESTAMPS("e") 	USE_FEATURE_LS_FILETYPES("F") "iln" \
+	USE_FEATURE_LS_TIMESTAMPS("e") USE_FEATURE_LS_FILETYPES("F") "iln" \
 	USE_FEATURE_LS_FILETYPES("p") USE_FEATURE_LS_FOLLOWLINKS("L") \
 	USE_FEATURE_LS_RECURSIVE("R") USE_FEATURE_LS_SORTFILES("rS") "s" \
 	USE_FEATURE_AUTOWIDTH("T") USE_FEATURE_LS_TIMESTAMPS("tu") \
@@ -1795,7 +1854,7 @@
 	USE_FEATURE_LS_FILETYPES( \
        "\n	-p	Append indicator (one of /=@|) to entries") \
 	USE_FEATURE_LS_FOLLOWLINKS( \
-       "\n	-L	List entries pointed to by symbolic links") \
+       "\n	-L	List entries pointed to by symlinks") \
 	USE_FEATURE_LS_RECURSIVE( \
        "\n	-R	List subdirectories recursively") \
 	USE_FEATURE_LS_SORTFILES( \
@@ -1821,7 +1880,9 @@
 	USE_SELINUX( \
        "\n	-k	Print security context") \
 	USE_SELINUX( \
-       "\n	-K	Print security context in long format")
+       "\n	-K	Print security context in long format") \
+	USE_SELINUX( \
+       "\n	-Z	Print security context and permission")
 
 #define lsattr_trivial_usage \
        "[-Radlv] [files...]"
@@ -1896,6 +1957,15 @@
        "/dev/hda[0-15]\n"
 #endif
 
+#define matchpathcon_trivial_usage \
+       "[-n] [-N] [-f file_contexts_file] [-p prefix] [-V]"
+#define matchpathcon_full_usage \
+       "	-n	Do not display path" \
+       "\n	-N	Do not use translations" \
+       "\n	-f	Use alternate file_context file" \
+       "\n	-p	Use prefix to speed translations" \
+       "\n	-V	Verify file context on disk matches defaults"
+
 #define md5sum_trivial_usage \
        "[OPTION] [FILEs...]" \
 	USE_FEATURE_MD5_SHA1_SUM_CHECK("\n   or: md5sum [OPTION] -c [FILE]")
@@ -1957,7 +2027,11 @@
        "Create the DIRECTORY(ies) if they do not already exist" \
        "\n\nOptions:\n" \
        "	-m	Set permission mode (as in chmod), not rwxrwxrwx - umask\n" \
-       "	-p	No error if existing, make parent directories as needed"
+       "	-p	No error if existing, make parent directories as needed" \
+	USE_SELINUX( \
+       "\n	-Z	Set security context" \
+	)
+
 #define mkdir_example_usage \
        "$ mkdir /tmp/foo\n" \
        "$ mkdir /tmp/foo\n" \
@@ -2002,7 +2076,10 @@
 #define mkfifo_full_usage \
        "Create a named pipe (identical to 'mknod name p')" \
        "\n\nOptions:\n" \
-       "	-m	Create the pipe using the specified mode (default a=rw)"
+       "	-m	Create the pipe using the specified mode (default a=rw)" \
+	USE_SELINUX( \
+       "\n	-Z	Set security context" \
+	)
 
 #define mkfs_minix_trivial_usage \
        "[-c | -l filename] [-nXX] [-iXX] /dev/name [blocks]"
@@ -2024,7 +2101,11 @@
        "\n\nTYPEs include:\n" \
        "	b:	Make a block (buffered) device\n" \
        "	c or u:	Make a character (un-buffered) device\n" \
-       "	p:	Make a named pipe. MAJOR and MINOR are ignored for named pipes"
+       "	p:	Make a named pipe. MAJOR and MINOR are ignored for named pipes" \
+	USE_SELINUX( \
+       "\n	-Z	Set security context" \
+	)
+
 #define mknod_example_usage \
        "$ mknod /dev/fd0 b 2 0\n" \
        "$ mknod -m 644 /tmp/pipe p\n"
@@ -2401,17 +2482,32 @@
        "host"
 #define ping_full_usage \
        "Send ICMP ECHO_REQUEST packets to network hosts"
+#define ping6_trivial_usage \
+       "host"
+#define ping6_full_usage \
+       "Send ICMP ECHO_REQUEST packets to network hosts"
 #else
 #define ping_trivial_usage \
        "[OPTION]... host"
 #define ping_full_usage \
        "Send ICMP ECHO_REQUEST packets to network hosts" \
        "\n\nOptions:\n" \
-       "	-c CNT	Send only CNT pings\n" \
-       "	-s SIZE	Send SIZE data bytes in packets (default=56)\n" \
-       "	-I IP	Use IP as source address\n" \
-       "	-q	Quiet mode, only displays output at start\n" \
-       "		and when finished"
+       "	-4, -6		Force IPv4 or IPv6 hostname resolution\n" \
+       "	-c CNT		Send only CNT pings\n" \
+       "	-s SIZE		Send SIZE data bytes in packets (default=56)\n" \
+       "	-I iface/IP	Use interface or IP address as source\n" \
+       "	-q		Quiet mode, only displays output at start\n" \
+       "			and when finished"
+#define ping6_trivial_usage \
+       "[OPTION]... host"
+#define ping6_full_usage \
+       "Send ICMP ECHO_REQUEST packets to network hosts" \
+       "\n\nOptions:\n" \
+       "	-c CNT		Send only CNT pings\n" \
+       "	-s SIZE		Send SIZE data bytes in packets (default=56)\n" \
+       "	-I iface/IP	Use interface or IP address as source\n" \
+       "	-q		Quiet mode, only displays output at start\n" \
+       "			and when finished"
 #endif
 #define ping_example_usage \
        "$ ping localhost\n" \
@@ -2421,23 +2517,6 @@
        "--- debian ping statistics ---\n" \
        "1 packets transmitted, 1 packets received, 0% packet loss\n" \
        "round-trip min/avg/max = 20.1/20.1/20.1 ms\n"
-
-#ifndef CONFIG_FEATURE_FANCY_PING6
-#define ping6_trivial_usage \
-       "host"
-#define ping6_full_usage \
-       "Send ICMP ECHO_REQUEST packets to network hosts"
-#else
-#define ping6_trivial_usage \
-       "[OPTION]... host"
-#define ping6_full_usage \
-       "Send ICMP ECHO_REQUEST packets to network hosts" \
-       "\n\nOptions:\n" \
-       "	-c CNT	Send only CNT pings\n" \
-       "	-s SIZE	Send SIZE data bytes in packets (default=56)\n" \
-       "	-q	Quiet mode, only displays output at start\n" \
-       "		and when finished"
-#endif
 #define ping6_example_usage \
        "$ ping6 ip6-localhost\n" \
        "PING ip6-localhost (::1): 56 data bytes\n" \
@@ -2501,7 +2580,7 @@
        "Report process status\n" \
 	USAGE_PS \
 	USE_SELINUX( \
-       "\n	-c	Show SE Linux context") \
+       "\n	-Z	Show SE Linux context") \
 	USE_FEATURE_PS_WIDE( \
        "\n	w	Wide output")
 
@@ -2553,7 +2632,7 @@
 #define readlink_trivial_usage \
 	USE_FEATURE_READLINK_FOLLOW("[-f] ") "FILE"
 #define readlink_full_usage \
-       "Display the value of a symbolic link" \
+       "Display the value of a symlink" \
 	USE_FEATURE_READLINK_FOLLOW( \
        "\n\nOptions:\n" \
        "	-f	Canonicalize by following all symlinks")
@@ -2662,6 +2741,20 @@
 #define rpm2cpio_full_usage \
        "Output a cpio archive of the rpm file"
 
+#define runcon_trivial_usage \
+	"[-c] [-u USER] [-r ROLE] [-t TYPE] [-l RANGE] COMMAND [args]\n" \
+	"       runcon CONTEXT COMMAND [args]"
+#define runcon_full_usage \
+       "runcon [-c] [-u USER] [-r ROLE] [-t TYPE] [-l RANGE] COMMAND [args]\n" \
+       "runcon CONTEXT COMMAND [args]\n" \
+       "Run a program in a different security context\n\n" \
+       "	CONTEXT		Complete security context\n" \
+       "	-c, --compute	Compute process transition context before modifying\n" \
+       "	-t, --type=TYPE	Type (for same role as parent)\n" \
+       "	-u, --user=USER	User identity\n" \
+       "	-r, --role=ROLE	Role\n" \
+       "	-l, --range=RNG	Levelrange" \
+
 #define run_parts_trivial_usage \
        "[-t] [-a ARG] [-u MASK] DIRECTORY"
 #define run_parts_full_usage \
@@ -2718,6 +2811,9 @@
        "$ echo \"foo\" | sed -e 's/f[a-zA-Z]o/bar/g'\n" \
        "bar\n"
 
+#define selinuxenabled_trivial_usage
+#define selinuxenabled_full_usage
+
 #define seq_trivial_usage \
        "[first [increment]] last"
 #define seq_full_usage \
@@ -2734,6 +2830,10 @@
        "Redirect system console output to DEVICE (default: /dev/tty)" \
        "\n\nOptions:\n" \
        "	-r	Reset output to /dev/console"
+
+#define setenforce_trivial_usage \
+       "[ Enforcing | Permissive | 1 | 0 ]"
+#define setenforce_full_usage
 
 #define setkeycodes_trivial_usage \
        "SCANCODE KEYCODE ..."
@@ -2869,7 +2969,7 @@
        "\n	-N|--nicelevel <N>		Add N to process's nice level" \
 	) \
        "\n	-s|--signal <signal>		Signal to send (default TERM)" \
-       "\n	-U|--chuid <username>|<uid>	Start process with this name"
+       "\n	-c|--chuid <user>[:[<group>]]	Change to specified user/group"
 
 #define stat_trivial_usage \
        "[OPTION] FILE..."
@@ -2881,6 +2981,9 @@
        "	-f	Display filesystem status\n" \
        "	-L,-l	Dereference links\n" \
        "	-t	Display info in terse form" \
+	USE_SELINUX( \
+       "\n	-Z	Print security context" \
+	) \
 	USE_FEATURE_STAT_FORMAT( \
        "\n\nValid format sequences for files:\n" \
        " %a	Access rights in octal\n" \
@@ -2896,7 +2999,7 @@
        " %h	Number of hard links\n" \
        " %i	Inode number\n" \
        " %n	File name\n" \
-       " %N	Quoted file name with dereference if symbolic link\n" \
+       " %N	Quoted file name with dereference if symlink\n" \
        " %o	I/O block size\n" \
        " %s	Total size, in bytes\n" \
        " %t	Major device type in hex\n" \
@@ -2915,6 +3018,9 @@
        " %c	Total file nodes in file system\n" \
        " %d	Free file nodes in file system\n" \
        " %f	Free blocks in file system\n" \
+	USE_SELINUX( \
+       " %C	Security context in SELinux\n" \
+	) \
        " %i	File System ID in hex\n" \
        " %l	Maximum length of filenames\n" \
        " %n	File name\n" \
@@ -3032,7 +3138,6 @@
        "System logging utility.\n" \
        "Note that this version of syslogd ignores /etc/syslog.conf." \
        "\n\nOptions:" \
-       "\n	-m MIN		Minutes between MARK lines (default=20, 0=off)" \
        "\n	-n		Run as foreground process" \
        "\n	-O FILE		Use an alternate log file (default=/var/log/messages)" \
        "\n	-l n		Sets the local log level of messages to n" \
@@ -3046,6 +3151,7 @@
 	USE_FEATURE_IPC_SYSLOG( \
        "\n	-C[size(KiB)]	Log to a shared mem buffer (read the buffer using logread)")
 	/* NB: -Csize shouldn't have space (because size is optional) */
+/*       "\n	-m MIN		Minutes between MARK lines (default=20, 0=off)" */
 #define syslogd_example_usage \
        "$ syslogd -R masterlog:514\n" \
        "$ syslogd -R 192.168.1.1:601\n"
@@ -3286,8 +3392,9 @@
        ""
 #define tty_full_usage \
        "Print the file name of the terminal connected to standard input" \
+	USE_INCLUDE_SUSv2( \
        "\n\nOptions:\n" \
-       "	-s	Print nothing, only return an exit status"
+       "	-s	Print nothing, only return an exit status")
 #define tty_example_usage \
        "$ tty\n" \
        "/dev/tty2\n"
@@ -3332,7 +3439,8 @@
 #define umount_full_usage \
        "Unmount file systems" \
        "\n\nOptions:\n" \
-       "\n	-a	Unmount all file systems" USE_FEATURE_MTAB_SUPPORT(" in /etc/mtab") \
+	USE_FEATURE_UMOUNT_ALL( \
+       "\n	-a	Unmount all file systems" USE_FEATURE_MTAB_SUPPORT(" in /etc/mtab")) \
 	USE_FEATURE_MTAB_SUPPORT( \
        "\n	-n	Don't erase /etc/mtab entries") \
        "\n	-r	Try to remount devices as read-only if mount is busy" \
@@ -3452,12 +3560,12 @@
 #define vconfig_full_usage \
        "Create and remove virtual ethernet devices" \
        "\n\nOptions:\n" \
-       "	add             [interface-name] [vlan_id]\n" \
-       "	rem             [vlan-name]\n" \
-       "	set_flag        [interface-name] [flag-num]       [0 | 1]\n" \
-       "	set_egress_map  [vlan-name]      [skb_priority]   [vlan_qos]\n" \
-       "	set_ingress_map [vlan-name]      [skb_priority]   [vlan_qos]\n" \
-       "	set_name_type   [name-type]"
+       "	add		[interface-name] [vlan_id]\n" \
+       "	rem		[vlan-name]\n" \
+       "	set_flag	[interface-name] [flag-num] [0 | 1]\n" \
+       "	set_egress_map	[vlan-name] [skb_priority] [vlan_qos]\n" \
+       "	set_ingress_map	[vlan-name] [skb_priority] [vlan_qos]\n" \
+       "	set_name_type	[name-type]"
 
 #define vi_trivial_usage \
        "[OPTION] [FILE]..."
@@ -3572,9 +3680,9 @@
 #define zcip_full_usage \
        "Manage a ZeroConf IPv4 link-local address" \
        "\n\nOptions:\n" \
-       "	-f              foreground mode\n" \
-       "	-q              quit after address (no daemon)\n" \
-       "	-r 169.254.x.x  request this address first\n" \
-       "	-v              verbose"
+       "	-f		Foreground mode\n" \
+       "	-q		Quit after address (no daemon)\n" \
+       "	-r 169.254.x.x	Request this address first\n" \
+       "	-v		Verbose"
 
 #endif /* __BB_USAGE_H__ */

@@ -35,7 +35,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 static unsigned verbose;
 static int linemax = 1000;
-static int buflen = 1024;
+////static int buflen = 1024;
 static int linelen;
 
 static char **fndir;
@@ -44,18 +44,22 @@ static int wstat;
 static struct taia trotate;
 
 static char *line;
-static unsigned exitasap;
-static unsigned rotateasap;
-static unsigned reopenasap;
-static unsigned linecomplete = 1;
-static unsigned tmaxflag;
-static iopause_fd in;
+static smallint exitasap;
+static smallint rotateasap;
+static smallint reopenasap;
+static smallint linecomplete = 1;
 
-static const char *replace = "";
+static smallint tmaxflag;
+
 static char repl;
+static const char *replace = "";
+
+static sigset_t *blocked_sigset;
+static iopause_fd input;
+static int fl_flag_0;
 
 static struct logdir {
-	char *btmp;
+	////char *btmp;
 	/* pattern list to match, in "aa\0bb\0\cc\0\0" form */
 	char *inst;
 	char *processor;
@@ -69,13 +73,14 @@ static struct logdir {
 	int ppid;
 	int fddir;
 	int fdcur;
+	FILE* filecur; ////
 	int fdlock;
 	struct taia trotate;
 	char fnsave[FMT_PTIME];
 	char match;
 	char matcherr;
 } *dir;
-static unsigned dirn = 0;
+static unsigned dirn;
 
 #define FATAL "fatal: "
 #define WARNING "warning: "
@@ -83,30 +88,32 @@ static unsigned dirn = 0;
 #define INFO "info: "
 
 #define usage() bb_show_usage()
-static void fatalx(char *m0)
+static void fatalx(const char *m0)
 {
 	bb_error_msg_and_die(FATAL"%s", m0);
 }
-static void warn(char *m0) {
+static void warn(const char *m0) {
 	bb_perror_msg(WARNING"%s", m0);
 }
-static void warn2(char *m0, char *m1)
+static void warn2(const char *m0, const char *m1)
 {
 	bb_perror_msg(WARNING"%s: %s", m0, m1);
 }
-static void warnx(char *m0, char *m1)
+static void warnx(const char *m0, const char *m1)
 {
 	bb_error_msg(WARNING"%s: %s", m0, m1);
 }
 static void pause_nomem(void)
 {
-	bb_error_msg(PAUSE"out of memory"); sleep(3);
+	bb_error_msg(PAUSE"out of memory");
+	sleep(3);
 }
-static void pause1cannot(char *m0)
+static void pause1cannot(const char *m0)
 {
-	bb_perror_msg(PAUSE"cannot %s", m0); sleep(3);
+	bb_perror_msg(PAUSE"cannot %s", m0);
+	sleep(3);
 }
-static void pause2cannot(char *m0, char *m1)
+static void pause2cannot(const char *m0, const char *m1)
 {
 	bb_perror_msg(PAUSE"cannot %s %s", m0, m1);
 	sleep(3);
@@ -115,7 +122,8 @@ static void pause2cannot(char *m0, char *m1)
 static char* wstrdup(const char *str)
 {
 	char *s;
-	while (!(s = strdup(str))) pause_nomem();
+	while (!(s = strdup(str)))
+		pause_nomem();
 	return s;
 }
 
@@ -135,12 +143,12 @@ static unsigned processorstart(struct logdir *ld)
 		int fd;
 
 		/* child */
-		sig_uncatch(sig_term);
-		sig_uncatch(sig_alarm);
-		sig_uncatch(sig_hangup);
-		sig_unblock(sig_term);
-		sig_unblock(sig_alarm);
-		sig_unblock(sig_hangup);
+		sig_uncatch(SIGTERM);
+		sig_uncatch(SIGALRM);
+		sig_uncatch(SIGHUP);
+		sig_unblock(SIGTERM);
+		sig_unblock(SIGALRM);
+		sig_unblock(SIGHUP);
 
 		if (verbose)
 			bb_error_msg(INFO"processing: %s/%s", ld->name, ld->fnsave);
@@ -164,8 +172,9 @@ static unsigned processorstart(struct logdir *ld)
 		if (fd_move(5, fd) == -1)
 			bb_perror_msg_and_die(FATAL"cannot %s processor %s", "move filedescriptor for", ld->name);
 
-		prog[0] = "sh";
-		prog[1] = "-c";
+// getenv("SHELL")?
+		prog[0] = (char*)"sh";
+		prog[1] = (char*)"-c";
 		prog[2] = ld->processor;
 		prog[3] = '\0';
 		execve("/bin/sh", prog, environ);
@@ -180,10 +189,10 @@ static unsigned processorstop(struct logdir *ld)
 	char f[28];
 
 	if (ld->ppid) {
-		sig_unblock(sig_hangup);
+		sig_unblock(SIGHUP);
 		while (wait_pid(&wstat, ld->ppid) == -1)
 			pause2cannot("wait for processor", ld->name);
-		sig_block(sig_hangup);
+		sig_block(SIGHUP);
 		ld->ppid = 0;
 	}
 	if (ld->fddir == -1) return 1;
@@ -212,7 +221,8 @@ static unsigned processorstop(struct logdir *ld)
 		bb_error_msg(WARNING"cannot unlink: %s/%s", ld->name, ld->fnsave);
 	while (rename("newstate", "state") == -1)
 		pause2cannot("rename state", ld->name);
-	if (verbose) bb_error_msg(INFO"processed: %s/%s", ld->name, f);
+	if (verbose)
+		bb_error_msg(INFO"processed: %s/%s", ld->name, f);
 	while (fchdir(fdwdir) == -1)
 		pause1cannot("change to initial working directory");
 	return 1;
@@ -242,11 +252,13 @@ static void rmoldest(struct logdir *ld)
 			errno = 0;
 		}
 	}
-	if (errno) warn2("cannot read directory", ld->name);
+	if (errno)
+		warn2("cannot read directory", ld->name);
 	closedir(d);
 
 	if (ld->nmax && (n > ld->nmax)) {
-		if (verbose) bb_error_msg(INFO"delete: %s/%s", ld->name, oldest);
+		if (verbose)
+			bb_error_msg(INFO"delete: %s/%s", ld->name, oldest);
 		if ((*oldest == '@') && (unlink(oldest) == -1))
 			warn2("cannot unlink oldest logfile", ld->name);
 	}
@@ -276,9 +288,10 @@ static unsigned rotate(struct logdir *ld)
 	ld->fnsave[27] = '\0';
 	do {
 		taia_now(&now);
-		fmt_taia(ld->fnsave, &now);
+		fmt_taia25(ld->fnsave, &now);
 		errno = 0;
-	} while ((stat(ld->fnsave, &st) != -1) || (errno != ENOENT));
+		stat(ld->fnsave, &st);
+	} while (errno != ENOENT);
 
 	if (ld->tmax && taia_less(&ld->trotate, &now)) {
 		taia_uint(&ld->trotate, ld->tmax);
@@ -288,11 +301,13 @@ static unsigned rotate(struct logdir *ld)
 	}
 
 	if (ld->size > 0) {
-		while (fsync(ld->fdcur) == -1)
+		while (fflush(ld->filecur) || fsync(ld->fdcur) == -1)
 			pause2cannot("fsync current logfile", ld->name);
 		while (fchmod(ld->fdcur, 0744) == -1)
 			pause2cannot("set mode of current", ld->name);
-		close(ld->fdcur);
+		////close(ld->fdcur);
+		fclose(ld->filecur);
+
 		if (verbose) {
 			bb_error_msg(INFO"rename: %s/current %s %u", ld->name,
 					ld->fnsave, ld->size);
@@ -301,6 +316,9 @@ static unsigned rotate(struct logdir *ld)
 			pause2cannot("rename current", ld->name);
 		while ((ld->fdcur = open("current", O_WRONLY|O_NDELAY|O_APPEND|O_CREAT, 0600)) == -1)
 			pause2cannot("create new current", ld->name);
+		/* we presume this cannot fail */
+		ld->filecur = fdopen(ld->fdcur, "a"); ////
+		setvbuf(ld->filecur, NULL, _IOFBF, linelen); ////
 		coe(ld->fdcur);
 		ld->size = 0;
 		while (fchmod(ld->fdcur, 0644) == -1)
@@ -325,7 +343,12 @@ static int buffer_pwrite(int n, char *s, unsigned len)
 		if (len > (ld->sizemax - ld->size))
 			len = ld->sizemax - ld->size;
 	}
-	while ((i = write(ld->fdcur, s, len)) == -1) {
+	while (1) {
+		////i = full_write(ld->fdcur, s, len);
+		////if (i != -1) break;
+		i = fwrite(s, 1, len, ld->filecur);
+		if (i == len) break;
+
 		if ((errno == ENOSPC) && (ld->nmin < ld->nmax)) {
 			DIR *d;
 			struct dirent *f;
@@ -365,7 +388,8 @@ static int buffer_pwrite(int n, char *s, unsigned len)
 				}
 			}
 		}
-		if (errno) pause2cannot("write to current", ld->name);
+		if (errno)
+			pause2cannot("write to current", ld->name);
 	}
 
 	ld->size += i;
@@ -386,11 +410,12 @@ static void logdir_close(struct logdir *ld)
 	ld->fddir = -1;
 	if (ld->fdcur == -1)
 		return; /* impossible */
-	while (fsync(ld->fdcur) == -1)
+	while (fflush(ld->filecur) || fsync(ld->fdcur) == -1)
 		pause2cannot("fsync current logfile", ld->name);
 	while (fchmod(ld->fdcur, 0744) == -1)
 		pause2cannot("set mode of current", ld->name);
-	close(ld->fdcur);
+	////close(ld->fdcur);
+	fclose(ld->filecur);
 	ld->fdcur = -1;
 	if (ld->fdlock == -1)
 		return; /* impossible */
@@ -523,9 +548,10 @@ static unsigned logdir_open(struct logdir *ld, const char *fn)
 			ld->fnsave[27] = '\0';
 			do {
 				taia_now(&now);
-				fmt_taia(ld->fnsave, &now);
+				fmt_taia25(ld->fnsave, &now);
 				errno = 0;
-			} while ((stat(ld->fnsave, &st) != -1) || (errno != ENOENT));
+				stat(ld->fnsave, &st);
+			} while (errno != ENOENT);
 			while (rename("current", ld->fnsave) == -1)
 				pause2cannot("rename current", ld->name);
 			rmoldest(ld);
@@ -546,6 +572,10 @@ static unsigned logdir_open(struct logdir *ld, const char *fn)
 	}
 	while ((ld->fdcur = open("current", O_WRONLY|O_NDELAY|O_APPEND|O_CREAT, 0600)) == -1)
 		pause2cannot("open current", ld->name);
+	/* we presume this cannot fail */
+	ld->filecur = fdopen(ld->fdcur, "a"); ////
+	setvbuf(ld->filecur, NULL, _IOFBF, linelen); ////
+
 	coe(ld->fdcur);
 	while (fchmod(ld->fdcur, 0644) == -1)
 		pause2cannot("set mode of current", ld->name);
@@ -575,10 +605,20 @@ static void logdirs_reopen(void)
 	if (!ok) fatalx("no functional log directories");
 }
 
-/* Used for reading stdin */
-static int buffer_pread(int fd, char *s, unsigned len)
+/* Will look good in libbb one day */
+static ssize_t ndelay_read(int fd, void *buf, size_t count)
 {
-	struct taia now;
+	if (!(fl_flag_0 & O_NONBLOCK))
+		fcntl(fd, F_SETFL, fl_flag_0 | O_NONBLOCK);
+	count = safe_read(fd, buf, count);
+	if (!(fl_flag_0 & O_NONBLOCK))
+		fcntl(fd, F_SETFL, fl_flag_0);
+	return count;
+}
+
+/* Used for reading stdin */
+static int buffer_pread(int fd, char *s, unsigned len, struct taia *now)
+{
 	int i;
 
 	if (rotateasap) {
@@ -595,29 +635,21 @@ static int buffer_pread(int fd, char *s, unsigned len)
 		logdirs_reopen();
 		reopenasap = 0;
 	}
-	taia_now(&now);
 	taia_uint(&trotate, 2744);
-	taia_add(&trotate, &now, &trotate);
+	taia_add(&trotate, now, &trotate);
 	for (i = 0; i < dirn; ++i)
 		if (dir[i].tmax) {
-			if (taia_less(&dir[i].trotate, &now))
+			if (taia_less(&dir[i].trotate, now))
 				rotate(dir+i);
 			if (taia_less(&dir[i].trotate, &trotate))
 				trotate = dir[i].trotate;
 		}
 
 	while (1) {
-		/* Comment? */
-		sig_unblock(sig_term);
-		sig_unblock(sig_child);
-		sig_unblock(sig_alarm);
-		sig_unblock(sig_hangup);
-		iopause(&in, 1, &trotate, &now);
-		sig_block(sig_term);
-		sig_block(sig_child);
-		sig_block(sig_alarm);
-		sig_block(sig_hangup);
-		i = safe_read(fd, s, len);
+		sigprocmask(SIG_UNBLOCK, blocked_sigset, NULL);
+		iopause(&input, 1, &trotate, now);
+		sigprocmask(SIG_BLOCK, blocked_sigset, NULL);
+		i = ndelay_read(fd, s, len);
 		if (i >= 0) break;
 		if (errno != EAGAIN) {
 			warn("cannot read standard input");
@@ -714,14 +746,18 @@ static void logmatch(struct logdir *ld)
 	}
 }
 
+int svlogd_main(int argc, char **argv);
 int svlogd_main(int argc, char **argv)
 {
-	struct taia now;
+	sigset_t ss;
 	char *r,*l,*b;
 	ssize_t stdin_cnt = 0;
 	int i;
 	unsigned opt;
 	unsigned timestamp = 0;
+	void* (*memRchr)(const void *, int, size_t) = memchr;
+
+#define line bb_common_bufsiz1
 
 	opt_complementary = "tt:vv";
 	opt = getopt32(argc, argv, "r:R:l:b:tv",
@@ -732,70 +768,85 @@ int svlogd_main(int argc, char **argv)
 	}
 	if (opt & 2) if (!repl) repl = '_'; // -R
 	if (opt & 4) { // -l
-		linemax = xatou_range(l, 0, 1000);
-		if (linemax == 0) linemax = 1000;
+		linemax = xatou_range(l, 0, BUFSIZ-26);
+		if (linemax == 0) linemax = BUFSIZ-26;
 		if (linemax < 256) linemax = 256;
 	}
-	if (opt & 8) { // -b
-		buflen = xatoi_u(b);
-		if (buflen == 0) buflen = 1024;
-	}
+	////if (opt & 8) { // -b
+	////	buflen = xatoi_u(b);
+	////	if (buflen == 0) buflen = 1024;
+	////}
 	//if (opt & 0x10) timestamp++; // -t
 	//if (opt & 0x20) verbose++; // -v
-	if (timestamp > 2) timestamp = 2;
+	//if (timestamp > 2) timestamp = 2;
 	argv += optind;
 	argc -= optind;
 
 	dirn = argc;
 	if (dirn <= 0) usage();
-	if (buflen <= linemax) usage();
+	////if (buflen <= linemax) usage();
 	fdwdir = xopen(".", O_RDONLY|O_NDELAY);
 	coe(fdwdir);
 	dir = xmalloc(dirn * sizeof(struct logdir));
 	for (i = 0; i < dirn; ++i) {
 		dir[i].fddir = -1;
 		dir[i].fdcur = -1;
-		dir[i].btmp = xmalloc(buflen);
+		////dir[i].btmp = xmalloc(buflen);
 		dir[i].ppid = 0;
 	}
-	line = xmalloc(linemax + (timestamp ? 26 : 0));
+	/* line = xmalloc(linemax + (timestamp ? 26 : 0)); */
 	fndir = argv;
-	in.fd = 0;
-	in.events = IOPAUSE_READ;
-	ndelay_on(in.fd);
+	input.fd = 0;
+	input.events = IOPAUSE_READ;
+	/* We cannot set NONBLOCK on fd #0 permanently - this setting
+	 * _isn't_ per-process! It is shared among all other processes
+	 * with the same stdin */
+	fl_flag_0 = fcntl(0, F_GETFL, 0);
 
-	sig_block(sig_term);
-	sig_block(sig_child);
-	sig_block(sig_alarm);
-	sig_block(sig_hangup);
-	sig_catch(sig_term, sig_term_handler);
-	sig_catch(sig_child, sig_child_handler);
-	sig_catch(sig_alarm, sig_alarm_handler);
-	sig_catch(sig_hangup, sig_hangup_handler);
+	blocked_sigset = &ss;
+	sigemptyset(&ss);
+	sigaddset(&ss, SIGTERM);
+	sigaddset(&ss, SIGCHLD);
+	sigaddset(&ss, SIGALRM);
+	sigaddset(&ss, SIGHUP);
+	sigprocmask(SIG_BLOCK, &ss, NULL);
+	sig_catch(SIGTERM, sig_term_handler);
+	sig_catch(SIGCHLD, sig_child_handler);
+	sig_catch(SIGALRM, sig_alarm_handler);
+	sig_catch(SIGHUP, sig_hangup_handler);
 
 	logdirs_reopen();
 
-	/* Each iteration processes one line */
+	/* Without timestamps, we don't have to print each line
+	 * separately, so we can look for _last_ newline, not first,
+	 * thus batching writes */
+	if (!timestamp)
+		memRchr = memrchr;
+
+	setvbuf(stderr, NULL, _IOFBF, linelen);
+
+	/* Each iteration processes one or more lines */
 	while (1) {
-		int printlen;
-		char *lineptr = line;
+		struct taia now;
+		char stamp[FMT_PTIME];
+		char *lineptr;
+		char *printptr;
 		char *np;
+		int printlen;
 		char ch;
 
+		lineptr = line;
+		taia_now(&now);
 		/* Prepare timestamp if needed */
 		if (timestamp) {
-			char stamp[FMT_PTIME];
-			taia_now(&now);
 			switch (timestamp) {
 			case 1:
-				fmt_taia(stamp, &now);
+				fmt_taia25(stamp, &now);
 				break;
 			default: /* case 2: */
-				fmt_ptime(stamp, &now);
+				fmt_ptime30nul(stamp, &now);
 				break;
 			}
-			memcpy(line, stamp, 25);
-			line[25] = ' ';
 			lineptr += 26;
 		}
 
@@ -803,15 +854,17 @@ int svlogd_main(int argc, char **argv)
 		/* (possibly has some unprocessed data from prev loop) */
 
 		/* Refill the buffer if needed */
-		np = memchr(lineptr, '\n', stdin_cnt);
-		i = linemax - stdin_cnt; /* avail. bytes at tail */
-		if (i >= 128 && !exitasap && !np) {
-			int sz = buffer_pread(0, lineptr + stdin_cnt, i);
-			if (sz <= 0) /* EOF or error on stdin */
-				exitasap = 1;
-			else {
-				stdin_cnt += sz;
-				np = memchr(lineptr, '\n', stdin_cnt);
+		np = memRchr(lineptr, '\n', stdin_cnt);
+		if (!np && !exitasap) {
+			i = linemax - stdin_cnt; /* avail. bytes at tail */
+			if (i >= 128) {
+				i = buffer_pread(0, lineptr + stdin_cnt, i, &now);
+				if (i <= 0) /* EOF or error on stdin */
+					exitasap = 1;
+				else {
+					np = memRchr(lineptr + stdin_cnt, '\n', i);
+					stdin_cnt += i;
+				}
 			}
 		}
 		if (stdin_cnt <= 0 && exitasap)
@@ -819,53 +872,82 @@ int svlogd_main(int argc, char **argv)
 
 		/* Search for '\n' (in fact, np already holds the result) */
 		linelen = stdin_cnt;
-		if (np) linelen = np - lineptr + 1;
+		if (np) {
+ print_to_nl:		/* NB: starting from here lineptr may point
+			 * farther out into line[] */
+			linelen = np - lineptr + 1;
+		}
 		/* linelen == no of chars incl. '\n' (or == stdin_cnt) */
 		ch = lineptr[linelen-1];
 
-		printlen = linelen + (timestamp ? 26 : 0);
-		/* write out line[0..printlen-1] to each log destination */
+		/* Biggest performance hit was coming from the fact
+		 * that we did not buffer writes. We were reading many lines
+		 * in one read() above, but wrote one line per write().
+		 * We are using stdio to fix that */
+
+		/* write out lineptr[0..linelen-1] to each log destination
+		 * (or lineptr[-26..linelen-1] if timestamping) */
+		printlen = linelen;
+		printptr = lineptr;
+		if (timestamp) {
+			printlen += 26;
+			printptr -= 26;
+			memcpy(printptr, stamp, 25);
+			printptr[25] = ' ';
+		}
 		for (i = 0; i < dirn; ++i) {
 			struct logdir *ld = &dir[i];
 			if (ld->fddir == -1) continue;
 			if (ld->inst)
 				logmatch(ld);
 			if (ld->matcherr == 'e')
-				full_write(2, line, printlen);
+				////full_write(2, printptr, printlen);
+				fwrite(lineptr, 1, linelen, stderr);
 			if (ld->match != '+') continue;
-			buffer_pwrite(i, line, printlen);
+			buffer_pwrite(i, printptr, printlen);
 		}
 
 		/* If we didn't see '\n' (long input line), */
 		/* read/write repeatedly until we see it */
 		while (ch != '\n') {
 			/* lineptr is emptied now, safe to use as buffer */
-			stdin_cnt = exitasap ? -1 : buffer_pread(0, lineptr, linemax);
+			taia_now(&now);
+			stdin_cnt = exitasap ? -1 : buffer_pread(0, lineptr, linemax, &now);
 			if (stdin_cnt <= 0) { /* EOF or error on stdin */
+				exitasap = 1;
 				lineptr[0] = ch = '\n';
 				linelen = 1;
-				exitasap = 1;
 				stdin_cnt = 1;
 			} else {
 				linelen = stdin_cnt;
-				np = memchr(lineptr, '\n', stdin_cnt);
-				if (np) linelen = np - lineptr + 1;
+				np = memRchr(lineptr, '\n', stdin_cnt);
+				if (np)
+					linelen = np - lineptr + 1;
 				ch = lineptr[linelen-1];
 			}
 			/* linelen == no of chars incl. '\n' (or == stdin_cnt) */
 			for (i = 0; i < dirn; ++i) {
 				if (dir[i].fddir == -1) continue;
 				if (dir[i].matcherr == 'e')
-					full_write(2, lineptr, linelen);
+					////full_write(2, lineptr, linelen);
+					fwrite(lineptr, 1, linelen, stderr);
 				if (dir[i].match != '+') continue;
 				buffer_pwrite(i, lineptr, linelen);
 			}
 		}
 
-		/* Move unprocessed data to the front of line */
 		stdin_cnt -= linelen;
-		if (stdin_cnt > 0) /* TODO: slow if buffer is big */
-			memmove(lineptr, &lineptr[linelen], stdin_cnt);
+		if (stdin_cnt > 0) {
+			lineptr += linelen;
+			/* If we see another '\n', we don't need to read
+			 * next piece of input: can print what we have */
+			np = memRchr(lineptr, '\n', stdin_cnt);
+			if (np)
+				goto print_to_nl;
+			/* Move unprocessed data to the front of line */
+			memmove((timestamp ? line+26 : line), lineptr, stdin_cnt);
+		}
+		fflush(NULL);////
 	}
 
 	for (i = 0; i < dirn; ++i) {
@@ -874,5 +956,5 @@ int svlogd_main(int argc, char **argv)
 				/* repeat */;
 		logdir_close(&dir[i]);
 	}
-	_exit(0);
+	return 0;
 }

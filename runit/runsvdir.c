@@ -1,3 +1,30 @@
+/*
+Copyright (c) 2001-2006, Gerrit Pape
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+   1. Redistributions of source code must retain the above copyright notice,
+      this list of conditions and the following disclaimer.
+   2. Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+   3. The name of the author may not be used to endorse or promote products
+      derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
+EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
 /* Busyboxed by Denis Vlasenko <vda.linux@googlemail.com> */
 /* TODO: depends on runit_lib.c - review and reduce/eliminate */
 
@@ -28,20 +55,20 @@ static int exitsoon;
 static int pgrp;
 
 #define usage() bb_show_usage()
-static void fatal2_cannot(char *m1, char *m2)
+static void fatal2_cannot(const char *m1, const char *m2)
 {
 	bb_perror_msg_and_die("%s: fatal: cannot %s%s", svdir, m1, m2);
 	/* was exiting 100 */
 }
-static void warn3x(char *m1, char *m2, char *m3)
+static void warn3x(const char *m1, const char *m2, const char *m3)
 {
 	bb_error_msg("%s: warning: %s%s%s", svdir, m1, m2, m3);
 }
-static void warn2_cannot(char *m1, char *m2)
+static void warn2_cannot(const char *m1, const char *m2)
 {
 	warn3x("cannot ", m1, m2);
 }
-static void warnx(char *m1)
+static void warnx(const char *m1)
 {
 	warn3x(m1, "", "");
 }
@@ -55,7 +82,7 @@ static void s_hangup(int sig_no)
 	exitsoon = 2;
 }
 
-static void runsv(int no, char *name)
+static void runsv(int no, const char *name)
 {
 	int pid = fork();
 
@@ -67,13 +94,13 @@ static void runsv(int no, char *name)
 		/* child */
 		char *prog[3];
 
-		prog[0] = "runsv";
-		prog[1] = name;
-		prog[2] = 0;
-		sig_uncatch(sig_hangup);
-		sig_uncatch(sig_term);
+		prog[0] = (char*)"runsv";
+		prog[1] = (char*)name;
+		prog[2] = NULL;
+		sig_uncatch(SIGHUP);
+		sig_uncatch(SIGTERM);
 		if (pgrp) setsid();
-		execvp(prog[0], prog);
+		BB_EXECVP(prog[0], prog);
 		//pathexec_run(*prog, prog, (char* const*)environ);
 		fatal2_cannot("start runsv ", name);
 	}
@@ -174,6 +201,7 @@ static int setup_log(void)
 	return 1;
 }
 
+int runsvdir_main(int argc, char **argv);
 int runsvdir_main(int argc, char **argv)
 {
 	struct stat s;
@@ -197,8 +225,8 @@ int runsvdir_main(int argc, char **argv)
 		if (!argv || !*argv) usage();
 	}
 
-	sig_catch(sig_term, s_term);
-	sig_catch(sig_hangup, s_hangup);
+	sig_catch(SIGTERM, s_term);
+	sig_catch(SIGHUP, s_hangup);
 	svdir = *argv++;
 	if (argv && *argv) {
 		rplog = *argv;
@@ -276,12 +304,12 @@ int runsvdir_main(int argc, char **argv)
 		taia_uint(&deadline, check ? 1 : 5);
 		taia_add(&deadline, &now, &deadline);
 
-		sig_block(sig_child);
+		sig_block(SIGCHLD);
 		if (rplog)
 			iopause(io, 1, &deadline, &now);
 		else
 			iopause(0, 0, &deadline, &now);
-		sig_unblock(sig_child);
+		sig_unblock(SIGCHLD);
 
 		if (rplog && (io[0].revents | IOPAUSE_READ))
 			while (read(logpipe[0], &ch, 1) > 0)

@@ -12,6 +12,7 @@
 
 #include "busybox.h"
 
+int which_main(int argc, char **argv);
 int which_main(int argc, char **argv)
 {
 	int status = EXIT_SUCCESS;
@@ -19,6 +20,10 @@ int which_main(int argc, char **argv)
 
 	if (argc <= 1 || argv[1][0] == '-') {
 		bb_show_usage();
+	}
+
+	if (!getenv("PATH")) {
+		setenv("PATH", "/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin", 1);
 	}
 
 	while (--argc > 0) {

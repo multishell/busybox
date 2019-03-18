@@ -28,7 +28,7 @@ dev_t rootdev;
 
 // Recursively delete contents of rootfs.
 
-static void delete_contents(char *directory)
+static void delete_contents(const char *directory)
 {
 	DIR *dir;
 	struct dirent *d;
@@ -63,6 +63,7 @@ static void delete_contents(char *directory)
 	} else unlink(directory);
 }
 
+int switch_root_main(int argc, char *argv[]);
 int switch_root_main(int argc, char *argv[])
 {
 	char *newroot, *console=NULL;

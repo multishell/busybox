@@ -184,14 +184,13 @@ pid_t spawn(char **argv)
 	/* Why static? */
 	static int failed;
 	pid_t pid;
-	void *app = ENABLE_FEATURE_SH_STANDALONE_SHELL ? find_applet_by_name(argv[0]) : 0;
 
 	// Be nice to nommu machines.
 	failed = 0;
 	pid = vfork();
 	if (pid < 0) return pid;
 	if (!pid) {
-		execvp(app ? CONFIG_BUSYBOX_EXEC_PATH : *argv, argv);
+		BB_EXECVP(argv[0], argv);
 
 		// We're sharing a stack with blocked parent, let parent know we failed
 		// and then exit to unblock parent (but don't run atexit() stuff, which
@@ -237,7 +236,7 @@ void xsetenv(const char *key, const char *value)
 // Fifth char is always '\0'
 void smart_ulltoa5(unsigned long long ul, char buf[5])
 {
-	char *fmt;
+	const char *fmt;
 	char c;
 	unsigned v,idx = 0;
 	ul *= 10;
@@ -515,7 +514,7 @@ void bb_sanitize_stdio_maybe_daemonize(int daemonize)
 	int fd;
 	/* Mega-paranoid */
 	fd = xopen(bb_dev_null, O_RDWR);
-	while (fd < 2)
+	while ((unsigned)fd < 2)
 		fd = dup(fd); /* have 0,1,2 open at least to /dev/null */
 	if (daemonize) {
 		pid_t pid = fork();
@@ -523,7 +522,7 @@ void bb_sanitize_stdio_maybe_daemonize(int daemonize)
 			bb_perror_msg_and_die("fork");
 		if (pid) /* parent */
 			exit(0);
-    		/* child */
+		/* child */
 		/* if daemonizing, make sure we detach from stdio */
 		setsid();
 		dup2(fd, 0);
@@ -565,15 +564,30 @@ void xlisten(int s, int backlog)
 }
 
 // xstat() - a stat() which dies on failure with meaningful error message
-void xstat(char *name, struct stat *stat_buf)
+void xstat(const char *name, struct stat *stat_buf)
 {
 	if (stat(name, stat_buf))
 		bb_perror_msg_and_die("can't stat '%s'", name);
 }
 
+// selinux_or_die() - die if SELinux is disabled.
+void selinux_or_die(void)
+{
+#if ENABLE_SELINUX
+	int rc = is_selinux_enabled();
+	if (rc == 0) {
+		bb_error_msg_and_die("SELinux is disabled");
+	} else if (rc < 0) {
+		bb_error_msg_and_die("is_selinux_enabled() failed");
+	}
+#else
+	bb_error_msg_and_die("SELinux support is disabled");
+#endif
+}
+
 /* It is perfectly ok to pass in a NULL for either width or for
  * height, in which case that value will not be set.  */
-int get_terminal_width_height(int fd, int *width, int *height)
+int get_terminal_width_height(const int fd, int *width, int *height)
 {
 	struct winsize win = { 0, 0, 0, 0 };
 	int ret = ioctl(fd, TIOCGWINSZ, &win);

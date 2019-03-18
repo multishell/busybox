@@ -1,3 +1,30 @@
+/*
+Copyright (c) 2001-2006, Gerrit Pape
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+   1. Redistributions of source code must retain the above copyright notice,
+      this list of conditions and the following disclaimer.
+   2. Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+   3. The name of the author may not be used to endorse or promote products
+      derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO
+EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
+OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
+OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+
 /* Busyboxed by Denis Vlasenko <vda.linux@googlemail.com> */
 /* TODO: depends on runit_lib.c - review and reduce/eliminate */
 
@@ -23,50 +50,48 @@ static int selfpipe[2];
 
 struct svdir {
 	int pid;
-	int state;
-	int ctrl;
-	int want;
+	smallint state;
+	smallint ctrl;
+	smallint want;
+	smallint islog;
 	struct taia start;
 	int fdlock;
 	int fdcontrol;
 	int fdcontrolwrite;
-	int islog;
 };
 static struct svdir svd[2];
 
-static int sigterm = 0;
-static int haslog = 0;
-static int pidchanged = 1;
+static smallint sigterm;
+static smallint haslog;
+static smallint pidchanged = 1;
 static int logpipe[2];
 static char *dir;
 
 #define usage() bb_show_usage()
 
-static void fatal2_cannot(char *m1, char *m2)
+static void fatal2_cannot(const char *m1, const char *m2)
 {
 	bb_perror_msg_and_die("%s: fatal: cannot %s%s", dir, m1, m2);
 	/* was exiting 111 */
 }
-static void fatal_cannot(char *m)
+static void fatal_cannot(const char *m)
 {
 	fatal2_cannot(m, "");
 	/* was exiting 111 */
 }
-static void fatal2x_cannot(char *m1, char *m2)
+static void fatal2x_cannot(const char *m1, const char *m2)
 {
 	bb_error_msg_and_die("%s: fatal: cannot %s%s", dir, m1, m2);
 	/* was exiting 111 */
 }
-static void warn_cannot(char *m)
+static void warn_cannot(const char *m)
 {
 	bb_perror_msg("%s: warning: cannot %s", dir, m);
 }
-static void warnx_cannot(char *m)
+static void warnx_cannot(const char *m)
 {
 	bb_error_msg("%s: warning: cannot %s", dir, m);
 }
-
-static void stopservice(struct svdir *);
 
 static void s_child(int sig_no)
 {
@@ -119,17 +144,14 @@ static void update_status(struct svdir *s)
 		if (fd < 0)
 			return;
 		if (s->pid) {
-			char spid[sizeof(s->pid)*3 + 2];
-			int size = sprintf(spid, "%d\n", s->pid);
+			char spid[sizeof(int)*3 + 2];
+			int size = sprintf(spid, "%u\n", (unsigned)s->pid);
 			write(fd, spid, size);
 		}
 		close(fd);
-		if (s->islog) {
-			if (rename_or_warn("supervise/pid.new", "log/supervise/pid"))
-				return;
-		} else if (rename_or_warn("supervise/pid.new", "supervise/pid")) {
+		if (rename_or_warn("supervise/pid.new",
+		    s->islog ? "log/supervise/pid" : "log/supervise/pid"+4))
 			return;
-		}
 		pidchanged = 0;
 	}
 
@@ -168,11 +190,8 @@ static void update_status(struct svdir *s)
 		close(fd);
 	}
 
-	if (s->islog) {
-		rename_or_warn("supervise/stat.new", "log/supervise/stat");
-	} else {
-		rename_or_warn("supervise/stat.new", "log/supervise/stat"+4);
-	}
+	rename_or_warn("supervise/stat.new",
+		s->islog ? "log/supervise/stat" : "log/supervise/stat"+4);
 
 	/* supervise compatibility */
 	taia_pack(status, &s->start);
@@ -197,7 +216,7 @@ static void update_status(struct svdir *s)
 	fd = open_trunc_or_warn("supervise/status.new");
 	if (fd < 0)
 		return;
-	l = write(fd, status, sizeof status);
+	l = write(fd, status, sizeof(status));
 	if (l < 0) {
 		warn_cannot("write supervise/status.new");
 		close(fd);
@@ -205,15 +224,12 @@ static void update_status(struct svdir *s)
 		return;
 	}
 	close(fd);
-	if (l < sizeof status) {
+	if (l < sizeof(status)) {
 		warnx_cannot("write supervise/status.new: partial write");
 		return;
 	}
-	if (s->islog) {
-		rename_or_warn("supervise/status.new", "log/supervise/status");
-	} else {
-		rename_or_warn("supervise/status.new", "log/supervise/status"+4);
-	}
+	rename_or_warn("supervise/status.new",
+		s->islog ? "log/supervise/status" : "log/supervise/status"+4);
 }
 
 static unsigned custom(struct svdir *s, char c)
@@ -225,7 +241,7 @@ static unsigned custom(struct svdir *s, char c)
 	char *prog[2];
 
 	if (s->islog) return 0;
-	memcpy(a, "control/?", 10);
+	strcpy(a, "control/?");
 	a[8] = c;
 	if (stat(a, &st) == 0) {
 		if (st.st_mode & S_IXUSR) {
@@ -238,7 +254,7 @@ static unsigned custom(struct svdir *s, char c)
 				if (haslog && fd_copy(1, logpipe[1]) == -1)
 					warn_cannot("setup stdout for control/?");
 				prog[0] = a;
-				prog[1] = 0;
+				prog[1] = NULL;
 				execve(a, prog, environ);
 				fatal_cannot("run control/?");
 			}
@@ -249,24 +265,24 @@ static unsigned custom(struct svdir *s, char c)
 			}
 			return !wait_exitcode(w);
 		}
-	}
-	else {
-		if (errno == ENOENT) return 0;
-		warn_cannot("stat control/?");
+	} else {
+		if (errno != ENOENT)
+			warn_cannot("stat control/?");
 	}
 	return 0;
 }
 
 static void stopservice(struct svdir *s)
 {
-	if (s->pid && ! custom(s, 't')) {
+	if (s->pid && !custom(s, 't')) {
 		kill(s->pid, SIGTERM);
-		s->ctrl |=C_TERM;
+		s->ctrl |= C_TERM;
 		update_status(s);
 	}
 	if (s->want == W_DOWN) {
 		kill(s->pid, SIGCONT);
-		custom(s, 'd'); return;
+		custom(s, 'd');
+		return;
 	}
 	if (s->want == W_EXIT) {
 		kill(s->pid, SIGCONT);
@@ -280,12 +296,12 @@ static void startservice(struct svdir *s)
 	char *run[2];
 
 	if (s->state == S_FINISH)
-		run[0] = "./finish";
+		run[0] = (char*)"./finish";
 	else {
-		run[0] = "./run";
+		run[0] = (char*)"./run";
 		custom(s, 'u');
 	}
-	run[1] = 0;
+	run[1] = NULL;
 
 	if (s->pid != 0) stopservice(s); /* should never happen */
 	while ((p = fork()) == -1) {
@@ -307,15 +323,12 @@ static void startservice(struct svdir *s)
 				close(logpipe[0]);
 			}
 		}
-		sig_uncatch(sig_child);
-		sig_unblock(sig_child);
-		sig_uncatch(sig_term);
-		sig_unblock(sig_term);
+		sig_uncatch(SIGCHLD);
+		sig_unblock(SIGCHLD);
+		sig_uncatch(SIGTERM);
+		sig_unblock(SIGTERM);
 		execve(*run, run, environ);
-		if (s->islog)
-			fatal2_cannot("start log/", *run);
-		else
-			fatal2_cannot("start ", *run);
+		fatal2_cannot(s->islog ? "start log/" : "start ", *run);
 	}
 	if (s->state != S_FINISH) {
 		taia_now(&s->start);
@@ -329,6 +342,8 @@ static void startservice(struct svdir *s)
 
 static int ctrl(struct svdir *s, char c)
 {
+	int sig;
+
 	switch (c) {
 	case 'd': /* down */
 		s->want = W_DOWN;
@@ -344,23 +359,22 @@ static int ctrl(struct svdir *s, char c)
 		if (s->islog) break;
 		s->want = W_EXIT;
 		update_status(s);
-		if (s->pid && s->state != S_FINISH) stopservice(s);
-		break;
+		/* FALLTHROUGH */
 	case 't': /* sig term */
 		if (s->pid && s->state != S_FINISH) stopservice(s);
 		break;
 	case 'k': /* sig kill */
-		if (s->pid && ! custom(s, c)) kill(s->pid, SIGKILL);
+		if (s->pid && !custom(s, c)) kill(s->pid, SIGKILL);
 		s->state = S_DOWN;
 		break;
 	case 'p': /* sig pause */
-		if (s->pid && ! custom(s, c)) kill(s->pid, SIGSTOP);
-		s->ctrl |=C_PAUSE;
+		if (s->pid && !custom(s, c)) kill(s->pid, SIGSTOP);
+		s->ctrl |= C_PAUSE;
 		update_status(s);
 		break;
 	case 'c': /* sig cont */
-		if (s->pid && ! custom(s, c)) kill(s->pid, SIGCONT);
-		if (s->ctrl & C_PAUSE) s->ctrl &=~C_PAUSE;
+		if (s->pid && !custom(s, c)) kill(s->pid, SIGCONT);
+		if (s->ctrl & C_PAUSE) s->ctrl &= ~C_PAUSE;
 		update_status(s);
 		break;
 	case 'o': /* once */
@@ -369,27 +383,32 @@ static int ctrl(struct svdir *s, char c)
 		if (!s->pid) startservice(s);
 		break;
 	case 'a': /* sig alarm */
-		if (s->pid && ! custom(s, c)) kill(s->pid, SIGALRM);
-		break;
+		sig = SIGALRM;
+		goto sendsig;
 	case 'h': /* sig hup */
-		if (s->pid && ! custom(s, c)) kill(s->pid, SIGHUP);
-		break;
+		sig = SIGHUP;
+		goto sendsig;
 	case 'i': /* sig int */
-		if (s->pid && ! custom(s, c)) kill(s->pid, SIGINT);
-		break;
+		sig = SIGINT;
+		goto sendsig;
 	case 'q': /* sig quit */
-		if (s->pid && ! custom(s, c)) kill(s->pid, SIGQUIT);
-		break;
+		sig = SIGQUIT;
+		goto sendsig;
 	case '1': /* sig usr1 */
-		if (s->pid && ! custom(s, c)) kill(s->pid, SIGUSR1);
-		break;
+		sig = SIGUSR1;
+		goto sendsig;
 	case '2': /* sig usr2 */
-		if (s->pid && ! custom(s, c)) kill(s->pid, SIGUSR2);
-		break;
+		sig = SIGUSR2;
+		goto sendsig;
 	}
+	return 1;
+ sendsig:
+	if (s->pid && !custom(s, c))
+		kill(s->pid, sig);
 	return 1;
 }
 
+int runsv_main(int argc, char **argv);
 int runsv_main(int argc, char **argv)
 {
 	struct stat s;
@@ -406,18 +425,18 @@ int runsv_main(int argc, char **argv)
 	ndelay_on(selfpipe[0]);
 	ndelay_on(selfpipe[1]);
 
-	sig_block(sig_child);
-	sig_catch(sig_child, s_child);
-	sig_block(sig_term);
-	sig_catch(sig_term, s_term);
+	sig_block(SIGCHLD);
+	sig_catch(SIGCHLD, s_child);
+	sig_block(SIGTERM);
+	sig_catch(SIGTERM, s_term);
 
 	xchdir(dir);
-	svd[0].pid = 0;
-	svd[0].state = S_DOWN;
-	svd[0].ctrl = C_NOOP;
-	svd[0].want = W_UP;
-	svd[0].islog = 0;
-	svd[1].pid = 0;
+	/* bss: svd[0].pid = 0; */
+	if (S_DOWN) svd[0].state = S_DOWN; /* otherwise already 0 (bss) */
+	if (C_NOOP) svd[0].ctrl = C_NOOP;
+	if (W_UP) svd[0].want = W_UP;
+	/* bss: svd[0].islog = 0; */
+	/* bss: svd[1].pid = 0; */
 	taia_now(&svd[0].start);
 	if (stat("down", &s) != -1) svd[0].want = W_DOWN;
 
@@ -444,10 +463,10 @@ int runsv_main(int argc, char **argv)
 	}
 
 	if (mkdir("supervise", 0700) == -1) {
-		r = readlink("supervise", buf, 256);
+		r = readlink("supervise", buf, sizeof(buf));
 		if (r != -1) {
-			if (r == 256)
-				fatal2x_cannot("readlink ./supervise: ", "name too long");
+			if (r == sizeof(buf))
+				fatal2x_cannot("readlink ./supervise", ": name too long");
 			buf[r] = 0;
 			mkdir(buf, 0700);
 		} else {
@@ -465,7 +484,7 @@ int runsv_main(int argc, char **argv)
 			r = readlink("log/supervise", buf, 256);
 			if (r != -1) {
 				if (r == 256)
-					fatal2x_cannot("readlink ./log/supervise: ", "name too long");
+					fatal2x_cannot("readlink ./log/supervise", ": name too long");
 				buf[r] = 0;
 				fd = xopen(".", O_RDONLY|O_NDELAY);
 				xchdir("./log");
@@ -486,25 +505,25 @@ int runsv_main(int argc, char **argv)
 		coe(svd[1].fdlock);
 	}
 
-	fifo_make("log/supervise/control"+4, 0600);
+	mkfifo("log/supervise/control"+4, 0600);
 	svd[0].fdcontrol = xopen("log/supervise/control"+4, O_RDONLY|O_NDELAY);
 	coe(svd[0].fdcontrol);
 	svd[0].fdcontrolwrite = xopen("log/supervise/control"+4, O_WRONLY|O_NDELAY);
 	coe(svd[0].fdcontrolwrite);
 	update_status(&svd[0]);
 	if (haslog) {
-		fifo_make("log/supervise/control", 0600);
+		mkfifo("log/supervise/control", 0600);
 		svd[1].fdcontrol = xopen("log/supervise/control", O_RDONLY|O_NDELAY);
 		coe(svd[1].fdcontrol);
 		svd[1].fdcontrolwrite = xopen("log/supervise/control", O_WRONLY|O_NDELAY);
 		coe(svd[1].fdcontrolwrite);
 		update_status(&svd[1]);
 	}
-	fifo_make("log/supervise/ok"+4, 0600);
+	mkfifo("log/supervise/ok"+4, 0600);
 	fd = xopen("log/supervise/ok"+4, O_RDONLY|O_NDELAY);
 	coe(fd);
 	if (haslog) {
-		fifo_make("log/supervise/ok", 0600);
+		mkfifo("log/supervise/ok", 0600);
 		fd = xopen("log/supervise/ok", O_RDONLY|O_NDELAY);
 		coe(fd);
 	}
@@ -533,11 +552,11 @@ int runsv_main(int argc, char **argv)
 		taia_uint(&deadline, 3600);
 		taia_add(&deadline, &now, &deadline);
 
-		sig_unblock(sig_term);
-		sig_unblock(sig_child);
+		sig_unblock(SIGTERM);
+		sig_unblock(SIGCHLD);
 		iopause(x, 2+haslog, &deadline, &now);
-		sig_block(sig_term);
-		sig_block(sig_child);
+		sig_block(SIGTERM);
+		sig_block(SIGCHLD);
 
 		while (read(selfpipe[0], &ch, 1) == 1)
 			;
@@ -551,8 +570,8 @@ int runsv_main(int argc, char **argv)
 			if (child == svd[0].pid) {
 				svd[0].pid = 0;
 				pidchanged = 1;
-				svd[0].ctrl &=~C_TERM;
-				if (svd[0].state != S_FINISH)
+				svd[0].ctrl &=~ C_TERM;
+				if (svd[0].state != S_FINISH) {
 					fd = open_read("finish");
 					if (fd != -1) {
 						close(fd);
@@ -560,6 +579,7 @@ int runsv_main(int argc, char **argv)
 						update_status(&svd[0]);
 						continue;
 					}
+				}
 				svd[0].state = S_DOWN;
 				taia_uint(&deadline, 1);
 				taia_add(&deadline, &svd[0].start, &deadline);
@@ -572,7 +592,7 @@ int runsv_main(int argc, char **argv)
 					svd[1].pid = 0;
 					pidchanged = 1;
 					svd[1].state = S_DOWN;
-					svd[1].ctrl &=~C_TERM;
+					svd[1].ctrl &= ~C_TERM;
 					taia_uint(&deadline, 1);
 					taia_add(&deadline, &svd[1].start, &deadline);
 					taia_now(&svd[1].start);

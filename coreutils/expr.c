@@ -67,13 +67,14 @@ static char **args;
 static VALUE *docolon(VALUE * sv, VALUE * pv);
 static VALUE *eval(void);
 static VALUE *int_value(arith_t i);
-static VALUE *str_value(char *s);
-static int nextarg(char *str);
+static VALUE *str_value(const char *s);
+static int nextarg(const char *str);
 static int null(VALUE * v);
 static int toarith(VALUE * v);
 static void freev(VALUE * v);
 static void tostring(VALUE * v);
 
+int expr_main(int argc, char **argv);
 int expr_main(int argc, char **argv)
 {
 	VALUE *v;
@@ -110,7 +111,7 @@ static VALUE *int_value(arith_t i)
 
 /* Return a VALUE for S.  */
 
-static VALUE *str_value(char *s)
+static VALUE *str_value(const char *s)
 {
 	VALUE *v;
 
@@ -135,8 +136,8 @@ static int null(VALUE * v)
 {
 	if (v->type == integer)
 		return v->u.i == 0;
-	else				/* string: */
-		return v->u.s[0] == '\0' || LONE_CHAR(v->u.s, '0');
+	/* string: */
+	return v->u.s[0] == '\0' || LONE_CHAR(v->u.s, '0');
 }
 
 /* Coerce V to a string value (can't fail).  */
@@ -172,7 +173,7 @@ static int toarith(VALUE * v)
 /* Return nonzero if the next token matches STR exactly.
    STR must not be NULL.  */
 
-static int nextarg(char *str)
+static int nextarg(const char *str)
 {
 	if (*args == NULL)
 		return 0;
@@ -193,16 +194,16 @@ static int cmp_common(VALUE * l, VALUE * r, int op)
 		cmpval = l->u.i - r->u.i;
 	if (op == '<')
 		return cmpval < 0;
-	else if (op == ('L' + 'E'))
+	if (op == ('L' + 'E'))
 		return cmpval <= 0;
-	else if (op == '=')
+	if (op == '=')
 		return cmpval == 0;
-	else if (op == '!')
+	if (op == '!')
 		return cmpval != 0;
-	else if (op == '>')
+	if (op == '>')
 		return cmpval > 0;
-	else				/* >= */
-		return cmpval >= 0;
+	/* >= */
+	return cmpval >= 0;
 }
 
 /* The arithmetic operator handling functions.  */

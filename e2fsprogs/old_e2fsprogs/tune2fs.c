@@ -340,7 +340,6 @@ static void add_journal(ext2_filsys fs)
 			fs->flags &= ~EXT2_FLAG_SUPER_ONLY;
 	}
 	print_check_message(fs);
-	return;
 }
 
 /*
@@ -578,6 +577,7 @@ static void tune2fs_clean_up(void)
 	if (ENABLE_FEATURE_CLEAN_UP && journal_device) free(journal_device);
 }
 
+int tune2fs_main(int argc, char **argv);
 int tune2fs_main(int argc, char **argv)
 {
 	errcode_t retval;

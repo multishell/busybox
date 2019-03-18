@@ -40,6 +40,7 @@ static LINE *findLine(int num);
 
 static int findString(const LINE *lp, const char * str, int len, int offset);
 
+int ed_main(int argc, char **argv);
 int ed_main(int argc, char **argv)
 {
 	if (!initEdit())
@@ -401,7 +402,7 @@ static void subCommand(const char * cmd, int num1, int num2)
 	if (cp)
 		*cp++ = '\0';
 	else
-		cp = "";
+		cp = (char*)"";
 
 	while (*cp) switch (*cp++) {
 		case 'g':

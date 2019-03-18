@@ -19,6 +19,7 @@
 #define LN_BACKUP           8
 #define LN_SUFFIX           16
 
+int ln_main(int argc, char **argv);
 int ln_main(int argc, char **argv)
 {
 	int status = EXIT_SUCCESS;
@@ -26,7 +27,7 @@ int ln_main(int argc, char **argv)
 	char *last;
 	char *src_name;
 	char *src;
-	char *suffix = "~";
+	char *suffix = (char*)"~";
 	struct stat statbuf;
 	int (*link_func)(const char *, const char *);
 

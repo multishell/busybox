@@ -41,10 +41,11 @@ static const struct option env_long_options[] = {
 };
 #endif
 
+int env_main(int argc, char** argv);
 int env_main(int argc, char** argv)
 {
-	static char *cleanenv[1] = { NULL };
-
+	/* cleanenv was static - why? */
+	char *cleanenv[1];
 	char **ep;
 	unsigned opt;
 	llist_t *unset_env = NULL;
@@ -54,18 +55,16 @@ int env_main(int argc, char** argv)
 #if ENABLE_FEATURE_ENV_LONG_OPTIONS
 	applet_long_options = env_long_options;
 #endif
-
 	opt = getopt32(argc, argv, "+iu:", &unset_env);
-
 	argv += optind;
 	if (*argv && LONE_DASH(argv[0])) {
 		opt |= 1;
 		++argv;
 	}
-
-	if (opt & 1)
+	if (opt & 1) {
+		cleanenv[0] = NULL;
 		environ = cleanenv;
-	else if (opt & 2) {
+	} else if (opt & 2) {
 		while (unset_env) {
 			unsetenv(unset_env->data);
 			unset_env = unset_env->link;
@@ -80,7 +79,7 @@ int env_main(int argc, char** argv)
 	}
 
 	if (*argv) {
-		execvp(*argv, argv);
+		BB_EXECVP(*argv, argv);
 		/* SUSv3-mandated exit codes. */
 		xfunc_error_retval = (errno == ENOENT) ? 127 : 126;
 		bb_perror_msg_and_die("%s", *argv);

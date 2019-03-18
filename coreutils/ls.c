@@ -156,13 +156,13 @@ enum {
 
 static int status = EXIT_SUCCESS;
 
-static struct dnode *my_stat(char *fullname, char *name)
+static struct dnode *my_stat(char *fullname, char *name, int force_follow)
 {
 	struct stat dstat;
 	struct dnode *cur;
 	USE_SELINUX(security_context_t sid = NULL;)
 
-	if (all_fmt & FOLLOW_LINKS) {
+	if ((all_fmt & FOLLOW_LINKS) || force_follow) {
 #if ENABLE_SELINUX
 		if (is_selinux_enabled())  {
 			 getfilecon(fullname, &sid);
@@ -176,7 +176,7 @@ static struct dnode *my_stat(char *fullname, char *name)
 	} else {
 #if ENABLE_SELINUX
 		if (is_selinux_enabled()) {
-			lgetfilecon(fullname,&sid);
+			lgetfilecon(fullname, &sid);
 		}
 #endif
 		if (lstat(fullname, &dstat)) {
@@ -510,7 +510,7 @@ static struct dnode **list_dir(const char *path)
 				continue;
 		}
 		fullname = concat_path_file(path, entry->d_name);
-		cur = my_stat(fullname, strrchr(fullname, '/') + 1);
+		cur = my_stat(fullname, strrchr(fullname, '/') + 1, 0);
 		if (!cur) {
 			free(fullname);
 			continue;
@@ -664,7 +664,7 @@ static int list_single(struct dnode *dn)
 			break;
 		case LIST_SYMLINK:
 			if (S_ISLNK(dn->dstat.st_mode)) {
-				char *lpath = xreadlink(dn->fullname);
+				char *lpath = xmalloc_readlink_or_warn(dn->fullname);
 				if (!lpath) break;
 				printf(" -> ");
 #if ENABLE_FEATURE_LS_FILETYPES || ENABLE_FEATURE_LS_COLOR
@@ -716,7 +716,8 @@ static const char ls_options[] = "Cadil1gnsxAk"
 	USE_FEATURE_LS_RECURSIVE("R")
 	USE_FEATURE_HUMAN_READABLE("h")
 	USE_SELINUX("K")
-	USE_FEATURE_AUTOWIDTH("T:w:");
+	USE_FEATURE_AUTOWIDTH("T:w:")
+	USE_SELINUX("Z");
 
 enum {
 	LIST_MASK_TRIGGER	= 0,
@@ -769,10 +770,17 @@ static const unsigned opt_flags[] = {
 #if ENABLE_FEATURE_AUTOWIDTH
 	0, 0,                       /* T, w - ignored */
 #endif
+#if ENABLE_SELINUX
+	LIST_MODEBITS|LIST_ID_NAME|LIST_CONTEXT, /* Z */
+#endif
 	(1U<<31)
 };
 
 
+/* THIS IS A "SAFE" APPLET, main() MAY BE CALLED INTERNALLY FROM SHELL */
+/* BE CAREFUL! */
+
+int ls_main(int argc, char **argv);
 int ls_main(int argc, char **argv)
 {
 	struct dnode **dnd;
@@ -791,8 +799,6 @@ int ls_main(int argc, char **argv)
 	USE_FEATURE_AUTOWIDTH(char *tabstops_str = NULL;)
 	USE_FEATURE_AUTOWIDTH(char *terminal_width_str = NULL;)
 	USE_FEATURE_LS_COLOR(char *color_opt;)
-
-	setvbuf(stdout, bb_common_bufsiz1, _IOFBF, BUFSIZ);
 
 #if ENABLE_FEATURE_LS_TIMESTAMPS
 	time(&current_time_t);
@@ -818,7 +824,7 @@ int ls_main(int argc, char **argv)
 	if (terminal_width_str)
 		terminal_width = xatou(terminal_width_str);
 #else
-	opt = getopt32(argc, argv, ls_options  USE_FEATURE_LS_COLOR(, &color_opt));
+	opt = getopt32(argc, argv, ls_options USE_FEATURE_LS_COLOR(, &color_opt));
 #endif
 	for (i = 0; opt_flags[i] != (1U<<31); i++) {
 		if (opt & (1 << i)) {
@@ -836,8 +842,9 @@ int ls_main(int argc, char **argv)
 				all_fmt &= ~TIME_MASK;
 			if (flags & LIST_CONTEXT)
 				all_fmt |= STYLE_SINGLE;
-			if (LS_DISP_HR && opt == 'l')
-				all_fmt &= ~LS_DISP_HR;
+			/* huh?? opt cannot be 'l' */
+			//if (LS_DISP_HR && opt == 'l')
+			//	all_fmt &= ~LS_DISP_HR;
 			all_fmt |= flags;
 		}
 	}
@@ -903,7 +910,8 @@ int ls_main(int argc, char **argv)
 	/* stuff the command line file names into a dnode array */
 	dn = NULL;
 	for (oi = 0; oi < ac; oi++) {
-		cur = my_stat(av[oi], av[oi]);
+		/* ls w/o -l follows links on command line */
+		cur = my_stat(av[oi], av[oi], !(all_fmt & STYLE_LONG));
 		if (!cur)
 			continue;
 		cur->allocated = 0;

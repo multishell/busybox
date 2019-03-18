@@ -242,7 +242,7 @@ static const char *expand_variable(	char *, unsigned, unsigned *, const char *,
 									const char *(*) (const char *, void *), void * );
 static const char *get_variable_v2(const char *, const char *(*) (const char *, void *), void *);
 static char get_old_ide_name (unsigned , unsigned);
-static char *write_old_sd_name (char *, unsigned, unsigned, char *);
+static char *write_old_sd_name (char *, unsigned, unsigned, const char *);
 
 /* busybox functions */
 static void msg_logger(int pri, const char * fmt, ... )__attribute__ ((format (printf, 2, 3)));
@@ -262,8 +262,8 @@ static volatile int caught_signal = FALSE;
 static volatile int caught_sighup = FALSE;
 static struct initial_symlink_struct
 {
-    char *dest;
-    char *name;
+    const char *dest;
+    const char *name;
 } initial_symlinks[] =
 {
     {"/proc/self/fd", "fd"},
@@ -378,7 +378,7 @@ static void fork_and_execute(int die, char *arg0, char **arg )
 	 /* Child : if arg0 != NULL do execvp */
 	if(arg0 != NULL )
 	{
-		execvp (arg0, arg);
+		BB_EXECVP(arg0, arg);
 		msg_logger_and_die(LOG_ERR, "execvp");
 	}
 }
@@ -425,6 +425,7 @@ static unsigned int scan_dev_name(const char *d, unsigned int n, char *ptr)
 
 /*  Public functions follow  */
 
+int devfsd_main (int argc, char **argv);
 int devfsd_main (int argc, char **argv)
 {
 	int print_version = FALSE;
@@ -479,9 +480,8 @@ int devfsd_main (int argc, char **argv)
 
 	/* NB: The check for CONFIG_FILE is done in read_config_file() */
 
-	if ( print_version  || (DEVFSD_PROTOCOL_REVISION_DAEMON != proto_rev) )
-	{
-		printf( "%s v%s\nDaemon %s:\t%d\nKernel-side %s:\t%d\n",
+	if (print_version || (DEVFSD_PROTOCOL_REVISION_DAEMON != proto_rev)) {
+		printf("%s v%s\nDaemon %s:\t%d\nKernel-side %s:\t%d\n",
 				applet_name,DEVFSD_VERSION,bb_msg_proto_rev,
 				DEVFSD_PROTOCOL_REVISION_DAEMON,bb_msg_proto_rev, proto_rev);
 		if (DEVFSD_PROTOCOL_REVISION_DAEMON != proto_rev)
@@ -491,19 +491,19 @@ int devfsd_main (int argc, char **argv)
 	/*  Tell kernel we are special (i.e. we get to see hidden entries)  */
 	do_ioctl_and_die(fd, DEVFSDIOC_SET_EVENT_MASK, 0);
 
-	sigemptyset (&new_action.sa_mask);
+	sigemptyset(&new_action.sa_mask);
 	new_action.sa_flags = 0;
 
 	/*  Set up SIGHUP and SIGUSR1 handlers  */
 	new_action.sa_handler = signal_handler;
-	if (sigaction (SIGHUP, &new_action, NULL) != 0 || sigaction (SIGUSR1, &new_action, NULL) != 0 )
+	if (sigaction(SIGHUP, &new_action, NULL) != 0 || sigaction (SIGUSR1, &new_action, NULL) != 0 )
 		devfsd_error_msg_and_die( "sigaction");
 
 	printf("%s v%s  started for %s\n",applet_name, DEVFSD_VERSION, mount_point);
 
 	/*  Set umask so that mknod(2), open(2) and mkdir(2) have complete control over permissions  */
-	umask (0);
-	read_config_file (CONFIG_FILE, FALSE, &event_mask);
+	umask(0);
+	read_config_file((char*)CONFIG_FILE, FALSE, &event_mask);
 	/*  Do the scan before forking, so that boot scripts see the finished product  */
 	dir_operation(SERVICE,mount_point,0,NULL);
 
@@ -524,7 +524,7 @@ int devfsd_main (int argc, char **argv)
 		do_scan = do_servicing (fd, event_mask);
 
 		free_config ();
-		read_config_file (CONFIG_FILE, FALSE, &event_mask);
+		read_config_file ((char*)CONFIG_FILE, FALSE, &event_mask);
 		if (do_scan)
 			dir_operation(SERVICE,mount_point,0,NULL);
 	}
@@ -545,7 +545,7 @@ static void read_config_file (char *path, int optional, unsigned long *event_mas
 	struct stat statbuf;
 	FILE *fp;
 	char buf[STRING_LENGTH];
-	char *line=NULL;
+	char *line = NULL;
 
 	debug_msg_logger(LOG_INFO, "%s: %s", __FUNCTION__, path);
 
@@ -583,7 +583,6 @@ read_config_file_err:
 	if(optional ==  0  && errno == ENOENT)
 		msg_logger_and_die(LOG_ERR, "read config file: %s: %m", path);
 	}
-	return;
 }   /*  End Function read_config_file   */
 
 static void process_config_line (const char *line, unsigned long *event_mask)
@@ -598,7 +597,7 @@ static void process_config_line (const char *line, unsigned long *event_mask)
 	char p[MAX_ARGS][STRING_LENGTH];
 	char when[STRING_LENGTH], what[STRING_LENGTH];
 	char name[STRING_LENGTH];
-	char * msg="";
+	const char *msg = "";
 	char *ptr;
 	int i;
 
@@ -876,10 +875,10 @@ static void action_modload (const struct devfsd_notify_struct *info,
 	char *argv[6];
 	char device[STRING_LENGTH];
 
-	argv[0] = MODPROBE;
-	argv[1] = MODPROBE_SWITCH_1; /* "-k" */
-	argv[2] = MODPROBE_SWITCH_2; /* "-C" */
-	argv[3] = CONFIG_MODULES_DEVFS;
+	argv[0] = (char*)MODPROBE;
+	argv[1] = (char*)MODPROBE_SWITCH_1; /* "-k" */
+	argv[2] = (char*)MODPROBE_SWITCH_2; /* "-C" */
+	argv[3] = (char*)CONFIG_MODULES_DEVFS;
 	argv[4] = device;
 	argv[5] = NULL;
 
@@ -969,7 +968,6 @@ static void action_copy (const struct devfsd_notify_struct *info,
 	ret = copy_inode (destination, &dest_stat, new_mode, source, &source_stat);
 	if (ENABLE_DEBUG && ret && (errno != EEXIST))
 		debug_msg_logger(LOG_ERR, "copy_inode: %s to %s: %m", source, destination);
-	return;
 }   /*  End Function action_copy  */
 
 static void action_compat (const struct devfsd_notify_struct *info, unsigned int action)
@@ -1221,7 +1219,7 @@ static int get_uid_gid (int flag, const char *string)
 {
 	struct passwd *pw_ent;
 	struct group *grp_ent;
-	static char *msg;
+	static const char *msg;
 
 	if (ENABLE_DEVFSD_VERBOSE)
 		msg="user";
@@ -1532,8 +1530,8 @@ static void expand_regexp (char *output, size_t outsize, const char *input,
 
 struct translate_struct
 {
-	char *match;    /*  The string to match to (up to length)                */
-	char *format;   /*  Format of output, "%s" takes data past match string,
+	const char *match;    /*  The string to match to (up to length)                */
+	const char *format;   /*  Format of output, "%s" takes data past match string,
 			NULL is effectively "%s" (just more efficient)       */
 };
 
@@ -1719,7 +1717,7 @@ static char get_old_ide_name (unsigned int major, unsigned int minor)
 
 static char *write_old_sd_name (char *buffer,
 				unsigned int major, unsigned int minor,
-				char *part)
+				const char *part)
 /*  [SUMMARY] Write the old SCSI disc name to a buffer.
     <buffer> The buffer to write to.
     <major> The major number for the device.

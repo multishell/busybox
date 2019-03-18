@@ -653,17 +653,16 @@ static char *encodeString(const char *string)
 	/* take the simple route and encode everything */
 	/* could possibly scan once to get length.     */
 	int len = strlen(string);
-	char *out = malloc(len * 6 + 1);
+	char *out = xmalloc(len * 6 + 1);
 	char *p = out;
 	char ch;
 
-	if (!out) return "";
 	while ((ch = *string++)) {
 		// very simple check for what to encode
 		if (isalnum(ch)) *p++ = ch;
 		else p += sprintf(p, "&#%d;", (unsigned char) ch);
 	}
-	*p = 0;
+	*p = '\0';
 	return out;
 }
 #endif          /* FEATURE_HTTPD_ENCODE_URL_STR */
@@ -874,8 +873,9 @@ static int sendHeaders(HttpResponseNum responseNum)
 
 #if ENABLE_FEATURE_HTTPD_BASIC_AUTH
 	if (responseNum == HTTP_UNAUTHORIZED) {
-		len += sprintf(buf+len, "WWW-Authenticate: Basic realm=\"%s\"\r\n",
-						      		    config->realm);
+		len += sprintf(buf+len,
+				"WWW-Authenticate: Basic realm=\"%s\"\r\n",
+				config->realm);
 	}
 #endif
 	if (responseNum == HTTP_MOVED_TEMPORARILY) {
@@ -951,7 +951,6 @@ static int getLine(void)
  *      (int bodyLen)  . . . . . . . . Length of the post body.
  *      (const char *cookie) . . . . . For set HTTP_COOKIE.
  *      (const char *content_type) . . For set CONTENT_TYPE.
-
  *
  * $Return: (char *)  . . . . A pointer to the decoded string (same as input).
  *
@@ -969,7 +968,7 @@ static int sendCgi(const char *url,
 	int pid = 0;
 	int inFd;
 	int outFd;
-	int firstLine = 1;
+	int buf_count;
 	int status;
 	size_t post_read_size, post_read_idx;
 
@@ -978,38 +977,52 @@ static int sendCgi(const char *url,
 	if (pipe(toCgi) != 0)
 		return 0;
 
+/*
+ * Note: We can use vfork() here in the no-mmu case, although
+ * the child modifies the parent's variables, due to:
+ * 1) The parent does not use the child-modified variables.
+ * 2) The allocated memory (in the child) is freed when the process
+ *    exits. This happens instantly after the child finishes,
+ *    since httpd is run from inetd (and it can't run standalone
+ *    in uClinux).
+ */
+#ifdef BB_NOMMU
+	pid = vfork();
+#else
 	pid = fork();
+#endif
 	if (pid < 0)
 		return 0;
 
 	if (!pid) {
 		/* child process */
 		char *script;
-		char *purl = xstrdup(url);
+		char *purl;
 		char realpath_buff[MAXPATHLEN];
 
-		if (purl == NULL)
-			_exit(242);
+		if (config->accepted_socket > 1)
+			close(config->accepted_socket);
+		if (config->server_socket > 1)
+			close(config->server_socket);
 
-		inFd = toCgi[0];
-		outFd = fromCgi[1];
-
-		dup2(inFd, 0);  // replace stdin with the pipe
-		dup2(outFd, 1);  // replace stdout with the pipe
+		dup2(toCgi[0], 0);  // replace stdin with the pipe
+		dup2(fromCgi[1], 1);  // replace stdout with the pipe
+		/* Huh? User seeing stderr can be a security problem...
+		 * and if CGI really wants that, it can always dup2(1,2)...
 		if (!DEBUG)
-			dup2(outFd, 2);  // replace stderr with the pipe
-
+			dup2(fromCgi[1], 2);  // replace stderr with the pipe
+		*/
+		/* I think we cannot inadvertently close 0, 1 here... */
 		close(toCgi[0]);
 		close(toCgi[1]);
 		close(fromCgi[0]);
 		close(fromCgi[1]);
 
-		close(config->accepted_socket);
-		close(config->server_socket);
-
 		/*
 		 * Find PATH_INFO.
 		 */
+		xfunc_error_retval = 242;
+		purl = xstrdup(url);
 		script = purl;
 		while ((script = strchr(script + 1, '/')) != NULL) {
 			/* have script.cgi/PATH_INFO or dirs/script.cgi[/PATH_INFO] */
@@ -1051,15 +1064,15 @@ static int sendCgi(const char *url,
 		/* (Older versions of bbox seem to do some decoding) */
 		setenv1("QUERY_STRING", config->query);
 		setenv1("SERVER_SOFTWARE", httpdVersion);
-		putenv("SERVER_PROTOCOL=HTTP/1.0");
-		putenv("GATEWAY_INTERFACE=CGI/1.1");
+		putenv((char*)"SERVER_PROTOCOL=HTTP/1.0");
+		putenv((char*)"GATEWAY_INTERFACE=CGI/1.1");
 		/* Having _separate_ variables for IP and port defeats
 		 * the purpose of having socket abstraction. Which "port"
 		 * are you using on Unix domain socket?
 		 * IOW - REMOTE_PEER="1.2.3.4:56" makes much more sense.
 		 * Oh well... */
 		{
-			char *p = config->rmt_ip_str ? : "";
+			char *p = config->rmt_ip_str ? : (char*)"";
 			char *cp = strrchr(p, ':');
 			if (ENABLE_FEATURE_IPV6 && cp && strchr(cp, ']'))
 				cp = NULL;
@@ -1078,7 +1091,7 @@ static int sendCgi(const char *url,
 #if ENABLE_FEATURE_HTTPD_BASIC_AUTH
 		if (config->remoteuser) {
 			setenv1("REMOTE_USER", config->remoteuser);
-			putenv("AUTH_TYPE=Basic");
+			putenv((char*)"AUTH_TYPE=Basic");
 		}
 #endif
 		if (config->referer)
@@ -1126,6 +1139,7 @@ static int sendCgi(const char *url,
 
 	/* parent process */
 
+	buf_count = 0;
 	post_read_size = 0;
 	post_read_idx = 0; /* for gcc */
 	inFd = fromCgi[0];
@@ -1163,10 +1177,11 @@ static int sendCgi(const char *url,
 		}
 
 		if (nfound <= 0) {
-			if (waitpid(pid, &status, WNOHANG) <= 0)
+			if (waitpid(pid, &status, WNOHANG) <= 0) {
 				/* Weird. CGI didn't exit and no fd's
-				 *  are ready, yet select returned?! */
+				 * are ready, yet select returned?! */
 				continue;
+			}
 			close(inFd);
 			if (DEBUG && WIFEXITED(status))
 				bb_error_msg("piped has exited with status=%d", WEXITSTATUS(status));
@@ -1191,7 +1206,7 @@ static int sendCgi(const char *url,
 		) {
 			/* We expect data, prev data portion is eaten by CGI
 			 * and there *is* data to read from the peer
-			 * (POST data?) */
+			 * (POSTDATA?) */
 			count = bodyLen > (int)sizeof(wbuf) ? (int)sizeof(wbuf) : bodyLen;
 			count = safe_read(config->accepted_socket, wbuf, count);
 			if (count > 0) {
@@ -1203,42 +1218,56 @@ static int sendCgi(const char *url,
 			}
 		}
 
-		if (FD_ISSET(inFd, &readSet)) {
-			/* There is something to read from CGI */
-			int s = config->accepted_socket;
-			char *rbuf = config->buf;
 #define PIPESIZE PIPE_BUF
 #if PIPESIZE >= MAX_MEMORY_BUFF
 # error "PIPESIZE >= MAX_MEMORY_BUFF"
 #endif
-			/* NB: was safe_read. If it *has to be* safe_read, */
-			/* please explain why in this comment... */
-			count = full_read(inFd, rbuf, PIPESIZE);
-			if (count == 0)
-				break;  /* closed */
-			if (count < 0)
-				continue; /* huh, error, why continue?? */
+		if (FD_ISSET(inFd, &readSet)) {
+			/* There is something to read from CGI */
+			int s = config->accepted_socket;
+			char *rbuf = config->buf;
 
-			if (firstLine) {
-				/* full_read (above) avoids
-				 * "chopped up into small chunks" syndrome here */
-				rbuf[count] = '\0';
-				/* check to see if the user script added headers */
-#define HTTP_200 "HTTP/1.0 200 OK\r\n\r\n"
-				if (memcmp(rbuf, HTTP_200, 4) != 0) {
-					/* there is no "HTTP", do it ourself */
-					full_write(s, HTTP_200, sizeof(HTTP_200)-1);
+			/* Are we still buffering CGI output? */
+			if (buf_count >= 0) {
+				static const char HTTP_200[] = "HTTP/1.0 200 OK\r\n";
+				/* Must use safe_read, not full_read, because
+				 * CGI may output a few first bytes and then wait
+				 * for POSTDATA without closing stdout.
+				 * With full_read we may wait here forever. */
+				count = safe_read(inFd, rbuf + buf_count, PIPESIZE - 4);
+				if (count <= 0) {
+					/* eof (or error) and there was no "HTTP",
+					 * so add one and write out the received data */
+					if (buf_count) {
+						full_write(s, HTTP_200, sizeof(HTTP_200)-1);
+						full_write(s, rbuf, buf_count);
+					}
+					break;  /* closed */
 				}
-#undef HTTP_200
-				/* Example of valid GCI without "Content-type:"
-				 * echo -en "HTTP/1.0 302 Found\r\n"
-				 * echo -en "Location: http://www.busybox.net\r\n"
-				 * echo -en "\r\n"
-				 */
-				//if (!strstr(rbuf, "ontent-")) {
-				//	full_write(s, "Content-type: text/plain\r\n\r\n", 28);
-				//}
-				firstLine = 0;
+				buf_count += count;
+				count = 0;
+				if (buf_count >= 4) {
+					/* check to see if CGI added "HTTP" */
+					if (memcmp(rbuf, HTTP_200, 4) != 0) {
+						/* there is no "HTTP", do it ourself */
+						if (full_write(s, HTTP_200, sizeof(HTTP_200)-1) != sizeof(HTTP_200)-1)
+							break;
+					}
+					/* example of valid CGI without "Content-type:"
+					 * echo -en "HTTP/1.0 302 Found\r\n"
+					 * echo -en "Location: http://www.busybox.net\r\n"
+					 * echo -en "\r\n"
+					if (!strstr(rbuf, "ontent-")) {
+						full_write(s, "Content-type: text/plain\r\n\r\n", 28);
+					}
+					 */
+					count = buf_count;
+					buf_count = -1; /* buffering off */
+				}
+			} else {
+				count = safe_read(inFd, rbuf, PIPESIZE);
+				if (count <= 0)
+					break;  /* eof (or error) */
 			}
 			if (full_write(s, rbuf, count) != count)
 				break;
@@ -1686,6 +1715,20 @@ static void handleIncoming(void)
 			sendCgi(url, prequest, length, cookie, content_type);
 			break;
 		}
+#if ENABLE_FEATURE_HTTPD_CONFIG_WITH_SCRIPT_INTERPR
+		{
+			char *suffix = strrchr(test, '.');
+			if (suffix) {
+				Htaccess *cur;
+				for (cur = config->script_i; cur; cur = cur->next) {
+					if (strcmp(cur->before_colon + 1, suffix) == 0) {
+						sendCgi(url, prequest, length, cookie, content_type);
+						goto bail_out;
+					}
+				}
+			}
+		}
+#endif
 		if (prequest != request_GET) {
 			sendHeaders(HTTP_NOT_IMPLEMENTED);
 			break;
@@ -1764,8 +1807,6 @@ static void handleIncoming(void)
  ****************************************************************************/
 static int miniHttpd(int server)
 {
-	static const int on = 1;
-
 	fd_set readfd, portfd;
 
 	FD_ZERO(&portfd);
@@ -1812,7 +1853,7 @@ static int miniHttpd(int server)
 #endif
 
 		/* set the KEEPALIVE option to cull dead connections */
-		setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, (void *)&on, sizeof(on));
+		setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, &const_int_1, sizeof(const_int_1));
 
 		if (DEBUG || fork() == 0) {
 			/* child */
@@ -1905,6 +1946,7 @@ static const char httpd_opts[] = "c:d:h:"
 	"p:if";
 
 
+int httpd_main(int argc, char *argv[]);
 int httpd_main(int argc, char *argv[])
 {
 	unsigned opt;
@@ -1972,7 +2014,7 @@ int httpd_main(int argc, char *argv[])
 		if (opt & OPT_SETUID) {
 			if (ugid.gid != (gid_t)-1) {
 				if (setgroups(1, &ugid.gid) == -1)
-	            			bb_perror_msg_and_die("setgroups");
+					bb_perror_msg_and_die("setgroups");
 				xsetgid(ugid.gid);
 			}
 			xsetuid(ugid.uid);

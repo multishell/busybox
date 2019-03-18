@@ -101,7 +101,7 @@ static long du(const char * const filename)
 
 	if (statbuf.st_nlink > count_hardlinks) {
 		/* Add files/directories with links only once */
-		if (is_in_ino_dev_hashtable(&statbuf, NULL)) {
+		if (is_in_ino_dev_hashtable(&statbuf)) {
 			return 0;
 		}
 		add_to_ino_dev_hashtable(&statbuf, NULL);
@@ -143,6 +143,7 @@ static long du(const char * const filename)
 	return sum;
 }
 
+int du_main(int argc, char **argv);
 int du_main(int argc, char **argv)
 {
 	long total;
@@ -222,7 +223,7 @@ int du_main(int argc, char **argv)
 	/* go through remaining args (if any) */
 	argv += optind;
 	if (optind >= argc) {
-		*--argv = ".";
+		*--argv = (char*)".";
 		if (slink_depth == 1) {
 			slink_depth = 0;
 		}
