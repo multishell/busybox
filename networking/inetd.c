@@ -154,14 +154,27 @@
  *                      setuid()
  */
 
+//usage:#define inetd_trivial_usage
+//usage:       "[-fe] [-q N] [-R N] [CONFFILE]"
+//usage:#define inetd_full_usage "\n\n"
+//usage:       "Listen for network connections and launch programs\n"
+//usage:     "\n	-f	Run in foreground"
+//usage:     "\n	-e	Log to stderr"
+//usage:     "\n	-q N	Socket listen queue (default: 128)"
+//usage:     "\n	-R N	Pause services after N connects/min"
+//usage:     "\n		(default: 0 - disabled)"
+
 #include <syslog.h>
 #include <sys/un.h>
 
 #include "libbb.h"
 
 #if ENABLE_FEATURE_INETD_RPC
-#include <rpc/rpc.h>
-#include <rpc/pmap_clnt.h>
+# if defined(__UCLIBC__) && ! defined(__UCLIBC_HAS_RPC__)
+#  error "You need to build uClibc with UCLIBC_HAS_RPC for NFS support"
+# endif
+# include <rpc/rpc.h>
+# include <rpc/pmap_clnt.h>
 #endif
 
 #if !BB_MMU
@@ -501,7 +514,7 @@ static void prepare_socket_fd(servtab_t *sep)
 
 		/* zero out the port for all RPC services; let bind()
 		 * find one. */
-		set_nport(sep->se_lsa, 0);
+		set_nport(&sep->se_lsa->u.sa, 0);
 
 		/* for RPC services, attempt to use a reserved port
 		 * if they are going to be running as root. */
@@ -959,7 +972,7 @@ static void reread_config_file(int sig UNUSED_PARAM)
 			}
 			if (LONE_CHAR(sep->se_local_hostname, '*')) {
 				lsa = xzalloc_lsa(sep->se_family);
-				set_nport(lsa, port);
+				set_nport(&lsa->u.sa, port);
 			} else {
 				lsa = host_and_af2sockaddr(sep->se_local_hostname,
 						ntohs(port), sep->se_family);
@@ -1153,12 +1166,17 @@ int inetd_main(int argc UNUSED_PARAM, char **argv)
 	sigaddset(&sa.sa_mask, SIGALRM);
 	sigaddset(&sa.sa_mask, SIGCHLD);
 	sigaddset(&sa.sa_mask, SIGHUP);
+//FIXME: explain why no SA_RESTART
+//FIXME: retry_network_setup is unsafe to run in signal handler (many reasons)!
 	sa.sa_handler = retry_network_setup;
 	sigaction_set(SIGALRM, &sa);
+//FIXME: reread_config_file is unsafe to run in signal handler(many reasons)!
 	sa.sa_handler = reread_config_file;
 	sigaction_set(SIGHUP, &sa);
+//FIXME: reap_child is unsafe to run in signal handler (uses stdio)!
 	sa.sa_handler = reap_child;
 	sigaction_set(SIGCHLD, &sa);
+//FIXME: clean_up_and_exit is unsafe to run in signal handler (uses stdio)!
 	sa.sa_handler = clean_up_and_exit;
 	sigaction_set(SIGTERM, &sa);
 	sa.sa_handler = clean_up_and_exit;

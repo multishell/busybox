@@ -9,6 +9,52 @@
  * Licensed under GPLv2, see file LICENSE in this source tree.
  */
 
+//usage:#if ENABLE_DESKTOP
+//usage:
+//usage:#define ps_trivial_usage
+//usage:       "[-o COL1,COL2=HEADER]" IF_FEATURE_SHOW_THREADS(" [-T]")
+//usage:#define ps_full_usage "\n\n"
+//usage:       "Show list of processes\n"
+//usage:     "\n	-o COL1,COL2=HEADER	Select columns for display"
+//usage:	IF_FEATURE_SHOW_THREADS(
+//usage:     "\n	-T			Show threads"
+//usage:	)
+//usage:
+//usage:#else /* !ENABLE_DESKTOP */
+//usage:
+//usage:#if !ENABLE_SELINUX && !ENABLE_FEATURE_PS_WIDE
+//usage:#define USAGE_PS "\nThis version of ps accepts no options"
+//usage:#else
+//usage:#define USAGE_PS ""
+//usage:#endif
+//usage:
+//usage:#define ps_trivial_usage
+//usage:       ""
+//usage:#define ps_full_usage "\n\n"
+//usage:       "Show list of processes\n"
+//usage:	USAGE_PS
+//usage:	IF_SELINUX(
+//usage:     "\n	-Z	Show selinux context"
+//usage:	)
+//usage:	IF_FEATURE_PS_WIDE(
+//usage:     "\n	w	Wide output"
+//usage:	)
+//usage:
+//usage:#endif /* ENABLE_DESKTOP */
+//usage:
+//usage:#define ps_example_usage
+//usage:       "$ ps\n"
+//usage:       "  PID  Uid      Gid State Command\n"
+//usage:       "    1 root     root     S init\n"
+//usage:       "    2 root     root     S [kflushd]\n"
+//usage:       "    3 root     root     S [kupdate]\n"
+//usage:       "    4 root     root     S [kpiod]\n"
+//usage:       "    5 root     root     S [kswapd]\n"
+//usage:       "  742 andersen andersen S [bash]\n"
+//usage:       "  743 andersen andersen S -bash\n"
+//usage:       "  745 root     root     S [getty]\n"
+//usage:       " 2990 andersen andersen R ps\n"
+
 #include "libbb.h"
 
 /* Absolute maximum on output line length */
@@ -16,19 +62,34 @@ enum { MAX_WIDTH = 2*1024 };
 
 #if ENABLE_DESKTOP
 
+#ifdef __linux__
+# include <sys/sysinfo.h>
+#endif
 #include <sys/times.h> /* for times() */
 #ifndef AT_CLKTCK
-#define AT_CLKTCK 17
+# define AT_CLKTCK 17
 #endif
 
-
-#if ENABLE_SELINUX
-#define SELINUX_O_PREFIX "label,"
-#define DEFAULT_O_STR    (SELINUX_O_PREFIX "pid,user" IF_FEATURE_PS_TIME(",time") ",args")
-#else
-#define DEFAULT_O_STR    ("pid,user" IF_FEATURE_PS_TIME(",time") ",args")
-#endif
-
+/* TODO:
+ * http://pubs.opengroup.org/onlinepubs/9699919799/utilities/ps.html
+ * specifies (for XSI-conformant systems) following default columns
+ * (l and f mark columns shown with -l and -f respectively):
+ * F     l   Flags (octal and additive) associated with the process (??)
+ * S     l   The state of the process
+ * UID   f,l The user ID; the login name is printed with -f
+ * PID       The process ID
+ * PPID  f,l The parent process
+ * C     f,l Processor utilization
+ * PRI   l   The priority of the process; higher numbers mean lower priority
+ * NI    l   Nice value
+ * ADDR  l   The address of the process
+ * SZ    l   The size in blocks of the core image of the process
+ * WCHAN l   The event for which the process is waiting or sleeping
+ * STIME f   Starting time of the process
+ * TTY       The controlling terminal for the process
+ * TIME      The cumulative execution time for the process
+ * CMD       The command name; the full command line is shown with -f
+ */
 typedef struct {
 	uint16_t width;
 	char name6[6];
@@ -48,7 +109,6 @@ struct globals {
 	unsigned kernel_HZ;
 	unsigned long long seconds_since_boot;
 #endif
-	char default_o[sizeof(DEFAULT_O_STR)];
 } FIX_ALIASING;
 #define G (*(struct globals*)&bb_common_bufsiz1)
 #define out                (G.out               )
@@ -59,7 +119,6 @@ struct globals {
 #define terminal_width     (G.terminal_width    )
 #define kernel_HZ          (G.kernel_HZ         )
 #define seconds_since_boot (G.seconds_since_boot)
-#define default_o          (G.default_o         )
 #define INIT_G() do { } while (0)
 
 #if ENABLE_FEATURE_PS_TIME
@@ -68,7 +127,8 @@ static ptrdiff_t find_elf_note(ptrdiff_t findme)
 {
 	ptrdiff_t *ep = (ptrdiff_t *) environ;
 
-	while (*ep++);
+	while (*ep++)
+		continue;
 	while (*ep) {
 		if (ep[0] == findme) {
 			return ep[1];
@@ -182,6 +242,11 @@ static void func_group(char *buf, int size, const procps_status_t *ps)
 static void func_comm(char *buf, int size, const procps_status_t *ps)
 {
 	safe_strncpy(buf, ps->comm, size+1);
+}
+
+static void func_state(char *buf, int size, const procps_status_t *ps)
+{
+	safe_strncpy(buf, ps->state, size+1);
 }
 
 static void func_args(char *buf, int size, const procps_status_t *ps)
@@ -300,7 +365,7 @@ static void func_pcpu(char *buf, int size, const procps_status_t *ps)
 */
 
 static const ps_out_t out_spec[] = {
-// Mandated by POSIX:
+/* Mandated by http://pubs.opengroup.org/onlinepubs/9699919799/utilities/ps.html: */
 	{ 8                  , "user"  ,"USER"   ,func_user  ,PSSCAN_UIDGID  },
 	{ 8                  , "group" ,"GROUP"  ,func_group ,PSSCAN_UIDGID  },
 	{ 16                 , "comm"  ,"COMMAND",func_comm  ,PSSCAN_COMM    },
@@ -322,7 +387,8 @@ static const ps_out_t out_spec[] = {
 #endif
 	{ 6                  , "tty"   ,"TT"     ,func_tty   ,PSSCAN_TTY     },
 	{ 4                  , "vsz"   ,"VSZ"    ,func_vsz   ,PSSCAN_VSZ     },
-// Not mandated by POSIX, but useful:
+/* Not mandated, but useful: */
+	{ 4                  , "stat"  ,"STAT"   ,func_state ,PSSCAN_STATE   },
 	{ 4                  , "rss"   ,"RSS"    ,func_rss   ,PSSCAN_RSS     },
 #if ENABLE_SELINUX
 	{ 35                 , "label" ,"LABEL"  ,func_label ,PSSCAN_CONTEXT },
@@ -459,11 +525,19 @@ static void format_process(const procps_status_t *ps)
 	printf("%.*s\n", terminal_width, buffer);
 }
 
+#if ENABLE_SELINUX
+# define SELINUX_O_PREFIX "label,"
+# define DEFAULT_O_STR    (SELINUX_O_PREFIX "pid,user" IF_FEATURE_PS_TIME(",time") ",args")
+#else
+# define DEFAULT_O_STR    ("pid,user" IF_FEATURE_PS_TIME(",time") ",args")
+#endif
+
 int ps_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int ps_main(int argc UNUSED_PARAM, char **argv)
 {
 	procps_status_t *p;
 	llist_t* opt_o = NULL;
+	char default_o[sizeof(DEFAULT_O_STR)];
 	int opt;
 	enum {
 		OPT_Z = (1 << 0),
@@ -501,7 +575,7 @@ int ps_main(int argc UNUSED_PARAM, char **argv)
 			parse_o(llist_pop(&opt_o));
 		} while (opt_o);
 	} else {
-		/* Below: parse_o() needs char*, NOT const char*... */
+		/* Below: parse_o() needs char*, NOT const char*, can't give it default_o */
 #if ENABLE_SELINUX
 		if (!(opt & OPT_Z) || !is_selinux_enabled()) {
 			/* no -Z or no SELinux: do not show LABEL */

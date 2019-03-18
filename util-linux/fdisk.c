@@ -7,6 +7,27 @@
  * Licensed under GPLv2 or later, see file LICENSE in this source tree.
  */
 
+/* Looks like someone forgot to add this to config system */
+//usage:#ifndef ENABLE_FEATURE_FDISK_BLKSIZE
+//usage:# define ENABLE_FEATURE_FDISK_BLKSIZE 0
+//usage:# define IF_FEATURE_FDISK_BLKSIZE(a)
+//usage:#endif
+//usage:
+//usage:#define fdisk_trivial_usage
+//usage:       "[-ul" IF_FEATURE_FDISK_BLKSIZE("s") "] "
+//usage:       "[-C CYLINDERS] [-H HEADS] [-S SECTORS] [-b SSZ] DISK"
+//usage:#define fdisk_full_usage "\n\n"
+//usage:       "Change partition table\n"
+//usage:     "\n	-u		Start and End are in sectors (instead of cylinders)"
+//usage:     "\n	-l		Show partition table for each DISK, then exit"
+//usage:	IF_FEATURE_FDISK_BLKSIZE(
+//usage:     "\n	-s		Show partition sizes in kb for each DISK, then exit"
+//usage:	)
+//usage:     "\n	-b 2048		(for certain MO disks) use 2048-byte sectors"
+//usage:     "\n	-C CYLINDERS	Set number of cylinders/heads/sectors"
+//usage:     "\n	-H HEADS"
+//usage:     "\n	-S SECTORS"
+
 #ifndef _LARGEFILE64_SOURCE
 /* For lseek64 */
 # define _LARGEFILE64_SOURCE
@@ -548,7 +569,7 @@ read_line(const char *prompt)
 {
 	int sz;
 
-	sz = read_line_input(prompt, line_buffer, sizeof(line_buffer), NULL);
+	sz = read_line_input(NULL, prompt, line_buffer, sizeof(line_buffer), /*timeout*/ -1);
 	if (sz <= 0)
 		exit(EXIT_SUCCESS); /* Ctrl-D or Ctrl-C */
 
@@ -2522,49 +2543,16 @@ new_partition(void)
 }
 
 static void
-write_table(void)
-{
-	int i;
-
-	if (LABEL_IS_DOS) {
-		for (i = 0; i < 3; i++)
-			if (ptes[i].changed)
-				ptes[3].changed = 1;
-		for (i = 3; i < g_partitions; i++) {
-			struct pte *pe = &ptes[i];
-
-			if (pe->changed) {
-				write_part_table_flag(pe->sectorbuffer);
-				write_sector(pe->offset_from_dev_start, pe->sectorbuffer);
-			}
-		}
-	}
-	else if (LABEL_IS_SGI) {
-		/* no test on change? the printf below might be mistaken */
-		sgi_write_table();
-	}
-	else if (LABEL_IS_SUN) {
-		int needw = 0;
-
-		for (i = 0; i < 8; i++)
-			if (ptes[i].changed)
-				needw = 1;
-		if (needw)
-			sun_write_table();
-	}
-
-	printf("The partition table has been altered!\n\n");
-	reread_partition_table(1);
-}
-
-static void
 reread_partition_table(int leave)
 {
 	int i;
 
 	printf("Calling ioctl() to re-read partition table\n");
 	sync();
-	/* sleep(2); Huh? */
+	/* Users with slow external USB disks on a 320MHz ARM system (year 2011)
+	 * report that sleep is needed, otherwise BLKRRPART may fail with -EIO:
+	 */
+	sleep(1);
 	i = ioctl_or_perror(dev_fd, BLKRRPART, NULL,
 			"WARNING: rereading partition table "
 			"failed, kernel still uses old table");
@@ -2581,6 +2569,40 @@ reread_partition_table(int leave)
 			close_dev_fd();
 		exit(i != 0);
 	}
+}
+
+static void
+write_table(void)
+{
+	int i;
+
+	if (LABEL_IS_DOS) {
+		for (i = 0; i < 3; i++)
+			if (ptes[i].changed)
+				ptes[3].changed = 1;
+		for (i = 3; i < g_partitions; i++) {
+			struct pte *pe = &ptes[i];
+			if (pe->changed) {
+				write_part_table_flag(pe->sectorbuffer);
+				write_sector(pe->offset_from_dev_start, pe->sectorbuffer);
+			}
+		}
+	}
+	else if (LABEL_IS_SGI) {
+		/* no test on change? the printf below might be mistaken */
+		sgi_write_table();
+	}
+	else if (LABEL_IS_SUN) {
+		for (i = 0; i < 8; i++) {
+			if (ptes[i].changed) {
+				sun_write_table();
+				break;
+			}
+		}
+	}
+
+	printf("The partition table has been altered.\n");
+	reread_partition_table(1);
 }
 #endif /* FEATURE_FDISK_WRITABLE */
 
@@ -2824,13 +2846,37 @@ open_list_and_close(const char *device, int user_specified)
 	close_dev_fd();
 }
 
+/* Is it a whole disk? The digit check is still useful
+   for Xen devices for example. */
+static int is_whole_disk(const char *disk)
+{
+	unsigned len;
+	int fd = open(disk, O_RDONLY);
+
+	if (fd != -1) {
+		struct hd_geometry geometry;
+		int err = ioctl(fd, HDIO_GETGEO, &geometry);
+		close(fd);
+		if (!err)
+			return (geometry.start == 0);
+	}
+
+	/* Treat "nameN" as a partition name, not whole disk */
+	/* note: mmcblk0 should work from the geometry check above */
+	len = strlen(disk);
+	if (len != 0 && isdigit(disk[len - 1]))
+		return 0;
+
+	return 1;
+}
+
 /* for fdisk -l: try all things in /proc/partitions
    that look like a partition name (do not end in a digit) */
 static void
 list_devs_in_proc_partititons(void)
 {
 	FILE *procpt;
-	char line[100], ptname[100], devname[120], *s;
+	char line[100], ptname[100], devname[120];
 	int ma, mi, sz;
 
 	procpt = fopen_or_warn("/proc/partitions", "r");
@@ -2839,13 +2885,10 @@ list_devs_in_proc_partititons(void)
 		if (sscanf(line, " %u %u %u %[^\n ]",
 				&ma, &mi, &sz, ptname) != 4)
 			continue;
-		for (s = ptname; *s; s++)
-			continue;
-		/* note: excluding '0': e.g. mmcblk0 is not a partition name! */
-		if (s[-1] >= '1' && s[-1] <= '9')
-			continue;
+
 		sprintf(devname, "/dev/%s", ptname);
-		open_list_and_close(devname, 0);
+		if (is_whole_disk(devname))
+			open_list_and_close(devname, 0);
 	}
 #if ENABLE_FEATURE_CLEAN_UP
 	fclose(procpt);
@@ -3058,7 +3101,7 @@ int fdisk_main(int argc UNUSED_PARAM, char **argv)
 			verify();
 			break;
 		case 'w':
-			write_table();          /* does not return */
+			write_table();  /* does not return */
 			break;
 #if ENABLE_FEATURE_FDISK_ADVANCED
 		case 'x':

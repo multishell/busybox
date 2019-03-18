@@ -18,6 +18,35 @@ typedef uint32_t aliased_uint32_t FIX_ALIASING;
 typedef off_t    aliased_off_t    FIX_ALIASING;
 
 
+const char* FAST_FUNC strip_unsafe_prefix(const char *str)
+{
+	const char *cp = str;
+	while (1) {
+		char *cp2;
+		if (*cp == '/') {
+			cp++;
+			continue;
+		}
+		if (strncmp(cp, "/../"+1, 3) == 0) {
+			cp += 3;
+			continue;
+		}
+		cp2 = strstr(cp, "/../");
+		if (!cp2)
+			break;
+		cp = cp2 + 4;
+	}
+	if (cp != str) {
+		static smallint warned = 0;
+		if (!warned) {
+			warned = 1;
+			bb_error_msg("removing leading '%.*s' from member names",
+				(int)(cp - str), str);
+		}
+	}
+	return cp;
+}
+
 /* NB: _DESTROYS_ str[len] character! */
 static unsigned long long getOctal(char *str, int len)
 {
@@ -199,7 +228,7 @@ char FAST_FUNC get_header_tar(archive_handle_t *archive_handle)
 		uint16_t magic2;
 
  autodetect:
-		magic2 = *(uint16_t*)tar.name;
+		magic2 = *(bb__aliased_uint16_t*)tar.name;
 		/* tar gz/bz autodetect: check for gz/bz2 magic.
 		 * If we see the magic, and it is the very first block,
 		 * we can switch to get_header_tar_gz/bz2/lzma().
@@ -319,10 +348,20 @@ char FAST_FUNC get_header_tar(archive_handle_t *archive_handle)
 	/* Set bits 12-15 of the files mode */
 	/* (typeflag was not trashed because chksum does not use getOctal) */
 	switch (tar.typeflag) {
-	/* busybox identifies hard links as being regular files with 0 size and a link name */
-	case '1':
+	case '1': /* hardlink */
+		/* we mark hardlinks as regular files with zero size and a link name */
 		file_header->mode |= S_IFREG;
-		break;
+		/* on size of link fields from star(4)
+		 * ... For tar archives written by pre POSIX.1-1988
+		 * implementations, the size field usually contains the size of
+		 * the file and needs to be ignored as no data may follow this
+		 * header type.  For POSIX.1- 1988 compliant archives, the size
+		 * field needs to be 0.  For POSIX.1-2001 compliant archives,
+		 * the size field may be non zero, indicating that file data is
+		 * included in the archive.
+		 * i.e; always assume this is zero for safety.
+		 */
+		goto size0;
 	case '7':
 	/* case 0: */
 	case '0':
@@ -422,12 +461,9 @@ char FAST_FUNC get_header_tar(archive_handle_t *archive_handle)
 		p_linkname = NULL;
 	}
 #endif
-	if (strncmp(file_header->name, "/../"+1, 3) == 0
-	 || strstr(file_header->name, "/../")
-	) {
-		bb_error_msg_and_die("name with '..' encountered: '%s'",
-				file_header->name);
-	}
+
+	/* Everything up to and including last ".." component is stripped */
+	overlapping_strcpy(file_header->name, strip_unsafe_prefix(file_header->name));
 
 	/* Strip trailing '/' in directories */
 	/* Must be done after mode is set as '/' is used to check if it's a directory */
