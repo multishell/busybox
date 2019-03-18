@@ -13,4 +13,4 @@
 #define FSCK_CANCELED    32     /* Aborted with a signal or ^C */
 #define EXIT_LIBRARY     128
 
-extern char *e2fs_set_sbin_path(void);
+extern void e2fs_set_sbin_path(void);

@@ -988,7 +988,8 @@ static int fs_match(struct fs_info *fs, struct fs_type_compile *cmp)
 /* Check if we should ignore this filesystem. */
 static int ignore(struct fs_info *fs)
 {
-	int wanted;
+	const char * const *ip;
+	int wanted = 0;
 	char *s;
 
 	/*
@@ -1006,11 +1007,15 @@ static int ignore(struct fs_info *fs)
 	if (!fs_match(fs, &fs_type_compiled)) return 1;
 
 	/* Are we ignoring this type? */
-	if(compare_string_array(ignored_types, fs->type) >= 0)
-		return 1;
+	for(ip = ignored_types; *ip; ip++)
+		if (strcmp(fs->type, *ip) == 0) return 1;
 
 	/* Do we really really want to check this fs? */
-	wanted = compare_string_array(really_wanted, fs->type) >= 0;
+	for(ip = really_wanted; *ip; ip++)
+		if (strcmp(fs->type, *ip) == 0) {
+			wanted = 1;
+			break;
+		}
 
 	/* See if the <fsck.fs> program is available. */
 	s = find_fsck(fs->type);
@@ -1361,7 +1366,7 @@ int fsck_main(int argc, char *argv[])
 		fstab = _PATH_MNTTAB;
 	load_fs_info(fstab);
 
-	fsck_path = e2fs_set_sbin_path();
+	e2fs_set_sbin_path();
 
 	if ((num_devices == 1) || (serialize))
 		interactive = 1;
@@ -1405,6 +1410,8 @@ int fsck_main(int argc, char *argv[])
 		}
 	}
 	status |= wait_many(FLAG_WAIT_ALL);
+	if (ENABLE_FEATURE_CLEAN_UP)
+		free(fsck_path);
 	blkid_put_cache(cache);
 	return status;
 }

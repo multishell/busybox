@@ -322,8 +322,6 @@ static inline int exclude_file(const llist_t *excluded_files, const char *file)
 
 	return 0;
 }
-# else
-#define exclude_file(excluded_files, file) 0
 # endif
 
 static int writeFileToTarball(const char *fileName, struct stat *statbuf,
@@ -331,7 +329,6 @@ static int writeFileToTarball(const char *fileName, struct stat *statbuf,
 {
 	struct TarBallInfo *tbInfo = (struct TarBallInfo *) userData;
 	const char *header_name;
-	int inputFileFd = -1;
 
 	/*
 	   ** Check to see if we are dealing with a hard link.
@@ -386,32 +383,30 @@ static int writeFileToTarball(const char *fileName, struct stat *statbuf,
 		return SKIP;
 	}
 
-	/* Is this a regular file? */
-	if ((tbInfo->hlInfo == NULL) && (S_ISREG(statbuf->st_mode))) {
+	if (writeTarHeader(tbInfo, header_name, fileName, statbuf) == FALSE) {
+		return (FALSE);
+	}
+
+	/* Now, if the file is a regular file, copy it out to the tarball */
+	if ((tbInfo->hlInfo == NULL)
+		&& (S_ISREG(statbuf->st_mode))) {
+		int inputFileFd;
+		ssize_t readSize = 0;
 
 		/* open the file we want to archive, and make sure all is well */
 		if ((inputFileFd = open(fileName, O_RDONLY)) < 0) {
 			bb_perror_msg("%s: Cannot open", fileName);
 			return (FALSE);
 		}
-	}
-
-	/* Add an entry to the tarball */
-	if (writeTarHeader(tbInfo, header_name, fileName, statbuf) == FALSE) {
-		return (FALSE);
-	}
-
-	/* If it was a regular file, write out the body */
-	if (inputFileFd >= 0 ) {
-		ssize_t readSize = 0;
 
 		/* write the file to the archive */
 		readSize = bb_copyfd_eof(inputFileFd, tbInfo->tarFd);
-		close(inputFileFd);
 
 		/* Pad the file up to the tar block size */
 		for (; (readSize % TAR_BLOCK_SIZE) != 0; readSize++)
 			write(tbInfo->tarFd, "\0", 1);
+
+		close(inputFileFd);
 	}
 
 	return (TRUE);
@@ -454,7 +449,6 @@ static inline int writeTarFile(const int tar_fd, const int verboseFlag,
 			/* Avoid vfork clobbering */
 			(void) &include;
 			(void) &errorFlag;
-			(void) &zip_exec;
 # endif
 
 		gzipPid = vfork();
@@ -467,9 +461,9 @@ static inline int writeTarFile(const int tar_fd, const int verboseFlag,
 				dup2(tbInfo.tarFd, 1);
 
 			close(gzipStatusPipe[0]);
-			fcntl(gzipStatusPipe[1], F_SETFD, FD_CLOEXEC);	/* close on exec shows success */
+			fcntl(gzipStatusPipe[1], F_SETFD, FD_CLOEXEC);	/* close on exec shows sucess */
 
-			execlp(zip_exec, zip_exec, "-f", NULL);
+			execlp(zip_exec, zip_exec, "-f", 0);
 			vfork_exec_errno = errno;
 
 			close(gzipStatusPipe[1]);
@@ -485,7 +479,7 @@ static inline int writeTarFile(const int tar_fd, const int verboseFlag,
 
 				if (n == 0 && vfork_exec_errno != 0) {
 					errno = vfork_exec_errno;
-					bb_perror_msg_and_die("Could not exec %s", zip_exec);
+					bb_perror_msg_and_die("Could not exec %s",zip_exec);
 				} else if ((n < 0) && (errno == EAGAIN || errno == EINTR))
 					continue;	/* try it again */
 				break;
@@ -516,12 +510,11 @@ static inline int writeTarFile(const int tar_fd, const int verboseFlag,
 	 * but that isn't necessary for GNU tar interoperability, and
 	 * so is considered a waste of space */
 
-	/* Close so the child process (if any) will exit */
-	close(tbInfo.tarFd);
-
 	/* Hang up the tools, close up shop, head home */
-	if (ENABLE_FEATURE_CLEAN_UP)
+	if (ENABLE_FEATURE_CLEAN_UP) {
+		close(tbInfo.tarFd);
 		freeHardLinkInfo(&tbInfo.hlInfoHead);
+	}
 
 	if (errorFlag)
 		bb_error_msg("Error exit delayed from previous errors");

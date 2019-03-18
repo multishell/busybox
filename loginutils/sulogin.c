@@ -58,6 +58,7 @@ extern int sulogin_main(int argc, char **argv)
 	
 	struct passwd pwent;
 	struct passwd *pwd;
+	time_t start, now;
 	const char * const *p;
 #ifdef CONFIG_FEATURE_SHADOWPASSWDS
 	struct spwd *spwd = NULL;
@@ -139,7 +140,12 @@ extern int sulogin_main(int argc, char **argv)
 		if (strcmp(pw_encrypt(pass, pwent.pw_passwd), pwent.pw_passwd) == 0) {
 			break;
 		}
-		bb_do_delay(FAIL_DELAY);
+		time(&start);
+		now = start;
+		while (difftime(now, start) < FAIL_DELAY) {
+			sleep(FAIL_DELAY);
+			time(&now);
+		}
 		puts("Login incorrect");
 		fflush(stdout);
 		syslog(LOG_WARNING, "Incorrect root password\n");

@@ -973,7 +973,6 @@ extern int inflate_gunzip(int in, int out)
 	/* Validate decompression - crc */
 	if (stored_crc != (gunzip_crc ^ 0xffffffffL)) {
 		bb_error_msg("crc error");
-		return -1;
 	}
 
 	/* Validate decompression - size */
@@ -981,7 +980,6 @@ extern int inflate_gunzip(int in, int out)
 		(bytebuffer[bytebuffer_offset] | (bytebuffer[bytebuffer_offset+1] << 8) |
 		(bytebuffer[bytebuffer_offset+2] << 16) | (bytebuffer[bytebuffer_offset+3] << 24))) {
 		bb_error_msg("Incorrect length");
-		return -1;
 	}
 
 	return 0;

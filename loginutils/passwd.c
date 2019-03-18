@@ -31,7 +31,7 @@ static int get_algo(char *a)
 }
 
 
-static int update_passwd(const struct passwd *pw, const char *crypt_pw)
+static int update_passwd(const struct passwd *pw, char *crypt_pw)
 {
 	char filename[1024];
 	char buf[1025];
@@ -323,6 +323,7 @@ static int new_password(const struct passwd *pw, int amroot, int algo)
 	char *cp;
 	char orig[200];
 	char pass[200];
+	time_t start, now;
 
 	if (!amroot && crypt_passwd[0]) {
 		if (!(clear = bb_askpass(0, "Old password:"))) {
@@ -333,7 +334,12 @@ static int new_password(const struct passwd *pw, int amroot, int algo)
 		if (strcmp(cipher, crypt_passwd) != 0) {
 			syslog(LOG_WARNING, "incorrect password for `%s'",
 				   pw->pw_name);
-			bb_do_delay(FAIL_DELAY);
+			time(&start);
+			now = start;
+			while (difftime(now, start) < FAIL_DELAY) {
+				sleep(FAIL_DELAY);
+				time(&now);
+			}
 			fprintf(stderr, "Incorrect password.\n");
 			/* return -1; */
 			return 1;

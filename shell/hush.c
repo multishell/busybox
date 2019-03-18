@@ -2007,7 +2007,6 @@ static struct pipe *new_pipe(void) {
 	pi->progs = NULL;
 	pi->next = NULL;
 	pi->followup = 0;  /* invalid */
-	pi->r_mode = RES_NONE;
 	return pi;
 }
 

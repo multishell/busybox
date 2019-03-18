@@ -6,7 +6,19 @@
    Modified for busybox based on coreutils v 5.0
    Copyright (C) 2003 Glenn McGrath <bug1@iinet.net.au>
 
-   Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 2, or (at your option)
+   any later version.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+   GNU General Public License for more details.
+
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software Foundation,
+   Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 */
 
 #include <ctype.h>
@@ -14,15 +26,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <getopt.h>
 #include <sys/types.h>
-#include <unistd.h>
+
 #include "busybox.h"
 
 /* If nonzero, count bytes, not column positions. */
-static unsigned long flags;
-#define FLAG_COUNT_BYTES	1
-#define FLAG_BREAK_SPACES	2
-#define FLAG_WIDTH			4
+static int count_bytes;
 
 /* Assuming the current column is COLUMN, return the column that
    printing C will move the cursor to.
@@ -30,7 +40,7 @@ static unsigned long flags;
 
 static int adjust_column(int column, char c)
 {
-	if (!(flags & FLAG_COUNT_BYTES)) {
+	if (!count_bytes) {
 		if (c == '\b') {
 			if (column > 0)
 				column--;
@@ -47,13 +57,19 @@ static int adjust_column(int column, char c)
 
 extern int fold_main(int argc, char **argv)
 {
-	char *w_opt;
+	/* If nonzero, try to break on whitespace. */
+	int break_spaces;
+
+	/* If nonzero, at least one of the files we read was standard input. */
+	int have_read_stdin;
+
 	int width = 80;
 	int i;
+	int optc;
 	int errs = 0;
 
+	break_spaces = count_bytes = have_read_stdin = 0;
 
-#ifdef CONFIG_FEATURE_SUSv2_OBSOLETE
 	/* Turn any numeric options into -w options.  */
 	for (i = 1; i < argc; i++) {
 		char const *a = argv[i];
@@ -71,11 +87,23 @@ extern int fold_main(int argc, char **argv)
 			}
 		}
 	}
-#endif
 
-	flags = bb_getopt_ulflags(argc, argv, "bsw:", &w_opt);
-	if (flags & FLAG_WIDTH)
-		width = bb_xgetlarg(w_opt, 10, 1, 10000);
+	while ((optc = getopt(argc, argv, "bsw:")) > 0) {
+		switch (optc) {
+			case 'b':		/* Count bytes rather than columns. */
+				count_bytes = 1;
+				break;
+			case 's':		/* Break at word boundaries. */
+				break_spaces = 1;
+				break;
+			case 'w': {	/* Line width. */
+				width = bb_xgetlarg(optarg, 10, 1, 10000);
+				break;
+			}
+			default:
+				bb_show_usage();
+		}
+	}
 
 	argv += optind;
 	if (!*argv) {
@@ -109,9 +137,9 @@ rescan:
 
 				if (column > width) {
 					/* This character would make the line too long.
-					   Print the line plus a newline, and make this character
+			 		  Print the line plus a newline, and make this character
 					   start the next line. */
-					if (flags & FLAG_BREAK_SPACES) {
+					if (break_spaces) {
 						/* Look for the last blank. */
 						int logical_end;
 
@@ -164,4 +192,3 @@ rescan:
 
 	bb_fflush_stdout_and_exit(errs);
 }
-/* vi: set sw=4 ts=4: */

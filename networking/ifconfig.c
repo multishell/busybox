@@ -480,7 +480,7 @@ int ifconfig_main(int argc, char **argv)
 					memcpy((((char *) (&ifr)) + a1op->ifr_offset),
 						   p, sizeof(struct sockaddr));
 				} else {
-					unsigned long i = strtoul(*argv, NULL, 0);
+					unsigned int i = strtoul(*argv, NULL, 0);
 
 					p = ((char *) (&ifr)) + a1op->ifr_offset;
 #ifdef CONFIG_FEATURE_IFCONFIG_MEMSTART_IOADDR_IRQ

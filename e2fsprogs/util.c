@@ -254,15 +254,13 @@ void make_journal_blocks(ext2_filsys fs, int journal_size, int journal_flags, in
 		puts("done");
 }
 
-char *e2fs_set_sbin_path(void)
+void e2fs_set_sbin_path(void)
 {
 	char *oldpath = getenv("PATH");
 	/* Update our PATH to include /sbin  */
 #define PATH_SET "/sbin"
-	if (oldpath) 
-		oldpath = bb_xasprintf("%s:%s", PATH_SET, oldpath);
-	 else 
-		oldpath = PATH_SET;
-	putenv (oldpath);
-	return oldpath;
+	if (oldpath)
+		putenv (bb_xasprintf("%s:%s", PATH_SET, oldpath));
+	else
+		putenv (PATH_SET);
 }

@@ -106,7 +106,7 @@ struct hd_geometry {
 
 
 struct systypes {
-	const char *name;
+	const unsigned char *name;
 };
 
 static uint    sector_size = DEFAULT_SECTOR_SIZE,
@@ -117,11 +117,7 @@ static uint    sector_size = DEFAULT_SECTOR_SIZE,
  * Raw disk label. For DOS-type partition tables the MBR,
  * with descriptions of the primary partitions.
  */
-#if (MAX_SECTOR_SIZE) > (BUFSIZ+1)
 static char MBRbuffer[MAX_SECTOR_SIZE];
-#else
-# define MBRbuffer bb_common_bufsiz1
-#endif
 
 #ifdef CONFIG_FEATURE_SUN_LABEL
 static int     sun_label;                  /* looking at sun disklabel */
@@ -309,8 +305,7 @@ str_units(int n) {      /* n==1: use singular */
 }
 
 static int
-valid_part_table_flag(const char *mbuffer) {
-	const unsigned char *b = (const unsigned char *)mbuffer;
+valid_part_table_flag(const unsigned char *b) {
 	return (b[510] == 0x55 && b[511] == 0xaa);
 }
 
@@ -2778,7 +2773,7 @@ static void create_sunlabel(void)
 	    puts(_("You may change all the disk params from the x menu"));
 	}
 
-	snprintf((char *)(sunlabel->info), sizeof(sunlabel->info),
+	snprintf(sunlabel->info, sizeof(sunlabel->info),
 		 "%s%s%s cyl %d alt %d hd %d sec %d",
 		 p ? p->vendor : "", (p && *p->vendor) ? " " : "",
 		 p ? p->model
@@ -3631,7 +3626,7 @@ static const char *partition_type(unsigned char type)
 	const struct systypes *types = get_sys_types();
 
 	for (i=0; types[i].name; i++)
-		if ((unsigned char )types[i].name[0] == type)
+		if (types[i].name[0] == type)
 			return types[i].name + 1;
 
 	return _("Unknown");
@@ -3665,8 +3660,7 @@ void list_types(const struct systypes *sys)
 
 	do {
 		printf("%c%2x  %-15.15s", i ? ' ' : '\n',
-			(unsigned char)sys[next].name[0],
-			partition_type((unsigned char)sys[next].name[0]));
+			sys[next].name[0], partition_type(sys[next].name[0]));
 		next = last[i++] + done;
 		if (i > 3 || next >= last[i]) {
 			i = 0;
@@ -3934,7 +3928,7 @@ get_kernel_geometry(void) {
 
 static void
 get_partition_table_geometry(void) {
-	const unsigned char *bufp = (const unsigned char *)MBRbuffer;
+	const unsigned char *bufp = MBRbuffer;
 	struct partition *p;
 	int i, h, s, hh, ss;
 	int first = 1;

@@ -330,7 +330,7 @@ static void parse_config_file(void)
 }
 
 #else
-#define parse_config_file()
+#define parse_config_file(x)
 #endif /* CONFIG_FEATURE_SUID_CONFIG */
 
 #ifdef CONFIG_FEATURE_SUID

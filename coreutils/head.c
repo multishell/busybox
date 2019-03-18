@@ -33,7 +33,7 @@
 
 static const char head_opts[] =
 	"n:"
-#if ENABLE_FEATURE_FANCY_HEAD
+#ifdef CONFIG_FEATURE_FANCY_HEAD
 	"c:qv"
 #endif
 	;
@@ -44,7 +44,7 @@ int head_main(int argc, char **argv)
 {
 	unsigned long count = 10;
 	unsigned long i;
-#if ENABLE_FEATURE_FANCY_HEAD
+#ifdef CONFIG_FEATURE_FANCY_HEAD
 	int count_bytes = 0;
 	int header_threshhold = 1;
 #endif
@@ -56,7 +56,6 @@ int head_main(int argc, char **argv)
 	int c;
 	int retval = EXIT_SUCCESS;
 
-#if defined CONFIG_FEATURE_SUSv2 || ENABLE_FEATURE_FANCY_HEAD
 	/* Allow legacy syntax of an initial numeric option without -n. */
 	if ((argc > 1) && (argv[1][0] == '-')
 		/* && (isdigit)(argv[1][1]) */
@@ -67,12 +66,10 @@ int head_main(int argc, char **argv)
 		p = (*argv) + 1;
 		goto GET_COUNT;
 	}
-#endif
 
-	/* No size benefit in converting this to bb_getopt_ulflags */
 	while ((opt = getopt(argc, argv, head_opts)) > 0) {
 		switch(opt) {
-#if ENABLE_FEATURE_FANCY_HEAD
+#ifdef CONFIG_FEATURE_FANCY_HEAD
 			case 'q':
 				header_threshhold = INT_MAX;
 				break;
@@ -85,9 +82,7 @@ int head_main(int argc, char **argv)
 #endif
 			case 'n':
 				p = optarg;
-#if defined CONFIG_FEATURE_SUSv2 || ENABLE_FEATURE_FANCY_HEAD
 			GET_COUNT:
-#endif
 				count = bb_xgetularg10(p);
 				break;
 			default:
@@ -101,7 +96,7 @@ int head_main(int argc, char **argv)
 	}
 
 	fmt = header_fmt_str + 1;
-#if ENABLE_FEATURE_FANCY_HEAD
+#ifdef CONFIG_FEATURE_FANCY_HEAD
 	if (argc - optind <= header_threshhold) {
 		header_threshhold = 0;
 	}
