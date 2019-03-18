@@ -218,7 +218,7 @@
 	"\t-d [#] -l [#] -S -L logfile -f -b -c dir\n" \
 	"\t-d num\tdebug level\n" \
 	"\t-l num\tlog level (8 - default)\n" \
-	"\t-S\tlog to syslod (defualt)\n" \
+	"\t-S\tlog to syslod (default)\n" \
 	"\t-L file\tlog to file\n" \
 	"\t-f\trun in fordeground\n" \
 	"\t-b\trun in background (default)\n" \
@@ -280,8 +280,10 @@
 	"expression ..."
 #define dc_full_usage \
 	"This is a Tiny RPN calculator that understands the\n" \
-	"following operations: +, -, /, *, and, or, not, eor.\n" \
-	"i.e., 'dc 2 2 add' -> 4, and 'dc 8 8 \\* 2 2 + /' -> 16" \
+	"following operations: +, add, -, sub, *, mul, /, div, %, mod, "\
+	"**, exp, and, or, not, eor.\n" \
+	"For example: 'dc 2 2 add' -> 4, and 'dc 8 8 \\* 2 2 + /' -> 16.\n" \
+	"\nOptions:\n" \
 	"p - Prints the value on the top of the stack, without altering the stack.\n" \
 	"f - Prints the entire contents of the stack without altering anything.\n" \
 	"o - Pops the value off the top of the stack and uses it to set the output radix.\n" \
@@ -335,6 +337,18 @@
 	"USER"
 #define deluser_full_usage \
 	 "Deletes user USER from the system"
+
+#define devfsd_trivial_usage \
+	"mntpnt [-v] [-fg] [-np]"
+#define devfsd_full_usage \
+	"Optional daemon for managing devfs (the Linux Device Filesystem).\n" \
+	"\nOptions:\n" \
+	"\tmntpnt\tThe mount point where devfs is mounted.\n\n" \
+	"\t-v\tPrint the protocol version numbers for devfsd\n" \
+	"\t\tand the kernel-side protocol version and exits.\n" \
+	"\t-fg\tRun the daemon in the foreground.\n\n" \
+	"\t-np\tExit  after  parsing  the configuration file and processing syn-\n" \
+	"\t\tthetic REGISTER events. Do not poll for events." 
 
 #ifdef CONFIG_FEATURE_HUMAN_READABLE
   #define USAGE_HUMAN_READABLE(a) a
@@ -1239,6 +1253,18 @@
 	USAGE_INSMOD_MAP("\t-m\tOutput load map to stdout") \
 	"\t-x\tdo not export externs\n"
 
+#define install_trivial_usage \
+	"[cgmops] [sources] <dest|directory>"
+#define install_full_usage \
+	"copy files and set attributes\n\n" \
+	"Options:\n" \
+	"\t-c\tcopy the file, default\n" \
+	"\t-g\tset group ownership\n" \
+	"\t-m\tset permission modes\n" \
+	"\t-o\tset ownership\n" \
+	"\t-p\tpreserve date\n" \
+	"\t-s\tstrip symbol tables\n"
+
 #define ip_trivial_usage \
 	"[ OPTIONS ] { address | link | route | tunnel } { COMMAND | help }"
 #define ip_full_usage \
@@ -1258,20 +1284,20 @@
 	"SCOPE-ID := [ host | link | global | NUMBER ]\n"
 
 #ifndef CONFIG_FEATURE_IPCALC_FANCY
-# define ipcalc_trivial_usage \
+#define ipcalc_trivial_usage \
 	"[--broadcast] [--netmask] [--network] ipaddr <netmask>"
 
-# define ipcalc_full_usage \
+#define ipcalc_full_usage \
 	"Calculate IP network settings from a IP address\n\n" \
 	"Options:\n" \
 	"\t-b\t--broadcast\tDisplay calculated broadcast address.\n" \
 	"\t-n\t--netmask\tDisplay default netmask for IP.\n" \
 	"\t-w\t--network\tDisplay calculated network address." 
 #else
-# define ipcalc_trivial_usage \
+#define ipcalc_trivial_usage \
 	"[OPTION]... ipaddr <netmask>"
 
-# define ipcalc_full_usage \
+#define ipcalc_full_usage \
 	"Calculate IP network settings from a IP address\n\n" \
 	"Options:\n" \
 	"\t-b\t--broadcast\tDisplay calculated broadcast address.\n" \
@@ -1526,20 +1552,24 @@
 	"$ makedevs /dev/hda b 3 0 0 8 s\n" \
 	"[creates hda,hda1-hda8]\n" 
 
+#ifdef CONFIG_FEATURE_MD5_SHA1_SUM_CHECK
+#define USAGE_MD5_SHA1_SUM_CHECK(a) a
+#else
+#define USAGE_MD5_SHA1_SUM_CHECK(a)
+#endif
+
 #define md5sum_trivial_usage \
-	"[OPTION] [FILE]...\n" \
-	"or: md5sum [OPTION] -c [FILE]"
+	"[OPTION] [FILEs...]" \
+	USAGE_MD5_SHA1_SUM_CHECK("\n   or: md5sum [OPTION] -c [FILE]")
 #define md5sum_full_usage \
-	"Print or check MD5 checksums.\n\n" \
+	"Print" USAGE_MD5_SHA1_SUM_CHECK(" or check") " MD5 checksums.\n\n" \
 	"Options:\n" \
-	"With no FILE, or when FILE is -, read standard input.\n\n" \
-	"\t-b\tread files in binary mode\n" \
+	"With no FILE, or when FILE is -, read standard input." \
+	USAGE_MD5_SHA1_SUM_CHECK("\n\n" \
 	"\t-c\tcheck MD5 sums against given list\n" \
-	"\t-t\tread files in text mode (default)\n" \
-	"\t-g\tread a string\n" \
 	"\nThe following two options are useful only when verifying checksums:\n" \
 	"\t-s\tdon't output anything, status code shows success\n" \
-	"\t-w\twarn about improperly formated MD5 checksum lines"
+	"\t-w\twarn about improperly formated MD5 checksum lines")
 #define md5sum_example_usage \
 	"$ md5sum < busybox\n" \
 	"6fd11e98b98a58f64ff3398d7b324003\n" \
@@ -2080,9 +2110,17 @@
 	"Shows listing of the last users that logged into the system"
 
 #define sha1sum_trivial_usage \
-	"[OPTION] [FILE]"
+	"[OPTION] [FILEs...]" \
+	USAGE_MD5_SHA1_SUM_CHECK("\n   or: sha1sum [OPTION] -c [FILE]")
 #define sha1sum_full_usage \
-	"[OPTION] [FILE]"
+	"Print" USAGE_MD5_SHA1_SUM_CHECK(" or check") " SHA1 checksums.\n\n" \
+	"Options:\n" \
+	"With no FILE, or when FILE is -, read standard input." \
+	USAGE_MD5_SHA1_SUM_CHECK("\n\n" \
+	"\t-c\tcheck SHA1 sums against given list\n" \
+	"\nThe following two options are useful only when verifying checksums:\n" \
+	"\t-s\tdon't output anything, status code shows success\n" \
+	"\t-w\twarn about improperly formated SHA1 checksum lines")
 
 #ifdef CONFIG_FEATURE_FANCY_SLEEP
   #define USAGE_FANCY_SLEEP(a) a
@@ -2202,6 +2240,11 @@
 	"Write all buffered filesystem blocks to disk."
 
 
+#ifdef CONFIG_FEATURE_ROTATE_LOGFILE
+	#define USAGE_ROTATE_LOGFILE(a) a
+#else
+	#define USAGE_ROTATE_LOGFILE(a) 
+#endif
 #ifdef CONFIG_FEATURE_REMOTE_LOG
   #define USAGE_REMOTE_LOG(a) a
 #else
@@ -2222,6 +2265,9 @@
 	"\t-m NUM\t\tInterval between MARK lines (default=20min, 0=off)\n" \
 	"\t-n\t\tRun as a foreground process\n" \
 	"\t-O FILE\t\tUse an alternate log file (default=/var/log/messages)" \
+	USAGE_ROTATE_LOGFILE( \
+	"\n\t-s SIZE\t\tMax size (KB) bevor rotate (default=200KB, 0=off)\n" \
+	"\t-b NUM\t\tNumber of rotated log files (default=1, 0=purge log)") \
 	USAGE_REMOTE_LOG( \
 	"\n\t-R HOST[:PORT]\tLog to IP or hostname on PORT (default PORT=514/UDP)\n" \
 	"\t-L\t\tLog locally and via network logging (default is network only)") \
@@ -2277,9 +2323,14 @@
 #else
   #define USAGE_TAR_BZIP2(a)
 #endif
+#ifdef CONFIG_FEATURE_TAR_COMPRESS
+  #define USAGE_TAR_COMPRESS(a) a
+#else
+  #define USAGE_TAR_COMPRESS(a)
+#endif
 
 #define tar_trivial_usage \
-	"-[" USAGE_TAR_CREATE("c") USAGE_TAR_GZIP("z") USAGE_TAR_BZIP2("j") "xtvO] " \
+	"-[" USAGE_TAR_CREATE("c") USAGE_TAR_GZIP("z") USAGE_TAR_BZIP2("j") USAGE_TAR_COMPRESS("Z") "xtvO] " \
 	USAGE_TAR_EXCLUDE("[--exclude FILE] [-X FILE]") \
 	"[-f TARFILE] [-C DIR] [FILE(s)] ..."
 #define tar_full_usage \
@@ -2291,6 +2342,7 @@
 	"\nArchive format selection:\n" \
 	USAGE_TAR_GZIP("\tz\t\tFilter the archive through gzip\n") \
 	USAGE_TAR_BZIP2("\tj\t\tFilter the archive through bzip2\n") \
+	USAGE_TAR_COMPRESS("\tZ\t\tFilter the archive through compress\n") \
 	"\nFile selection:\n" \
 	"\tf\t\tname of TARFILE or \"-\" for stdin\n" \
 	"\tO\t\textract to stdout\n" \
@@ -2704,13 +2756,32 @@
 #define whoami_full_usage \
 	"Prints the user name associated with the current effective user id."
 
+#ifdef CONFIG_FEATURE_XARGS_SUPPORT_CONFIRMATION
+#define USAGE_XARGS_CONFIRMATION(a) a
+#else
+#define USAGE_XARGS_CONFIRMATION(a)
+#endif
+#ifdef CONFIG_FEATURE_XARGS_SUPPORT_TERMOPT
+#define USAGE_XARGS_TERMOPT(a) a
+#else
+#define USAGE_XARGS_TERMOPT(a)
+#endif
+#ifdef CONFIG_FEATURE_XARGS_SUPPORT_ZERO_TERM
+#define USAGE_XARGS_ZERO_TERM(a) a
+#else
+#define USAGE_XARGS_ZERO_TERM(a)
+#endif
+
+
 #define xargs_trivial_usage \
-	"[COMMAND] [-prt] [ARGS...]"
+	"[COMMAND] [OPTIONS] [ARGS...]"
 #define xargs_full_usage \
 	"Executes COMMAND on every item given by standard input.\n\n" \
 	"Options:\n" \
-	"\t-p\tPrompt the user about whether to run each command\n" \
+	USAGE_XARGS_CONFIRMATION("\t-p\tPrompt the user about whether to run each command\n") \
 	"\t-r\tDo not run command for empty readed lines\n" \
+	USAGE_XARGS_TERMOPT("\t-x\tExit if the size is exceeded\n") \
+	USAGE_XARGS_ZERO_TERM("\t-0\tInput filenames are terminated by a null character\n") \
 	"\t-t\tPrint the command line on stderr before executing it."
 #define xargs_example_usage \
 	"$ ls | xargs gzip\n" \

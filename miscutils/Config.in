@@ -24,7 +24,7 @@ config CONFIG_FEATURE_CROND_CALL_SENDMAIL
 	default n
 	depends on CONFIG_CROND
 	help
-	  Support call /usr/sbin/sendmail for send cmd outputs.
+	  Support calling /usr/sbin/sendmail for send cmd outputs.
 
 config CONFIG_CRONTAB
 	bool "crontab"
@@ -39,6 +39,34 @@ config CONFIG_DC
 	help
 	  Dc is a reverse-polish desk calculator which supports unlimited
 	  precision arithmetic.
+
+config CONFIG_DEVFSD
+	bool "devfsd"
+	default n
+	help
+	  Provides compatibility with old device names on a devfs systems.
+	  You should set it to true if you have devfs enabled.
+
+config CONFIG_DEVFSD_MODLOAD
+	bool "Adds support for MODLOAD action"
+	default n
+	depends on CONFIG_DEVFSD
+	help
+	  This actually doesn't work with busybox  modutils but needs the real modutils.
+
+config CONFIG_DEVFSD_VERBOSE
+	bool "Increases logging to stderr and syslog"
+	default n
+	depends on CONFIG_DEVFSD
+	help
+	  Increases logging to stderr and syslog.
+
+config CONFIG_DEVFSD_DEBUG
+	bool "Adds function names to program output"
+	default n
+	depends on CONFIG_DEVFSD
+	help
+	  Adds function names to program output.
 
 config CONFIG_LAST
 	bool "last"
@@ -117,7 +145,7 @@ config CONFIG_MT
 	bool "mt"
 	default n
 	help
-	  Mt is used to control tape devices.  You can use the mt utility
+	  mt is used to control tape devices.  You can use the mt utility
 	  to advance or rewind a tape past a specified number of archive
 	  files on the tape.
 
@@ -125,7 +153,7 @@ config CONFIG_STRINGS
 	bool "strings"
 	default n
 	help
-	  Strings prints the printable character sequences for each file
+	  strings prints the printable character sequences for each file
 	  specified.
 
 config CONFIG_TIME
@@ -140,7 +168,7 @@ config CONFIG_WATCHDOG
 	bool "watchdog"
 	default n
 	help
-	  The watchdog utility is used with hardware or softwate watchdog
+	  The watchdog utility is used with hardware or software watchdog
 	  device drivers.  It opens the specified watchdog device special file
 	  and periodically writes a magic character to the device.  If the
 	  watchdog applet ever fails to write the magic character within a

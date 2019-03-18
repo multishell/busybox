@@ -58,6 +58,14 @@ static char lfile[MAXPATHLEN];
 
 static const char *logFilePath = __LOG_FILE;
 
+#ifdef CONFIG_FEATURE_ROTATE_LOGFILE
+/* max size of message file bevor being rotated */
+static int logFileSize = 200 * 1024;
+
+/* number of rotated message files */
+static int logFileRotate = 1;
+#endif
+
 /* interval between marks in seconds */
 static int MarkInterval = 20 * 60;
 
@@ -106,8 +114,7 @@ static struct sembuf SMwdn[3] = { {0, 0}, {1, 0}, {1, +1} };	// set SMwdn
 
 static int shmid = -1;	// ipc shared memory id
 static int s_semid = -1;	// ipc semaphore id
-int data_size = 16000;	// data size
-int shm_size = 16000 + sizeof(*buf);	// our buffer size
+static int data_size = 16000;	// default data size
 static int circular_logging = FALSE;
 
 /*
@@ -149,7 +156,7 @@ void ipcsyslog_cleanup(void)
 void ipcsyslog_init(void)
 {
 	if (buf == NULL) {
-		if ((shmid = shmget(KEY_ID, shm_size, IPC_CREAT | 1023)) == -1) {
+		if ((shmid = shmget(KEY_ID, data_size, IPC_CREAT | 1023)) == -1) {
 			bb_perror_msg_and_die("shmget");
 		}
 
@@ -157,7 +164,7 @@ void ipcsyslog_init(void)
 			bb_perror_msg_and_die("shmat");
 		}
 
-		buf->size = data_size;
+		buf->size = data_size - sizeof(*buf);
 		buf->head = buf->tail = 0;
 
 		// we'll trust the OS to set initial semval to 0 (let's hope)
@@ -306,6 +313,36 @@ static void message(char *fmt, ...)
 							 O_NONBLOCK)) >= 0) {
 		fl.l_type = F_WRLCK;
 		fcntl(fd, F_SETLKW, &fl);
+#ifdef CONFIG_FEATURE_ROTATE_LOGFILE
+		if ( logFileSize > 0 ) {
+			struct stat statf;
+			int r = fstat(fd, &statf);
+			if( !r && (statf.st_mode & S_IFREG)
+				&& (lseek(fd,0,SEEK_END) > logFileSize) ) {
+				if(logFileRotate > 0) {
+					int i;
+					char oldFile[(strlen(logFilePath)+3)], newFile[(strlen(logFilePath)+3)];
+					for(i=logFileRotate-1;i>0;i--) {
+						sprintf(oldFile, "%s.%d", logFilePath, i-1);
+						sprintf(newFile, "%s.%d", logFilePath, i);
+						rename(oldFile, newFile);
+					}
+					sprintf(newFile, "%s.%d", logFilePath, 0);
+					fl.l_type = F_UNLCK;
+					fcntl (fd, F_SETLKW, &fl);
+					close(fd);
+					rename(logFilePath, newFile);
+					fd = device_open (logFilePath,
+						   O_WRONLY | O_CREAT | O_NOCTTY | O_APPEND |
+						   O_NONBLOCK);
+					fl.l_type = F_WRLCK;
+					fcntl (fd, F_SETLKW, &fl);
+				} else {
+					ftruncate( fd, 0 );
+				}
+			}
+		}
+#endif
 		va_start(arguments, fmt);
 		vdprintf(fd, fmt, arguments);
 		va_end(arguments);
@@ -579,7 +616,7 @@ extern int syslogd_main(int argc, char **argv)
 	char *p;
 
 	/* do normal option parsing */
-	while ((opt = getopt(argc, argv, "m:nO:R:LC")) > 0) {
+	while ((opt = getopt(argc, argv, "m:nO:s:b:R:LC::")) > 0) {
 		switch (opt) {
 		case 'm':
 			MarkInterval = atoi(optarg) * 60;
@@ -590,6 +627,15 @@ extern int syslogd_main(int argc, char **argv)
 		case 'O':
 			logFilePath = optarg;
 			break;
+#ifdef CONFIG_FEATURE_ROTATE_LOGFILE
+		case 's':
+			logFileSize = atoi(optarg) * 1024;
+			break;
+		case 'b':
+			logFileRotate = atoi(optarg);
+			if( logFileRotate > 99 ) logFileRotate = 99;
+			break;
+#endif
 #ifdef CONFIG_FEATURE_REMOTE_LOG
 		case 'R':
 			RemoteHost = bb_xstrdup(optarg);
@@ -605,6 +651,12 @@ extern int syslogd_main(int argc, char **argv)
 #endif
 #ifdef CONFIG_FEATURE_IPC_SYSLOG
 		case 'C':
+			if (optarg) {
+				int buf_size = atoi(optarg);
+				if (buf_size >= 4) {
+					data_size = buf_size;
+				}
+			}
 			circular_logging = TRUE;
 			break;
 #endif

@@ -62,7 +62,7 @@ extern int env_main(int argc, char** argv)
 	char **ep, *p;
 	char *cleanenv[1] = { NULL };
 	unsigned long opt;
-	llist_t *unset_env;
+	llist_t *unset_env = NULL;
 	extern char **environ;
 
 	bb_opt_complementaly = "u*";

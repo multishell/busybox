@@ -57,7 +57,7 @@ extern char get_header_tar(archive_handle_t *archive_handle)
 	/* Align header */
 	data_align(archive_handle, 512);
 
-	if (archive_xread(archive_handle, tar.raw, 512) != 512) {
+	if (bb_full_read(archive_handle->src_fd, tar.raw, 512) != 512) {
 		/* Assume end of file */
 		return(EXIT_FAILURE);
 	}
@@ -106,6 +106,14 @@ extern char get_header_tar(archive_handle_t *archive_handle)
 		file_header->name = concat_path_file(tar.formated.prefix, tar.formated.name);
 	}
 
+	{	/* Strip trailing '/' in directories */
+		char *tmp = last_char_is(file_header->name, '/');
+		if (tmp) {
+			*tmp = '\0';
+		}
+	}
+
+
 	file_header->mode = strtol(tar.formated.mode, NULL, 8);
 	file_header->uid = strtol(tar.formated.uid, NULL, 8);
 	file_header->gid = strtol(tar.formated.gid, NULL, 8);
@@ -143,10 +151,9 @@ extern char get_header_tar(archive_handle_t *archive_handle)
 		file_header->mode |= S_IFIFO;
 		break;
 # endif
-	/* hard links are detected as entries with 0 size, a link name, 
-	 * and not being a symlink, hence we have nothing to do here */
+	/* hard links are detected as regular files with 0 size and a link name */
 	case '1':
-		file_header->mode |= ~S_IFLNK;
+		file_header->mode &= (S_IFREG | 07777);
 		break;
 # ifdef CONFIG_FEATURE_TAR_GNU_EXTENSIONS
 	case 'L': {
@@ -179,11 +186,13 @@ extern char get_header_tar(archive_handle_t *archive_handle)
 		archive_handle->action_header(archive_handle->file_header);
 		archive_handle->flags |= ARCHIVE_EXTRACT_QUIET;
 		archive_handle->action_data(archive_handle);
-		archive_handle->passed = llist_add_to(archive_handle->passed, archive_handle->file_header->name);
+		archive_handle->passed = llist_add_to(archive_handle->passed, file_header->name);
 	} else {
 		data_skip(archive_handle);			
 	}
 	archive_handle->offset += file_header->size;
+
+	free(file_header->link_name);
 
 	return(EXIT_SUCCESS);
 }

@@ -28,7 +28,9 @@
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <regex.h>
 #include <termios.h>
+#include <stdint.h>
 
 #include <netdb.h>
 
@@ -108,8 +110,9 @@ extern int is_directory(const char *name, int followLinks, struct stat *statBuf)
 extern int remove_file(const char *path, int flags);
 extern int copy_file(const char *source, const char *dest, int flags);
 extern ssize_t safe_read(int fd, void *buf, size_t count);
-extern ssize_t bb_full_write(int fd, const void *buf, size_t len);
 extern ssize_t bb_full_read(int fd, void *buf, size_t len);
+extern ssize_t safe_write(int fd, const void *buf, size_t count);
+extern ssize_t bb_full_write(int fd, const void *buf, size_t len);
 extern int recursive_action(const char *fileName, int recurse,
 	  int followLinks, int depthFirst,
 	  int (*fileAction) (const char *fileName, struct stat* statbuf, void* userData),
@@ -133,7 +136,8 @@ extern long *find_pid_by_name( const char* pidName);
 extern char *find_real_root_device_name(const char* name);
 extern char *bb_get_line_from_file(FILE *file);
 extern char *bb_get_chomped_line_from_file(FILE *file);
-extern int   bb_copyfd(int fd1, int fd2, const off_t chunksize);
+extern int bb_copyfd_size(int fd1, int fd2, const off_t size);
+extern int bb_copyfd_eof(int fd1, int fd2);
 extern void  bb_xprint_and_close_file(FILE *file);
 extern int   bb_xprint_file_by_name(const char *filename);
 extern char  bb_process_escape_sequence(const char **ptr);
@@ -292,7 +296,9 @@ extern struct hostent *xgethostbyname(const char *name);
 extern struct hostent *xgethostbyname2(const char *name, int af);
 extern int create_icmp_socket(void);
 extern int create_icmp6_socket(void);
-extern int xconnect(const char *host, const char *port);
+extern int xconnect(struct sockaddr_in *s_addr);
+extern int bb_getport(const char *port);
+extern void bb_lookup_host(struct sockaddr_in *s_in, const char *host, const char *port);
 
 //#warning wrap this?
 char *dirname (char *path);
@@ -372,6 +378,7 @@ extern int bb_default_error_retval;
 #endif
 # define VC_FORMAT "/dev/vc/%d"
 # define LOOP_FORMAT "/dev/loop/%d"
+# define FB_0 "/dev/fb/0"
 #else
 # define CURRENT_VC "/dev/tty0"
 # define VC_1 "/dev/tty1"
@@ -390,6 +397,7 @@ extern int bb_default_error_retval;
 #endif
 # define VC_FORMAT "/dev/tty%d"
 # define LOOP_FORMAT "/dev/loop%d"
+# define FB_0 "/dev/fb0"
 #endif
 
 //#warning put these in .o files
@@ -462,9 +470,17 @@ typedef struct llist_s {
 } llist_t;
 extern llist_t *llist_add_to(llist_t *old_head, char *new_item);
 
-void print_login_issue(const char *issue_file, const char *tty);
-void print_login_prompt(void);
+extern void print_login_issue(const char *issue_file, const char *tty);
+extern void print_login_prompt(void);
 
-void vfork_daemon_rexec(int argc, char **argv, char *foreground_opt);
+extern void vfork_daemon_rexec(int argc, char **argv, char *foreground_opt);
+extern void get_terminal_width_height(int fd, int *width, int *height);
+extern unsigned long get_ug_id(const char *s, long (*my_getxxnam)(const char *));
+extern void xregcomp(regex_t *preg, const char *regex, int cflags);
+
+#define HASH_SHA1	1
+#define HASH_MD5	2
+extern int hash_fd(int fd, const size_t size, const uint8_t hash_algo, uint8_t *hashval);
+extern size_t bb_full_fd_action(int src_fd, int dst_fd, const size_t size, ssize_t (*action)(int fd, const void *, size_t));
 
 #endif /* __LIBCONFIG_H__ */

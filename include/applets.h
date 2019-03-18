@@ -142,6 +142,9 @@
 #ifdef CONFIG_DELUSER
 	APPLET(deluser, deluser_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_DEVFSD
+	APPLET(devfsd, devfsd_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
+#endif
 #ifdef CONFIG_DF
 	APPLET(df, df_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
@@ -282,6 +285,9 @@
 #endif
 #ifdef CONFIG_INSMOD
 	APPLET(insmod, insmod_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_INSTALL
+	APPLET(install, install_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_IP
 	APPLET(ip, ip_main, _BB_DIR_BIN, _BB_SUID_NEVER)
@@ -441,6 +447,9 @@
 #endif
 #ifdef CONFIG_PING6
 	APPLET(ping6, ping6_main, _BB_DIR_BIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_PIPE_PROGRESS
+	APPLET_NOUSAGE("pipe_progress", pipe_progress_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_PIVOT_ROOT
  	APPLET(pivot_root, pivot_root_main, _BB_DIR_SBIN, _BB_SUID_NEVER)

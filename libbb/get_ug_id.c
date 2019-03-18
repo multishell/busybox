@@ -14,17 +14,17 @@
  *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include "unarchive.h"
-#include "libbb.h"
 
-extern unsigned char archive_xread_char(const archive_handle_t *archive_handle)
+extern unsigned long get_ug_id(const char *s, long (*my_getxxnam)(const char *))
 {
-	unsigned char tmp;
-	
-	archive_xread(archive_handle, &tmp, 1);
+	unsigned long r;
+	char *p;
 
-	return(tmp);
+	r = strtoul(s, &p, 10);
+	if (*p || (s == p)) {
+		r = my_getxxnam(s);
+	}
+
+	return r;
 }

@@ -14,12 +14,19 @@
  *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-#include "unarchive.h"
+#include <stdlib.h>
 
-extern void seek_by_char(const archive_handle_t *archive_handle, const unsigned int amount)
+#include "unarchive.h"
+#include "busybox.h"
+
+/*	If we are reading through a pipe(), or from stdin then we cant lseek,
+ *  we must read and discard the data to skip over it.
+ *
+ *  TODO: rename to seek_by_read
+ */
+extern void seek_by_char(const archive_handle_t *archive_handle, const unsigned int jump_size)
 {
-	unsigned int i;
-	for (i = 0; i < amount; i++) {
-		archive_xread_char(archive_handle);
+	if (jump_size) {
+		bb_full_fd_action(archive_handle->src_fd, -1, jump_size, NULL);
 	}
 }

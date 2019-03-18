@@ -42,30 +42,33 @@ extern void data_extract_all(archive_handle_t *archive_handle)
 	/* Check if the file already exists */
 	if (archive_handle->flags & ARCHIVE_EXTRACT_UNCONDITIONAL) {
 		/* Remove the existing entry if it exists */
-		if ((unlink(file_header->name) == -1) && (errno != ENOENT)) {
+		if (((file_header->mode & S_IFMT) != S_IFDIR) && (unlink(file_header->name) == -1) && (errno != ENOENT)) {
 			bb_perror_msg_and_die("Couldnt remove old file");
 		}
 	}
 	else if (archive_handle->flags & ARCHIVE_EXTRACT_NEWER) {
 		/* Remove the existing entry if its older than the extracted entry */
 		struct stat statbuf;
-		if ((lstat(file_header->name, &statbuf) == -1) && (errno != ENOENT)) {
-			bb_perror_msg_and_die("Couldnt stat old file");
+		if (lstat(file_header->name, &statbuf) == -1) {
+			if (errno != ENOENT) {
+				bb_perror_msg_and_die("Couldnt stat old file");
+			}
 		}
-		if (statbuf.st_mtime <= file_header->mtime) {
+		else if (statbuf.st_mtime <= file_header->mtime) {
 			if (!(archive_handle->flags & ARCHIVE_EXTRACT_QUIET)) {
 				bb_error_msg("%s not created: newer or same age file exists", file_header->name);
 			}
 			data_skip(archive_handle);
 			return;
 		}
-		if ((unlink(file_header->name) == -1) && (errno != ENOENT)) {
-			bb_perror_msg_and_die("Couldnt remove old file");
+		else if ((unlink(file_header->name) == -1) && (errno != EISDIR)) {
+			bb_perror_msg_and_die("Couldnt remove old file %s", file_header->name);
 		}
 	}
 
-	/* Handle hard links seperately */
-	if (!S_ISLNK(file_header->mode) && (file_header->link_name) && (file_header->size == 0)) {
+	/* Handle hard links seperately 
+	 * We identified hard links as regular files of size 0 with a symlink */
+	if (S_ISREG(file_header->mode) && (file_header->link_name) && (file_header->size == 0)) {
 		/* hard link */
 		res = link(file_header->link_name, file_header->name);
 		if ((res == -1) && !(archive_handle->flags & ARCHIVE_EXTRACT_QUIET)) {
@@ -76,22 +79,19 @@ extern void data_extract_all(archive_handle_t *archive_handle)
 		switch(file_header->mode & S_IFMT) {
 			case S_IFREG: {
 				/* Regular file */
-				unlink(file_header->name);
 				dst_fd = bb_xopen(file_header->name, O_WRONLY | O_CREAT | O_EXCL);
-				archive_copy_file(archive_handle, dst_fd);
+				bb_copyfd_size(archive_handle->src_fd, dst_fd, file_header->size);
 				close(dst_fd);
 				break;
 				}
 			case S_IFDIR:
-				unlink(file_header->name);
 				res = mkdir(file_header->name, file_header->mode);
-				if ((res == -1) && !(archive_handle->flags & ARCHIVE_EXTRACT_QUIET)) {
+				if ((errno != EISDIR) && (res == -1) && !(archive_handle->flags & ARCHIVE_EXTRACT_QUIET)) {
 					bb_perror_msg("extract_archive: %s", file_header->name);
 				}
 				break;
 			case S_IFLNK:
 				/* Symlink */
-				unlink(file_header->name);
 				res = symlink(file_header->link_name, file_header->name);
 				if ((res == -1) && !(archive_handle->flags & ARCHIVE_EXTRACT_QUIET)) {
 					bb_perror_msg("Cannot create symlink from %s to '%s'", file_header->name, file_header->link_name);
@@ -101,7 +101,6 @@ extern void data_extract_all(archive_handle_t *archive_handle)
 			case S_IFBLK:
 			case S_IFCHR:
 			case S_IFIFO:
-				unlink(file_header->name);
 				res = mknod(file_header->name, file_header->mode, file_header->device);
 				if ((res == -1) && !(archive_handle->flags & ARCHIVE_EXTRACT_QUIET)) {
 					bb_perror_msg("Cannot create node %s", file_header->name);

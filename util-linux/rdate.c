@@ -33,12 +33,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
+
 #include "busybox.h"
 
 
 static const int RFC_868_BIAS = 2208988800UL;
 
-static void socket_timeout()
+static void socket_timeout(int sig)
 {
 	bb_error_msg_and_die("timeout connecting to time server");
 }
@@ -46,17 +47,16 @@ static void socket_timeout()
 static time_t askremotedate(const char *host)
 {
 	unsigned long int nett, localt;
-	const char *port="37";
+	struct sockaddr_in s_in;
 	int fd;
 
-	if (getservbyname("time", "tcp") != NULL)
-		port="time";
+	bb_lookup_host(&s_in, host, "time");
 
 	/* Add a timeout for dead or non accessable servers */
 	alarm(10);
 	signal(SIGALRM, socket_timeout);
 
-	fd = xconnect(host, port);
+	fd = xconnect(&s_in);
 
 	if (safe_read(fd, (void *)&nett, 4) != 4)    /* read time from server */
 		bb_error_msg_and_die("%s did not send the complete time", host);

@@ -550,6 +550,29 @@ static int parselleft;                  /* copy of parsefile->lleft */
 
 /* next character in input buffer */
 static char *parsenextc;                /* copy of parsefile->nextc */
+
+struct strpush {
+	struct strpush *prev;   /* preceding string on stack */
+	char *prevstring;
+	int prevnleft;
+#ifdef CONFIG_ASH_ALIAS
+	struct alias *ap;       /* if push was associated with an alias */
+#endif
+	char *string;           /* remember the string since it may change */
+};
+
+struct parsefile {
+	struct parsefile *prev; /* preceding file on stack */
+	int linno;              /* current line */
+	int fd;                 /* file descriptor (or -1 if string) */
+	int nleft;              /* number of chars left in this line */
+	int lleft;              /* number of chars left in this buffer */
+	char *nextc;            /* next char in buffer */
+	char *buf;              /* input buffer */
+	struct strpush *strpush; /* for pushing strings at this level */
+	struct strpush basestrpush; /* so pushing one is fast */
+};
+
 static struct parsefile basepf;         /* top level input file */
 static char basebuf[IBUFSIZ];           /* buffer for top level input file */
 static struct parsefile *parsefile = &basepf;  /* current input file */
@@ -1572,28 +1595,6 @@ static inline int varequal(const char *a, const char *b) {
 
 
 static int loopnest;            /* current loop nesting level */
-
-struct strpush {
-	struct strpush *prev;   /* preceding string on stack */
-	char *prevstring;
-	int prevnleft;
-#ifdef CONFIG_ASH_ALIAS
-	struct alias *ap;       /* if push was associated with an alias */
-#endif
-	char *string;           /* remember the string since it may change */
-};
-
-struct parsefile {
-	struct parsefile *prev; /* preceding file on stack */
-	int linno;              /* current line */
-	int fd;                 /* file descriptor (or -1 if string) */
-	int nleft;              /* number of chars left in this line */
-	int lleft;              /* number of chars left in this buffer */
-	char *nextc;            /* next char in buffer */
-	char *buf;              /* input buffer */
-	struct strpush *strpush; /* for pushing strings at this level */
-	struct strpush basestrpush; /* so pushing one is fast */
-};
 
 /*
  * The parsefile structure pointed to by the global variable parsefile
@@ -3729,7 +3730,10 @@ repeat:
 		for (ap = argv; *ap; ap++)
 			;
 		ap = new = ckmalloc((ap - argv + 2) * sizeof(char *));
-		*ap++ = cmd = (char *)DEFAULT_SHELL;
+		ap[1] = cmd;
+		*ap = cmd = (char *)DEFAULT_SHELL;
+		ap += 2;
+		argv++;
 		while ((*ap++ = *argv++))
 			;
 		argv = new;
@@ -6678,25 +6682,28 @@ sprint_status(char *s, int status, int sigonly)
 	int st;
 
 	col = 0;
-	st = WEXITSTATUS(status);
 	if (!WIFEXITED(status)) {
-		st = WSTOPSIG(status);
 #if JOBS
-		if (!WIFSTOPPED(status))
-			st = WTERMSIG(status);
+		if (WIFSTOPPED(status))
+			st = WSTOPSIG(status);
+		else
 #endif
+			st = WTERMSIG(status);
 		if (sigonly) {
 			if (st == SIGINT || st == SIGPIPE)
 				goto out;
+#if JOBS
 			if (WIFSTOPPED(status))
 				goto out;
+#endif
 		}
 		st &= 0x7f;
-		col = fmtstr(s, 32, u_signal_names(NULL, &st, 0));
+		col = fmtstr(s, 32, strsignal(st));
 		if (WCOREDUMP(status)) {
 			col += fmtstr(s + col, 16, " (core dumped)");
 		}
 	} else if (!sigonly) {
+		st = WEXITSTATUS(status);
 		if (st)
 			col = fmtstr(s, 16, "Done(%d)", st);
 		else
@@ -9032,18 +9039,19 @@ getopts(char *optstr, char *optvar, char **optfirst, int *param_optind, int *opt
 	char c = '?';
 	int done = 0;
 	int err = 0;
-	char s[10];
-	char **optnext = optfirst + *param_optind - 1;
+	char s[12];
+	char **optnext;
 
-	if (*param_optind <= 1 || *optoff < 0 || !(*(optnext - 1)) ||
-	    strlen(*(optnext - 1)) < *optoff)
+	if(*param_optind < 1)
+		return 1;
+	optnext = optfirst + *param_optind - 1;
+
+	if (*param_optind <= 1 || *optoff < 0 || strlen(optnext[-1]) < *optoff)
 		p = NULL;
 	else
-		p = *(optnext - 1) + *optoff;
+		p = optnext[-1] + *optoff;
 	if (p == NULL || *p == '\0') {
 		/* Current word is done, advance */
-		if (optnext == NULL)
-			return 1;
 		p = *optnext;
 		if (p == NULL || *p != '-' || *++p == '\0') {
 atend:
