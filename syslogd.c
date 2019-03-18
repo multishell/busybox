@@ -2,7 +2,7 @@
 /*
  * Mini syslogd implementation for busybox
  *
- * Copyright (C) 1999,2000 by Lineo, inc.
+ * Copyright (C) 1999,2000,2001 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
  * Copyright (C) 2000 by Karl M. Hegbloom <karlheg@debian.org>
@@ -34,6 +34,7 @@
 #include <signal.h>
 #include <stdarg.h>
 #include <time.h>
+#include <string.h>
 #include <unistd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -41,7 +42,8 @@
 #include <sys/param.h>
 
 #if ! defined __GLIBC__ && ! defined __UCLIBC__
-
+#include <sys/syscall.h>
+#include <linux/unistd.h>
 typedef unsigned int socklen_t;
 
 #ifndef __alpha__
@@ -165,7 +167,7 @@ static void logMessage (int pri, char *msg)
 #ifdef BB_FEATURE_REMOTE_LOG
 	/* send message to remote logger */
 	if ( -1 != remotefd){
-#define IOV_COUNT 2
+static const int IOV_COUNT = 2;
 		struct iovec iov[IOV_COUNT];
 		struct iovec *v = iov;
 
@@ -206,10 +208,10 @@ static void domark(int sig)
 	}
 }
 
-#define BUFSIZE 1023
+static const int BUFSIZE = 1023;
 static int serveConnection (int conn)
 {
-	char   buf[ BUFSIZE + 1 ];
+	RESERVE_BB_BUFFER(buf, BUFSIZE + 1);
 	int    n_read;
 
 	while ((n_read = read (conn, buf, BUFSIZE )) > 0) {
@@ -296,7 +298,7 @@ static void doSyslogd (void)
 	int sock_fd;
 	fd_set fds;
 
-	char lfile[BUFSIZ];
+	RESERVE_BB_BUFFER(lfile, BUFSIZ);
 
 	/* Set up signal handlers. */
 	signal (SIGINT,  quit_signal);
@@ -313,7 +315,7 @@ static void doSyslogd (void)
 	/* Create the syslog file so realpath() can work. */
 	close (open (_PATH_LOG, O_RDWR | O_CREAT, 0644));
 	if (realpath (_PATH_LOG, lfile) == NULL)
-		error_msg_and_die ("Could not resolve path to " _PATH_LOG ": %s\n", strerror (errno));
+		perror_msg_and_die ("Could not resolve path to " _PATH_LOG);
 
 	unlink (lfile);
 
@@ -321,14 +323,14 @@ static void doSyslogd (void)
 	sunx.sun_family = AF_UNIX;
 	strncpy (sunx.sun_path, lfile, sizeof (sunx.sun_path));
 	if ((sock_fd = socket (AF_UNIX, SOCK_STREAM, 0)) < 0)
-		error_msg_and_die ("Couldn't obtain descriptor for socket " _PATH_LOG ": %s\n", strerror (errno));
+		perror_msg_and_die ("Couldn't obtain descriptor for socket " _PATH_LOG);
 
 	addrLength = sizeof (sunx.sun_family) + strlen (sunx.sun_path);
 	if ((bind (sock_fd, (struct sockaddr *) &sunx, addrLength)) || (listen (sock_fd, 5)))
-		error_msg_and_die ("Could not connect to socket " _PATH_LOG ": %s\n", strerror (errno));
+		perror_msg_and_die ("Could not connect to socket " _PATH_LOG);
 
 	if (chmod (lfile, 0666) < 0)
-		error_msg_and_die ("Could not set permission on " _PATH_LOG ": %s\n", strerror (errno));
+		perror_msg_and_die ("Could not set permission on " _PATH_LOG);
 
 	FD_ZERO (&fds);
 	FD_SET (sock_fd, &fds);
@@ -351,7 +353,7 @@ static void doSyslogd (void)
 
 		if ((n_ready = select (FD_SETSIZE, &readfds, NULL, NULL, NULL)) < 0) {
 			if (errno == EINTR) continue; /* alarm may have happened. */
-			error_msg_and_die ("select error: %s\n", strerror (errno));
+			perror_msg_and_die ("select error");
 		}
 
 		for (fd = 0; (n_ready > 0) && (fd < FD_SETSIZE); fd++) {
@@ -365,7 +367,7 @@ static void doSyslogd (void)
 					pid_t pid;
 
 					if ((conn = accept (sock_fd, (struct sockaddr *) &sunx, &addrLength)) < 0) {
-						error_msg_and_die ("accept error: %s\n", strerror (errno));
+						perror_msg_and_die ("accept error");
 					}
 
 					pid = fork();

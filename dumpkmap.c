@@ -24,6 +24,9 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
 #include <sys/ioctl.h>
 
 /* From <linux/kd.h> */
@@ -32,11 +35,11 @@ struct kbentry {
 	unsigned char kb_index;
 	unsigned short kb_value;
 };
-#define KDGKBENT        0x4B46  /* gets one entry in translation table */
+static const int KDGKBENT = 0x4B46;  /* gets one entry in translation table */
 
 /* From <linux/keyboard.h> */
-#define NR_KEYS         128
-#define MAX_NR_KEYMAPS  256
+static const int NR_KEYS = 128;
+static const int MAX_NR_KEYMAPS = 256;
 
 int dumpkmap_main(int argc, char **argv)
 {
@@ -50,7 +53,7 @@ int dumpkmap_main(int argc, char **argv)
 
 	fd = open("/dev/tty0", O_RDWR);
 	if (fd < 0) {
-		error_msg("Error opening /dev/tty0: %s\n", strerror(errno));
+		perror_msg("Error opening /dev/tty0");
 		return EXIT_FAILURE;
 	}
 

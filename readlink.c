@@ -3,7 +3,7 @@
  * Mini readlink implementation for busybox
  *
  *
- * Copyright (C) 2000 by Lineo, inc.
+ * Copyright (C) 1999,2000,2001 by Lineo, inc.
  * Written by Matt Kraai <kraai@alumni.carnegiemellon.edu>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -25,6 +25,7 @@
 #include "busybox.h"
 #include <errno.h>
 #include <unistd.h>
+#include <stdlib.h>
 
 int readlink_main(int argc, char **argv)
 {
@@ -39,7 +40,7 @@ int readlink_main(int argc, char **argv)
 		buf = xrealloc(buf, bufsize);
 		size = readlink(argv[1], buf, bufsize);
 		if (size == -1)
-			error_msg_and_die("%s: %s\n", argv[1], strerror(errno));
+			perror_msg_and_die("%s", argv[1]);
 	}
 
 	buf[size] = '\0';

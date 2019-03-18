@@ -137,8 +137,8 @@
 
 		<para>
 		ar, basename, cat, chgrp, chmod, chown, chroot, chvt, clear,
-		cp, cut, date, dc, dd, deallocvt, df, dirname, dmesg, du,
-		dumpkmap, dutmp, echo, false, fbset, fdflush, find, free,
+		cp, cut, date, dc, dd, deallocvt, df, dirname, dmesg, dpkg-deb,
+		du, dumpkmap, dutmp, echo, false, fbset, fdflush, find, free,
 		freeramdisk, fsck.minix, grep, gunzip, gzip, halt, head,
 		hostid, hostname, id, init, insmod, kill, killall, length, ln,
 		loadacm, loadfont, loadkmap, logger, logname, ls, lsmod,
@@ -756,6 +756,44 @@
 		Converts a text file from dos format to unix format.
 		</para>
 
+	</sect1>
+
+	<sect1 id="dpkg-deb">
+	    <title>dpkg-deb</title>
+
+		<para>
+		Usage: dpkg-deb [OPTION] archive [directory] 
+		</para>
+
+		<para>
+		Debian package archive (.deb) manipulation tool	
+		</para>
+
+		<para>
+		Options:
+		</para>
+		
+		<para>
+		<screen>
+			-c	List the contents of the filesystem tree archive portion of the package 
+			-e	Extracts the control information files from a package archive into the specified directory.
+				If  no  directory  is specified then a subdirectory DEBIAN in the current directory is used.
+			-x	Silently extracts the filesystem tree from a package archive into the specified directory.
+			-X	Extracts the filesystem tree from a package archive into the specified directory, listing the files as it goes.	
+			If required the specified directory (but not its parents) will be created.
+		</screen>
+		<para>
+
+		<para>
+		Example:
+		</para>
+
+		<para>
+		<screen>
+			dpkg-deb -e ./busybox_0.48-1_i386.deb
+			dpkg-deb -x ./busybox_0.48-1_i386.deb ./unpack_dir
+		</screen>
+		</para>
 	</sect1>
 
 	<sect1 id="du">
@@ -1436,6 +1474,7 @@
 		<screen>
 			-g	Print only the group ID
 			-u	Print only the user ID
+			-n      print a name instead of a number (with for -ug)
 			-r	Print the real user ID instead of the effective ID (with -ug)
 		</screen>
 		</para>
@@ -1512,19 +1551,18 @@
 		<sect2>
 		    <title>id</title>
 			<para>
-                	WARNING: This field has a non-traditional
-			meaning for BusyBox init!  The id field is used
-			by BusyBox init to specify the controlling tty
-			for the specified process to run on.  The
-			contents of this field are appended to "/dev/"
-			and used as-is.  There is no need for this field
-			to be unique, although if it isn't you may have
-			strange results.  If this field is left blank,
-			it is completely ignored.  Also note that if
-			BusyBox detects that a serial console is in use,
-			then all entries containing non-empty id fields
-			will _not_ be run.  BusyBox init does nothing
-			with utmp.  We don't need no stinkin' utmp.
+
+			WARNING: This field has a non-traditional meaning for BusyBox init!
+			The id field is used by BusyBox init to specify the controlling tty
+			for the specified process to run on.  The contents of this field
+			are appended to "/dev/" and used as-is.  There is no need for this
+			field to be unique, although if it isn't you may have strange
+			results.  If this field is left blank, the controlling tty is set
+			to the console.  Also note that if BusyBox detects that a serial
+			console is in use, then only entries whose controlling tty is
+			either the serial console or /dev/null will be run.  BusyBox init
+			does nothing with utmp.  We don't need no stinkin' utmp.
+
 			</para>
 		</sect2>
 
@@ -1660,6 +1698,7 @@
 			-k	Make module autoclean-able.
 			-v	Verbose output
 			-x	Do not export externs
+			-L	Prevent simultaneous loads of the same module
 		</screen>
 		</para>
 	</sect1>
@@ -1873,7 +1912,7 @@
 		</para>
 
 		<para>
-		Write MESSAGE to the system log.  If MESSAGE is '-', log
+		Write MESSAGE to the system log.  If MESSAGE is omitted, log
 		stdin.
 		</para>
 
@@ -3618,6 +3657,18 @@
 			$ uudecode busybox busybox &gt; busybox.uu
 			$
 		</screen>
+		</para>
+	</sect1>
+
+	<sect1 id="watchdog">
+	    <title>watchdog</title>
+
+		<para>
+		Usage: watchdog device
+		</para>
+
+		<para>
+		Periodically writes to watchdog device B<device>.
 		</para>
 	</sect1>
 

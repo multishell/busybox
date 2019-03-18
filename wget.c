@@ -16,6 +16,7 @@
 
 #include "busybox.h"
 #include <stdio.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <ctype.h>
@@ -32,6 +33,18 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
+/* Stupid libc5 doesn't define this... */
+#ifndef timersub
+#define	timersub(a, b, result)						      \
+  do {									      \
+    (result)->tv_sec = (a)->tv_sec - (b)->tv_sec;			      \
+    (result)->tv_usec = (a)->tv_usec - (b)->tv_usec;			      \
+    if ((result)->tv_usec < 0) {					      \
+      --(result)->tv_sec;						      \
+      (result)->tv_usec += 1000000;					      \
+    }									      \
+  } while (0)
+#endif	
 
 void parse_url(char *url, char **uri_host, int *uri_port, char **uri_path);
 FILE *open_socket(char *host, int port);
@@ -40,13 +53,21 @@ void progressmeter(int flag);
 
 /* Globals (can be accessed from signal handlers */
 static off_t filesize = 0;		/* content-length of the file */
-#ifdef BB_FEATURE_STATUSBAR
+#ifdef BB_FEATURE_WGET_STATUSBAR
 static char *curfile;			/* Name of current file being transferred. */
 static struct timeval start;	/* Time a transfer started. */
 volatile unsigned long statbytes; /* Number of bytes transferred so far. */
 /* For progressmeter() -- number of seconds before xfer considered "stalled" */
-#define STALLTIME	5
+static const int STALLTIME = 5;
 #endif
+		
+void close_and_delete_outfile(FILE* output, char *fname_out, int do_continue)
+{
+	if (output != stdout && do_continue==0) {
+		fclose(output);
+		unlink(fname_out);
+	}
+}
 
 int wget_main(int argc, char **argv)
 {
@@ -91,9 +112,6 @@ int wget_main(int argc, char **argv)
 	if (argc - optind != 1)
 			usage(wget_usage);
 
-	if (do_continue && !fname_out)
-		error_msg_and_die("cannot specify continue (-c) without a filename (-O)\n");
-
 	/*
 	 * Use the proxy if necessary.
 	 */
@@ -113,22 +131,24 @@ int wget_main(int argc, char **argv)
 	/* Guess an output filename */
 	if (!fname_out) {
 		fname_out = 
-#ifdef BB_FEATURE_STATUSBAR
+#ifdef BB_FEATURE_WGET_STATUSBAR
 			curfile = 
 #endif
 			get_last_path_component(uri_path);
 		if (fname_out==NULL || strlen(fname_out)<1) {
 			fname_out = 
-#ifdef BB_FEATURE_STATUSBAR
+#ifdef BB_FEATURE_WGET_STATUSBAR
 				curfile = 
 #endif
 				"index.html";
 		}
-#ifdef BB_FEATURE_STATUSBAR
+#ifdef BB_FEATURE_WGET_STATUSBAR
 	} else {
 		curfile=argv[optind];
 #endif
 	}
+	if (do_continue && !fname_out)
+		error_msg_and_die("cannot specify continue (-c) without a filename (-O)\n");
 
 
 	/*
@@ -147,8 +167,7 @@ int wget_main(int argc, char **argv)
 	 * Open the output file stream.
 	 */
 	if (fname_out != (char *)1) {
-		if ( (output=fopen(fname_out, (do_continue ? "a" : "w"))) 
-				== NULL)
+		if ( (output=fopen(fname_out, (do_continue ? "a" : "w"))) == NULL)
 			perror_msg_and_die("fopen(%s)", fname_out);
 	} else {
 		output = stdout;
@@ -159,7 +178,7 @@ int wget_main(int argc, char **argv)
 	 */
 	if (do_continue) {
 		if (fstat(fileno(output), &sbuf) < 0)
-			error_msg_and_die("fstat()");
+			perror_msg_and_die("fstat()");
 		if (sbuf.st_size > 0)
 			beg_range = sbuf.st_size;
 		else
@@ -172,6 +191,7 @@ int wget_main(int argc, char **argv)
 	fprintf(sfp, "GET http://%s:%d/%s HTTP/1.1\r\n", 
 			uri_host, uri_port, uri_path);
 	fprintf(sfp, "Host: %s\r\nUser-Agent: Wget\r\n", uri_host);
+
 	if (do_continue)
 		fprintf(sfp, "Range: bytes=%ld-\r\n", beg_range);
 	fprintf(sfp,"Connection: close\r\n\r\n");
@@ -180,6 +200,7 @@ int wget_main(int argc, char **argv)
 	 * Retrieve HTTP response line and check for "200" status code.
 	 */
 	if (fgets(buf, sizeof(buf), sfp) == NULL) {
+		close_and_delete_outfile(output, fname_out, do_continue);
 		error_msg_and_die("no response from server\n");
 	}
 	for (s = buf ; *s != '\0' && !isspace(*s) ; ++s)
@@ -187,28 +208,29 @@ int wget_main(int argc, char **argv)
 	for ( ; isspace(*s) ; ++s)
 		;
 	switch (atoi(s)) {
+		case 0:
 		case 200:
-			if (!do_continue)
-				break;
-			error_msg_and_die("server does not support ranges\n");
+			break;
 		case 206:
 			if (do_continue)
 				break;
 			/*FALLTHRU*/
 		default:
-			error_msg_and_die("server returned error: %s", buf);
+			close_and_delete_outfile(output, fname_out, do_continue);
+			error_msg_and_die("server returned error %d: %s", atoi(s), buf);
 	}
 
 	/*
 	 * Retrieve HTTP headers.
 	 */
 	while ((s = gethdr(buf, sizeof(buf), sfp, &n)) != NULL) {
-		if (strcmp(buf, "content-length") == 0) {
+		if (strcasecmp(buf, "content-length") == 0) {
 			filesize = atol(s);
 			got_clen = 1;
 			continue;
 		}
-		if (strcmp(buf, "transfer-encoding") == 0) {
+		if (strcasecmp(buf, "transfer-encoding") == 0) {
+			close_and_delete_outfile(output, fname_out, do_continue);
 			error_msg_and_die("server wants to do %s transfer encoding\n", s);
 			continue;
 		}
@@ -217,14 +239,14 @@ int wget_main(int argc, char **argv)
 	/*
 	 * Retrieve HTTP body.
 	 */
-#ifdef BB_FEATURE_STATUSBAR
+#ifdef BB_FEATURE_WGET_STATUSBAR
 	statbytes=0;
 	if (quiet_flag==FALSE)
 		progressmeter(-1);
 #endif
 	while (filesize > 0 && (n = fread(buf, 1, sizeof(buf), sfp)) > 0) {
 		fwrite(buf, 1, n, output);
-#ifdef BB_FEATURE_STATUSBAR
+#ifdef BB_FEATURE_WGET_STATUSBAR
 		statbytes+=n;
 		if (quiet_flag==FALSE)
 			progressmeter(1);
@@ -241,31 +263,28 @@ int wget_main(int argc, char **argv)
 
 void parse_url(char *url, char **uri_host, int *uri_port, char **uri_path)
 {
-	char *s, *h;
-	static char *defaultpath = "/";
+	char *cp, *sp;
 
 	*uri_port = 80;
 
 	if (strncmp(url, "http://", 7) != 0)
 		error_msg_and_die("not an http url: %s\n", url);
 
-	/* pull the host portion to the front of the buffer */
-	for (s = url, h = url+7 ; *h != '/' && *h != 0; ++h) {
-		if (*h == ':') {
-			*uri_port = atoi(h+1);
-			*h = '\0';
-		}
-		*s++ = *h;
+	*uri_host = url + 7;
+
+	cp = strchr(*uri_host, ':');
+	sp = strchr(*uri_host, '/');
+
+	if (cp != NULL && (sp == NULL || cp < sp)) {
+		*cp++ = '\0';
+		*uri_port = atoi(cp);
 	}
-	*s = '\0';
 
-	if (*h == 0) h = defaultpath;
-
-	*uri_host = url;
-	*uri_path = h;
-
-	if (!strcmp( *uri_host, *uri_path))
-		*uri_path = defaultpath;
+	if (sp != NULL) {
+		*sp++ = '\0';
+		*uri_path = sp;
+	} else
+		*uri_path = "";
 }
 
 
@@ -276,7 +295,7 @@ FILE *open_socket(char *host, int port)
 	int fd;
 	FILE *fp;
 
-	memzero(&sin, sizeof(sin));
+	memset(&sin, 0, sizeof(sin));
 	sin.sin_family = AF_INET;
 	if ((hp = (struct hostent *) gethostbyname(host)) == NULL)
 		error_msg_and_die("cannot resolve %s\n", host);
@@ -344,7 +363,7 @@ char *gethdr(char *buf, size_t bufsiz, FILE *fp, int *istrunc)
 	return hdrval;
 }
 
-#ifdef BB_FEATURE_STATUSBAR
+#ifdef BB_FEATURE_WGET_STATUSBAR
 /* Stuff below is from BSD rcp util.c, as added to openshh. 
  * Original copyright notice is retained at the end of this file.
  * 
@@ -479,7 +498,7 @@ progressmeter(int flag)
 }
 #endif
 
-/* Original copyright notice which applies to the BB_FEATURE_STATUSBAR stuff,
+/* Original copyright notice which applies to the BB_FEATURE_WGET_STATUSBAR stuff,
  * much of which was blatently stolen from openssh.  */
  
 /*-
@@ -514,7 +533,7 @@ progressmeter(int flag)
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	$Id: wget.c,v 1.13 2000/12/09 16:55:35 andersen Exp $
+ *	$Id: wget.c,v 1.23 2001/01/27 08:24:38 andersen Exp $
  */
 
 

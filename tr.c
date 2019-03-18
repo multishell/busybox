@@ -34,14 +34,15 @@
 #define bb_need_write_error
 #include "messages.c"
 
-#define ASCII		0377
+static const int ASCII = 0377;
 
 /* some glabals shared across this file */
 static char com_fl, del_fl, sq_fl;
-static unsigned char output[BUFSIZ], input[BUFSIZ];
-static unsigned char vector[ASCII + 1];
-static char invec[ASCII + 1], outvec[ASCII + 1];
 static short in_index, out_index;
+/* these last are pointers to static buffers declared in tr_main */
+static unsigned char *poutput, *pinput;
+static unsigned char *pvector;
+static char *pinvec, *poutvec;
 
 
 static void convert()
@@ -52,22 +53,22 @@ static void convert()
 
 	for (;;) {
 		if (in_index == read_chars) {
-			if ((read_chars = read(0, (char *) input, BUFSIZ)) <= 0) {
-				if (write(1, (char *) output, out_index) != out_index)
+			if ((read_chars = read(0, (char *) pinput, BUFSIZ)) <= 0) {
+				if (write(1, (char *) poutput, out_index) != out_index)
 					write(2, write_error, strlen(write_error));
 				exit(0);
 			}
 			in_index = 0;
 		}
-		c = input[in_index++];
-		coded = vector[c];
-		if (del_fl && invec[c])
+		c = pinput[in_index++];
+		coded = pvector[c];
+		if (del_fl && pinvec[c])
 			continue;
-		if (sq_fl && last == coded && (invec[c] || outvec[coded]))
+		if (sq_fl && last == coded && (pinvec[c] || poutvec[coded]))
 			continue;
-		output[out_index++] = last = coded;
+		poutput[out_index++] = last = coded;
 		if (out_index == BUFSIZ) {
-			if (write(1, (char *) output, out_index) != out_index) {
+			if (write(1, (char *) poutput, out_index) != out_index) {
 				write(2, write_error, strlen(write_error));
 				exit(1);
 			}
@@ -86,9 +87,9 @@ static void map(register unsigned char *string1, unsigned int string1_len,
 
 	for (j = 0, i = 0; i < string1_len; i++) {
 		if (string2_len <= j)
-			vector[string1[i]] = last;
+			pvector[string1[i]] = last;
 		else
-			vector[string1[i]] = last = string2[j++];
+			pvector[string1[i]] = last = string2[j++];
 	}
 }
 
@@ -143,6 +144,18 @@ extern int tr_main(int argc, char **argv)
 	int output_length=0, input_length;
 	int index = 1;
 	int i;
+	RESERVE_BB_BUFFER(output, BUFSIZ);
+	RESERVE_BB_BUFFER(input,  BUFSIZ);
+	RESERVE_BB_UBUFFER(vector, ASCII+1);
+	RESERVE_BB_BUFFER(invec,  ASCII+1);
+	RESERVE_BB_BUFFER(outvec, ASCII+1);
+
+	/* ... but make them available globally */
+	poutput = output;
+	pinput  = input;
+	pvector = vector;
+	pinvec  = invec;
+	poutvec = outvec;
 
 	if (argc > 1 && argv[index][0] == '-') {
 		for (ptr = (unsigned char *) &argv[index][1]; *ptr; ptr++) {
@@ -178,9 +191,9 @@ extern int tr_main(int argc, char **argv)
 			map(input, input_length, output, output_length);
 		}
 		for (i = 0; i < input_length; i++)
-			invec[input[i]] = TRUE;
+			invec[(int)input[i]] = TRUE;
 		for (i = 0; i < output_length; i++)
-			outvec[output[i]] = TRUE;
+			outvec[(int)output[i]] = TRUE;
 	}
 	convert();
 	return (0);

@@ -7,86 +7,87 @@
 //
 //
 // BusyBox Applications
-#define BB_AR
+//#define BB_AR
 #define BB_BASENAME
 #define BB_CAT
 #define BB_CHMOD_CHOWN_CHGRP
 #define BB_CHROOT
 #define BB_CHVT
 #define BB_CLEAR
-#define BB_CMP
+//#define BB_CMP
 #define BB_CP_MV
 #define BB_CUT
 #define BB_DATE
-#define BB_DC
+//#define BB_DC
 #define BB_DD
-#define BB_DEALLOCVT
+//#define BB_DEALLOCVT
 #define BB_DF
 #define BB_DIRNAME
 #define BB_DMESG
-#define BB_DOS2UNIX
-#define BB_DUTMP
+//#define BB_DOS2UNIX
+//#define BB_DPKG_DEB
+//#define BB_DUTMP
 #define BB_DU
-#define BB_DUMPKMAP
+//#define BB_DUMPKMAP
 #define BB_ECHO
-#define BB_EXPR
-#define BB_FBSET
-#define BB_FDFLUSH
+//#define BB_EXPR
+//#define BB_FBSET
+//#define BB_FDFLUSH
 #define BB_FIND
 #define BB_FREE
-#define BB_FREERAMDISK
-#define BB_FSCK_MINIX
-#define BB_GETOPT
+//#define BB_FREERAMDISK
+//#define BB_FSCK_MINIX
+//#define BB_GETOPT
 #define BB_GREP
 #define BB_GUNZIP
 #define BB_GZIP
 #define BB_HALT
 #define BB_HEAD
-#define BB_HOSTID
-#define BB_HOSTNAME
+//#define BB_HOSTID
+//#define BB_HOSTNAME
 #define BB_ID
 #define BB_INIT
-#define BB_INSMOD
+//#define BB_INSMOD
 #define BB_KILL
 #define BB_KILLALL
-#define BB_LENGTH
+//#define BB_LENGTH
 #define BB_LN
-#define BB_LOADACM
-#define BB_LOADFONT
-#define BB_LOADKMAP
+//#define BB_LOADACM
+//#define BB_LOADFONT
+//#define BB_LOADKMAP
 #define BB_LOGGER
-#define BB_LOGNAME
+//#define BB_LOGNAME
 #define BB_LS
 #define BB_LSMOD
-#define BB_MAKEDEVS
-#define BB_MD5SUM
+//#define BB_MAKEDEVS
+//#define BB_MD5SUM
 #define BB_MKDIR
-#define BB_MKFIFO
-#define BB_MKFS_MINIX
+//#define BB_MKFIFO
+//#define BB_MKFS_MINIX
 #define BB_MKNOD
 #define BB_MKSWAP
-#define BB_MKTEMP
-#define BB_NC
+//#define BB_MKTEMP
+//#define BB_NC
 #define BB_MORE
 #define BB_MOUNT
-#define BB_MT
-#define BB_NSLOOKUP
-#define BB_PING
+//#define BB_MT
+//#define BB_NSLOOKUP
+//#define BB_PING
 #define BB_POWEROFF
-#define BB_PRINTF
+//#define BB_PRINTF
 #define BB_PS
 #define BB_PWD
-#define BB_RDATE
-#define BB_READLINK
+//#define BB_RDATE
+//#define BB_READLINK
 #define BB_REBOOT
-#define BB_RENICE
+//#define BB_RENICE
 #define BB_RESET
 #define BB_RM
 #define BB_RMDIR
-#define BB_RMMOD
-#define BB_RPMUNPACK
+//#define BB_RMMOD
+//#define BB_RPMUNPACK
 #define BB_SED
-#define BB_SETKEYCODES
+//#define BB_SETKEYCODES
 #define BB_SH
 #define BB_SLEEP
 #define BB_SORT
@@ -95,26 +96,27 @@
 #define BB_SYSLOGD
 #define BB_TAIL
 #define BB_TAR
-#define BB_TEE
-#define BB_TEST
-#define BB_TELNET
+//#define BB_TEE
+//#define BB_TEST
+//#define BB_TELNET
 #define BB_TOUCH
-#define BB_TR
+//#define BB_TR
 #define BB_TRUE_FALSE
 #define BB_TTY
-#define BB_UPTIME
-#define BB_USLEEP
-#define BB_WC
-#define BB_WGET
-#define BB_WHICH
-#define BB_WHOAMI
-#define BB_UUENCODE
-#define BB_UUDECODE
+//#define BB_UUENCODE
+//#define BB_UUDECODE
 #define BB_UMOUNT
 #define BB_UNIQ
 #define BB_UNAME
-#define BB_UNIX2DOS
-#define BB_UPDATE
+//#define BB_UNIX2DOS
+//#define BB_UPDATE
+#define BB_UPTIME
+//#define BB_USLEEP
+//#define BB_WATCHDOG
+#define BB_WC
+//#define BB_WGET
+#define BB_WHICH
+#define BB_WHOAMI
 #define BB_XARGS
 #define BB_YES
 // End of Applications List
@@ -127,6 +129,11 @@
 // pretty/useful).
 //
 //
+// BusyBox will, by default, malloc space for its buffers.  This costs code
+// size for the call to xmalloc.  You can use the following feature to have
+// them put on the stack.  For some very small machines with limited stack
+// space, this can be deadly.  For most folks, this works just fine...
+//#define BB_FEATURE_BUFFERS_GO_ON_STACK
 //
 // Turn this on to use Erik's very cool devps, and devmtab kernel drivers,
 // thereby eliminating the need for the /proc filesystem and thereby saving
@@ -192,7 +199,7 @@
 //#define BB_FEATURE_INIT_CHROOT
 //
 //Make sure nothing is printed to the console on boot
-#define BB_FEATURE_EXTRA_QUIET
+//#define BB_FEATURE_EXTRA_QUIET
 //
 //Should syslogd also provide klogd support?
 #define BB_FEATURE_KLOGD
@@ -201,7 +208,7 @@
 #define BB_FEATURE_REMOTE_LOG
 //
 //Simple tail implementation (2.34k vs 3k for the full one).
-//Both provide 'tail -f' support (only one file at a time.)
+//Both provide 'tail -f', but this cuts out -c, -q, -s, and -v. 
 #define BB_FEATURE_SIMPLE_TAIL
 //
 // Enable support for loop devices in mount
@@ -231,12 +238,14 @@
 //// Enable reverse sort
 #define BB_FEATURE_SORT_REVERSE
 //
-// Enable command line editing in the shell
+// Enable command line editing in the shell.  
+// Only relevant if BB_SH is enabled.
 #define BB_FEATURE_SH_COMMAND_EDITING
 //
 //Allow the shell to invoke all the compiled in BusyBox applets as if they
 //were shell builtins.  Nice for staticly linking an emergency rescue shell,
 //among other things.
+// Only relevant if BB_SH is enabled.
 #define BB_FEATURE_SH_STANDALONE_SHELL
 //
 //When this is enabled, busybox shell applets can be called using full path
@@ -245,11 +254,17 @@
 //will use BusyBox cat even if /bin/cat exists on the filesystem and is _not_
 //busybox.  Some systems want this, others do not.  Choose wisely.  :-) This
 //only has meaning when BB_FEATURE_SH_STANDALONE_SHELL is enabled.
+// Only relevant if BB_SH is enabled.
 //BB_FEATURE_SH_APPLETS_ALWAYS_WIN
 //
 // Enable tab completion in the shell (not yet 
 // working very well -- so don't turn this on)
-//#define BB_FEATURE_SH_TAB_COMPLETION
+// Only relevant if BB_SH is enabled.
+#define BB_FEATURE_SH_TAB_COMPLETION
+//
+// Attempts to match usernames in a ~-prefixed path
+// XXX: Doesn't work without NSS, off by default
+//#define BB_FEATURE_USERNAME_COMPLETION  /* require NSS */
 //
 //Turn on extra fbset options
 //#define BB_FEATURE_FBSET_FANCY
@@ -257,17 +272,11 @@
 //Turn on fbset readmode support
 //#define BB_FEATURE_FBSET_READMODE
 //
-// You must enable one or both of these features
-// Support installing modules from pre 2.1 kernels
-//#define BB_FEATURE_INSMOD_OLD_KERNEL
-// Support installing modules from kernel versions after 2.1.18
-#define BB_FEATURE_INSMOD_NEW_KERNEL
+// Support insmod/lsmod/rmmod for post 2.1 kernels
+//#define BB_FEATURE_NEW_MODULE_INTERFACE
 //
-// You must enable one or both of these features
-// Support modules status from pre 2.1 kernels
-//#define BB_FEATURE_LSMOD_OLD_KERNEL
-// Support modules status from kernel versions after 2.1.18
-#define BB_FEATURE_LSMOD_NEW_KERNEL
+// Support insmod/lsmod/rmmod for pre 2.1 kernels
+//#define BB_FEATURE_OLD_MODULE_INTERFACE
 //
 // Support module version checking
 //#define BB_FEATURE_INSMOD_VERSION_CHECKING
@@ -282,12 +291,15 @@
 // #define BB_FEATURE_INSTALLER
 //
 // Enable a nifty progress meter in wget (adds just under 2k)
-//#define BB_FEATURE_STATUSBAR
+#define BB_FEATURE_WGET_STATUSBAR
 //
 // Clean up all memory before exiting -- usually not needed
 // as the OS can clean up...  Don't enable this unless you
 // have a really good reason for cleaning things up manually.
 //#define BB_FEATURE_CLEAN_UP
+//
+// Support for human readable output by ls, du, etc.(example 13k, 23M, 235G)
+#define BB_FEATURE_HUMAN_READABLE
 //
 // End of Features List
 //
@@ -300,9 +312,13 @@
 // Nothing beyond this point should ever be touched by 
 // mere mortals so leave this stuff alone.
 //
+#if defined BB_MOUNT || defined BB_UMOUNT || defined BB_DF
 #ifdef BB_FEATURE_MOUNT_MTAB_SUPPORT
 #define BB_MTAB
 #endif
+#else
+#undef BB_MTAB
+#endif	
 //
 #if defined BB_FEATURE_SH_COMMAND_EDITING && defined BB_SH
 #define BB_CMDEDIT
@@ -314,16 +330,26 @@
 #endif
 #endif
 //
-#ifdef BB_FEATURE_LINUXRC
 #ifndef BB_INIT
-#define BB_INIT
-#endif
-#define BB_LINUXRC
+#undef BB_LINUXRC
+#undef BB_FEATURE_LINUXRC
 #endif
 //
 #ifdef BB_GZIP
 #ifndef BB_GUNZIP
 #define BB_GUNZIP
+#endif
+#endif
+//
+#ifdef BB_DPKG_DEB
+#ifndef BB_AR
+#define BB_AR
+#endif
+#ifndef BB_TAR
+#define BB_TAR
+#endif 
+#ifndef BB_FEATURE_TAR_GZIP
+#define BB_FEATURE_TAR_GZIP
 #endif
 #endif
 //
@@ -351,8 +377,8 @@
 #endif
 #endif
 //
-#if defined BB_INSMOD
-#ifndef BB_FEATURE_INSMOD_OLD_KERNEL
-#define BB_FEATURE_INSMOD_NEW_KERNEL
+#if defined BB_INSMOD || defined BB_LSMOD
+#ifndef BB_FEATURE_NEW_MODULE_INTERFACE
+#define BB_FEATURE_NEW_MODULE_INTERFACE
 #endif
 #endif

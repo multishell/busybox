@@ -3,7 +3,7 @@
  * Mini head implementation for busybox
  *
  *
- * Copyright (C) 1999,2000 by Lineo, inc.
+ * Copyright (C) 1999,2000,2001 by Lineo, inc.
  * Written by John Beppu <beppu@lineo.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -25,6 +25,8 @@
 #include "busybox.h"
 #include <errno.h>
 #include <stdio.h>
+#include <getopt.h>
+#include <stdlib.h>
 
 int head(int len, FILE *fp)
 {
@@ -76,16 +78,16 @@ int head_main(int argc, char **argv)
 		}
 		if (fp) {
 			if (need_headers) {
-				fprintf(stdout, "==> %s <==\n", argv[optind]);
+				printf("==> %s <==\n", argv[optind]);
 			}
 			head(len, fp);
 			if (errno) {
-				error_msg("%s: %s\n", argv[optind], strerror(errno));
+				perror_msg("%s", argv[optind]);
 				status = EXIT_FAILURE;
 				errno = 0;
 			}
 			if (optind < argc - 1)
-				fprintf(stdout, "\n");
+				putchar('\n');
 			if (fp != stdin)
 				fclose(fp);
 		}

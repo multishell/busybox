@@ -2,7 +2,7 @@
 /*
  * Mini logger implementation for busybox
  *
- * Copyright (C) 1999,2000 by Lineo, inc.
+ * Copyright (C) 1999,2000,2001 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -27,6 +27,8 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <string.h>
+#include <stdlib.h>
 
 #if !defined BB_SYSLOGD
 
@@ -101,74 +103,53 @@ extern int logger_main(int argc, char **argv)
 {
 	int pri = LOG_USER | LOG_NOTICE;
 	int option = 0;
-	int fromStdinFlag = FALSE;
-	int stopLookingAtMeLikeThat = FALSE;
+	int c, i, len, opt;
 	char *message=NULL, buf[1024], name[128];
 
-	/* Fill out the name string early (may be overwritten later */
+	/* Fill out the name string early (may be overwritten later) */
 	my_getpwuid(name, geteuid());
 
 	/* Parse any options */
-	while (--argc > 0 && **(++argv) == '-') {
-		if (*((*argv) + 1) == '\0') {
-			fromStdinFlag = TRUE;
-		}
-		stopLookingAtMeLikeThat = FALSE;
-		while (*(++(*argv)) && stopLookingAtMeLikeThat == FALSE) {
-			switch (**argv) {
+	while ((opt = getopt(argc, argv, "p:st:")) > 0) {
+		switch (opt) {
 			case 's':
 				option |= LOG_PERROR;
 				break;
 			case 'p':
-				if (--argc == 0) {
-					usage(logger_usage);
-				}
-				pri = pencode(*(++argv));
-				stopLookingAtMeLikeThat = TRUE;
+				pri = pencode(optarg);
 				break;
 			case 't':
-				if (--argc == 0) {
-					usage(logger_usage);
-				}
-				strncpy(name, *(++argv), sizeof(name));
-				stopLookingAtMeLikeThat = TRUE;
+				strncpy(name, optarg, sizeof(name));
 				break;
 			default:
 				usage(logger_usage);
-			}
 		}
 	}
 
-	if (fromStdinFlag == TRUE) {
+	if (optind == argc) {
 		/* read from stdin */
-		int c;
-		unsigned int i = 0;
-
+		i = 0;
 		while ((c = getc(stdin)) != EOF && i < sizeof(buf)) {
 			buf[i++] = c;
 		}
+		buf[i++] = '\0';
 		message = buf;
 	} else {
-		if (argc >= 1) {
-			int len = 1; /* for the '\0' */
-			message=xcalloc(1, 1);
-			for (; *argv != NULL; argv++) {
-				len += strlen(*argv);
-				len += 1;  /* for the space between the args */
-				message = xrealloc(message, len);
-				strcat(message, *argv);
-				strcat(message, " ");
-			}
-			message[strlen(message)-1] = '\0';
-		} else {
-			error_msg_and_die("No message\n");
+		len = 1; /* for the '\0' */
+		message=xcalloc(1, 1);
+		for (i = optind; i < argc; i++) {
+			len += strlen(argv[i]);
+			len += 1;  /* for the space between the args */
+			message = xrealloc(message, len);
+			strcat(message, argv[i]);
+			strcat(message, " ");
 		}
+		message[strlen(message)-1] = '\0';
 	}
 
 	openlog(name, option, (pri | LOG_FACMASK));
 	syslog(pri, "%s", message);
 	closelog();
-
 	return EXIT_SUCCESS;
 }
 

@@ -1,6 +1,6 @@
 /* vi: set sw=4 ts=4: */
 /*
- * $Id: ping.c,v 1.28 2000/12/07 19:56:48 markw Exp $
+ * $Id: ping.c,v 1.35 2001/01/27 08:24:37 andersen Exp $
  * Mini ping implementation for busybox
  *
  * Copyright (C) 1999 by Randolph Chung <tausq@debian.org>
@@ -47,6 +47,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
 
 
 /* It turns out that libc5 doesn't have proper icmp support
@@ -54,7 +57,7 @@
 #if ! defined __GLIBC__ && ! defined __UCLIBC__
 typedef unsigned int socklen_t;
 
-#define	ICMP_MINLEN	8				/* abs minimum */
+static const int ICMP_MINLEN = 8;				/* abs minimum */
 
 struct icmp_ra_addr
 {
@@ -130,13 +133,13 @@ struct icmp
 };
 #endif
 
-#define DEFDATALEN      56
-#define	MAXIPLEN	60
-#define	MAXICMPLEN	76
-#define	MAXPACKET	65468
+static const int DEFDATALEN = 56;
+static const int MAXIPLEN = 60;
+static const int MAXICMPLEN = 76;
+static const int MAXPACKET = 65468;
 #define	MAX_DUP_CHK	(8 * 128)
-#define MAXWAIT         10
-#define PINGINTERVAL    1		/* second */
+static const int MAXWAIT = 10;
+static const int PINGINTERVAL = 1;		/* second */
 
 #define O_QUIET         (1 << 0)
 
@@ -190,10 +193,8 @@ static void ping(const char *host)
 	int pingsock, c;
 	char packet[DEFDATALEN + MAXIPLEN + MAXICMPLEN];
 
-	if ((pingsock = socket(AF_INET, SOCK_RAW, 1)) < 0) {	/* 1 == ICMP */
-		perror("ping: creating a raw socket");
-		exit(1);
-	}
+	if ((pingsock = socket(AF_INET, SOCK_RAW, 1)) < 0)	/* 1 == ICMP */
+		perror_msg_and_die("creating a raw socket");
 
 	/* drop root privs if running setuid */
 	setuid(getuid());
@@ -216,12 +217,8 @@ static void ping(const char *host)
 	c = sendto(pingsock, packet, sizeof(packet), 0,
 			   (struct sockaddr *) &pingaddr, sizeof(struct sockaddr_in));
 
-	if (c < 0 || c != sizeof(packet)) {
-		if (c < 0)
-			perror("ping: sendto");
-		error_msg("write incomplete\n");
-		exit(1);
-	}
+	if (c < 0 || c != sizeof(packet))
+		perror_msg_and_die("sendto");
 
 	signal(SIGALRM, noresp);
 	alarm(5);					/* give the host 5000ms to respond */
@@ -234,7 +231,7 @@ static void ping(const char *host)
 						  (struct sockaddr *) &from, &fromlen)) < 0) {
 			if (errno == EINTR)
 				continue;
-			perror("ping: recvfrom");
+			perror_msg("recvfrom");
 			continue;
 		}
 		if (c >= 76) {			/* ip + icmp */
@@ -264,7 +261,7 @@ extern int ping_main(int argc, char **argv)
 static char *hostname = NULL;
 static struct sockaddr_in pingaddr;
 static int pingsock = -1;
-static int datalen = DEFDATALEN;
+static int datalen; /* intentionally uninitialized to work around gcc bug */
 
 static long ntransmitted = 0, nreceived = 0, nrepeats = 0, pingcount = 0;
 static int myid = 0, options = 0;
@@ -325,7 +322,7 @@ static void sendping(int junk)
 			   (struct sockaddr *) &pingaddr, sizeof(struct sockaddr_in));
 
 	if (i < 0)
-		error_msg_and_die("sendto: %s\n", strerror(errno));
+		perror_msg_and_die("sendto");
 	else if ((size_t)i != sizeof(packet))
 		error_msg_and_die("ping wrote %d chars; %d expected\n", i,
 			   (int)sizeof(packet));
@@ -439,12 +436,10 @@ static void ping(const char *host)
 	 * proto->p_proto to have the correct value for "icmp" */
 	if ((pingsock = socket(AF_INET, SOCK_RAW,
 						   (proto ? proto->p_proto : 1))) < 0) {	/* 1 == ICMP */
-		if (errno == EPERM) {
-			error_msg("permission denied. (are you root?)\n");
-		} else {
-			perror("ping: creating a raw socket");
-		}
-		exit(1);
+		if (errno == EPERM)
+			error_msg_and_die("permission denied. (are you root?)\n");
+		else
+			perror_msg_and_die("creating a raw socket");
 	}
 
 	/* drop root privs if running setuid */
@@ -498,7 +493,7 @@ static void ping(const char *host)
 						  (struct sockaddr *) &from, &fromlen)) < 0) {
 			if (errno == EINTR)
 				continue;
-			perror("ping: recvfrom");
+			perror_msg("recvfrom");
 			continue;
 		}
 		unpack(packet, c, &from);
@@ -511,6 +506,8 @@ static void ping(const char *host)
 extern int ping_main(int argc, char **argv)
 {
 	char *thisarg;
+
+	datalen = DEFDATALEN; /* initialized here rather than in global scope to work around gcc bug */
 
 	argc--;
 	argv++;

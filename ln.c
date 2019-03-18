@@ -2,7 +2,7 @@
 /*
  * Mini ln implementation for busybox
  *
- * Copyright (C) 1999,2000 by Lineo, inc.
+ * Copyright (C) 1999,2000,2001 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -28,11 +28,14 @@
 
 #include <stdio.h>
 #include <dirent.h>
+#include <string.h>
+#include <stdlib.h>
 #include <errno.h>
+#include <unistd.h>
 
-#define LN_SYMLINK		1
-#define LN_FORCE			2
-#define LN_NODEREFERENCE	4
+static const int LN_SYMLINK = 1;
+static const int LN_FORCE = 2;
+static const int LN_NODEREFERENCE = 4;
 
 /*
  * linkDestName is where the link points to,

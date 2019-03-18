@@ -56,16 +56,16 @@ terse runtime description of their behavior.
 Currently defined functions include:
 
 ar, basename, cat, chgrp, chmod, chown, chroot, chvt, clear, cp, cut, date, dc,
-dd, deallocvt, df, dirname, dmesg, dos2unix, du, dumpkmap, dutmp, echo, false,
-fbset, fdflush, find, free, freeramdisk, fsck.minix, getopt, grep, gunzip,
-gzip, halt, head, hostid, hostname, id, init, insmod, kill, killall, length,
-ln, loadacm, loadfont, loadkmap, logger, logname, ls, lsmod, makedevs, mkdir,
-mkfifo, mkfs.minix, mknod, mkswap, mktemp, more, mount, mt, mv, nc, nslookup,
-ping, poweroff, printf, ps, pwd, rdate, reboot, renice, reset, rm, rmdir,
-rmmod, sed, setkeycodes, sh, sleep, sort, swapoff, swapon, sync, syslogd, tail,
-tar, tee, telnet, test, touch, tr, true, tty, umount, uname, uniq, unix2dos,
-unrpm, update, uptime, usleep, uudecode, uuencode, wc, which, whoami, xargs,
-yes, zcat, [
+dd, deallocvt, df, dirname, dmesg, dos2unix, dpkg-deb, du, dumpkmap, dutmp,
+echo, false, fbset, fdflush, find, free, freeramdisk, fsck.minix, getopt, grep,
+gunzip, gzip, halt, head, hostid, hostname, id, init, insmod, kill, killall,
+length, ln, loadacm, loadfont, loadkmap, logger, logname, ls, lsmod, makedevs,
+mkdir, mkfifo, mkfs.minix, mknod, mkswap, mktemp, more, mount, mt, mv, nc,
+nslookup, ping, poweroff, printf, ps, pwd, rdate, reboot, renice, reset, rm,
+rmdir, rmmod, sed, setkeycodes, sh, sleep, sort, swapoff, swapon, sync,
+syslogd, tail, tar, tee, telnet, test, touch, tr, true, tty, umount, uname,
+uniq, unix2dos, unrpm, update, uptime, usleep, uudecode, uuencode, watchdog,
+wc, which, whoami, xargs, yes, zcat, [
 
 -------------------------------
 
@@ -418,6 +418,32 @@ Print or controls the kernel ring buffer.
 Usage: dos2unix < dosfile > unixfile
 
 Converts a text file from dos format to unix format.
+
+-------------------------------
+
+=item dpkg-deb
+
+Usage: dpkg-deb [-cexX] archive-file [directory]
+
+Debian package archive (.deb) manipulation tool
+
+Options:
+
+	-c	Lists the contents of the filesystem tree archive
+		portion  of  the  package archive.
+
+	-e	Extracts the control information files from a package
+		archive into the specified directory.
+	
+	-x	Silently extracts the filesystem tree from a package
+		archive into the specified directory.
+	
+	-X	Extracts the filesystem tree from a package archive
+		into the specified directory, list files as it goes.
+
+Example:
+
+	dpkg-deb -X ./busybox_0.48-1_i386.deb /tmp
 
 -------------------------------
 
@@ -845,6 +871,7 @@ Options:
 
         -g      prints only the group ID
         -u      prints only the user ID
+		-n      print a name instead of a number (with for -ug)
         -r      prints the real user ID instead of the effective ID (with -ug)
 
 Example:
@@ -887,10 +914,11 @@ If you choose to use an /etc/inittab file, the inittab entry format is as follow
 		the specified process to run on.  The contents of this field are
 		appended to "/dev/" and used as-is.  There is no need for this field to
 		be unique, although if it isn't you may have strange results.  If this
-		field is left blank, it is completely ignored.  Also note that if
-		BusyBox detects that a serial console is in use, then all entries
-		containing non-empty id fields will _not_ be run.  BusyBox init does
-		nothing with utmp.  We don't need no stinkin' utmp.
+		field is left blank, the controlling tty is set to the console.  Also
+		note that if BusyBox detects that a serial console is in use, then only
+		entries whose controlling tty is either the serial console or /dev/null
+		will be run.  BusyBox init does nothing with utmp.  We don't need no
+		stinkin' utmp.
 
 	<runlevels>: 
 
@@ -985,6 +1013,7 @@ Options:
 		-k      Make module autoclean-able.
 		-v      verbose output
 		-x      do not export externs
+		-L      Prevent simultaneous loads of the same module
 
 -------------------------------
 
@@ -1100,7 +1129,7 @@ Example:
 
 Usage: logger [OPTION]... [MESSAGE]
 
-Write MESSAGE to the system log.  If MESSAGE is '-', log stdin.
+Write MESSAGE to the system log.  If MESSAGE is omitted, log stdin.
 
 Options:
 
@@ -2066,6 +2095,14 @@ Example:
 
 -------------------------------
 
+=item watchdog
+
+Usage: watchdog device
+
+Periodically writes to watchdog device B<device>.
+
+-------------------------------
+
 =item wc
 
 Usage: wc [OPTION]... [FILE]...
@@ -2293,4 +2330,4 @@ Enrique Zanardi <ezanardi@ull.es>
 
 =cut
 
-# $Id: busybox.pod,v 1.83 2000/12/13 17:59:37 andersen Exp $
+# $Id: busybox.pod,v 1.89 2001/01/25 23:40:32 andersen Exp $

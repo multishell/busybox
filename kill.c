@@ -28,10 +28,11 @@
 #include <unistd.h>
 #include <signal.h>
 #include <ctype.h>
+#include <string.h>
 #include <unistd.h>
 
-#define KILL	0
-#define KILLALL	1
+static const int KILL = 0;
+static const int KILLALL = 1;
 
 struct signal_name {
 	const char *name;
@@ -204,10 +205,10 @@ extern int kill_main(int argc, char **argv)
 			int pid;
 
 			if (!isdigit(**argv))
-				error_msg_and_die( "Bad PID: %s\n", strerror(errno));
+				perror_msg_and_die( "Bad PID");
 			pid = strtol(*argv, NULL, 0);
 			if (kill(pid, sig) != 0) 
-				error_msg_and_die( "Could not kill pid '%d': %s\n", pid, strerror(errno));
+				perror_msg_and_die( "Could not kill pid '%d'", pid);
 			argv++;
 		}
 	} 
@@ -229,7 +230,7 @@ extern int kill_main(int argc, char **argv)
 				if (*pidList==myPid)
 					continue;
 				if (kill(*pidList, sig) != 0) 
-					error_msg_and_die( "Could not kill pid '%d': %s\n", *pidList, strerror(errno));
+					perror_msg_and_die( "Could not kill pid '%d'", *pidList);
 			}
 			/* Note that we don't bother to free the memory
 			 * allocated in find_pid_by_name().  It will be freed

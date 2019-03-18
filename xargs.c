@@ -1,9 +1,9 @@
 /*
  * Mini xargs implementation for busybox
  *
- * Copyright (C) 2000 by Lineo, inc.
+ * Copyright (C) 1999,2000,2001 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
- * Remixed by Mark Whitley <markw@lineo.com>, <markw@enol.com>
+ * Remixed by Mark Whitley <markw@lineo.com>, <markw@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -81,10 +81,8 @@ int xargs_main(int argc, char **argv)
 		strcat(execstr, cmd_to_be_executed);
 		strcat(execstr, file_to_act_on);
 		cmd_output = popen(execstr, "r");
-		if (cmd_output == NULL) {
-			perror("popen");
-			exit(1);
-		}
+		if (cmd_output == NULL)
+			perror_msg_and_die("popen");
 
 		/* harvest the output */
 		while ((output_line = get_line_from_file(cmd_output)) != NULL) {

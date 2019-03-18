@@ -3,7 +3,7 @@
  * Mini uniq implementation for busybox
  *
  *
- * Copyright (C) 1999,2000 by Lineo, inc.
+ * Copyright (C) 1999,2000,2001 by Lineo, inc.
  * Written by John Beppu <beppu@lineo.com>
  * Rewritten by Matt Kraai <kraai@alumni.carnegiemellon.edu>
  *
@@ -26,7 +26,9 @@
 #include "busybox.h"
 #include <stdio.h>
 #include <string.h>
+#include <getopt.h>
 #include <errno.h>
+#include <stdlib.h>
 
 static int print_count;
 static int print_uniq = 1;

@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <errno.h>
+#include <stdlib.h>
 
 extern int mkfifo_main(int argc, char **argv)
 {
@@ -53,9 +54,7 @@ extern int mkfifo_main(int argc, char **argv)
 	}
 	if (argc < 1 || *argv[0] == '-')
 		usage(mkfifo_usage);
-	if (mkfifo(*argv, mode) < 0) {
-		perror("mkfifo");
-		return EXIT_FAILURE;
-	}
+	if (mkfifo(*argv, mode) < 0)
+		perror_msg_and_die("mkfifo");
 	return EXIT_SUCCESS;
 }

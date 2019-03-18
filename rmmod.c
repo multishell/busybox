@@ -2,7 +2,7 @@
 /*
  * Mini rmmod implementation for busybox
  *
- * Copyright (C) 1999,2000 by Lineo, inc.
+ * Copyright (C) 1999,2000,2001 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -25,6 +25,9 @@
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
+#include <stdlib.h>
+#include <sys/syscall.h>
+#include <linux/unistd.h>
 #define __LIBRARY__
 
 
@@ -45,10 +48,8 @@ extern int rmmod_main(int argc, char **argv)
 			switch (**argv) {
 			case 'a':
 				/* Unload _all_ unused modules via NULL delete_module() call */
-				if (delete_module(NULL)) {
-					perror("rmmod");
-					return EXIT_FAILURE;
-				}
+				if (delete_module(NULL))
+					perror_msg_and_die("rmmod");
 				return EXIT_SUCCESS;
 			default:
 				usage(rmmod_usage);
@@ -58,7 +59,7 @@ extern int rmmod_main(int argc, char **argv)
 
 	while (argc-- > 0) {
 		if (delete_module(*argv) < 0) {
-			perror(*argv);
+			perror_msg("%s", *argv);
 			ret = EXIT_FAILURE;
 		}
 		argv++;

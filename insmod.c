@@ -2,7 +2,7 @@
 /*
  * Mini insmod implementation for busybox
  *
- * Copyright (C) 1999,2000 by Lineo, inc.
+ * Copyright (C) 1999,2000,2001 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>
  * and Ron Alder <alder@lineo.com>
  *
@@ -46,8 +46,11 @@
 #include <dirent.h>
 #include <ctype.h>
 #include <assert.h>
+#include <string.h>
 #include <getopt.h>
 #include <sys/utsname.h>
+#include <sys/syscall.h>
+#include <linux/unistd.h>
 
 //----------------------------------------------------------------------------
 //--------modutils module.h, lines 45-242
@@ -76,9 +79,9 @@
 
 
 #ifndef MODUTILS_MODULE_H
-#define MODUTILS_MODULE_H 1
+static const int MODUTILS_MODULE_H = 1;
 
-#ident "$Id: insmod.c,v 1.32 2000/12/13 16:41:29 andersen Exp $"
+#ident "$Id: insmod.c,v 1.44 2001/01/27 09:33:38 andersen Exp $"
 
 /* This file contains the structures used by the 2.0 and 2.1 kernels.
    We do not use the kernel headers directly because we do not wish
@@ -135,7 +138,7 @@ struct old_module
 };
 
 /* Sent to init_module(2) or'ed into the code size parameter.  */
-#define OLD_MOD_AUTOCLEAN 0x40000000 /* big enough, but no sign problems... */
+static const int OLD_MOD_AUTOCLEAN = 0x40000000; /* big enough, but no sign problems... */
 
 int get_kernel_syms(struct old_kernel_sym *);
 int old_sys_init_module(const char *name, char *code, unsigned codesize,
@@ -158,9 +161,9 @@ int old_sys_init_module(const char *name, char *code, unsigned codesize,
 #undef tgt_sizeof_char_p
 #undef tgt_sizeof_void_p
 #undef tgt_long
-#define tgt_sizeof_long		8
-#define tgt_sizeof_char_p	8
-#define tgt_sizeof_void_p	8
+static const int tgt_sizeof_long = 8;
+static const int tgt_sizeof_char_p = 8;
+static const int tgt_sizeof_void_p = 8;
 #define tgt_long		long long
 #endif
 
@@ -222,11 +225,11 @@ struct new_module_info
 };
 
 /* Bits of module.flags.  */
-#define NEW_MOD_RUNNING		1
-#define NEW_MOD_DELETED		2
-#define NEW_MOD_AUTOCLEAN	4
-#define NEW_MOD_VISITED		8
-#define NEW_MOD_USED_ONCE	16
+static const int NEW_MOD_RUNNING = 1;
+static const int NEW_MOD_DELETED = 2;
+static const int NEW_MOD_AUTOCLEAN = 4;
+static const int NEW_MOD_VISITED = 8;
+static const int NEW_MOD_USED_ONCE = 16;
 
 int new_sys_init_module(const char *name, const struct new_module *);
 int query_module(const char *name, int which, void *buf, size_t bufsize,
@@ -234,11 +237,11 @@ int query_module(const char *name, int which, void *buf, size_t bufsize,
 
 /* Values for query_module's which.  */
 
-#define QM_MODULES	1
-#define QM_DEPS		2
-#define QM_REFS		3
-#define QM_SYMBOLS	4
-#define QM_INFO		5
+static const int QM_MODULES = 1;
+static const int QM_DEPS = 2;
+static const int QM_REFS = 3;
+static const int QM_SYMBOLS = 4;
+static const int QM_INFO = 5;
 
 /*======================================================================*/
 /* The system calls unchanged between 2.0 and 2.1.  */
@@ -282,9 +285,9 @@ int delete_module(const char *);
 
 
 #ifndef MODUTILS_OBJ_H
-#define MODUTILS_OBJ_H 1
+static const int MODUTILS_OBJ_H = 1;
 
-#ident "$Id: insmod.c,v 1.32 2000/12/13 16:41:29 andersen Exp $"
+#ident "$Id: insmod.c,v 1.44 2001/01/27 09:33:38 andersen Exp $"
 
 /* The relocatable object is manipulated using elfin types.  */
 
@@ -339,7 +342,7 @@ int delete_module(const char *);
 #define Elf32_RelM	Elf32_Rel
 
 #else
-#error insmod.c no platform specified
+#error Sorry, but insmod.c does not yet support this architecture...
 #endif
 
 #ifndef ElfW
@@ -517,11 +520,7 @@ int arch_init_module (struct obj_file *f, struct new_module *);
 
 
 #define _PATH_MODULES	"/lib/modules"
-#define STRVERSIONLEN	32
-
-#if !defined(BB_FEATURE_INSMOD_NEW_KERNEL) && !defined(BB_FEATURE_INSMOD_OLD_KERNEL)
-#error "Must have ether BB_FEATURE_INSMOD_NEW_KERNEL or BB_FEATURE_INSMOD_OLD_KERNEL defined"
-#endif
+static const int STRVERSIONLEN = 32;
 
 /*======================================================================*/
 
@@ -615,7 +614,7 @@ extern int delete_module(const char *);
 
    -- Bryan Rittmeyer <bryan@ixiacom.com>                    */
 
-#ifdef BB_FEATURE_INSMOD_OLD_KERNEL
+#ifdef BB_FEATURE_OLD_MODULE_INTERFACE
 _syscall1(int, get_kernel_syms, struct old_kernel_sym *, ks)
 #endif
 
@@ -1549,7 +1548,7 @@ old_get_module_version(struct obj_file *f, char str[STRVERSIONLEN])
 
 #endif   /* BB_FEATURE_INSMOD_VERSION_CHECKING */
 
-#ifdef BB_FEATURE_INSMOD_OLD_KERNEL
+#ifdef BB_FEATURE_OLD_MODULE_INTERFACE
 
 /* Fetch all the symbols and divvy them up as appropriate for the modules.  */
 
@@ -1562,7 +1561,7 @@ static int old_get_kernel_symbols(const char *m_name)
 
 	nks = get_kernel_syms(NULL);
 	if (nks < 0) {
-		error_msg("get_kernel_syms: %s: %s\n", m_name, strerror(errno));
+		perror_msg("get_kernel_syms: %s", m_name);
 		return 0;
 	}
 
@@ -1704,7 +1703,8 @@ old_init_module(const char *m_name, struct obj_file *f,
 						ksym->name =
 							(unsigned long) str - (unsigned long) symtab;
 
-						str = strcpy(str, sym->name) + 1;
+						strcpy(str, sym->name);
+						str += strlen(sym->name) + 1;
 						ksym++;
 					}
 			}
@@ -1743,7 +1743,7 @@ old_init_module(const char *m_name, struct obj_file *f,
 							  m_size | (flag_autoclean ? OLD_MOD_AUTOCLEAN
 										: 0), &routines, symtab);
 	if (ret)
-		error_msg("init_module: %s: %s\n", m_name, strerror(errno));
+		perror_msg("init_module: %s", m_name);
 
 	free(image);
 	free(symtab);
@@ -1756,7 +1756,7 @@ old_init_module(const char *m_name, struct obj_file *f,
 #define old_create_mod_use_count(x) TRUE
 #define old_init_module(x, y, z) TRUE
 
-#endif							/* BB_FEATURE_INSMOD_OLD_KERNEL */
+#endif							/* BB_FEATURE_OLD_MODULE_INTERFACE */
 
 
 
@@ -2035,7 +2035,7 @@ new_get_module_version(struct obj_file *f, char str[STRVERSIONLEN])
 #endif   /* BB_FEATURE_INSMOD_VERSION_CHECKING */
 
 
-#ifdef BB_FEATURE_INSMOD_NEW_KERNEL
+#ifdef BB_FEATURE_NEW_MODULE_INTERFACE
 
 /* Fetch the loaded modules, and all currently exported symbols.  */
 
@@ -2055,7 +2055,7 @@ static int new_get_kernel_symbols(void)
 			module_names = xrealloc(module_names, bufsize = ret);
 			goto retry_modules_load;
 		}
-		error_msg("QM_MODULES: %s\n", strerror(errno));
+		perror_msg("QM_MODULES");
 		return 0;
 	}
 
@@ -2074,7 +2074,7 @@ static int new_get_kernel_symbols(void)
 				/* The module was removed out from underneath us.  */
 				continue;
 			}
-			error_msg("query_module: QM_INFO: %s: %s\n", mn, strerror(errno));
+			perror_msg("query_module: QM_INFO: %s", mn);
 			return 0;
 		}
 
@@ -2089,7 +2089,7 @@ static int new_get_kernel_symbols(void)
 				/* The module was removed out from underneath us.  */
 				continue;
 			default:
-				error_msg("query_module: QM_SYMBOLS: %s: %s\n", mn, strerror(errno));
+				perror_msg("query_module: QM_SYMBOLS: %s", mn);
 				return 0;
 			}
 		}
@@ -2114,7 +2114,7 @@ static int new_get_kernel_symbols(void)
 			syms = xrealloc(syms, bufsize = ret);
 			goto retry_kern_sym_load;
 		}
-		error_msg("kernel: QM_SYMBOLS: %s\n", strerror(errno));
+		perror_msg("kernel: QM_SYMBOLS");
 		return 0;
 	}
 	nksyms = nsyms = ret;
@@ -2295,7 +2295,7 @@ new_init_module(const char *m_name, struct obj_file *f,
 
 	ret = new_sys_init_module(m_name, (struct new_module *) image);
 	if (ret)
-		error_msg("init_module: %s: %s\n", m_name, strerror(errno));
+		perror_msg("init_module: %s", m_name);
 
 	free(image);
 
@@ -2309,7 +2309,7 @@ new_init_module(const char *m_name, struct obj_file *f,
 #define new_create_module_ksymtab(x)
 #define query_module(v, w, x, y, z) -1
 
-#endif							/* BB_FEATURE_INSMOD_NEW_KERNEL */
+#endif							/* BB_FEATURE_NEW_MODULE_INTERFACE */
 
 
 /*======================================================================*/
@@ -2680,7 +2680,7 @@ struct obj_file *obj_load(FILE * fp)
 
 	fseek(fp, 0, SEEK_SET);
 	if (fread(&f->header, sizeof(f->header), 1, fp) != 1) {
-		error_msg("error reading ELF header: %s\n", strerror(errno));
+		perror_msg("error reading ELF header");
 		return NULL;
 	}
 
@@ -2719,7 +2719,7 @@ struct obj_file *obj_load(FILE * fp)
 	section_headers = alloca(sizeof(ElfW(Shdr)) * shnum);
 	fseek(fp, f->header.e_shoff, SEEK_SET);
 	if (fread(section_headers, sizeof(ElfW(Shdr)), shnum, fp) != shnum) {
-		error_msg("error reading ELF section headers: %s\n", strerror(errno));
+		perror_msg("error reading ELF section headers");
 		return NULL;
 	}
 
@@ -2749,7 +2749,7 @@ struct obj_file *obj_load(FILE * fp)
 				sec->contents = xmalloc(sec->header.sh_size);
 				fseek(fp, sec->header.sh_offset, SEEK_SET);
 				if (fread(sec->contents, sec->header.sh_size, 1, fp) != 1) {
-					error_msg("error reading ELF section data: %s\n", strerror(errno));
+					perror_msg("error reading ELF section data");
 					return NULL;
 				}
 			} else {
@@ -2871,6 +2871,7 @@ static void hide_special_symbols(struct obj_file *f)
 
 extern int insmod_main( int argc, char **argv)
 {
+	int opt;
 	int k_crcs;
 	int k_new_syscalls;
 	int len;
@@ -2890,15 +2891,9 @@ extern int insmod_main( int argc, char **argv)
 	int m_crcs;
 #endif
 
-
-	if (argc <= 1) {
-		usage(insmod_usage);
-	}
-
 	/* Parse any options */
-	while (--argc > 0 && **(++argv) == '-') {
-		while (*(++(*argv))) {
-			switch (**argv) {
+	while ((opt = getopt(argc, argv, "fkvxLo:")) > 0) {
+		switch (opt) {
 			case 'f':			/* force loading */
 				flag_force_load = 1;
 				break;
@@ -2911,31 +2906,42 @@ extern int insmod_main( int argc, char **argv)
 			case 'x':			/* do not export externs */
 				flag_export = 0;
 				break;
+			case 'o':			/* name the output module */
+				strncpy(m_name, optarg, BUFSIZ);
+				break;
+			case 'L':			/* Stub warning */
+				/* This is needed for compatibility with modprobe.
+				 * In theory, this does locking, but we don't do
+				 * that.  So be careful and plan your life around not
+				 * loading the same module 50 times concurrently. */
+				break;
 			default:
 				usage(insmod_usage);
-			}
 		}
 	}
-
-	if (argc <= 0) {
+	
+	if (argv[optind] == NULL) {
 		usage(insmod_usage);
 	}
+
 	/* Grab the module name */
-	if ((tmp = strrchr(*argv, '/')) != NULL) {
+	if ((tmp = strrchr(argv[optind], '/')) != NULL) {
 		tmp++;
 	} else {
-		tmp = *argv;
+		tmp = argv[optind];
 	}
 	len = strlen(tmp);
 
 	if (len > 2 && tmp[len - 2] == '.' && tmp[len - 1] == 'o')
 		len -= 2;
-	memcpy(m_name, tmp, len);
-	strcpy(m_fullName, m_name);
+	strncpy(m_fullName, tmp, len);
+	if (*m_name == '\0') {
+		strcpy(m_name, m_fullName);
+	}
 	strcat(m_fullName, ".o");
 
 	/* Get a filedesc for the module */
-	if ((fp = fopen(*argv, "r")) == NULL) {
+	if ((fp = fopen(argv[optind], "r")) == NULL) {
 		/* Hmpf.  Could not open it. Search through _PATH_MODULES to find a module named m_name */
 		if (recursive_action(_PATH_MODULES, TRUE, FALSE, FALSE,
 							findNamedModule, 0, m_fullName) == FALSE) 
@@ -2949,13 +2955,11 @@ extern int insmod_main( int argc, char **argv)
 		} else
 			error_msg_and_die("No module named '%s' found in '%s'\n", m_fullName, _PATH_MODULES);
 	} else
-		memcpy(m_filename, *argv, strlen(*argv));
+		memcpy(m_filename, argv[optind], strlen(argv[optind]));
 
 
-	if ((f = obj_load(fp)) == NULL) {
-		perror("Could not load the module\n");
-		return EXIT_FAILURE;
-	}
+	if ((f = obj_load(fp)) == NULL)
+		perror_msg_and_die("Could not load the module");
 
 	if (get_modinfo_value(f, "kernel_version") == NULL)
 		m_has_modinfo = 0;
@@ -2997,7 +3001,7 @@ extern int insmod_main( int argc, char **argv)
 	k_new_syscalls = !query_module(NULL, 0, NULL, 0, NULL);
 
 	if (k_new_syscalls) {
-#ifdef BB_FEATURE_INSMOD_NEW_KERNEL
+#ifdef BB_FEATURE_NEW_MODULE_INTERFACE
 		if (!new_get_kernel_symbols())
 			goto out;
 		k_crcs = new_is_kernel_checksummed();
@@ -3006,7 +3010,7 @@ extern int insmod_main( int argc, char **argv)
 		goto out;
 #endif
 	} else {
-#ifdef BB_FEATURE_INSMOD_OLD_KERNEL
+#ifdef BB_FEATURE_OLD_MODULE_INTERFACE
 		if (!old_get_kernel_symbols(m_name))
 			goto out;
 		k_crcs = old_is_kernel_checksummed();
@@ -3043,6 +3047,9 @@ extern int insmod_main( int argc, char **argv)
 	}
 	obj_allocate_commons(f);
 
+	/* done with the module name, on to the optional var=value arguments */
+	++optind;
+
 	if (optind < argc) {
 		if (m_has_modinfo
 			? !new_process_module_arguments(f, argc - optind, argv + optind) 
@@ -3062,11 +3069,8 @@ extern int insmod_main( int argc, char **argv)
 	m_size = obj_load_size(f);
 
 
-	errno = 0;
 	m_addr = create_module(m_name, m_size);
-	switch (errno) {
-	case 0:
-		break;
+	if (m_addr==-1) switch (errno) {
 	case EEXIST:
 		error_msg("A module named %s already exists\n", m_name);
 		goto out;
@@ -3075,7 +3079,7 @@ extern int insmod_main( int argc, char **argv)
 				m_size);
 		goto out;
 	default:
-		error_msg("create_module: %s: %s\n", m_name, strerror(errno));
+		perror_msg("create_module: %s", m_name);
 		goto out;
 	}
 

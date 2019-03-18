@@ -31,9 +31,11 @@
 #include <netdb.h>
 #include <stdio.h>
 #include <getopt.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 
-#define RFC_868_BIAS	2208988800UL
+static const int RFC_868_BIAS = 2208988800UL;
 
 int setdate= 0;
 int printdate= 0;
@@ -47,15 +49,15 @@ time_t askremotedate(char *host)
 	int fd;
 
 	if (!(h = gethostbyname(host))) {	/* get the IP addr */
-		error_msg("%s: %s\n", host, strerror(errno));
+		perror_msg("%s", host);
 		return(-1);
 	}
 	if ((tserv = getservbyname("time", "tcp")) == NULL) { /* find port # */
-		error_msg("%s: %s\n", "time", strerror(errno));
+		perror_msg("%s", "time");
 		return(-1);
 	}
 	if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {  /* get net connection */
-		error_msg("%s: %s\n", "socket", strerror(errno));
+		perror_msg("%s", "socket");
 		return(-1);
 	}
 
@@ -64,7 +66,7 @@ time_t askremotedate(char *host)
 	sin.sin_family = AF_INET;
 
 	if (connect(fd, (struct sockaddr *)&sin, sizeof(sin)) < 0) {	/* connect to time server */
-		error_msg("%s: %s\n", host, strerror(errno));
+		perror_msg("%s", host);
 		close(fd);
 		return(-1);
 	}
@@ -123,10 +125,10 @@ int rdate_main(int argc, char **argv)
 	}
 	if (setdate) {
 		if (stime(&time) < 0)
-			error_msg_and_die("Could not set time of day: %s\n", strerror(errno));
+			perror_msg_and_die("Could not set time of day");
 	}
 	if (printdate) {
-		fprintf(stdout, "%s", ctime(&time));
+		printf("%s", ctime(&time));
 	}
 
 	return EXIT_SUCCESS;

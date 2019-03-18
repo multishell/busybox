@@ -25,32 +25,23 @@
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <fcntl.h>
+#include <stdlib.h>
 
 /* From <linux/fd.h> */
 #define FDFLUSH  _IO(2,0x4b)
 
 extern int fdflush_main(int argc, char **argv)
 {
-	int value;
 	int fd;
 
 	if (argc <= 1 || **(++argv) == '-')
 		usage(fdflush_usage);
 
-	fd = open(*argv, 0);
-	if (fd < 0) {
-		perror(*argv);
-		return EXIT_FAILURE;
-	}
+	if ((fd = open(*argv, 0)) < 0)
+		perror_msg_and_die("%s", *argv);
 
-	value = ioctl(fd, FDFLUSH, 0);
-	/* Don't bother closing.  Exit does
-	 * that, so we can save a few bytes */
-	/* close(fd); */
+	if (ioctl(fd, FDFLUSH, 0))
+		perror_msg_and_die("%s", *argv);
 
-	if (value) {
-		perror(*argv);
-		return EXIT_FAILURE;
-	}
 	return EXIT_SUCCESS;
 }

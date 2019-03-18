@@ -50,8 +50,16 @@
 #include <utime.h>
 #include <unistd.h>
 #include <ctype.h>
+#include <stdlib.h>
 #include <sys/ioctl.h>
 #include <sys/utsname.h>		/* for uname(2) */
+
+#include "pwd_grp/pwd.h"
+#include "pwd_grp/grp.h"
+
+/* for the _syscall() macros */
+#include <sys/syscall.h>
+#include <linux/unistd.h>
 
 /* Busybox mount uses either /proc/filesystems or /dev/mtab to get the 
  * list of available filesystems used for the -t auto option */ 
@@ -79,8 +87,7 @@ const char mtab_file[] = "/dev/mtab";
 
 extern void usage(const char *usage)
 {
-	fprintf(stderr, "%s\n\n", full_version);
-	fprintf(stderr, "Usage: %s\n", usage);
+	fprintf(stderr, "%s\n\nUsage: %s\n", full_version, usage);
 	exit(EXIT_FAILURE);
 }
 
@@ -89,7 +96,6 @@ static void verror_msg(const char *s, va_list p)
 	fflush(stdout);
 	fprintf(stderr, "%s: ", applet_name);
 	vfprintf(stderr, s, p);
-	fflush(stderr);
 }
 
 extern void error_msg(const char *s, ...)
@@ -113,14 +119,11 @@ extern void error_msg_and_die(const char *s, ...)
 
 static void vperror_msg(const char *s, va_list p)
 {
-	fflush(stdout);
-	fprintf(stderr, "%s: ", applet_name);
-	if (s && *s) {
-		vfprintf(stderr, s, p);
-		fputs(": ", stderr);
-	}
-	fprintf(stderr, "%s\n", strerror(errno));
-	fflush(stderr);
+	int err=errno;
+	if(s == 0) s = "";
+	verror_msg(s, p);
+	if (*s) s = ": ";
+	fprintf(stderr, "%s%s\n", s, strerror(err));
 }
 
 extern void perror_msg(const char *s, ...)
@@ -142,7 +145,7 @@ extern void perror_msg_and_die(const char *s, ...)
 	exit(EXIT_FAILURE);
 }
 
-#if defined BB_INIT || defined BB_MKSWAP || defined BB_MOUNT
+#if defined BB_INIT || defined BB_MKSWAP || defined BB_MOUNT || defined BB_NFSMOUNT
 /* Returns kernel version encoded as major*65536 + minor*256 + patch,
  * so, for example,  to check if the kernel is greater than 2.2.11:
  *     if (get_kernel_revision() <= 2*65536+2*256+11) { <stuff> }
@@ -153,7 +156,7 @@ extern int get_kernel_revision(void)
 	int major = 0, minor = 0, patch = 0;
 
 	if (uname(&name) == -1) {
-		perror("cannot get system information");
+		perror_msg("cannot get system information");
 		return (0);
 	}
 	major = atoi(strtok(name.release, "."));
@@ -172,7 +175,7 @@ _syscall1(int, sysinfo, struct sysinfo *, info);
 #if defined BB_MOUNT || defined BB_UMOUNT
 
 #ifndef __NR_umount2
-#define __NR_umount2           52
+static const int __NR_umount2 = 52;
 #endif
 
 /* Include our own version of <sys/mount.h>, since libc5 doesn't
@@ -185,7 +188,7 @@ extern _syscall5(int, mount, const char *, special_file, const char *, dir,
 
 #if defined BB_INSMOD || defined BB_LSMOD
 #ifndef __NR_query_module
-#define __NR_query_module     167
+static const int __NR_query_module = 167;
 #endif
 _syscall5(int, query_module, const char *, name, int, which,
 		void *, buf, size_t, bufsize, size_t*, ret);
@@ -261,7 +264,7 @@ void reset_ino_dev_hashtable(void)
 
 #endif /* BB_CP_MV || BB_DU */
 
-#if defined (BB_CP_MV) || defined (BB_DU) || defined (BB_LN) || defined (BB_AR)
+#if defined (BB_CP_MV) || defined (BB_DU) || defined (BB_LN) || defined (BB_DPKG_DEB)
 /*
  * Return TRUE if a fileName is a directory.
  * Nonexistant files return FALSE.
@@ -294,7 +297,7 @@ int is_directory(const char *fileName, const int followLinks, struct stat *statB
 }
 #endif
 
-#if defined (BB_AR) || defined BB_CP_MV
+#if defined BB_AR || defined BB_CP_MV
 /*
  * Copy chunksize bytes between two file descriptors
  */
@@ -341,7 +344,7 @@ copy_file(const char *srcName, const char *destName,
 		status = lstat(srcName, &srcStatBuf);
 
 	if (status < 0) {
-		perror(srcName);
+		perror_msg("%s", srcName);
 		return FALSE;
 	}
 
@@ -367,7 +370,7 @@ copy_file(const char *srcName, const char *destName,
 		/* Make sure the directory is writable */
 		status = mkdir(destName, 0777777 ^ umask(0));
 		if (status < 0 && errno != EEXIST) {
-			perror(destName);
+			perror_msg("%s", destName);
 			return FALSE;
 		}
 	} else if (S_ISLNK(srcStatBuf.st_mode)) {
@@ -378,13 +381,13 @@ copy_file(const char *srcName, const char *destName,
 		/* Warning: This could possibly truncate silently, to BUFSIZ chars */
 		link_size = readlink(srcName, &link_val[0], BUFSIZ);
 		if (link_size < 0) {
-			perror(srcName);
+			perror_msg("%s", srcName);
 			return FALSE;
 		}
 		link_val[link_size] = '\0';
 		status = symlink(link_val, destName);
 		if (status < 0) {
-			perror(destName);
+			perror_msg("%s", destName);
 			return FALSE;
 		}
 #if (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 1)
@@ -397,28 +400,28 @@ copy_file(const char *srcName, const char *destName,
 	} else if (S_ISFIFO(srcStatBuf.st_mode)) {
 		//fprintf(stderr, "copying fifo %s to %s\n", srcName, destName);
 		if (mkfifo(destName, 0644) < 0) {
-			perror(destName);
+			perror_msg("%s", destName);
 			return FALSE;
 		}
 	} else if (S_ISBLK(srcStatBuf.st_mode) || S_ISCHR(srcStatBuf.st_mode)
 			   || S_ISSOCK(srcStatBuf.st_mode)) {
 		//fprintf(stderr, "copying soc, blk, or chr %s to %s\n", srcName, destName);
 		if (mknod(destName, srcStatBuf.st_mode, srcStatBuf.st_rdev) < 0) {
-			perror(destName);
+			perror_msg("%s", destName);
 			return FALSE;
 		}
 	} else if (S_ISREG(srcStatBuf.st_mode)) {
 		//fprintf(stderr, "copying regular file %s to %s\n", srcName, destName);
 		rfd = open(srcName, O_RDONLY);
 		if (rfd < 0) {
-			perror(srcName);
+			perror_msg("%s", srcName);
 			return FALSE;
 		}
 
 	 	wfd = open(destName, O_WRONLY | O_CREAT | O_TRUNC,
 				 srcStatBuf.st_mode);
 		if (wfd < 0) {
-			perror(destName);
+			perror_msg("%s", destName);
 			close(rfd);
 			return FALSE;
 		}
@@ -434,26 +437,20 @@ copy_file(const char *srcName, const char *destName,
 
 	if (setModes == TRUE) {
 		/* This is fine, since symlinks never get here */
-		if (chown(destName, srcStatBuf.st_uid, srcStatBuf.st_gid) < 0) {
-			perror(destName);
-			exit(EXIT_FAILURE);
-		}
-		if (chmod(destName, srcStatBuf.st_mode) < 0) {
-			perror(destName);
-			exit(EXIT_FAILURE);
-		}
+		if (chown(destName, srcStatBuf.st_uid, srcStatBuf.st_gid) < 0)
+			perror_msg_and_die("%s", destName);
+		if (chmod(destName, srcStatBuf.st_mode) < 0)
+			perror_msg_and_die("%s", destName);
 		times.actime = srcStatBuf.st_atime;
 		times.modtime = srcStatBuf.st_mtime;
-		if (utime(destName, &times) < 0) {
-			perror(destName);
-			exit(EXIT_FAILURE);
-		}
+		if (utime(destName, &times) < 0)
+			perror_msg_and_die("%s", destName);
 	}
 
 	return TRUE;
 
   error_exit:
-	perror(destName);
+	perror_msg("%s", destName);
 	close(rfd);
 	close(wfd);
 
@@ -536,7 +533,7 @@ const char *time_string(time_t timeVal)
 }
 #endif /* BB_TAR || BB_AR */
 
-#if defined BB_TAR || defined BB_CP_MV || defined BB_AR || defined BB_DD
+#if defined BB_DD || defined BB_NC || defined BB_TAIL || defined BB_TAR || defined BB_AR || defined BB_CP_MV
 /*
  * Write all of the supplied buffer out to a file.
  * This does multiple writes as necessary.
@@ -562,10 +559,9 @@ int full_write(int fd, const char *buf, int len)
 
 	return total;
 }
-#endif /* BB_TAR || BB_CP_MV || BB_AR */
+#endif
 
-
-#if defined BB_TAR || defined BB_TAIL || defined BB_AR || defined BB_SH || defined BB_CP_MV || defined BB_DD
+#if defined BB_AR || defined BB_CP_MV || defined BB_SH || defined BB_TAR
 /*
  * Read all of the supplied buffer from a file.
  * This does multiple reads as necessary.
@@ -664,17 +660,18 @@ int recursive_action(const char *fileName,
 	if (S_ISDIR(statbuf.st_mode)) {
 		DIR *dir;
 
-		dir = opendir(fileName);
-		if (!dir) {
-			perror_msg("%s", fileName);
-			return FALSE;
-		}
 		if (dirAction != NULL && depthFirst == FALSE) {
 			status = dirAction(fileName, &statbuf, userData);
 			if (status == FALSE) {
 				perror_msg("%s", fileName);
 				return FALSE;
-			}
+			} else if (status == SKIP)
+				return TRUE;
+		}
+		dir = opendir(fileName);
+		if (!dir) {
+			perror_msg("%s", fileName);
+			return FALSE;
 		}
 		while ((next = readdir(dir)) != NULL) {
 			char nextFile[BUFSIZ + 1];
@@ -722,7 +719,7 @@ int recursive_action(const char *fileName,
 
 
 
-#if defined (BB_TAR) || defined (BB_MKDIR) || defined (BB_AR)
+#if defined (BB_TAR) || defined (BB_MKDIR)
 /*
  * Attempt to create the directories along the specified path, except for
  * the final component.  The mode is given for the final directory only,
@@ -745,7 +742,7 @@ extern int create_path(const char *name, int mode)
 		*cpOld = '\0';
 		retVal = mkdir(buf, cp ? 0777 : mode);
 		if (retVal != 0 && errno != EEXIST) {
-			perror(buf);
+			perror_msg("%s", buf);
 			return FALSE;
 		}
 		*cpOld = '/';
@@ -867,115 +864,72 @@ extern int parse_mode(const char *s, mode_t * theMode)
 #if defined BB_CHMOD_CHOWN_CHGRP || defined BB_PS || defined BB_LS \
  || defined BB_TAR || defined BB_ID || defined BB_LOGGER \
  || defined BB_LOGNAME || defined BB_WHOAMI || defined BB_SH
-
-/* This parses entries in /etc/passwd and /etc/group.  This is desirable
- * for BusyBox, since we want to avoid using the glibc NSS stuff, which
- * increases target size and is often not needed or wanted for embedded
- * systems.
- *
- * /etc/passwd entries look like this: 
- *		root:x:0:0:root:/root:/bin/bash
- * and /etc/group entries look like this: 
- *		root:x:0:
- *
- * This uses buf as storage to hold things.
- * 
- */
-unsigned long my_getid(const char *filename, char *name, long id, long *gid)
-{
-	FILE *file;
-	char *rname, *start, *end, buf[128];
-	long rid;
-	long rgid = 0;
-
-	file = fopen(filename, "r");
-	if (file == NULL) {
-		/* Do not complain.  It is ok for /etc/passwd and
-		 * friends to be missing... */
-		return (-1);
-	}
-
-	while (fgets(buf, 128, file) != NULL) {
-		if (buf[0] == '#')
-			continue;
-
-		/* username/group name */
-		start = buf;
-		end = strchr(start, ':');
-		if (end == NULL)
-			continue;
-		*end = '\0';
-		rname = start;
-
-		/* password */
-		start = end + 1;
-		end = strchr(start, ':');
-		if (end == NULL)
-			continue;
-
-		/* uid in passwd, gid in group */
-		start = end + 1;
-		rid = (unsigned long) strtol(start, &end, 10);
-		if (end == start)
-			continue;
-
-		/* gid in passwd */
-		start = end + 1;
-		rgid = (unsigned long) strtol(start, &end, 10);
-		
-		if (name) {
-			if (0 == strcmp(rname, name)) {
-			    if (gid) *gid = rgid;
-				fclose(file);
-				return (rid);
-			}
-		}
-		if (id != -1 && id == rid) {
-			strncpy(name, rname, 8);
-			name[8]='\0';
-			if (gid) *gid = rgid;
-			fclose(file);
-			return (TRUE);
-		}
-	}
-	fclose(file);
-	return (-1);
-}
-
 /* returns a uid given a username */
 long my_getpwnam(char *name)
 {
-	return my_getid("/etc/passwd", name, -1, NULL);
+	struct passwd *myuser;
+
+	myuser  = getpwnam(name);
+	if (myuser==NULL)
+		error_msg_and_die( "unknown username: %s\n", name);
+
+	return myuser->pw_uid;
 }
 
 /* returns a gid given a group name */
 long my_getgrnam(char *name)
 {
-	return my_getid("/etc/group", name, -1, NULL);
+	struct group *mygroup;
+
+	mygroup  = getgrnam(name);
+	if (mygroup==NULL)
+		error_msg_and_die( "unknown group: %s\n", name);
+
+	return (mygroup->gr_gid);
 }
 
 /* gets a username given a uid */
 void my_getpwuid(char *name, long uid)
 {
-	name[0] = '\0';
-	my_getid("/etc/passwd", name, uid, NULL);
+	struct passwd *myuser;
+
+	myuser  = getpwuid(uid);
+	if (myuser==NULL)
+		error_msg_and_die( "unknown uid %ld\n", (long)uid);
+
+	strcpy(name, myuser->pw_name);
 }
 
 /* gets a groupname given a gid */
 void my_getgrgid(char *group, long gid)
 {
-	group[0] = '\0';
-	my_getid("/etc/group", group, gid, NULL);
+	struct group *mygroup;
+
+	mygroup  = getgrgid(gid);
+	if (mygroup==NULL)
+		error_msg_and_die( "unknown gid %ld\n", (long)gid);
+
+	strcpy(group, mygroup->gr_name);
 }
 
+#if defined BB_ID
 /* gets a gid given a user name */
 long my_getpwnamegid(char *name)
 {
-	long gid;
-	my_getid("/etc/passwd", name, -1, &gid);
-	return gid;
-}
+	struct group *mygroup;
+	struct passwd *myuser;
 
+	myuser=getpwnam(name);
+	if (myuser==NULL)
+		error_msg_and_die( "unknown user name: %s\n", name);
+
+	mygroup  = getgrgid(myuser->pw_gid);
+	if (mygroup==NULL)
+		error_msg_and_die( "unknown gid %ld\n", (long)myuser->pw_gid);
+
+	return mygroup->gr_gid;
+}
+#endif /* BB_ID */
 #endif
  /* BB_CHMOD_CHOWN_CHGRP || BB_PS || BB_LS || BB_TAR \
  || BB_ID || BB_LOGGER || BB_LOGNAME || BB_WHOAMI */
@@ -984,9 +938,9 @@ long my_getpwnamegid(char *name)
 #if (defined BB_CHVT) || (defined BB_DEALLOCVT) || (defined BB_SETKEYCODES)
 
 /* From <linux/kd.h> */ 
-#define KDGKBTYPE       0x4B33  /* get keyboard type */
-#define         KB_84           0x01
-#define         KB_101          0x02    /* this is what we always answer */
+static const int KDGKBTYPE = 0x4B33;  /* get keyboard type */
+static const int KB_84 = 0x01;
+static const int KB_101 = 0x02;    /* this is what we always answer */
 
 int is_a_console(int fd)
 {
@@ -1175,6 +1129,7 @@ extern int check_wildcard_match(const char *text, const char *pattern)
 
 
 #if defined BB_DF || defined BB_MTAB
+#include <mntent.h>
 /*
  * Given a block device, find the mount table entry if that block device
  * is mounted.
@@ -1214,58 +1169,6 @@ extern struct mntent *find_mount_point(const char *name, const char *table)
 	return mountEntry;
 }
 #endif							/* BB_DF || BB_MTAB */
-
-
-
-#if defined BB_DD || defined BB_TAIL
-/*
- * Read a number with a possible multiplier.
- * Returns -1 if the number format is illegal.
- */
-extern long atoi_w_units(const char *cp)
-{
-	long value;
-
-	if (!is_decimal(*cp))
-		return -1;
-
-	value = 0;
-
-	while (is_decimal(*cp))
-		value = value * 10 + *cp++ - '0';
-
-	switch (*cp++) {
-	case 'M':
-	case 'm':					/* `tail' uses it traditionally */
-		value *= 1048576;
-		break;
-
-	case 'k':
-		value *= 1024;
-		break;
-
-	case 'b':
-		value *= 512;
-		break;
-
-	case 'w':
-		value *= 2;
-		break;
-
-	case '\0':
-		return value;
-
-	default:
-		return -1;
-	}
-
-	if (*cp)
-		return -1;
-
-	return value;
-}
-#endif							/* BB_DD || BB_TAIL */
-
 
 #if defined BB_INIT || defined BB_SYSLOGD 
 /* try to open up the specified device */
@@ -1313,11 +1216,11 @@ extern pid_t* find_pid_by_name( char* pidName)
 	/* open device */ 
 	fd = open(device, O_RDONLY);
 	if (fd < 0)
-		error_msg_and_die( "open failed for `%s': %s\n", device, strerror (errno));
+		perror_msg_and_die("open failed for `%s'", device);
 
 	/* Find out how many processes there are */
 	if (ioctl (fd, DEVPS_GET_NUM_PIDS, &num_pids)<0) 
-		error_msg_and_die( "\nDEVPS_GET_PID_LIST: %s\n", strerror (errno));
+		perror_msg_and_die("\nDEVPS_GET_PID_LIST");
 	
 	/* Allocate some memory -- grab a few extras just in case 
 	 * some new processes start up while we wait. The kernel will
@@ -1328,7 +1231,7 @@ extern pid_t* find_pid_by_name( char* pidName)
 
 	/* Now grab the pid list */
 	if (ioctl (fd, DEVPS_GET_PID_LIST, pid_array)<0) 
-		error_msg_and_die( "\nDEVPS_GET_PID_LIST: %s\n", strerror (errno));
+		perror_msg_and_die("\nDEVPS_GET_PID_LIST");
 
 	/* Now search for a match */
 	for (i=1, j=0; i<pid_array[0] ; i++) {
@@ -1337,7 +1240,7 @@ extern pid_t* find_pid_by_name( char* pidName)
 
 	    info.pid = pid_array[i];
 	    if (ioctl (fd, DEVPS_GET_PID_INFO, &info)<0)
-			error_msg_and_die( "\nDEVPS_GET_PID_INFO: %s\n", strerror (errno));
+			perror_msg_and_die("\nDEVPS_GET_PID_INFO");
 
 		/* Make sure we only match on the process name */
 		p=info.command_line+1;
@@ -1361,7 +1264,7 @@ extern pid_t* find_pid_by_name( char* pidName)
 
 	/* close device */
 	if (close (fd) != 0) 
-		error_msg_and_die( "close failed for `%s': %s\n",device, strerror (errno));
+		perror_msg_and_die("close failed for `%s'", device);
 
 	return pidList;
 }
@@ -1387,7 +1290,7 @@ extern pid_t* find_pid_by_name( char* pidName)
 
 	dir = opendir("/proc");
 	if (!dir)
-		error_msg_and_die( "Cannot open /proc: %s\n", strerror (errno));
+		perror_msg_and_die("Cannot open /proc");
 	
 	while ((next = readdir(dir)) != NULL) {
 		FILE *status;
@@ -1447,7 +1350,8 @@ extern void *xcalloc(size_t nmemb, size_t size)
 }
 #endif
 
-#if defined BB_FEATURE_NFSMOUNT || defined BB_LS || defined BB_SH || defined BB_WGET
+#if defined BB_NFSMOUNT || defined BB_LS || defined BB_SH || defined BB_WGET || \
+	defined BB_DPKG_DEB || defined BB_TAR
 # ifndef DMALLOC
 extern char * xstrdup (const char *s) {
 	char *t;
@@ -1465,12 +1369,12 @@ extern char * xstrdup (const char *s) {
 # endif
 #endif
 
-#if defined BB_FEATURE_NFSMOUNT
+#if defined BB_NFSMOUNT
 extern char * xstrndup (const char *s, int n) {
 	char *t;
 
 	if (s == NULL)
-		error_msg_and_die("xstrndup bug");
+		error_msg_and_die("xstrndup bug\n");
 
 	t = xmalloc(n+1);
 	strncpy(t,s,n);
@@ -1502,11 +1406,11 @@ extern int del_loop(const char *device)
 	int fd;
 
 	if ((fd = open(device, O_RDONLY)) < 0) {
-		perror(device);
+		perror_msg("%s", device);
 		return (FALSE);
 	}
 	if (ioctl(fd, LOOP_CLR_FD, 0) < 0) {
-		perror("ioctl: LOOP_CLR_FD");
+		perror_msg("ioctl: LOOP_CLR_FD");
 		return (FALSE);
 	}
 	close(fd);
@@ -1522,12 +1426,12 @@ extern int set_loop(const char *device, const char *file, int offset,
 	mode = *loopro ? O_RDONLY : O_RDWR;
 	if ((ffd = open(file, mode)) < 0 && !*loopro
 		&& (errno != EROFS || (ffd = open(file, mode = O_RDONLY)) < 0)) {
-		perror(file);
+		perror_msg("%s", file);
 		return 1;
 	}
 	if ((fd = open(device, mode)) < 0) {
 		close(ffd);
-		perror(device);
+		perror_msg("%s", device);
 		return 1;
 	}
 	*loopro = (mode == O_RDONLY);
@@ -1540,14 +1444,14 @@ extern int set_loop(const char *device, const char *file, int offset,
 
 	loopinfo.lo_encrypt_key_size = 0;
 	if (ioctl(fd, LOOP_SET_FD, ffd) < 0) {
-		perror("ioctl: LOOP_SET_FD");
+		perror_msg("ioctl: LOOP_SET_FD");
 		close(fd);
 		close(ffd);
 		return 1;
 	}
 	if (ioctl(fd, LOOP_SET_STATUS, &loopinfo) < 0) {
 		(void) ioctl(fd, LOOP_CLR_FD, 0);
-		perror("ioctl: LOOP_SET_STATUS");
+		perror_msg("ioctl: LOOP_SET_STATUS");
 		close(fd);
 		close(ffd);
 		return 1;
@@ -1727,7 +1631,8 @@ char process_escape_sequence(char **ptr)
 }
 #endif
 
-#if defined BB_BASENAME || defined BB_LN || defined BB_SH || defined BB_INIT || defined BB_FEATURE_USE_PROCFS
+#if defined BB_BASENAME || defined BB_LN || defined BB_SH || defined BB_INIT || \
+	defined BB_FEATURE_USE_PROCFS || defined BB_WGET
 char *get_last_path_component(char *path)
 {
 	char *s=path+strlen(path)-1;
@@ -1747,6 +1652,7 @@ char *get_last_path_component(char *path)
 #endif
 
 #if defined BB_GREP || defined BB_SED
+#include <regex.h>
 void xregcomp(regex_t *preg, const char *regex, int cflags)
 {
 	int ret;
@@ -1764,7 +1670,7 @@ FILE *wfopen(const char *path, const char *mode)
 {
 	FILE *fp;
 	if ((fp = fopen(path, mode)) == NULL) {
-		error_msg("%s: %s\n", path, strerror(errno));
+		perror_msg("%s", path);
 		errno = 0;
 	}
 	return fp;
@@ -1772,13 +1678,13 @@ FILE *wfopen(const char *path, const char *mode)
 #endif
 
 #if defined BB_HOSTNAME || defined BB_LOADACM || defined BB_MORE \
- || defined BB_SED || defined BB_SH || defined BB_UNIQ \
- || defined BB_WC || defined BB_CMP
+ || defined BB_SED || defined BB_SH || defined BB_TAR || defined BB_UNIQ \
+ || defined BB_WC || defined BB_CMP || defined BB_SORT
 FILE *xfopen(const char *path, const char *mode)
 {
 	FILE *fp;
 	if ((fp = fopen(path, mode)) == NULL)
-		error_msg_and_die("%s: %s\n", path, strerror(errno));
+		perror_msg_and_die("%s", path);
 	return fp;
 }
 #endif
@@ -1790,6 +1696,67 @@ int applet_name_compare(const void *x, const void *y)
 
 	return strcmp(applet1->name, applet2->name);
 }
+
+#if defined BB_DD || defined BB_TAIL
+unsigned long parse_number(const char *numstr, struct suffix_mult *suffixes)
+{
+	struct suffix_mult *sm;
+	unsigned long int ret;
+	int len;
+	char *end;
+	
+	ret = strtoul(numstr, &end, 10);
+	if (numstr == end)
+		error_msg_and_die("invalid number `%s'\n", numstr);
+	while (end[0] != '\0') {
+		for (sm = suffixes; sm->suffix != NULL; sm++) {
+			len = strlen(sm->suffix);
+			if (strncmp(sm->suffix, end, len) == 0) {
+				ret *= sm->mult;
+				end += len;
+				break;
+			}
+		}
+		if (sm->suffix == NULL)
+			error_msg_and_die("invalid number `%s'\n", numstr);
+	}
+	return ret;
+}
+#endif
+
+#if defined BB_DD || defined BB_NC || defined BB_TAIL
+ssize_t safe_read(int fd, void *buf, size_t count)
+{
+	ssize_t n;
+
+	do {
+		n = read(fd, buf, count);
+	} while (n < 0 && errno == EINTR);
+
+	return n;
+}
+#endif
+
+#ifdef BB_FEATURE_HUMAN_READABLE
+char *format(unsigned long val, unsigned long hr)
+{
+	static char str[10] = "\0";
+
+	if(val == 0)
+		return("0");
+	if(hr)
+		snprintf(str, 9, "%ld", val/hr);
+	else if(val >= GIGABYTE)
+		snprintf(str, 9, "%.1LfG", ((long double)(val)/GIGABYTE));
+	else if(val >= MEGABYTE)
+		snprintf(str, 9, "%.1LfM", ((long double)(val)/MEGABYTE));
+	else if(val >= KILOBYTE)
+		snprintf(str, 9, "%.1Lfk", ((long double)(val)/KILOBYTE));
+	else
+		snprintf(str, 9, "%ld", (val));
+	return(str);
+}
+#endif
 
 /* END CODE */
 /*

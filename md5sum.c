@@ -26,12 +26,11 @@
 #include <ctype.h>
 #include <getopt.h>
 
-/* It turns out that libc5 doesn't have this in its headers
- * even though it is actually in the lib.  Force it to work */
-#if ! defined __GLIBC__ && ! defined __UCLIBC__
-#define getline __getline
-extern _IO_ssize_t getline __P ((char **, size_t *, FILE *));
-#endif
+/* For some silly reason, this file uses backwards TRUE and FALSE conventions */
+#undef TRUE
+#undef FALSE
+#define FALSE   ((int) 1)
+#define TRUE    ((int) 0)
 
 //----------------------------------------------------------------------------
 //--------md5.c
@@ -92,7 +91,7 @@ extern _IO_ssize_t getline __P ((char **, size_t *, FILE *));
    Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.  */
 
 #ifndef _MD5_H
-#define _MD5_H 1
+static const int _MD5_H = 1;
 
 #include <stdio.h>
 
@@ -252,7 +251,7 @@ void *md5_finish_ctx(struct md5_ctx *ctx, void *resbuf)
 int md5_stream(FILE *stream, void *resblock)
 {
   /* Important: BLOCKSIZE must be a multiple of 64.  */
-#define BLOCKSIZE 4096
+static const int BLOCKSIZE = 4096;
   struct md5_ctx ctx;
   char buffer[BLOCKSIZE + 72];
   size_t sum;
@@ -530,7 +529,7 @@ void md5_process_block(const void *buffer, size_t len, struct md5_ctx *ctx)
 /* The minimum length of a valid digest line in a file produced
    by `md5sum FILE' and read by `md5sum -c'.  This length does
    not include any newline character at the end of a line.  */
-#define MIN_DIGEST_LINE_LENGTH 35 /* 32 - message digest length
+static const int MIN_DIGEST_LINE_LENGTH = 35; /* 32 - message digest length
                                       2 - blank and binary indicator
                                       1 - minimum filename length */
 
@@ -651,13 +650,13 @@ static int md5_file(const char *filename,
   } else {
     fp = fopen(filename, OPENOPTS(binary));
     if (fp == NULL) {
-      error_msg("%s: %s\n", filename, strerror(errno));
+      perror_msg("%s", filename);
       return FALSE;
     }
   }
 
   if (md5_stream(fp, md5_result)) {
-    error_msg("%s: %s\n", filename, strerror(errno));
+    perror_msg("%s", filename);
 
     if (fp != stdin)
       fclose(fp);
@@ -665,7 +664,7 @@ static int md5_file(const char *filename,
   }
 
   if (fp != stdin && fclose(fp) == EOF) {
-    error_msg("%s: %s\n", filename, strerror(errno));
+    perror_msg("%s", filename);
     return FALSE;
   }
 
@@ -680,8 +679,7 @@ static int md5_check(const char *checkfile_name)
   int n_open_or_read_failures = 0;
   unsigned char md5buffer[16];
   size_t line_number;
-  char *line;
-  size_t line_chars_allocated;
+  char line[BUFSIZ];
 
   if (STREQ(checkfile_name, "-")) {
     have_read_stdin = 1;
@@ -689,14 +687,12 @@ static int md5_check(const char *checkfile_name)
   } else {
     checkfile_stream = fopen(checkfile_name, "r");
     if (checkfile_stream == NULL) {
-      error_msg("%s: %s\n", checkfile_name, strerror(errno));
+      perror_msg("%s", checkfile_name);
       return FALSE;
     }
   }
 
   line_number = 0;
-  line = 0;
-  line_chars_allocated = 0;
 
   do {
     char *filename;
@@ -706,9 +702,10 @@ static int md5_check(const char *checkfile_name)
 
     ++line_number;
 
-    line_length = getline(&line, &line_chars_allocated, checkfile_stream);
+    fgets(line, BUFSIZ-1, checkfile_stream);
+    line_length = strlen(line);
 
-    if (line_length <= 0)
+    if (line_length <= 0 || line==NULL)
       break;
 
     /* Ignore comment lines, which begin with a '#' character.  */
@@ -766,16 +763,13 @@ static int md5_check(const char *checkfile_name)
 
   while (!feof(checkfile_stream) && !ferror(checkfile_stream));
 
-  if (line)
-    free(line);
-
   if (ferror(checkfile_stream)) {
     error_msg("%s: read error\n", checkfile_name); /* */
     return FALSE;
   }
 
   if (checkfile_stream != stdin && fclose(checkfile_stream) == EOF) {
-    error_msg("md5sum: %s: %s\n", checkfile_name, strerror(errno));
+    perror_msg("md5sum: %s", checkfile_name);
     return FALSE;
   }
 
@@ -861,31 +855,26 @@ int md5sum_main(int argc,
   }
 
   if (file_type_specified && do_check) {
-    error_msg("the -b and -t options are meaningless when verifying checksums\n");
-	return EXIT_FAILURE;
+    error_msg_and_die("the -b and -t options are meaningless when verifying checksums\n");
   }
 
   if (n_strings > 0 && do_check) {
-    error_msg("the -g and -c options are mutually exclusive\n");
-	return EXIT_FAILURE;
+    error_msg_and_die("the -g and -c options are mutually exclusive\n");
   }
 
   if (status_only && !do_check) {
-    error_msg("the -s option is meaningful only when verifying checksums\n");
-	return EXIT_FAILURE;
+    error_msg_and_die("the -s option is meaningful only when verifying checksums\n");
   }
 
   if (warn && !do_check) {
-    error_msg("the -w option is meaningful only when verifying checksums\n");
-	return EXIT_FAILURE;
+    error_msg_and_die("the -w option is meaningful only when verifying checksums\n");
   }
 
   if (n_strings > 0) {
     size_t i;
 
     if (optind < argc) {
-      error_msg("no files may be specified when using -g\n");
-	  return EXIT_FAILURE;
+      error_msg_and_die("no files may be specified when using -g\n");
     }
     for (i = 0; i < n_strings; ++i) {
       size_t cnt;
@@ -951,13 +940,11 @@ int md5sum_main(int argc,
   }
 
   if (fclose (stdout) == EOF) {
-    error_msg("write error\n");
-	return EXIT_FAILURE;
+    error_msg_and_die("write error\n");
   }
 
   if (have_read_stdin && fclose (stdin) == EOF) {
-    error_msg("standard input\n");
-	return EXIT_FAILURE;
+    error_msg_and_die("standard input\n");
   }
 
   if (err == 0)

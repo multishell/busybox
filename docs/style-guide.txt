@@ -109,6 +109,13 @@ between it and the opening control block statement. Examples:
 		while (!done){
 		do{
 
+	And for heaven's sake, don't do this:
+
+		while (!done)
+		  {
+		do
+		  {
+
 	Do this instead:
 
 		while (!done) {
@@ -175,6 +182,7 @@ block. Example:
 
 
 
+
 Variable and Function Names
 ---------------------------
 
@@ -183,16 +191,43 @@ used to separate words (e.g., "variable_name" and "numchars" are both
 acceptable). Using underscores makes variable and function names more readable
 because it looks like whitespace; using lower-case is easy on the eyes.
 
+	Frowned upon:
+
+		hitList
+		TotalChars
+		szFileName
+		pf_Nfol_TriState
+
+	Preferred:
+
+		hit_list
+		total_chars
+		file_name
+		sensible_name
+
+Exceptions:
+
+ - Enums, macros, and constant variables should all be in upper-case with
+   words optionally seperatedy by underscores (i.e. FIFOTYPE, ISBLKDEV()).
+
+ - Nobody is going to get mad at you for using 'pvar' as the name of a
+   variable that is a pointer to 'var'.
+
 Note: The Busybox codebase is very much a mixture of code gathered from a
 variety of sources. This explains why the current codebase contains such a
 hodge-podge of different naming styles (Java, Pascal, K&R, just-plain-weird,
 etc.). The K&R guideline explained above should therefore be used on new files
 that are added to the repository. Furthermore, the maintainer of an existing
-file that uses alternate naming conventions should -- at his own convenience --
-convert those names over to K&R style; converting variable names is a very low
-priority task. Perhaps in the future we will include some magical Perl script
-that can go through and convert files -- left as an exercise to the reader for
-now.
+file that uses alternate naming conventions should -- at his own convenience
+-- convert those names over to K&R style; converting variable names is a very
+low priority task. Perhaps in the future we will include some magical Perl
+script that can go through and convert variable names, left as an exercise for
+the reader for now.
+
+For the time being, if you want to do a search-and-replace of a variable name
+in different files, do the following in the busybox directory:
+
+	$ perl -pi -e 's/\bOldVar\b/new_var/g' *.[ch]
 
 
 
@@ -331,6 +366,79 @@ perfect world, we would have a streq() function in the string library, but
 that ain't the world we're living in.
 
 
+Avoid Dangerous String Functions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Unfortunately, the way C handles strings makes them prone to overruns when
+certain library functions are (mis)used. The following table  offers a summary
+of some of the more notorious troublemakers:
+
+function     overflows         preferred
+----------------------------------------
+strcpy       dest string       strncpy
+strcat       dest string       strncat
+gets         string it gets    fgets
+getwd        buf string        getcwd
+[v]sprintf   str buffer        [v]snprintf
+realpath     path buffer       use with pathconf
+[vf]scanf    its arguments     just avoid it
+
+
+The above is by no means a complete list. Be careful out there.
+
+
+
+Avoid Big Static Buffers
+------------------------
+
+First, some background to put this discussion in context: Static buffers look
+like this in code:
+
+	/* in a .c file outside any functions */
+	static char *buffer[BUFSIZ]; /* happily used by any function in this file,
+	                                but ick! big! */
+
+The problem with these is that any time any busybox app is run, you pay a
+memory penalty for this buffer, even if the applet that uses said buffer is
+not run. This can be fixed, thusly:
+
+	static char *buffer;
+	...
+	other_func()
+	{
+		strcpy(buffer, lotsa_chars); /* happily uses global *buffer */
+	...
+	foo_main()
+	{
+		buffer = xmalloc(sizeof(char)*BUFSIZ);
+	...
+
+However, this approach trades bss segment for text segment. Rather than
+mallocing the buffers (and thus growing the text size), buffers can be
+declared on the stack in the *_main() function and made available globally by
+assigning them to a global pointer thusly:
+
+	static char *pbuffer;
+	...
+	other_func()
+	{
+		strcpy(pbuffer, lotsa_chars); /* happily uses global *pbuffer */
+	...
+	foo_main()
+	{
+		char *buffer[BUFSIZ]; /* declared locally, on stack */
+		pbuffer = buffer;     /* but available globally */
+	...
+
+This last approach has some advantages (low code size, space not used until
+it's needed), but can be a problem in some low resource machines that have
+very limited stack space (e.g., uCLinux).  busybox.h declares a macro that
+implements compile-time selection between xmalloc() and stack creation, so
+you can code the line in question as
+		RESERVE_BB_BUFFER(buffer, BUFSIZ);
+and the right thing will happen, based on the customer's configuration.
+
+
 
 Miscellaneous Coding Guidelines
 -------------------------------
@@ -388,26 +496,26 @@ line. Example:
 	Don't do this:
 
 		if (foo)
-			stmt;
-		else
-			stmt;
+			stmt1;
+		stmt2
+		stmt3;
 
 	Do this instead:
 
 		if (foo) {
-			stmt;
-		} else {
-			stmt;
+			stmt1;
 		}
+		stmt2
+		stmt3;
 
 The "bracketless" approach is error prone because someday you might add a line
 like this:
 
 		if (foo)
-			stmt;
+			stmt1;
 			new_line();
-		else
-			stmt;
+		stmt2
+		stmt3;
 
 And the resulting behavior of your program would totally bewilder you. (Don't
 laugh, it happens to us all.) Remember folks, this is C, not Python.
@@ -438,3 +546,40 @@ support ancient, antediluvian compilers. To our good fortune, we have access
 to more modern compilers and the old declaration syntax is neither necessary
 nor desired.
 
+
+Emphasizing Logical Blocks
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Organization and readability are improved by putting extra newlines around
+blocks of code that perform a single task. These are typically blocks that
+begin with a C keyword, but not always.
+
+Furthermore, you should put a single comment (not necessarily one line, just
+one comment) before the block, rather than commenting each and every line.
+There is an optimal ammount of commenting that a program can have; you can
+comment too much as well as too little.
+
+A picture is really worth a thousand words here, so here is an example that
+illustrates emphasizing logical blocks:
+
+	while (line = get_line_from_file(fp)) {
+
+		/* eat the newline, if any */
+		if (line[strlen(line)-1] == '\n') {
+			line[strlen(line)-1] = '\0';
+		}
+
+		/* ignore blank lines */
+		if (strlen(file_to_act_on) == 0) {
+			continue;
+		}
+
+		/* if the search string is in this line, print it,
+		 * unless we were told to be quiet */
+		if (strstr(line, search) && !be_quiet) {
+			puts(line);
+		}
+
+		/* clean up */
+		free(line);
+	}

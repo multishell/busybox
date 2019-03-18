@@ -11,7 +11,7 @@
 #include <sys/ioctl.h>
 
 /* From <linux/vt.h> */
-#define VT_DISALLOCATE  0x5608  /* free memory associated to vt */
+static const int VT_DISALLOCATE = 0x5608;  /* free memory associated to vt */
 
 int deallocvt_main(int argc, char *argv[])
 {
@@ -24,25 +24,20 @@ int deallocvt_main(int argc, char *argv[])
 	fd = get_console_fd("/dev/console");
 
 	if (argc == 1) {
-printf("erik: A\n");
 		/* deallocate all unused consoles */
-		if (ioctl(fd, VT_DISALLOCATE, 0)) {
-			perror("VT_DISALLOCATE");
-			return EXIT_FAILURE;
-		}
-	} else
-printf("erik: B\n");
+		if (ioctl(fd, VT_DISALLOCATE, 0))
+			perror_msg_and_die("VT_DISALLOCATE");
+	} else {
 		for (i = 1; i < argc; i++) {
 			num = atoi(argv[i]);
 			if (num == 0)
 				error_msg("0: illegal VT number\n");
 			else if (num == 1)
 				error_msg("VT 1 cannot be deallocated\n");
-			else if (ioctl(fd, VT_DISALLOCATE, num)) {
-				perror("VT_DISALLOCATE");
-				error_msg_and_die("could not deallocate console %d\n", num);
-			}
+			else if (ioctl(fd, VT_DISALLOCATE, num))
+				perror_msg_and_die("VT_DISALLOCATE");
 		}
-printf("erik: C\n");
+	}
+
 	return EXIT_SUCCESS;
 }

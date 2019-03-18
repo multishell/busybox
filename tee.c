@@ -2,7 +2,7 @@
 /*
  * Mini tee implementation for busybox
  *
- * Copyright (C) 1999,2000 by Lineo, inc.
+ * Copyright (C) 1999,2000,2001 by Lineo, inc.
  * Written by Matt Kraai <kraai@alumni.carnegiemellon.edu>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -47,7 +47,7 @@ tee_main(int argc, char **argv)
 	while (optind < argc) {
 		if ((files[nfiles++] = fopen(argv[optind++], mode)) == NULL) {
 			nfiles--;
-			error_msg("%s: %s\n", argv[optind-1], strerror(errno));
+			perror_msg("%s", argv[optind-1]);
 			status = 1;
 		}
 	}

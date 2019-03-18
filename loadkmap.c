@@ -24,6 +24,9 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include <sys/ioctl.h>
 
 #define BINARY_KEYMAP_MAGIC "bkeymap"
@@ -34,11 +37,11 @@ struct kbentry {
 	unsigned char kb_index;
 	unsigned short kb_value;
 };
-#define KDSKBENT        0x4B47  /* sets one entry in translation table */
+static const int KDSKBENT = 0x4B47;  /* sets one entry in translation table */
 
 /* From <linux/keyboard.h> */
-#define NR_KEYS         128
-#define MAX_NR_KEYMAPS  256
+static const int NR_KEYS = 128;
+static const int MAX_NR_KEYMAPS = 256;
 
 int loadkmap_main(int argc, char **argv)
 {

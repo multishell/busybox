@@ -2,8 +2,8 @@
 /*
  * Mini ps implementation(s) for busybox
  *
- * Copyright (C) 1999,2000 by Lineo, inc.  Written by Erik Andersen
- * <andersen@lineo.com>, <andersee@debian.org>
+ * Copyright (C) 1999,2000,2001 by Lineo, inc.  
+ * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
  *
  * This contains _two_ implementations of ps for Linux.  One uses the
@@ -30,17 +30,19 @@
 
 #include "busybox.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #define BB_DECLARE_EXTERN
 #define bb_need_help
 #include "messages.c"
 
-#define TERMINAL_WIDTH  79      /* not 80 in case terminal has linefold bug */
+static const int TERMINAL_WIDTH = 79;      /* not 80 in case terminal has linefold bug */
 
 
 
@@ -143,8 +145,7 @@ extern int ps_main(int argc, char **argv)
 			terminal_width = win.ws_col - 1;
 #endif
 
-	fprintf(stdout, "%5s  %-8s %-3s %5s %s\n", "PID", "Uid", "Gid",
-			"State", "Command");
+	printf("%5s  %-8s %-3s %5s %s\n", "PID", "Uid", "Gid", "State", "Command");
 	while ((entry = readdir(dir)) != NULL) {
 		if (!isdigit(*entry->d_name))
 			continue;
@@ -166,8 +167,7 @@ extern int ps_main(int argc, char **argv)
 		if (file == NULL)
 			continue;
 		i = 0;
-		len = fprintf(stdout, "%5d %-8s %-8s %c ", p.pid, uidName, groupName,
-				p.state);
+		len = printf("%5d %-8s %-8s %c ", p.pid, uidName, groupName, p.state);
 		while (((c = getc(file)) != EOF) && (i < (terminal_width-len))) {
 			i++;
 			if (c == '\0')
@@ -176,8 +176,8 @@ extern int ps_main(int argc, char **argv)
 		}
 		fclose(file);
 		if (i == 0)
-			fprintf(stdout, "[%s]", p.cmd);
-		fprintf(stdout, "\n");
+			printf("[%s]", p.cmd);
+		putchar('\n');
 	}
 	closedir(dir);
 	return EXIT_SUCCESS;
@@ -216,11 +216,11 @@ extern int ps_main(int argc, char **argv)
 	/* open device */ 
 	fd = open(device, O_RDONLY);
 	if (fd < 0) 
-		error_msg_and_die( "open failed for `%s': %s\n", device, strerror (errno));
+		perror_msg_and_die( "open failed for `%s'", device);
 
 	/* Find out how many processes there are */
 	if (ioctl (fd, DEVPS_GET_NUM_PIDS, &num_pids)<0) 
-		error_msg_and_die( "\nDEVPS_GET_PID_LIST: %s\n", strerror (errno));
+		perror_msg_and_die( "\nDEVPS_GET_PID_LIST");
 	
 	/* Allocate some memory -- grab a few extras just in case 
 	 * some new processes start up while we wait. The kernel will
@@ -231,7 +231,7 @@ extern int ps_main(int argc, char **argv)
 
 	/* Now grab the pid list */
 	if (ioctl (fd, DEVPS_GET_PID_LIST, pid_array)<0) 
-		error_msg_and_die("\nDEVPS_GET_PID_LIST: %s\n", strerror (errno));
+		perror_msg_and_die("\nDEVPS_GET_PID_LIST");
 
 #ifdef BB_FEATURE_AUTOWIDTH
 		ioctl(fileno(stdout), TIOCGWINSZ, &win);
@@ -240,14 +240,13 @@ extern int ps_main(int argc, char **argv)
 #endif
 
 	/* Print up a ps listing */
-	fprintf(stdout, "%5s  %-8s %-3s %5s %s\n", "PID", "Uid", "Gid",
-			"State", "Command");
+	printf("%5s  %-8s %-3s %5s %s\n", "PID", "Uid", "Gid", "State", "Command");
 
 	for (i=1; i<pid_array[0] ; i++) {
 	    info.pid = pid_array[i];
 
 	    if (ioctl (fd, DEVPS_GET_PID_INFO, &info)<0)
-			error_msg_and_die("\nDEVPS_GET_PID_INFO: %s\n", strerror (errno));
+			perror_msg_and_die("\nDEVPS_GET_PID_INFO");
 	    
 		/* Make some adjustments as needed */
 		my_getpwuid(uidName, info.euid);
@@ -257,7 +256,7 @@ extern int ps_main(int argc, char **argv)
 		if (*groupName == '\0')
 			sprintf(groupName, "%ld", info.egid);
 
-		len = fprintf(stdout, "%5d %-8s %-8s %c ", info.pid, uidName, groupName, info.state);
+		len = printf("%5d %-8s %-8s %c ", info.pid, uidName, groupName, info.state);
 
 		if (strlen(info.command_line) > 1) {
 			for( j=0; j<(sizeof(info.command_line)-1) && j < (terminal_width-len); j++) {
@@ -266,9 +265,9 @@ extern int ps_main(int argc, char **argv)
 				}
 			}
 			*(info.command_line+j) = '\0';
-			fprintf(stdout, "%s\n", info.command_line);
+			puts(info.command_line);
 		} else {
-			fprintf(stdout, "[%s]\n", info.name);
+			printf("[%s]\n", info.name);
 		}
 	}
 
@@ -277,7 +276,7 @@ extern int ps_main(int argc, char **argv)
 
 	/* close device */
 	if (close (fd) != 0) 
-		error_msg_and_die("close failed for `%s': %s\n", device, strerror (errno));
+		perror_msg_and_die("close failed for `%s'", device);
  
 	exit (0);
 }

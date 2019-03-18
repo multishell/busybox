@@ -3,7 +3,7 @@
  * Mini swapon/swapoff implementation for busybox
  *
  *
- * Copyright (C) 1999,2000 by Lineo, inc.
+ * Copyright (C) 1999,2000,2001 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -24,10 +24,13 @@
 
 #include "busybox.h"
 #include <stdio.h>
-#include <sys/mount.h>
 #include <mntent.h>
 #include <dirent.h>
 #include <errno.h>
+#include <stdlib.h>
+#include <sys/mount.h>
+#include <sys/syscall.h>
+#include <linux/unistd.h>
 
 _syscall2(int, swapon, const char *, path, int, flags);
 _syscall1(int, swapoff, const char *, path);
@@ -35,8 +38,8 @@ _syscall1(int, swapoff, const char *, path);
 
 static int whichApp;
 
-#define SWAPON_APP   1
-#define SWAPOFF_APP  2
+static const int SWAPON_APP = 1;
+static const int SWAPOFF_APP = 2;
 
 
 static void swap_enable_disable(char *device)
@@ -48,10 +51,8 @@ static void swap_enable_disable(char *device)
 	else
 		status = swapoff(device);
 
-	if (status != 0) {
-		perror(applet_name);
-		exit(EXIT_FAILURE);
-	}
+	if (status != 0)
+		perror_msg_and_die(applet_name);
 }
 
 static void do_em_all()
@@ -59,10 +60,8 @@ static void do_em_all()
 	struct mntent *m;
 	FILE *f = setmntent("/etc/fstab", "r");
 
-	if (f == NULL) {
-		perror("/etc/fstab");
-		exit(FALSE);
-	}
+	if (f == NULL)
+		perror_msg_and_die("/etc/fstab");
 	while ((m = getmntent(f)) != NULL) {
 		if (strcmp(m->mnt_type, MNTTYPE_SWAP)==0) {
 			swap_enable_disable(m->mnt_fsname);

@@ -3,7 +3,7 @@
  * Mini find implementation for busybox
  *
  *
- * Copyright (C) 1999,2000 by Lineo, inc.
+ * Copyright (C) 1999,2000,2001 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -26,6 +26,8 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <string.h>
+#include <stdlib.h>
 
 
 static char *pattern = NULL;
@@ -35,7 +37,7 @@ static int dereferenceFlag = FALSE;
 static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
 {
 	if (pattern == NULL)
-		fprintf(stdout, "%s\n", fileName);
+		puts(fileName);
 	else {
 		char *tmp = strrchr(fileName, '/');
 
@@ -44,7 +46,7 @@ static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
 		else
 			tmp++;
 		if (check_wildcard_match(tmp, pattern) == TRUE)
-			fprintf(stdout, "%s\n", fileName);
+			puts(fileName);
 	}
 	return (TRUE);
 }

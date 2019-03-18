@@ -3,7 +3,7 @@
  * Mini touch implementation for busybox
  *
  *
- * Copyright (C) 1999,2000 by Lineo, inc.
+ * Copyright (C) 1999,2000,2001 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -28,6 +28,8 @@
 #include <fcntl.h>
 #include <utime.h>
 #include <errno.h>
+#include <unistd.h>
+#include <stdlib.h>
 
 extern int touch_main(int argc, char **argv)
 {
@@ -58,12 +60,12 @@ extern int touch_main(int argc, char **argv)
 			if (create == FALSE && errno == ENOENT)
 				return EXIT_SUCCESS;
 			else {
-				error_msg_and_die("%s", strerror(errno));
+				perror_msg_and_die("%s", *argv);
 			}
 		}
 		close(fd);
 		if (utime(*argv, NULL)) {
-			error_msg_and_die("%s", strerror(errno));
+			perror_msg_and_die("%s", *argv);
 		}
 		argc--;
 		argv++;

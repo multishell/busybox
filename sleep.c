@@ -23,6 +23,8 @@
 
 #include "busybox.h"
 #include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
 
 extern int sleep_main(int argc, char **argv)
 {
@@ -30,9 +32,7 @@ extern int sleep_main(int argc, char **argv)
 		usage(sleep_usage);
 	}
 
-	if (sleep(atoi(*(++argv))) != 0) {
-		perror("sleep");
-		return EXIT_FAILURE;
-	}
+	if (sleep(atoi(*(++argv))) != 0)
+		perror_msg_and_die("sleep");
 	return EXIT_SUCCESS;
 }

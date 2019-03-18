@@ -93,7 +93,7 @@
 .nr % 0
 .rr F
 .\}
-.TH BUSYBOX 1 "version 0.48" "13/Dec/2000" "BusyBox"
+.TH BUSYBOX 1 "version 0.49" "25/Jan/2001" "BusyBox"
 .UC
 .if n .hy 0
 .if n .na
@@ -238,16 +238,16 @@ terse runtime description of their behavior.
 Currently defined functions include:
 .PP
 ar, basename, cat, chgrp, chmod, chown, chroot, chvt, clear, cp, cut, date, dc,
-dd, deallocvt, df, dirname, dmesg, dos2unix, du, dumpkmap, dutmp, echo, false,
-fbset, fdflush, find, free, freeramdisk, fsck.minix, getopt, grep, gunzip,
-gzip, halt, head, hostid, hostname, id, init, insmod, kill, killall, length,
-ln, loadacm, loadfont, loadkmap, logger, logname, ls, lsmod, makedevs, mkdir,
-mkfifo, mkfs.minix, mknod, mkswap, mktemp, more, mount, mt, mv, nc, nslookup,
-ping, poweroff, printf, ps, pwd, rdate, reboot, renice, reset, rm, rmdir,
-rmmod, sed, setkeycodes, sh, sleep, sort, swapoff, swapon, sync, syslogd, tail,
-tar, tee, telnet, test, touch, tr, true, tty, umount, uname, uniq, unix2dos,
-unrpm, update, uptime, usleep, uudecode, uuencode, wc, which, whoami, xargs,
-yes, zcat, [
+dd, deallocvt, df, dirname, dmesg, dos2unix, dpkg-deb, du, dumpkmap, dutmp,
+echo, false, fbset, fdflush, find, free, freeramdisk, fsck.minix, getopt, grep,
+gunzip, gzip, halt, head, hostid, hostname, id, init, insmod, kill, killall,
+length, ln, loadacm, loadfont, loadkmap, logger, logname, ls, lsmod, makedevs,
+mkdir, mkfifo, mkfs.minix, mknod, mkswap, mktemp, more, mount, mt, mv, nc,
+nslookup, ping, poweroff, printf, ps, pwd, rdate, reboot, renice, reset, rm,
+rmdir, rmmod, sed, setkeycodes, sh, sleep, sort, swapoff, swapon, sync,
+syslogd, tail, tar, tee, telnet, test, touch, tr, true, tty, umount, uname,
+uniq, unix2dos, unrpm, update, uptime, usleep, uudecode, uuencode, watchdog,
+wc, which, whoami, xargs, yes, zcat, [
 .PP
 -------------------------------
 .Ip "ar" 4
@@ -587,6 +587,33 @@ Usage: dos2unix < dosfile > unixfile
 .Sp
 Converts a text file from dos format to unix format.
 .Sp
+-------------------------------
+.Ip "dpkg-deb" 4
+Usage: dpkg-deb [\-cexX] archive-file [directory]
+.Sp
+Debian package archive (.deb) manipulation tool
+.Sp
+Options:
+.Sp
+.Vb 2
+\&        -c      Lists the contents of the filesystem tree archive
+\&                portion  of  the  package archive.
+.Ve
+.Vb 8
+\&        -e      Extracts the control information files from a package
+\&                archive into the specified directory.
+\&        
+\&        -x      Silently extracts the filesystem tree from a package
+\&                archive into the specified directory.
+\&        
+\&        -X      Extracts the filesystem tree from a package archive
+\&                into the specified directory, list files as it goes.
+.Ve
+Example:
+.Sp
+.Vb 1
+\&        dpkg-deb -X ./busybox_0.48-1_i386.deb /tmp
+.Ve
 -------------------------------
 .Ip "du" 4
 Usage: du [\s-1OPTION\s0]... [\s-1FILE\s0]...
@@ -992,9 +1019,10 @@ Print information for \s-1USERNAME\s0 or the current user
 .Sp
 Options:
 .Sp
-.Vb 3
+.Vb 4
 \&        -g      prints only the group ID
 \&        -u      prints only the user ID
+\&                -n      print a name instead of a number (with for -ug)
 \&        -r      prints the real user ID instead of the effective ID (with -ug)
 .Ve
 Example:
@@ -1035,16 +1063,17 @@ If you choose to use an /etc/inittab file, the inittab entry format is as follow
 .Vb 1
 \&        <id>: 
 .Ve
-.Vb 9
+.Vb 10
 \&                WARNING: This field has a non-traditional meaning for BusyBox init!
 \&                The id field is used by BusyBox init to specify the controlling tty for
 \&                the specified process to run on.  The contents of this field are
 \&                appended to "/dev/" and used as-is.  There is no need for this field to
 \&                be unique, although if it isn't you may have strange results.  If this
-\&                field is left blank, it is completely ignored.  Also note that if
-\&                BusyBox detects that a serial console is in use, then all entries
-\&                containing non-empty id fields will _not_ be run.  BusyBox init does
-\&                nothing with utmp.  We don't need no stinkin' utmp.
+\&                field is left blank, the controlling tty is set to the console.  Also
+\&                note that if BusyBox detects that a serial console is in use, then only
+\&                entries whose controlling tty is either the serial console or /dev/null
+\&                will be run.  BusyBox init does nothing with utmp.  We don't need no
+\&                stinkin' utmp.
 .Ve
 .Vb 1
 \&        <runlevels>: 
@@ -1147,11 +1176,12 @@ Loads the specified kernel modules into the kernel.
 .Sp
 Options:
 .Sp
-.Vb 4
+.Vb 5
 \&                -f      Force module to load into the wrong kernel version.
 \&                -k      Make module autoclean-able.
 \&                -v      verbose output
 \&                -x      do not export externs
+\&                -L      Prevent simultaneous loads of the same module
 .Ve
 -------------------------------
 .Ip "kill" 4
@@ -1261,7 +1291,7 @@ Example:
 .Ip "logger" 4
 Usage: logger [\s-1OPTION\s0]... [\s-1MESSAGE\s0]
 .Sp
-Write \s-1MESSAGE\s0 to the system log.  If \s-1MESSAGE\s0 is \*(L'\-\*(R', log stdin.
+Write \s-1MESSAGE\s0 to the system log.  If \s-1MESSAGE\s0 is omitted, log stdin.
 .Sp
 Options:
 .Sp
@@ -2191,6 +2221,12 @@ Example:
 \&        -rwxr-xr-x   1 ams      ams        245264 Jun  7 21:35 busybox
 .Ve
 -------------------------------
+.Ip "watchdog" 4
+Usage: watchdog device
+.Sp
+Periodically writes to watchdog device \fBdevice\fR.
+.Sp
+-------------------------------
 .Ip "wc" 4
 Usage: wc [\s-1OPTION\s0]... [\s-1FILE\s0]...
 .Sp
@@ -2438,6 +2474,8 @@ Enrique Zanardi <ezanardi@ull.es>
 
 .IX Item "dos2unix"
 
+.IX Item "dpkg-deb"
+
 .IX Item "du"
 
 .IX Item "dumpkmap"
@@ -2613,6 +2651,8 @@ Enrique Zanardi <ezanardi@ull.es>
 .IX Item "uuencode"
 
 .IX Item "uudecode"
+
+.IX Item "watchdog"
 
 .IX Item "wc"
 

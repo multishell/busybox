@@ -2,7 +2,9 @@
 #include "busybox.h"
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 #include <errno.h>
+#include <stdlib.h>
 
 #undef APPLET
 #undef APPLET_NOUSAGE
@@ -14,8 +16,6 @@
 #include "messages.c"
 
 static int been_there_done_that = 0;
-
-
 const char *applet_name;
 
 #ifdef BB_FEATURE_INSTALLER
@@ -54,7 +54,7 @@ static char *busybox_fullpath()
 	if (len != -1) {
 		path[len] = 0;
 	} else {
-		error_msg("%s: %s\n", proc, strerror(errno));
+		perror_msg("%s", proc);
 		return NULL;
 	}
 	return strdup(path);
@@ -69,16 +69,16 @@ static void install_links(const char *busybox, int use_symbolic_links)
 	int i;
 	int rc;
 
-	if (use_symbolic_links) Link = symlink;
+	if (use_symbolic_links) 
+		Link = symlink;
 
 	for (i = 0; applets[i].name != NULL; i++) {
 		sprintf ( command, "%s/%s", 
-				install_dir[applets[i].location], 
-				applets[i].name);
+				install_dir[applets[i].location], applets[i].name);
 		rc = Link(busybox, command);
 
 		if (rc) {
-			error_msg("%s: %s\n", command, strerror(errno));
+			perror_msg("%s", command);
 		}
 	}
 }
@@ -89,7 +89,37 @@ int main(int argc, char **argv)
 {
 	struct BB_applet search_applet, *applet;
 	const char				*s;
-	applet_name = "busybox";
+
+	for (s = applet_name = argv[0]; *s != '\0';) {
+		if (*s++ == '/')
+			applet_name = s;
+	}
+
+#ifdef BB_SH
+	/* Add in a special case hack -- whenever **argv == '-'
+	 * (i.e. '-su' or '-sh') always invoke the shell */
+	if (**argv == '-' && *(*argv+1)!= '-') {
+		exit(((*(shell_main)) (argc, argv)));
+	}
+#endif
+
+	/* Do a binary search to find the applet entry given the name. */
+	search_applet.name = applet_name;
+	applet = bsearch(&search_applet, applets, NUM_APPLETS,
+			sizeof(struct BB_applet), applet_name_compare);
+	if (applet != NULL) {
+		if (applet->usage && argv[1] && strcmp(argv[1], "--help") == 0)
+			usage(applet->usage); 
+		exit((*(applet->main)) (argc, argv));
+	}
+
+	error_msg_and_die("applet not found\n");
+}
+
+
+int busybox_main(int argc, char **argv)
+{
+	int col = 0, len, i;
 
 #ifdef BB_FEATURE_INSTALLER	
 	/* 
@@ -120,39 +150,6 @@ int main(int argc, char **argv)
 		return rc;
 	}
 #endif /* BB_FEATURE_INSTALLER */
-
-	for (s = applet_name = argv[0]; *s != '\0';) {
-		if (*s++ == '/')
-			applet_name = s;
-	}
-
-#ifdef BB_SH
-	/* Add in a special case hack -- whenever **argv == '-'
-	 * (i.e. '-su' or '-sh') always invoke the shell */
-	if (**argv == '-' && *(*argv+1)!= '-') {
-		exit(((*(shell_main)) (argc, argv)));
-	}
-#endif
-
-	/* Do a binary search to find the applet entry given the name. */
-	search_applet.name = applet_name;
-	applet = bsearch(&search_applet, applets, NUM_APPLETS,
-			sizeof(struct BB_applet), applet_name_compare);
-	if (applet != NULL) {
-		if (applet->usage && argv[1] && strcmp(argv[1], "--help") == 0)
-			usage(applet->usage); 
-		exit((*(applet->main)) (argc, argv));
-	}
-
-	return(busybox_main(argc, argv));
-}
-
-
-int busybox_main(int argc, char **argv)
-{
-	int col = 0;
-	int ps_index;
-	char *index, *index2;
 
 	argc--;
 
@@ -185,25 +182,16 @@ int busybox_main(int argc, char **argv)
 	/* Flag that we've been here already */
 	been_there_done_that = 1;
 	
-	/* We do not want the word "busybox" to show up in ps, so we move
-	 * everything in argv around to fake ps into showing what we want it to
-	 * show.  Since we are only shrinking the string, we don't need to move 
-	 * __environ or any of that tedious stuff... */
-	ps_index = 0;
-	index=*argv;
-	index2=argv[argc];
-	index2+=strlen(argv[argc]);
-	while(ps_index < argc) { 
-		argv[ps_index]=index;
-		memmove(index, argv[ps_index+1], strlen(argv[ps_index+1])+1);
-		index+=(strlen(index));
-		*index='\0';
-		index++;
-		ps_index++;
-	}
-	while(index<=index2)
-		*index++='\0';
-	argv[ps_index]=NULL;
+	/* Move the command line down a notch */
+	len = argv[argc] + strlen(argv[argc]) - argv[1];
+	memmove(argv[0], argv[1], len);
+	memset(argv[0] + len, 0, argv[1] - argv[0]);
+
+	/* Fix up the argv pointers */
+	len = argv[1] - argv[0];
+	memmove(argv, argv + 1, sizeof(char *) * (argc + 1));
+	for (i = 0; i < argc; i++)
+		argv[i] -= len;
 
 	return (main(argc, argv));
 }

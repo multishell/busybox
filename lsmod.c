@@ -2,7 +2,7 @@
 /*
  * Mini lsmod implementation for busybox
  *
- * Copyright (C) 1999,2000 by Lineo, inc.
+ * Copyright (C) 1999,2000,2001 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
  * Modified by Alcove, Julien Gaulmin <julien.gaulmin@alcove.fr> and
@@ -40,11 +40,7 @@
 
 
 
-#if !defined(BB_FEATURE_LSMOD_NEW_KERNEL) && !defined(BB_FEATURE_LSMOD_OLD_KERNEL)
-#error "Must have ether BB_FEATURE_LSMOD_NEW_KERNEL or BB_FEATURE_LSMOD_OLD_KERNEL defined"
-#endif
-
-#ifdef BB_FEATURE_LSMOD_NEW_KERNEL
+#ifdef BB_FEATURE_NEW_MODULE_INTERFACE
 
 struct module_info
 {
@@ -59,19 +55,19 @@ int query_module(const char *name, int which, void *buf, size_t bufsize,
 		 size_t *ret);
 
 /* Values for query_module's which.  */
-#define QM_MODULES	1
-#define QM_DEPS		2
-#define QM_REFS		3
-#define QM_SYMBOLS	4
-#define QM_INFO		5
+static const int QM_MODULES = 1;
+static const int QM_DEPS = 2;
+static const int QM_REFS = 3;
+static const int QM_SYMBOLS = 4;
+static const int QM_INFO = 5;
 
 /* Bits of module.flags.  */
-#define NEW_MOD_RUNNING		1
-#define NEW_MOD_DELETED		2
-#define NEW_MOD_AUTOCLEAN	4
-#define NEW_MOD_VISITED		8
-#define NEW_MOD_USED_ONCE	16
-#define NEW_MOD_INITIALIZING	64
+static const int NEW_MOD_RUNNING = 1;
+static const int NEW_MOD_DELETED = 2;
+static const int NEW_MOD_AUTOCLEAN = 4;
+static const int NEW_MOD_VISITED = 8;
+static const int NEW_MOD_USED_ONCE = 16;
+static const int NEW_MOD_INITIALIZING = 64;
 
 
 extern int lsmod_main(int argc, char **argv)
@@ -83,7 +79,7 @@ extern int lsmod_main(int argc, char **argv)
 	module_names = xmalloc(bufsize = 256);
 	deps = xmalloc(bufsize);
 	if (query_module(NULL, QM_MODULES, module_names, bufsize, &nmod)) {
-		error_msg_and_die("QM_MODULES: %s\n", strerror(errno));
+		perror_msg_and_die("QM_MODULES");
 	}
 
 	printf("Module                  Size  Used by\n");
@@ -94,7 +90,7 @@ extern int lsmod_main(int argc, char **argv)
 				continue;
 			}
 			/* else choke */
-			error_msg_and_die("module %s: QM_INFO: %s\n", mn, strerror(errno));
+			perror_msg_and_die("module %s: QM_INFO", mn);
 		}
 		while (query_module(mn, QM_REFS, deps, bufsize, &count)) {
 			if (errno == ENOENT) {
@@ -102,7 +98,7 @@ extern int lsmod_main(int argc, char **argv)
 				continue;
 			}
 			if (errno != ENOSPC) {
-				error_msg_and_die("module %s: QM_REFS: %s", mn, strerror(errno));
+				error_msg_and_die("module %s: QM_REFS", mn);
 			}
 			deps = xrealloc(deps, bufsize = count);
 		}
@@ -132,7 +128,7 @@ extern int lsmod_main(int argc, char **argv)
 	return( 0);
 }
 
-#else /*BB_FEATURE_LSMOD_OLD_KERNEL*/
+#else /*BB_FEATURE_OLD_MODULE_INTERFACE*/
 
 #if ! defined BB_FEATURE_USE_PROCFS
 #error Sorry, I depend on the /proc filesystem right now.
@@ -153,8 +149,8 @@ extern int lsmod_main(int argc, char **argv)
 		close(fd);
 		return 0;
 	}
-	error_msg_and_die("/proc/modules: %s\n", strerror(errno));
+	perror_msg_and_die("/proc/modules");
 	return 1;
 }
 
-#endif /*BB_FEATURE_LSMOD_OLD_KERNEL*/
+#endif /*BB_FEATURE_OLD_MODULE_INTERFACE*/

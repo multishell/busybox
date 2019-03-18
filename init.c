@@ -37,6 +37,7 @@
 #include <string.h>
 #include <termios.h>
 #include <unistd.h>
+#include <limits.h>
 #include <sys/fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/mount.h>
@@ -56,7 +57,7 @@ struct vt_stat {
 	unsigned short v_signal;        /* signal to send */
 	unsigned short v_state;         /* vt bitmask */
 };
-#define VT_GETSTATE     0x5603  /* get global vt state info */
+static const int VT_GETSTATE = 0x5603;  /* get global vt state info */
 
 /* From <linux/serial.h> */
 struct serial_struct {
@@ -79,11 +80,11 @@ struct serial_struct {
 
 
 #ifndef RB_HALT_SYSTEM
-#define RB_HALT_SYSTEM  0xcdef0123
-#define RB_ENABLE_CAD   0x89abcdef
-#define RB_DISABLE_CAD  0
+static const int RB_HALT_SYSTEM = 0xcdef0123;
+static const int RB_ENABLE_CAD = 0x89abcdef;
+static const int RB_DISABLE_CAD = 0;
 #define RB_POWER_OFF    0x4321fedc
-#define RB_AUTOBOOT     0x01234567
+static const int RB_AUTOBOOT = 0x01234567;
 #if defined(__GLIBC__) || defined (__UCLIBC__)
 #include <sys/reboot.h>
   #define init_reboot(magic) reboot(magic)
@@ -114,6 +115,8 @@ struct serial_struct {
 #if defined(__GLIBC__)
 #include <sys/kdaemon.h>
 #else
+#include <sys/syscall.h>
+#include <linux/unistd.h>
 static _syscall2(int, bdflush, int, func, int, data);
 #endif							/* __GLIBC__ */
 
@@ -131,8 +134,8 @@ static _syscall2(int, bdflush, int, func, int, data);
 #define INIT_SCRIPT  "/etc/init.d/rcS"   /* Default sysinit script. */
 #endif
 
-#define LOG     0x1
-#define CONSOLE 0x2
+static const int LOG = 0x1;
+static const int CONSOLE = 0x2;
 
 /* Allowed init action types */
 typedef enum {
@@ -400,6 +403,10 @@ static pid_t run(char *command, char *terminal, int get_enter)
 	char buf[255];
 	static const char press_enter[] =
 
+#ifdef CUSTOMIZED_BANNER
+#include CUSTOMIZED_BANNER
+#endif
+
 		"\nPlease press Enter to activate this console. ";
 	char *environment[] = {
 		"HOME=/",
@@ -656,6 +663,10 @@ static void reboot_signal(int sig)
 }
 
 #if defined BB_FEATURE_INIT_CHROOT
+
+#warning BB_FEATURE_INIT_CHROOT is out of date and should be rewritten to us
+#warning pivot root instead.  Do not even bother till this work is done...
+#warning You have been warned.
 
 #if ! defined BB_FEATURE_USE_PROCFS
 #error Sorry, I depend on the /proc filesystem right now.

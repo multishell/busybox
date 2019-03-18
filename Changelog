@@ -1,3 +1,58 @@
+0.49
+
+	* Matt Kraai -- new sort.c
+	* Matt Kraai -- new tail.c
+	* Glenn McGrath -- new 'dpkg-deb' applet
+	* Glenn McGrath -- new ar code
+	* spoon -- new watchdog applet
+	* Vladimir N. Oleynik <dzo@simtreas.ru> -- fixed cmdedit.c so now 
+	    scrolling and tab completion in lash work properly.  Also several
+	    byte saving optimizations.
+	* Erik Andersen -- disabled many less commonly used applets by default
+	* Mark Whitley -- more thrashing about to get clean perror_msg usage
+	* Matt Kraai -- new command line munging
+	* Larry Doolittle -- keep some locales from messing up busybox.sh
+	* Matt Kraai -- cleaned up dd and tail with new parse_number routine
+	* Mark Whitley -- remove debugging messages from deallocvt
+	* Matt Kraai and Mark Whitley -- new document "How to Add a New Applet 
+	    to BusyBox"
+	* David Douthitt -- fixed "grep -qv" bug
+	* Larry Doolittle -- fixed insmod bug with old kernels
+	* Matt Kraai -- logger remixed to use getopt, selection of stdin made 
+	    util-linux compatible
+	* Erik Andersen -- many more internal symbols classified static to 
+	    avoid namespace pollution
+	* Matt Kraai -- nc listening support
+	* Erik Andersen -- made sed understand arbitrary regexp delimiters
+	* Matt Kraai et al. -- more tar improvements and bug fixes, now 
+	    handles regexp file exclusion
+	* Larry Doolittle -- new script (multibuild.pl) to automate build rule
+	    checking
+	* Matt Kraai -- update/cleanup of the docs on how to use init
+	* Erik Andersen -- renamed all sh.c symbols per the style guide, 
+	    better if-then-else-fi handling
+	* Erik Andersen -- cleaner division of labor between cmdedit.c and sh.c
+	* Larry Doolittle -- shell data structure cleanup, fixed buglets
+	    in read, exec, and piped builtins
+	* Erik Andersen -- md5sum was broken in 0.48.  Now fixed (and doesn't 
+	    use getline, shrinking static compiles (since nothing else used it).
+	* ?? -- squashed memory leak in shell prompt handling
+	* Mark Whitley -- Updates to style guide
+	* Mark Whitley -- Big cleanup in utility.c: style guide compliance,
+	    de-macro-ifying some variables and functions
+	* Erik Andersen -- ls now honors BB_FEATURE_AUTOWIDTH so it can find
+	    the width and height of the console.
+	* Erik Andersen -- insmod now ignores -L and accepts the -o option.
+	* Erik Andersen -- updates so you can now select from the Makefile
+	    whether or not to use the system's passwd and group functions.
+	    Since most systems use GNU libc, this can save you from having to
+	    install the /etc/nsswitch.conf configuration file and the required
+	    libnss_* libraries.  Adds 1.5k.  You can now, also, disable this, 
+	    causing busybox to use the system's pwd.h and grp.h functions.
+
+
+	 -Erik Andersen, 27 January 2001
+
 0.48
 
 	* Glenn McGrath -- tar now supports uncompressing tar files,

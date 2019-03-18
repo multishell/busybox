@@ -25,14 +25,16 @@
 #include <stdio.h>
 #include <dirent.h>
 #include <errno.h>
+#include <unistd.h>
+#include <stdlib.h>
 
 extern int pwd_main(int argc, char **argv)
 {
 	char buf[BUFSIZ + 1];
 
 	if (getcwd(buf, sizeof(buf)) == NULL)
-		error_msg_and_die("%s\n", strerror(errno));
+		perror_msg_and_die("getcwd");
 
-	printf("%s\n", buf);
+	puts(buf);
 	return EXIT_SUCCESS;
 }

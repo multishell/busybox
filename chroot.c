@@ -3,7 +3,7 @@
  * Mini chroot implementation for busybox
  *
  *
- * Copyright (C) 1999,2000 by Lineo, inc.
+ * Copyright (C) 1999,2000,2001 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -25,6 +25,7 @@
 #include "busybox.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <unistd.h>
 #include <errno.h>
 
 int chroot_main(int argc, char **argv)
@@ -38,7 +39,7 @@ int chroot_main(int argc, char **argv)
 	argv++;
 
 	if (chroot(*argv) || (chdir("/"))) {
-		error_msg_and_die("cannot change root directory to %s: %s\n", *argv, strerror(errno));
+		perror_msg_and_die("cannot change root directory to %s", *argv);
 	}
 
 	argc--;
@@ -57,7 +58,7 @@ int chroot_main(int argc, char **argv)
 		return EXIT_SUCCESS;
 #endif
 	}
-	error_msg_and_die("cannot execute %s: %s\n", prog, strerror(errno));
+	perror_msg_and_die("cannot execute %s", prog);
 
 }
 

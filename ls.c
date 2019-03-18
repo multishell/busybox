@@ -41,9 +41,9 @@
  * 1. requires lstat (BSD) - how do you do it without?
  */
 
-#define TERMINAL_WIDTH	80		/* use 79 if your terminal has linefold bug */
-#define COLUMN_WIDTH	14		/* default if AUTOWIDTH not defined */
-#define COLUMN_GAP	2			/* includes the file type char, if present */
+static const int TERMINAL_WIDTH = 80;		/* use 79 if your terminal has linefold bug */
+static const int COLUMN_WIDTH = 14;		/* default if AUTOWIDTH not defined */
+static const int COLUMN_GAP = 2;			/* includes the file type char, if present */
 
 /************************************************************************/
 
@@ -59,6 +59,11 @@
 #include <time.h>
 #endif
 #include <string.h>
+#include <stdlib.h>
+
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/ioctl.h>
 
 #ifndef NAJOR
 #define MAJOR(dev) (((dev)>>8)&0xff)
@@ -66,10 +71,12 @@
 #endif
 
 /* what is the overall style of the listing */
-#define STYLE_AUTO		0
-#define STYLE_LONG		1		/* one record per line, extended info */
-#define STYLE_SINGLE	2		/* one record per line */
-#define STYLE_COLUMNS	3		/* fill columns */
+enum {
+STYLE_AUTO = 0,
+STYLE_LONG = 1,		/* one record per line, extended info */
+STYLE_SINGLE = 2,		/* one record per line */
+STYLE_COLUMNS = 3		/* fill columns */
+};
 
 /* 51306 lrwxrwxrwx  1 root     root         2 May 11 01:43 /bin/view -> vi* */
 /* what file information will be listed */
@@ -99,23 +106,23 @@
 
 #ifdef BB_FEATURE_LS_SORTFILES
 /* how will the files be sorted */
-#define SORT_FORWARD    0		/* sort in reverse order */
-#define SORT_REVERSE    1		/* sort in reverse order */
-#define SORT_NAME		2		/* sort by file name */
-#define SORT_SIZE		3		/* sort by file size */
-#define SORT_ATIME		4		/* sort by last access time */
-#define SORT_CTIME		5		/* sort by last change time */
-#define SORT_MTIME		6		/* sort by last modification time */
-#define SORT_VERSION	7		/* sort by version */
-#define SORT_EXT		8		/* sort by file name extension */
-#define SORT_DIR		9		/* sort by file or directory */
+static const int SORT_FORWARD = 0;		/* sort in reverse order */
+static const int SORT_REVERSE = 1;		/* sort in reverse order */
+static const int SORT_NAME = 2;		/* sort by file name */
+static const int SORT_SIZE = 3;		/* sort by file size */
+static const int SORT_ATIME = 4;		/* sort by last access time */
+static const int SORT_CTIME = 5;		/* sort by last change time */
+static const int SORT_MTIME = 6;		/* sort by last modification time */
+static const int SORT_VERSION = 7;		/* sort by version */
+static const int SORT_EXT = 8;		/* sort by file name extension */
+static const int SORT_DIR = 9;		/* sort by file or directory */
 #endif
 
 #ifdef BB_FEATURE_LS_TIMESTAMPS
 /* which of the three times will be used */
-#define TIME_MOD    0
-#define TIME_CHANGE 1
-#define TIME_ACCESS 2
+static const int TIME_MOD = 0;
+static const int TIME_CHANGE = 1;
+static const int TIME_ACCESS = 2;
 #endif
 
 #define LIST_SHORT		(LIST_FILENAME)
@@ -125,9 +132,9 @@
 						LIST_SYMLINK)
 #define LIST_ILONG		(LIST_INO | LIST_LONG)
 
-#define SPLIT_DIR		0
-#define SPLIT_FILE		1
-#define SPLIT_SUBDIR	2
+static const int SPLIT_DIR = 0;
+static const int SPLIT_FILE = 1;
+static const int SPLIT_SUBDIR = 2;
 
 #define TYPEINDEX(mode) (((mode) >> 12) & 0x0f)
 #define TYPECHAR(mode)  ("0pcCd?bB-?l?s???" [TYPEINDEX(mode)])
@@ -150,15 +157,15 @@ struct dnode **list_dir(char *);
 struct dnode **dnalloc(int);
 int list_single(struct dnode *);
 
-static unsigned int disp_opts=	DISP_NORMAL;
-static unsigned int style_fmt=	STYLE_AUTO ;
-static unsigned int list_fmt=	LIST_SHORT ;
+static unsigned int disp_opts;
+static unsigned int style_fmt;
+static unsigned int list_fmt;
 #ifdef BB_FEATURE_LS_SORTFILES
-static unsigned int sort_opts=	SORT_FORWARD;
-static unsigned int sort_order=	SORT_FORWARD;
+static unsigned int sort_opts;
+static unsigned int sort_order;
 #endif
 #ifdef BB_FEATURE_LS_TIMESTAMPS
-static unsigned int time_fmt=	TIME_MOD;
+static unsigned int time_fmt;
 #endif
 #ifdef BB_FEATURE_LS_FOLLOWLINKS
 static unsigned int follow_links=FALSE;
@@ -166,22 +173,25 @@ static unsigned int follow_links=FALSE;
 
 static unsigned short column = 0;
 #ifdef BB_FEATURE_AUTOWIDTH
-static unsigned short terminal_width = TERMINAL_WIDTH;
-static unsigned short column_width = COLUMN_WIDTH;
-static unsigned short tabstops = 8;
+static unsigned short terminal_width;
+static unsigned short column_width;
+static unsigned short tabstops;
 #else
-#define terminal_width  TERMINAL_WIDTH
-#define column_width    COLUMN_WIDTH
+static unsigned short column_width = COLUMN_WIDTH;
 #endif
 
 static int status = EXIT_SUCCESS;
+
+#ifdef BB_FEATURE_HUMAN_READABLE
+unsigned long ls_disp_hr = KILOBYTE;
+#endif
 
 static int my_stat(struct dnode *cur)
 {
 #ifdef BB_FEATURE_LS_FOLLOWLINKS
 	if (follow_links == TRUE) {
 		if (stat(cur->fullname, &cur->dstat)) {
-			error_msg("%s: %s\n", cur->fullname, strerror(errno));
+			perror_msg("%s", cur->fullname);
 			status = EXIT_FAILURE;
 			free(cur->fullname);
 			free(cur);
@@ -190,7 +200,7 @@ static int my_stat(struct dnode *cur)
 	} else
 #endif
 	if (lstat(cur->fullname, &cur->dstat)) {
-		error_msg("%s: %s\n", cur->fullname, strerror(errno));
+		perror_msg("%s", cur->fullname);
 		status = EXIT_FAILURE;
 		free(cur->fullname);
 		free(cur);
@@ -202,7 +212,7 @@ static int my_stat(struct dnode *cur)
 static void newline(void)
 {
     if (column > 0) {
-        fprintf(stdout, "\n");
+        putchar('\n');
         column = 0;
     }
 }
@@ -229,11 +239,11 @@ static void nexttabstop( void )
 		n= nexttab - column;
 		if (n < 1) n= 1;
 		while (n--) {
-			fprintf(stdout, " ");
+			putchar(' ');
 			column++;
 		}
 	}
-	nexttab= column + column_width + COLUMN_GAP ;
+	nexttab= column + column_width + COLUMN_GAP; 
 }
 
 /*----------------------------------------------------------------------*/
@@ -426,8 +436,10 @@ void showfiles(struct dnode **dn, int nfiles)
 			;
 		if (column_width < len) column_width= len;
 	}
-#endif
 	ncols= (int)(terminal_width / (column_width + COLUMN_GAP));
+#else
+	ncols= TERMINAL_WIDTH;
+#endif
 	switch (style_fmt) {
 		case STYLE_LONG:	/* one record per line, extended info */
 		case STYLE_SINGLE:	/* one record per line */
@@ -468,7 +480,7 @@ void showdirs(struct dnode **dn, int ndirs)
 
 	for (i=0; i<ndirs; i++) {
 		if (disp_opts & (DISP_DIRNAME | DISP_RECURSIVE)) {
-			fprintf(stdout, "\n%s:\n", dn[i]->fullname);
+			printf("\n%s:\n", dn[i]->fullname);
 		}
 		subdnp= list_dir(dn[i]->fullname);
 		nfiles= countfiles(subdnp);
@@ -511,7 +523,7 @@ struct dnode **list_dir(char *path)
 	nfiles= 0;
 	dir = opendir(path);
 	if (dir == NULL) {
-		error_msg("%s: %s\n", path, strerror(errno));
+		perror_msg("%s", path);
 		status = EXIT_FAILURE;
 		return(NULL);	/* could not open the dir */
 	}
@@ -579,53 +591,61 @@ int list_single(struct dnode *dn)
 	for (i=0; i<=31; i++) {
 		switch (list_fmt & (1<<i)) {
 			case LIST_INO:
-				fprintf(stdout, "%7ld ", dn->dstat.st_ino);
+				printf("%7ld ", dn->dstat.st_ino);
 				column += 8;
 				break;
 			case LIST_BLOCKS:
-#if _FILE_OFFSET_BITS == 64
-				fprintf(stdout, "%4lld ", dn->dstat.st_blocks>>1);
+#ifdef BB_FEATURE_HUMAN_READABLE
+				fprintf(stdout, "%5s ", format(dn->dstat.st_size, ls_disp_hr));
 #else
-				fprintf(stdout, "%4ld ", dn->dstat.st_blocks>>1);
+#if _FILE_OFFSET_BITS == 64
+				printf("%4lld ", dn->dstat.st_blocks>>1);
+#else
+				printf("%4ld ", dn->dstat.st_blocks>>1);
+#endif
 #endif
 				column += 5;
 				break;
 			case LIST_MODEBITS:
-				fprintf(stdout, "%10s", (char *)mode_string(dn->dstat.st_mode));
+				printf("%10s", (char *)mode_string(dn->dstat.st_mode));
 				column += 10;
 				break;
 			case LIST_NLINKS:
-				fprintf(stdout, "%4d ", dn->dstat.st_nlink);
+				printf("%4d ", dn->dstat.st_nlink);
 				column += 10;
 				break;
 			case LIST_ID_NAME:
 #ifdef BB_FEATURE_LS_USERNAME
 				my_getpwuid(scratch, dn->dstat.st_uid);
 				if (*scratch)
-					fprintf(stdout, "%-8.8s ", scratch);
+					printf("%-8.8s ", scratch);
 				else
-					fprintf(stdout, "%-8d ", dn->dstat.st_uid);
+					printf("%-8d ", dn->dstat.st_uid);
 				my_getgrgid(scratch, dn->dstat.st_gid);
 				if (*scratch)
-					fprintf(stdout, "%-8.8s", scratch);
+					printf("%-8.8s", scratch);
 				else
-					fprintf(stdout, "%-8d", dn->dstat.st_gid);
+					printf("%-8d", dn->dstat.st_gid);
 				column += 17;
 				break;
 #endif
 			case LIST_ID_NUMERIC:
-				fprintf(stdout, "%-8d %-8d", dn->dstat.st_uid, dn->dstat.st_gid);
+				printf("%-8d %-8d", dn->dstat.st_uid, dn->dstat.st_gid);
 				column += 17;
 				break;
 			case LIST_SIZE:
 			case LIST_DEV:
 				if (S_ISBLK(dn->dstat.st_mode) || S_ISCHR(dn->dstat.st_mode)) {
-					fprintf(stdout, "%4d, %3d ", (int)MAJOR(dn->dstat.st_rdev), (int)MINOR(dn->dstat.st_rdev));
+					printf("%4d, %3d ", (int)MAJOR(dn->dstat.st_rdev), (int)MINOR(dn->dstat.st_rdev));
 				} else {
-#if _FILE_OFFSET_BITS == 64
-					fprintf(stdout, "%9lld ", dn->dstat.st_size);
+#ifdef BB_FEATURE_HUMAN_READABLE
+					fprintf(stdout, "%9s ", format(dn->dstat.st_size, ls_disp_hr));
 #else
-					fprintf(stdout, "%9ld ", dn->dstat.st_size);
+#if _FILE_OFFSET_BITS == 64
+					printf("%9lld ", dn->dstat.st_size);
+#else
+					printf("%9ld ", dn->dstat.st_size);
+#endif
 #endif
 				}
 				column += 10;
@@ -634,23 +654,23 @@ int list_single(struct dnode *dn)
 			case LIST_FULLTIME:
 			case LIST_DATE_TIME:
 				if (list_fmt & LIST_FULLTIME) {
-					fprintf(stdout, "%24.24s ", filetime);
+					printf("%24.24s ", filetime);
 					column += 25;
 					break;
 				}
 				age = time(NULL) - ttime;
-				fprintf(stdout, "%6.6s ", filetime+4);
+				printf("%6.6s ", filetime+4);
 				if (age < 3600L * 24 * 365 / 2 && age > -15 * 60) {
 					/* hh:mm if less than 6 months old */
-					fprintf(stdout, "%5.5s ", filetime+11);
+					printf("%5.5s ", filetime+11);
 				} else {
-					fprintf(stdout, " %4.4s ", filetime+20);
+					printf(" %4.4s ", filetime+20);
 				}
 				column += 13;
 				break;
 #endif
 			case LIST_FILENAME:
-				fprintf(stdout, "%s", dn->name);
+				printf("%s", dn->name);
 				column += strlen(dn->name);
 				break;
 			case LIST_SYMLINK:
@@ -658,7 +678,7 @@ int list_single(struct dnode *dn)
 					len= readlink(dn->fullname, scratch, (sizeof scratch)-1);
 					if (len > 0) {
 						scratch[len]= '\0';
-						fprintf(stdout, " -> %s", scratch);
+						printf(" -> %s", scratch);
 #ifdef BB_FEATURE_LS_FILETYPES
 						if (!stat(dn->fullname, &info)) {
 							append = append_char(info.st_mode);
@@ -671,7 +691,7 @@ int list_single(struct dnode *dn)
 #ifdef BB_FEATURE_LS_FILETYPES
 			case LIST_FILETYPE:
 				if (append != '\0') {
-					fprintf(stdout, "%1c", append);
+					printf("%1c", append);
 					column++;
 				}
 				break;
@@ -692,16 +712,28 @@ extern int ls_main(int argc, char **argv)
 	int opt;
 	int oi, ac;
 	char **av;
+#ifdef BB_FEATURE_AUTOWIDTH
+	struct winsize win = { 0, 0, 0, 0 };
+#endif
 
 	disp_opts= DISP_NORMAL;
 	style_fmt= STYLE_AUTO;
 	list_fmt=  LIST_SHORT;
 #ifdef BB_FEATURE_LS_SORTFILES
 	sort_opts= SORT_NAME;
+	sort_order=	SORT_FORWARD;
 #endif
 #ifdef BB_FEATURE_LS_TIMESTAMPS
 	time_fmt= TIME_MOD;
 #endif
+#ifdef BB_FEATURE_AUTOWIDTH
+		ioctl(fileno(stdout), TIOCGWINSZ, &win);
+		if (win.ws_row > 4)
+			column_width = win.ws_row - 2;
+		if (win.ws_col > 0)
+			terminal_width = win.ws_col - 1;
+#endif
+	tabstops = 8;
 	nfiles=0;
 
 	/* process options */
@@ -724,7 +756,10 @@ extern int ls_main(int argc, char **argv)
 #ifdef BB_FEATURE_LS_FOLLOWLINKS
 "L"
 #endif
-	)) > 0) {
+#ifdef BB_FEATURE_HUMAN_READABLE
+"h"
+#endif
+"k")) > 0) {
 		switch (opt) {
 			case '1': style_fmt = STYLE_SINGLE; break;
 			case 'A': disp_opts |= DISP_HIDDEN; break;
@@ -733,7 +768,13 @@ extern int ls_main(int argc, char **argv)
 			case 'd': disp_opts |= DISP_NOLIST; break;
 			case 'g': /* ignore -- for ftp servers */ break;
 			case 'i': list_fmt |= LIST_INO; break;
-			case 'l': style_fmt = STYLE_LONG; list_fmt |= LIST_LONG; break;
+			case 'l':
+				style_fmt = STYLE_LONG;
+				list_fmt |= LIST_LONG;
+#ifdef BB_FEATURE_HUMAN_READABLE
+				ls_disp_hr = 1;
+#endif
+			break;
 			case 'n': list_fmt |= LIST_ID_NUMERIC; break;
 			case 's': list_fmt |= LIST_BLOCKS; break;
 			case 'x': disp_opts = DISP_ROWS; break;
@@ -776,6 +817,12 @@ extern int ls_main(int argc, char **argv)
 #ifdef BB_FEATURE_AUTOWIDTH
 			case 'T': tabstops= atoi(optarg); break;
 			case 'w': terminal_width= atoi(optarg); break;
+#endif
+#ifdef BB_FEATURE_HUMAN_READABLE
+			case 'h': ls_disp_hr = 0; break;
+			case 'k': ls_disp_hr = KILOBYTE; break;
+#else
+			case 'k': break;
 #endif
 			default:
 				goto print_usage_message;
@@ -871,7 +918,6 @@ extern int ls_main(int argc, char **argv)
 			showdirs(dnd, dndirs);
 		}
 	}
-
 	return(status);
 
   print_usage_message:

@@ -3,7 +3,7 @@
  * Mini umount implementation for busybox
  *
  *
- * Copyright (C) 1999,2000 by Lineo, inc.
+ * Copyright (C) 1999,2000,2001 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -26,12 +26,14 @@
 #include <stdio.h>
 #include <mntent.h>
 #include <errno.h>
+#include <string.h>
+#include <stdlib.h>
 
 
-#define MNT_FORCE		1
-#define MS_MGC_VAL		0xc0ed0000 /* Magic number indicatng "new" flags */
-#define MS_REMOUNT		32	/* Alter flags of a mounted FS.  */
-#define MS_RDONLY		1	/* Mount read-only.  */
+static const int MNT_FORCE = 1;
+static const int MS_MGC_VAL = 0xc0ed0000; /* Magic number indicatng "new" flags */
+static const int MS_REMOUNT = 32;	/* Alter flags of a mounted FS.  */
+static const int MS_RDONLY = 1;	/* Mount read-only.  */
 
 extern int mount (__const char *__special_file, __const char *__dir,
 			__const char *__fstype, unsigned long int __rwflag,
@@ -212,18 +214,18 @@ static int umount_all(int useMtab)
 		/* Never umount /proc on a umount -a */
 		if (strstr(mountpt, "proc")!= NULL)
 			continue;
-		status = do_umount(mountpt, useMtab);
-		if (status != 0) {
+		if (!do_umount(mountpt, useMtab)) {
 			/* Don't bother retrying the umount on busy devices */
 			if (errno == EBUSY) {
-				perror(mountpt);
+				perror_msg("%s", mountpt);
+				status = FALSE;
 				continue;
 			}
-			status = do_umount(mountpt, useMtab);
-			if (status != 0) {
+			if (!do_umount(mountpt, useMtab)) {
 				printf("Couldn't umount %s on %s: %s\n",
 					   mountpt, mtab_getinfo(mountpt, MTAB_GETDEVICE),
 					   strerror(errno));
+				status = FALSE;
 			}
 		}
 	}
@@ -280,7 +282,6 @@ extern int umount_main(int argc, char **argv)
 	}
 	if (do_umount(*argv, useMtab) == TRUE)
 		return EXIT_SUCCESS;
-	perror("umount");
-	return EXIT_FAILURE;
+	perror_msg_and_die("%s", *argv);
 }
 

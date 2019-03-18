@@ -48,7 +48,7 @@
 
 #ifndef _IO
 /* pre-1.3.45 */
-#define BLKGETSIZE 0x1260
+static const int BLKGETSIZE = 0x1260;
 #else
 /* same on i386, m68k, arm; different on alpha, mips, sparc, ppc */
 #define BLKGETSIZE _IO(0x12,96)
@@ -173,19 +173,19 @@ static int bit_test_and_clear(unsigned int *addr, unsigned int nr)
 }
 
 
-void die(const char *str)
+static void die(const char *str)
 {
 	error_msg("%s\n", str);
 	exit(EXIT_FAILURE);
 }
 
-void page_ok(int page)
+static void page_ok(int page)
 {
 	if (version == 0)
 		bit_set(signature_page, page);
 }
 
-void page_bad(int page)
+static void page_bad(int page)
 {
 	if (version == 0)
 		bit_test_and_clear(signature_page, page);
@@ -197,7 +197,7 @@ void page_bad(int page)
 	badpages++;
 }
 
-void check_blocks(void)
+static void check_blocks(void)
 {
 	unsigned int current_page;
 	int do_seek = 1;
@@ -260,11 +260,8 @@ static long get_size(const char *file)
 	int fd;
 	long size;
 
-	fd = open(file, O_RDONLY);
-	if (fd < 0) {
-		perror(file);
-		exit(1);
-	}
+	if ((fd = open(file, O_RDONLY)) < 0)
+		perror_msg_and_die("%s", file);
 	if (ioctl(fd, BLKGETSIZE, &size) >= 0) {
 		int sectors_per_page = pagesize / 512;
 
@@ -367,10 +364,8 @@ int mkswap_main(int argc, char **argv)
 	}
 
 	DEV = open(device_name, O_RDWR);
-	if (DEV < 0 || fstat(DEV, &statbuf) < 0) {
-		perror(device_name);
-		return EXIT_FAILURE;
-	}
+	if (DEV < 0 || fstat(DEV, &statbuf) < 0)
+		perror_msg_and_die("%s", device_name);
 	if (!S_ISBLK(statbuf.st_mode))
 		check = 0;
 	else if (statbuf.st_rdev == 0x0300 || statbuf.st_rdev == 0x0340)

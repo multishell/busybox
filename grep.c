@@ -1,8 +1,8 @@
 /*
  * Mini grep implementation for busybox using libc regex.
  *
- * Copyright (C) 1999,2000 by Lineo, inc.
- * Written by Mark Whitley <markw@lineo.com>, <markw@enol.com>
+ * Copyright (C) 1999,2000,2001 by Lineo, inc.
+ * Written by Mark Whitley <markw@lineo.com>, <markw@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,6 +27,8 @@
 #include <string.h> /* for strerror() */
 #include <errno.h>
 #include "busybox.h"
+
+extern void xregcomp(regex_t *preg, const char *regex, int cflags);
 
 extern int optind; /* in unistd.h */
 extern int errno;  /* for use with strerror() */
@@ -85,6 +87,11 @@ static void grep_file(FILE *file)
 
 		}
 		else if (ret == REG_NOMATCH && invert_search) {
+			if (be_quiet) {
+				regfree(&regex);
+				exit(0);
+			}
+
 			nmatches++;
 			print_matched_line(line, linenum);
 		}
@@ -169,7 +176,7 @@ extern int grep_main(int argc, char **argv)
 			file = fopen(cur_file, "r");
 			if (file == NULL) {
 				if (!suppress_err_msgs)
-					error_msg("%s: %s\n", cur_file, strerror(errno));
+					perror_msg("%s", cur_file);
 			}
 			else {
 				grep_file(file);

@@ -89,6 +89,9 @@ const struct BB_applet applets[] = {
 #ifdef BB_DOS2UNIX
 	APPLET("dos2unix", dos2unix_main, _BB_DIR_USR_BIN, dos2unix_usage)
 #endif
+#ifdef BB_DPKG_DEB
+	APPLET("dpkg-deb", dpkg_deb_main, _BB_DIR_USR_BIN, dpkg_deb_usage)
+#endif
 #ifdef BB_DU
 	APPLET("du", du_main, _BB_DIR_USR_BIN, du_usage)
 #endif
@@ -358,6 +361,9 @@ const struct BB_applet applets[] = {
 #endif
 #ifdef BB_UUENCODE
 	APPLET("uuencode", uuencode_main, _BB_DIR_USR_BIN, uuencode_usage)
+#endif
+#ifdef BB_WATCHDOG
+	APPLET("watchdog", watchdog_main, _BB_DIR_SBIN, watchdog_usage)
 #endif
 #ifdef BB_WC
 	APPLET("wc", wc_main, _BB_DIR_USR_BIN, wc_usage)

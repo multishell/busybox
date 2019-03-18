@@ -26,27 +26,19 @@
 
 #include "Config.h"
 
+#include <stdio.h>
+#include <stdarg.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
 #ifdef DMALLOC
 #include "dmalloc.h"
 #endif
 
-#include <stdlib.h>
-#include <stdarg.h>
-#include <string.h>
-#include <unistd.h>
-#include <errno.h>
-#include <sys/stat.h>
-#include <sys/param.h>
-#include <mntent.h>
-#include <regex.h>
-/* for the _syscall() macros */
-#include <sys/syscall.h>
-#include <linux/unistd.h>
-
-
 /* Some useful definitions */
 #define FALSE   ((int) 0)
 #define TRUE    ((int) 1)
+#define SKIP	((int) 2)
 
 /* for mtab.c */
 #define MTAB_GETMOUNTPT '1'
@@ -65,26 +57,6 @@ static inline int is_octal(ch)   { return ((ch >= '0') && (ch <= '7')); }
 
 #ifndef MAX
 #define	MAX(a,b) (((a)>(b))?(a):(b))
-#endif
-
-
-/* I don't like nested includes, but the string and io functions are used
- * too often
- */
-#include <stdio.h>
-#if !defined(NO_STRING_H) || defined(STDC_HEADERS)
-#  include <string.h>
-#  if !defined(STDC_HEADERS) && !defined(NO_MEMORY_H) && !defined(__GNUC__)
-#    include <memory.h>
-#  endif
-#  define memzero(s, n)     memset ((void *)(s), 0, (n))
-#else
-#  include <strings.h>
-#  define strchr            index
-#  define strrchr           rindex
-#  define memcpy(d, s, n)   bcopy((s), (d), (n))
-#  define memcmp(s1, s2, n) bcmp((s1), (s2), (n))
-#  define memzero(s, n)     bzero((s), (n))
 #endif
 
 
@@ -147,6 +119,7 @@ int makeString(int argc, const char **argv, char *buf, int bufLen);
 char *getChunk(int size);
 char *chunkstrdup(const char *str);
 void freeChunks(void);
+ssize_t safe_read(int fd, void *buf, size_t count);
 int full_write(int fd, const char *buf, int len);
 int full_read(int fd, char *buf, int len);
 int recursive_action(const char *fileName, int recurse, int followLinks, int depthFirst,
@@ -177,17 +150,23 @@ extern void print_file(FILE *file);
 extern int print_file_by_name(char *filename);
 extern char process_escape_sequence(char **ptr);
 extern char *get_last_path_component(char *path);
-extern void xregcomp(regex_t *preg, const char *regex, int cflags);
 extern FILE *wfopen(const char *path, const char *mode);
 extern FILE *xfopen(const char *path, const char *mode);
 
-#ifndef DMALLOC 
+#ifndef DMALLOC
 extern void *xmalloc (size_t size);
 extern void *xrealloc(void *old, size_t size);
 extern void *xcalloc(size_t nmemb, size_t size);
 extern char *xstrdup (const char *s);
 #endif
 extern char *xstrndup (const char *s, int n);
+
+struct suffix_mult {
+	char *suffix;
+	int mult;
+};
+
+extern unsigned long parse_number(const char *numstr, struct suffix_mult *suffixes);
 
 
 /* These parse entries in /etc/passwd and /etc/group.  This is desirable
@@ -248,6 +227,21 @@ extern int sysinfo (struct sysinfo* info);
 #define clrbit(a,i)     ((a)[(i)/NBBY] &= ~(1<<((i)%NBBY)))
 #define isset(a,i)      ((a)[(i)/NBBY] & (1<<((i)%NBBY)))
 #define isclr(a,i)      (((a)[(i)/NBBY] & (1<<((i)%NBBY))) == 0)
+#endif
+
+#ifdef BB_FEATURE_HUMAN_READABLE
+char *format(unsigned long val, unsigned long hr);
+#define KILOBYTE 1024
+#define MEGABYTE (KILOBYTE*1024)
+#define GIGABYTE (MEGABYTE*1024)
+#endif
+
+#ifdef BB_FEATURE_BUFFERS_GO_ON_STACK
+#define RESERVE_BB_BUFFER(buffer,len)           char buffer[len]
+#define RESERVE_BB_UBUFFER(buffer,len) unsigned char buffer[len]
+#else
+#define RESERVE_BB_BUFFER(buffer,len)           char *buffer=xmalloc(len)
+#define RESERVE_BB_UBUFFER(buffer,len) unsigned char *buffer=xmalloc(len)
 #endif
 
 #endif /* _BB_INTERNAL_H_ */

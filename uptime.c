@@ -2,7 +2,7 @@
 /*
  * Mini uptime implementation for busybox
  *
- * Copyright (C) 1999,2000 by Lineo, inc.
+ * Copyright (C) 1999,2000,2001 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -24,7 +24,7 @@
 /* This version of uptime doesn't display the number of users on the system,
  * since busybox init doesn't mess with utmp.  For folks using utmp that are
  * just dying to have # of users reported, feel free to write it as some type
- * of BB_FEATURE_UMTP_SUPPORT #define
+ * of BB_FEATURE_UTMP_SUPPORT #define
  */
 
 
@@ -32,8 +32,9 @@
 #include <stdio.h>
 #include <time.h>
 #include <errno.h>
+#include <stdlib.h>
 
-#define FSHIFT          16              /* nr of bits of precision */
+static const int FSHIFT = 16;              /* nr of bits of precision */
 #define FIXED_1         (1<<FSHIFT)     /* 1.0 as fixed-point */
 #define LOAD_INT(x) ((x) >> FSHIFT)
 #define LOAD_FRAC(x) LOAD_INT(((x) & (FIXED_1-1)) * 100)
@@ -51,19 +52,19 @@ extern int uptime_main(int argc, char **argv)
 
 	sysinfo(&info);
 
-	fprintf(stdout, " %2d:%02d%s  up ", 
+	printf(" %2d:%02d%s  up ", 
 			current_time->tm_hour%12 ? current_time->tm_hour%12 : 12, 
 			current_time->tm_min, current_time->tm_hour > 11 ? "pm" : "am");
 	updays = (int) info.uptime / (60*60*24);
 	if (updays)
-		fprintf(stdout, "%d day%s, ", updays, (updays != 1) ? "s" : "");
+		printf("%d day%s, ", updays, (updays != 1) ? "s" : "");
 	upminutes = (int) info.uptime / 60;
 	uphours = (upminutes / 60) % 24;
 	upminutes %= 60;
 	if(uphours)
-		fprintf(stdout, "%2d:%02d, ", uphours, upminutes);
+		printf("%2d:%02d, ", uphours, upminutes);
 	else
-		fprintf(stdout, "%d min, ", upminutes);
+		printf("%d min, ", upminutes);
 
 	printf("load average: %ld.%02ld, %ld.%02ld, %ld.%02ld\n", 
 			LOAD_INT(info.loads[0]), LOAD_FRAC(info.loads[0]), 

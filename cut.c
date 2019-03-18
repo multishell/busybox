@@ -1,8 +1,8 @@
 /*
  * cut.c - minimalist version of cut
  *
- * Copyright (C) 1999,2000 by Lineo, inc.
- * Written by Mark Whitley <markw@lineo.com>, <markw@enol.com>
+ * Copyright (C) 1999,2000,2001 by Lineo, inc.
+ * Written by Mark Whitley <markw@lineo.com>, <markw@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -188,7 +188,7 @@ extern int cut_main(int argc, char **argv)
 			case 'f':
 				/* make sure they didn't ask for two types of lists */
 				if (part != 0) {
-					error_msg_and_die("only one type of list may be specified");
+					error_msg_and_die("only one type of list may be specified\n");
 				}
 				part = (char)opt;
 				decompose_list(optarg);
@@ -213,8 +213,9 @@ extern int cut_main(int argc, char **argv)
 	}
 
 	if (supress_non_delimited_lines && part != 'f') {
-		error_msg_and_die("suppressing non-delimited lines makes sense
-	only when operating on fields\n");
+		error_msg_and_die("suppressing non-delimited lines makes sense"
+				" only when operating on fields\n");
+
 	}
 
 	if (delim != '\t' && part != 'f') {
@@ -233,7 +234,7 @@ extern int cut_main(int argc, char **argv)
 		for (i = optind; i < argc; i++) {
 			file = fopen(argv[i], "r");
 			if (file == NULL) {
-				error_msg("%s: %s\n", argv[i], strerror(errno));
+				perror_msg("%s", argv[i]);
 			} else {
 				cut_file(file);
 				fclose(file);

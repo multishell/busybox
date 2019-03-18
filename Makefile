@@ -1,7 +1,6 @@
 # Makefile for busybox
 #
-# Copyright (C) 1999-2000 Erik Andersen <andersee@debian.org>
-# Copyright (C) 2000 Karl M. Hegbloom <karlheg@debian.org>
+# Copyright (C) 1999,2000,2001 Erik Andersen <andersee@debian.org>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,7 +18,7 @@
 #
 
 PROG      := busybox
-VERSION   := 0.48
+VERSION   := 0.49
 BUILDTIME := $(shell TZ=UTC date --utc "+%Y.%m.%d-%H:%M%z")
 export VERSION
 
@@ -28,6 +27,11 @@ export VERSION
 # overridden at the command line.  For example:
 #   make CROSS=powerpc-linux- BB_SRC_DIR=$HOME/busybox PREFIX=/mnt/app
 
+# If you want to add some simple compiler switches (like -march=i686),
+# especially from the command line, use this instead of CFLAGS directly.
+# For optimization overrides, it's better still to set OPTIMIZATION.
+CFLAGS_EXTRA =
+ 
 # If you want a static binary, turn this on.
 DOSTATIC = false
 
@@ -36,6 +40,17 @@ DOSTATIC = false
 # eg: `make DODEBUG=true tests'
 # Do not enable this for production builds...
 DODEBUG = false
+
+# Setting this to `true' will cause busybox to directly use the system's
+# password and group functions.  Assuming you use GNU libc, when this is
+# `true', you will need to install the /etc/nsswitch.conf configuration file
+# and the required libnss_* libraries. This generally makes your embedded
+# system quite a bit larger... If you leave this off, busybox will directly
+# use the /etc/password, /etc/group files (and your system will be smaller, and
+# I will get fewer emails asking about how glibc NSS works).  Enabling this adds
+# just 1.4k to the binary size (which is a _lot_ less then glibc NSS costs),
+# Most people will want to leave this set to false.
+USE_SYSTEM_PWD_GRP = false
 
 # This enables compiling with dmalloc ( http://dmalloc.com/ )
 # which is an excellent public domain mem leak and malloc problem
@@ -65,11 +80,14 @@ CROSS =
 CC = $(CROSS)gcc
 STRIPTOOL = $(CROSS)strip
 
-# To compile vs an alternative libc, you may need to use/adjust
-# the following lines to meet your needs.  This is how I make
-# busybox compile with uC-Libc (needs BB_GETOPT and BB_FEATURE_NFSMOUNT
-# disabled at the moment).
-#LIBCDIR=/home/andersen/CVS/uClibc
+# To compile vs uClibc, just use the compiler wrapper built by uClibc...
+# Isn't that easy?  Right now, uClibc needs BB_FEATURE_NFSMOUNT disabled 
+# since uClibc's nfs support isn't ready yet.
+#CC = ../uClibc/extra/gcc-uClibc/gcc-uClibc-i386
+
+# To compile vs some other alternative libc, you may need to use/adjust
+# the following lines to meet your needs...
+#LIBCDIR=/usr/i486-linuxlibc1/
 #LDFLAGS+=-nostdlib
 #LIBRARIES = $(LIBCDIR)/libc.a -lgcc
 #CROSS_CFLAGS+=-nostdinc -I$(LIBCDIR)/include -I$(GCCINCDIR)
@@ -145,6 +163,19 @@ ifdef BB_INIT_SCRIPT
     CFLAGS += -DINIT_SCRIPT='"$(BB_INIT_SCRIPT)"'
 endif
 
+ifneq ($(USE_SYSTEM_PWD_GRP),true)
+    PWD_LIB   = pwd_grp/libpwd.a
+    LIBRARIES += $(PWD_LIB)
+else
+    CFLAGS    += -DUSE_SYSTEM_PWD_GRP
+endif
+
+
+# Put user-supplied flags at the end, where they
+# have a chance of winning.
+CFLAGS += $(CFLAGS_EXTRA)
+
+.EXPORT_ALL_VARIABLES:
 
 all: busybox busybox.links doc
 
@@ -204,15 +235,19 @@ docs/busybox/busyboxdocumentation.html: docs/busybox.sgml
 
 
 
-busybox: $(OBJECTS) 
+busybox: $(PWD_LIB) $(OBJECTS) 
 	$(CC) $(LDFLAGS) -o $@ $^ $(LIBRARIES)
 	$(STRIP)
 
-busybox.links: Config.h
+$(PWD_LIB):
+	$(MAKE) -eC pwd_grp
+
+busybox.links: Config.h applets.h
 	- $(BB_SRC_DIR)/busybox.mkll $(CONFIG_H) $(BB_SRC_DIR)/applets.h >$@
 
 nfsmount.o cmdedit.o: %.o: %.h
-$(OBJECTS): %.o: %.c Config.h busybox.h Makefile
+$(OBJECTS): %.o: %.c Config.h busybox.h applets.h Makefile
+	$(CC) $(CFLAGS) -c $*.c -o $*.o
 
 utility.o: loop.h
 
@@ -224,10 +259,12 @@ test tests:
 
 clean:
 	- cd tests && $(MAKE) clean
+	- cd pwd_grp && $(MAKE) clean
 	- rm -f docs/BusyBox.txt docs/BusyBox.1 docs/BusyBox.html \
 	    docs/busybox.lineo.com/BusyBox.html
 	- rm -f docs/busybox.txt docs/busybox.dvi docs/busybox.ps \
 	    docs/busybox.pdf docs/busybox.lineo.com/busybox.html
+	- rm -f Config.h.ORG bb.def.h busybox.REGRESS.sh.results bb.OptionsAndFeatures
 	- rm -rf docs/busybox _install
 	- rm -f busybox.links loop.h *~ *.o core
 

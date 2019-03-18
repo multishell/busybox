@@ -26,6 +26,8 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
 
 int mknod_main(int argc, char **argv)
 {
@@ -84,7 +86,7 @@ int mknod_main(int argc, char **argv)
 	mode |= perm;
 
 	if (mknod(argv[0], mode, dev) != 0)
-		error_msg_and_die("%s: %s\n", argv[0], strerror(errno));
+		perror_msg_and_die("%s", argv[0]);
 	return EXIT_SUCCESS;
 }
 
