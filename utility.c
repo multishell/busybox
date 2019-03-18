@@ -53,12 +53,17 @@ volatile void usage(const char *usage)
 int
 get_kernel_revision()
 {
-  FILE *f;
+  FILE *file;
   int major=0, minor=0, patch=0;
+  char* filename="/proc/sys/kernel/osrelease";
 
-  f = fopen("/proc/sys/kernel/osrelease","r");
-  fscanf(f,"%d.%d.%d",&major,&minor,&patch);
-  fclose(f);
+  file = fopen(filename,"r");
+  if (file == NULL) {
+    perror(filename);
+    return( 0);
+  }
+  fscanf(file,"%d.%d.%d",&major,&minor,&patch);
+  fclose(file);
   return major*65536 + minor*256 + patch;
 }
 
@@ -312,94 +317,6 @@ const char *timeString(time_t timeVal)
 
 
 /*
- * Routine to see if a text string is matched by a wildcard pattern.
- * Returns TRUE if the text is matched, or FALSE if it is not matched
- * or if the pattern is invalid.
- *  *		matches zero or more characters
- *  ?		matches a single character
- *  [abc]	matches 'a', 'b' or 'c'
- *  \c		quotes character c
- *  Adapted from code written by Ingo Wilken.
- */
-int match(const char *text, const char *pattern)
-{
-    const char *retryPat;
-    const char *retryText;
-    int ch;
-    int found;
-
-    retryPat = NULL;
-    retryText = NULL;
-
-    while (*text || *pattern) {
-	ch = *pattern++;
-
-	switch (ch) {
-	case '*':
-	    retryPat = pattern;
-	    retryText = text;
-	    break;
-
-	case '[':
-	    found = FALSE;
-
-	    while ((ch = *pattern++) != ']') {
-		if (ch == '\\')
-		    ch = *pattern++;
-
-		if (ch == '\0')
-		    return FALSE;
-
-		if (*text == ch)
-		    found = TRUE;
-	    }
-
-	    if (!found) {
-		pattern = retryPat;
-		text = ++retryText;
-	    }
-
-	    /* fall into next case */
-
-	case '?':
-	    if (*text++ == '\0')
-		return FALSE;
-
-	    break;
-
-	case '\\':
-	    ch = *pattern++;
-
-	    if (ch == '\0')
-		return FALSE;
-
-	    /* fall into next case */
-
-	default:
-	    if (*text == ch) {
-		if (*text)
-		    text++;
-		break;
-	    }
-
-	    if (*text) {
-		pattern = retryPat;
-		text = ++retryText;
-		break;
-	    }
-
-	    return FALSE;
-	}
-
-	if (pattern == NULL)
-	    return FALSE;
-    }
-
-    return TRUE;
-}
-
-
-/*
  * Write all of the supplied buffer out to a file.
  * This does multiple writes as necessary.
  * Returns the amount written, or -1 on an error.
@@ -464,10 +381,12 @@ int fullRead(int fd, char *buf, int len)
  * location, and do something (something specified
  * by the fileAction and dirAction function pointers).
  *
- * TODO: check if ftw(3) can replace this to reduce code size...
+ * Unfortunatly, while nftw(3) could replace this and reduce 
+ * code size a bit, nftw() wasn't supported before GNU libc 2.1, 
+ * and so isn't sufficiently portable to take over...
  */
 int
-recursiveAction(const char *fileName, int recurse, int followLinks, int delayDirAction,
+recursiveAction(const char *fileName, int recurse, int followLinks, int depthFirst,
 		int (*fileAction) (const char *fileName, struct stat* statbuf),
 		int (*dirAction) (const char *fileName, struct stat* statbuf))
 {
@@ -501,7 +420,7 @@ recursiveAction(const char *fileName, int recurse, int followLinks, int delayDir
 	    perror(fileName);
 	    return (FALSE);
 	}
-	if (dirAction != NULL && delayDirAction == FALSE) {
+	if (dirAction != NULL && depthFirst == FALSE) {
 	    status = dirAction(fileName, &statbuf);
 	    if (status == FALSE) {
 		perror(fileName);
@@ -516,7 +435,7 @@ recursiveAction(const char *fileName, int recurse, int followLinks, int delayDir
 	    }
 	    sprintf(nextFile, "%s/%s", fileName, next->d_name);
 	    status =
-		recursiveAction(nextFile, TRUE, followLinks, delayDirAction, 
+		recursiveAction(nextFile, TRUE, followLinks, depthFirst, 
 			fileAction, dirAction);
 	    if (status < 0) {
 		closedir(dir);
@@ -528,7 +447,7 @@ recursiveAction(const char *fileName, int recurse, int followLinks, int delayDir
 	    perror(fileName);
 	    return (FALSE);
 	}
-	if (dirAction != NULL && delayDirAction == TRUE) {
+	if (dirAction != NULL && depthFirst == TRUE) {
 	    status = dirAction(fileName, &statbuf);
 	    if (status == FALSE) {
 		perror(fileName);
@@ -695,13 +614,17 @@ parse_mode( const char* s, mode_t* theMode)
 uid_t 
 my_getid(const char *filename, char *name, uid_t id) 
 {
-	FILE *stream;
+	FILE *file;
 	char *rname, *start, *end, buf[128];
 	uid_t rid;
 
-	stream=fopen(filename,"r");
+	file=fopen(filename,"r");
+	if (file == NULL) {
+	    perror(filename);
+	    return (-1);
+	}
 
-	while (fgets (buf, 128, stream) != NULL) {
+	while (fgets (buf, 128, file) != NULL) {
 		if (buf[0] == '#')
 			continue;
 
@@ -731,7 +654,7 @@ my_getid(const char *filename, char *name, uid_t id)
 		    return( TRUE);
 		}
 	}
-	fclose(stream);
+	fclose(file);
 	return (-1);
 }
 
@@ -763,4 +686,40 @@ my_getgrgid(char* group, gid_t gid)
 #endif
 
 
+
+#if !defined BB_REGEXP && (defined BB_GREP || defined BB_FIND )  
+/* This tries to find a needle in a haystack, but does so by
+ * only trying to match literal strings (look 'ma, no regexps!)
+ * This is short, sweet, and carries _very_ little baggage,
+ * unlike its beefier cousin a few lines down...
+ *  -Erik Andersen
+ */
+extern int find_match(char *haystack, char *needle, int ignoreCase)
+{
+
+    if (ignoreCase == FALSE) {
+	haystack = strstr (haystack, needle);
+	if (haystack == NULL)
+	    return FALSE;
+	return TRUE;
+    } else {
+	int i;
+	char needle1[BUF_SIZE];
+	char haystack1[BUF_SIZE];
+
+	strncpy( haystack1, haystack, sizeof(haystack1));
+	strncpy( needle1, needle, sizeof(needle1));
+	for( i=0; i<sizeof(haystack1) && haystack1[i]; i++)
+	    haystack1[i]=tolower( haystack1[i]);
+	for( i=0; i<sizeof(needle1) && needle1[i]; i++)
+	    needle1[i]=tolower( needle1[i]);
+	haystack = strstr (haystack1, needle1);
+	if (haystack == NULL)
+	    return FALSE;
+	return TRUE;
+    }
+}
+#endif
+
 /* END CODE */
+
