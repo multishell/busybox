@@ -7,6 +7,8 @@
     <a href=http://busybox.net/downloads/fixes-1.8.0/>patches</a>,
     <a href=http://busybox.net/fix.html>how to add a patch</a>)</p>
 
+    <p>Note: this is probably the very last release with lash. It will be dropped. Please migrate to hush.
+
     <p>Applets which had many changes since 1.7.x:
     <p>httpd:
       <ul>
@@ -42,11 +44,6 @@ Equivalent .config, i386 uclibc static builds:
 	<li>pgrep, pkill: new applets by Loic Grenie &lt;loic.grenie at gmail.com&gt;
 	<li>setsebool: new applet (Yuichi Nakamura &lt;ynakam at hitachisoft.jp&gt;)
       </ul>
-
-    <p>Unfortunately, not much work is done on shells. This was mostly stalled
-	by lack of time (read: laziness) on my part to learn how to adapt existing
-	qemu-runnable image for a NOMMU architechture (available on qemu website)
-	for local testing of cross-compiled busybox on my machine.
 
     <p>Other changes since previous release (abridged):
       <ul>
@@ -110,6 +107,8 @@ Equivalent .config, i386 uclibc static builds:
 	<li>zcip: fix unaligned trap on ARM
       </ul>
     </p>
+
+    <p><a href=http://busybox.net/~vda/HOWTO_bbox_with_uclibc.txt>How to build static busybox against uclibc</a></p>
   </li>
 
   <li><b>4 November 2007 -- BusyBox 1.7.3 (stable)</b>
@@ -119,7 +118,6 @@ Equivalent .config, i386 uclibc static builds:
     <a href=http://busybox.net/fix.html>how to add a patch</a>)</p>
 
     <p>This is a bugfix-only release, with fixes to ash, httpd, inetd, iptun, logger, login, tail.</p>
-    <p><a href=http://busybox.net/~vda/HOWTO_bbox_with_uclibc.txt>How to build static busybox against uclibc</a></p>
   </li>
 
   <li><b>30 September 2007 -- BusyBox 1.7.2 (stable)</b>
