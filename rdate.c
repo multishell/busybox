@@ -47,15 +47,15 @@ time_t askremotedate(char *host)
 	int fd;
 
 	if (!(h = gethostbyname(host))) {	/* get the IP addr */
-		errorMsg("%s: %s\n", host, strerror(errno));
+		error_msg("%s: %s\n", host, strerror(errno));
 		return(-1);
 	}
 	if ((tserv = getservbyname("time", "tcp")) == NULL) { /* find port # */
-		errorMsg("%s: %s\n", "time", strerror(errno));
+		error_msg("%s: %s\n", "time", strerror(errno));
 		return(-1);
 	}
 	if ((fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {  /* get net connection */
-		errorMsg("%s: %s\n", "socket", strerror(errno));
+		error_msg("%s: %s\n", "socket", strerror(errno));
 		return(-1);
 	}
 
@@ -64,13 +64,13 @@ time_t askremotedate(char *host)
 	sin.sin_family = AF_INET;
 
 	if (connect(fd, (struct sockaddr *)&sin, sizeof(sin)) < 0) {	/* connect to time server */
-		errorMsg("%s: %s\n", host, strerror(errno));
+		error_msg("%s: %s\n", host, strerror(errno));
 		close(fd);
 		return(-1);
 	}
-	if (read(fd, &nett, 4) != 4) {	/* read time from server */
+	if (read(fd, (void *)&nett, 4) != 4) {	/* read time from server */
 		close(fd);
-		errorMsg("%s did not send the complete time\n", host);
+		error_msg("%s did not send the complete time\n", host);
 	}
 	close(fd);
 
@@ -101,7 +101,6 @@ int rdate_main(int argc, char **argv)
 			default:
 			case 'H':
 				usage(rdate_usage);
-				return(FALSE);
 				break;
 			case 's':
 				setdate++;
@@ -117,19 +116,18 @@ int rdate_main(int argc, char **argv)
 
 	if (optind == argc) {
 		usage(rdate_usage);
-		return(FALSE);
 	}
 
 	if ((time= askremotedate(argv[optind])) == (time_t)-1) {
-		return(FALSE);
+		return EXIT_FAILURE;
 	}
 	if (setdate) {
 		if (stime(&time) < 0)
-			fatalError("Could not set time of day: %s\n", strerror(errno));
+			error_msg_and_die("Could not set time of day: %s\n", strerror(errno));
 	}
 	if (printdate) {
 		fprintf(stdout, "%s", ctime(&time));
 	}
 
-	return(TRUE);
+	return EXIT_SUCCESS;
 }

@@ -36,7 +36,7 @@ static int df(char *device, const char *mountPoint)
 	long blocks_percent_used;
 
 	if (statfs(mountPoint, &s) != 0) {
-		perror(mountPoint);
+		perror_msg("%s", mountPoint);
 		return FALSE;
 	}
 
@@ -63,45 +63,44 @@ static int df(char *device, const char *mountPoint)
 
 extern int df_main(int argc, char **argv)
 {
+	int status = EXIT_SUCCESS;
+
 	printf("%-20s %-14s %s %s %s %s\n", "Filesystem",
 		   "1k-blocks", "Used", "Available", "Use%", "Mounted on");
 
 	if (argc > 1) {
 		struct mntent *mountEntry;
-		int status;
 
 		if (**(argv + 1) == '-') {
 			usage(df_usage);
 		}
 		while (argc > 1) {
-			if ((mountEntry = findMountPoint(argv[1], mtab_file)) == 0) {
-				errorMsg("%s: can't find mount point.\n", argv[1]);
-				exit(FALSE);
-			}
-			status = df(mountEntry->mnt_fsname, mountEntry->mnt_dir);
-			if (status != 0)
-				exit(status);
+			if ((mountEntry = find_mount_point(argv[1], mtab_file)) == 0) {
+				error_msg("%s: can't find mount point.\n", argv[1]);
+				status = EXIT_FAILURE;
+			} else if (!df(mountEntry->mnt_fsname, mountEntry->mnt_dir))
+				status = EXIT_FAILURE;
 			argc--;
 			argv++;
 		}
-		exit(TRUE);
 	} else {
 		FILE *mountTable;
 		struct mntent *mountEntry;
 
 		mountTable = setmntent(mtab_file, "r");
 		if (mountTable == 0) {
-			perror(mtab_file);
-			exit(FALSE);
+			perror_msg("%s", mtab_file);
+			return EXIT_FAILURE;
 		}
 
 		while ((mountEntry = getmntent(mountTable))) {
-			df(mountEntry->mnt_fsname, mountEntry->mnt_dir);
+			if (!df(mountEntry->mnt_fsname, mountEntry->mnt_dir))
+				status = EXIT_FAILURE;
 		}
 		endmntent(mountTable);
 	}
 
-	return(TRUE);
+	return status;
 }
 
 /*

@@ -50,7 +50,7 @@ static void swap_enable_disable(char *device)
 
 	if (status != 0) {
 		perror(applet_name);
-		exit(FALSE);
+		exit(EXIT_FAILURE);
 	}
 }
 
@@ -69,7 +69,7 @@ static void do_em_all()
 		}
 	}
 	endmntent(f);
-	exit(TRUE);
+	exit(EXIT_SUCCESS);
 }
 
 
@@ -96,7 +96,7 @@ extern int swap_on_off_main(int argc, char **argv)
 					struct stat statBuf;
 
 					if (stat("/etc/fstab", &statBuf) < 0)
-						fatalError("/etc/fstab file missing\n");
+						error_msg_and_die("/etc/fstab file missing\n");
 				}
 				do_em_all();
 				break;
@@ -105,9 +105,8 @@ extern int swap_on_off_main(int argc, char **argv)
 			}
 	}
 	swap_enable_disable(*argv);
-	exit(TRUE);
+	return EXIT_SUCCESS;
 
   usage_and_exit:
 	usage((whichApp == SWAPON_APP) ? swapon_usage : swapoff_usage);
-	exit(FALSE);
 }

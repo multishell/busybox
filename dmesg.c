@@ -73,7 +73,7 @@ int dmesg_main(int argc, char **argv)
 		if (n < 0) {
 			goto klogctl_error;
 		}
-		exit(TRUE);
+		return EXIT_SUCCESS;
 	}
 
 	if (bufsize < 4096)
@@ -86,7 +86,7 @@ int dmesg_main(int argc, char **argv)
 
 	lastc = '\n';
 	for (i = 0; i < n; i++) {
-		if ((i == 0 || buf[i - 1] == '\n') && buf[i] == '<') {
+		if (lastc == '\n' && buf[i] == '<') {
 			i++;
 			while (buf[i] >= '0' && buf[i] <= '9')
 				i++;
@@ -98,11 +98,11 @@ int dmesg_main(int argc, char **argv)
 	}
 	if (lastc != '\n')
 		putchar('\n');
-	exit(TRUE);
+	return EXIT_SUCCESS;
   end:
 	usage(dmesg_usage);
-	exit(FALSE);
+	return EXIT_FAILURE;
   klogctl_error:
 	perror("klogctl");
-	return(FALSE);
+	return EXIT_FAILURE;
 }

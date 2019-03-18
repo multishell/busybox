@@ -49,14 +49,15 @@ extern int dd_main(int argc, char **argv)
 	int inCc = 0;
 	int outCc;
 	int trunc=TRUE;
-	long blockSize = 512;
+	int sync=FALSE;
+	long blockSize = 512,ibs;
 	uintmax_t skipBlocks = 0;
 	uintmax_t seekBlocks = 0;
 	uintmax_t count = (uintmax_t) - 1;
 	uintmax_t inTotal = 0;
 	uintmax_t outTotal = 0;
 	uintmax_t totalSize;
-	uintmax_t readSize;
+
 	unsigned char buf[BUFSIZ];
 	char *keyword = NULL;
 
@@ -70,34 +71,36 @@ extern int dd_main(int argc, char **argv)
 		else if (outFile == NULL && (strncmp(*argv, "of", 2) == 0))
 			outFile = ((strchr(*argv, '=')) + 1);
 		else if (strncmp("count", *argv, 5) == 0) {
-			count = getNum((strchr(*argv, '=')) + 1);
+			count = atoi_w_units((strchr(*argv, '=')) + 1);
 			if (count < 0) {
-				errorMsg("Bad count value %s\n", *argv);
+				error_msg("Bad count value %s\n", *argv);
 				goto usage;
 			}
 		} else if (strncmp(*argv, "bs", 2) == 0) {
-			blockSize = getNum((strchr(*argv, '=')) + 1);
+			blockSize = atoi_w_units((strchr(*argv, '=')) + 1);
 			if (blockSize <= 0) {
-				errorMsg("Bad block size value %s\n", *argv);
+				error_msg("Bad block size value %s\n", *argv);
 				goto usage;
 			}
 		} else if (strncmp(*argv, "skip", 4) == 0) {
-			skipBlocks = getNum((strchr(*argv, '=')) + 1);
+			skipBlocks = atoi_w_units((strchr(*argv, '=')) + 1);
 			if (skipBlocks <= 0) {
-				errorMsg("Bad skip value %s\n", *argv);
+				error_msg("Bad skip value %s\n", *argv);
 				goto usage;
 			}
 
 		} else if (strncmp(*argv, "seek", 4) == 0) {
-			seekBlocks = getNum((strchr(*argv, '=')) + 1);
+			seekBlocks = atoi_w_units((strchr(*argv, '=')) + 1);
 			if (seekBlocks <= 0) {
-				errorMsg("Bad seek value %s\n", *argv);
+				error_msg("Bad seek value %s\n", *argv);
 				goto usage;
 			}
 		} else if (strncmp(*argv, "conv", 4) == 0) {
 			keyword = (strchr(*argv, '=') + 1);
                 	if (strcmp(keyword, "notrunc") == 0) 
 				trunc=FALSE;
+			if (strcmp(keyword, "sync") == 0) 
+				sync=TRUE;
 		} else {
 			goto usage;
 		}
@@ -116,7 +119,7 @@ extern int dd_main(int argc, char **argv)
 		 * here anyways... */
 
 		/* free(buf); */
-		fatalError( inFile);
+		perror_msg_and_die("%s", inFile);
 	}
 
 	if (outFile == NULL)
@@ -131,19 +134,30 @@ extern int dd_main(int argc, char **argv)
 
 		/* close(inFd);
 		   free(buf); */
-		fatalError( outFile);
+		perror_msg_and_die("%s", outFile);
 	}
 
 	lseek(inFd, (off_t) (skipBlocks * blockSize), SEEK_SET);
 	lseek(outFd, (off_t) (seekBlocks * blockSize), SEEK_SET);
 	totalSize=count*blockSize;
-	while ((readSize = totalSize - inTotal) > 0) {
-		if (readSize > BUFSIZ)
-			readSize=BUFSIZ;
-		inCc = fullRead(inFd, buf, readSize);
+
+	ibs=blockSize;
+	if (ibs > BUFSIZ)
+		ibs=BUFSIZ;
+			
+	while (totalSize > outTotal) {
+		inCc = full_read(inFd, buf, ibs);
 		inTotal += inCc;
-		if ((outCc = fullWrite(outFd, buf, inCc)) < 1)
+		if ( (sync==TRUE) && (inCc>0) )
+			while (inCc<ibs)
+				buf[inCc++]='\0';
+
+		if ((outCc = full_write(outFd, buf, inCc)) < 1){
+			if (outCc < 0 ){
+				perror("Error during write");
+			}
 			break;
+		}
 		outTotal += outCc;
         }
 	if (trunc == TRUE) {
@@ -160,7 +174,7 @@ extern int dd_main(int argc, char **argv)
 		   (inTotal % blockSize) != 0);
 	printf("%ld+%d records out\n", (long) (outTotal / blockSize),
 		   (outTotal % blockSize) != 0);
-	exit(TRUE);
+	return EXIT_SUCCESS;
   usage:
 
 	usage(dd_usage);

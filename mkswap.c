@@ -63,20 +63,6 @@ static int version = -1;
 
 #define MAKE_VERSION(p,q,r)	(65536*(p) + 256*(q) + (r))
 
-static int linux_version_code(void)
-{
-	struct utsname my_utsname;
-	int p, q, r;
-
-	if (uname(&my_utsname) == 0) {
-		p = atoi(strtok(my_utsname.release, "."));
-		q = atoi(strtok(NULL, "."));
-		r = atoi(strtok(NULL, "."));
-		return MAKE_VERSION(p, q, r);
-	}
-	return 0;
-}
-
 /*
  * The definition of the union swap_header uses the constant PAGE_SIZE.
  * Unfortunately, on some architectures this depends on the hardware model,
@@ -101,7 +87,7 @@ static void init_signature_page()
 
 #ifdef PAGE_SIZE
 	if (pagesize != PAGE_SIZE)
-		errorMsg("Assuming pages of size %d\n", pagesize);
+		error_msg("Assuming pages of size %d\n", pagesize);
 #endif
 	signature_page = (int *) xmalloc(pagesize);
 	memset(signature_page, 0, pagesize);
@@ -189,8 +175,8 @@ static int bit_test_and_clear(unsigned int *addr, unsigned int nr)
 
 void die(const char *str)
 {
-	errorMsg("%s\n", str);
-	exit(FALSE);
+	error_msg("%s\n", str);
+	exit(EXIT_FAILURE);
 }
 
 void page_ok(int page)
@@ -330,22 +316,22 @@ int mkswap_main(int argc, char **argv)
 		}
 	}
 	if (!device_name) {
-		errorMsg("error: Nowhere to set up swap on?\n");
+		error_msg("error: Nowhere to set up swap on?\n");
 		usage(mkswap_usage);
 	}
 	sz = get_size(device_name);
 	if (!PAGES) {
 		PAGES = sz;
 	} else if (PAGES > sz && !force) {
-		errorMsg("error: size %ld is larger than device size %d\n",
+		error_msg("error: size %ld is larger than device size %d\n",
 				PAGES * (pagesize / 1024), sz * (pagesize / 1024));
-		exit(FALSE);
+		return EXIT_FAILURE;
 	}
 
 	if (version == -1) {
 		if (PAGES <= V0_MAX_PAGES)
 			version = 0;
-		else if (linux_version_code() < MAKE_VERSION(2, 1, 117))
+		else if (get_kernel_revision() < MAKE_VERSION(2, 1, 117))
 			version = 0;
 		else if (pagesize < 2048)
 			version = 0;
@@ -353,11 +339,11 @@ int mkswap_main(int argc, char **argv)
 			version = 1;
 	}
 	if (version != 0 && version != 1) {
-		errorMsg("error: unknown version %d\n", version);
+		error_msg("error: unknown version %d\n", version);
 		usage(mkswap_usage);
 	}
 	if (PAGES < 10) {
-		errorMsg("error: swap area needs to be at least %ldkB\n",
+		error_msg("error: swap area needs to be at least %ldkB\n",
 				(long) (10 * pagesize / 1024));
 		usage(mkswap_usage);
 	}
@@ -366,7 +352,7 @@ int mkswap_main(int argc, char **argv)
 #else
 	if (!version)
 		maxpages = V0_MAX_PAGES;
-	else if (linux_version_code() >= MAKE_VERSION(2, 2, 1))
+	else if (get_kernel_revision() >= MAKE_VERSION(2, 2, 1))
 		maxpages = V1_MAX_PAGES;
 	else {
 		maxpages = V1_OLD_MAX_PAGES;
@@ -376,14 +362,14 @@ int mkswap_main(int argc, char **argv)
 #endif
 	if (PAGES > maxpages) {
 		PAGES = maxpages;
-		errorMsg("warning: truncating swap area to %ldkB\n",
+		error_msg("warning: truncating swap area to %ldkB\n",
 				PAGES * pagesize / 1024);
 	}
 
 	DEV = open(device_name, O_RDWR);
 	if (DEV < 0 || fstat(DEV, &statbuf) < 0) {
 		perror(device_name);
-		exit(FALSE);
+		return EXIT_FAILURE;
 	}
 	if (!S_ISBLK(statbuf.st_mode))
 		check = 0;
@@ -403,11 +389,11 @@ int mkswap_main(int argc, char **argv)
 			for (sum = 0; q >= (unsigned short *) buffer;)
 				sum ^= *q--;
 			if (!sum) {
-				errorMsg("Device '%s' contains a valid Sun disklabel.\n"
+				error_msg("Device '%s' contains a valid Sun disklabel.\n"
 "This probably means creating v0 swap would destroy your partition table\n"
 "No swap created. If you really want to create swap v0 on that device, use\n"
 "the -f option to force it.\n", device_name);
-				exit(FALSE);
+				return EXIT_FAILURE;
 			}
 		}
 	}
@@ -443,5 +429,5 @@ int mkswap_main(int argc, char **argv)
 	 */
 	if (fsync(DEV))
 		die("fsync failed");
-	return(TRUE);
+	return EXIT_SUCCESS;
 }

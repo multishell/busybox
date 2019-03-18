@@ -67,12 +67,17 @@ extern int update_main(int argc, char **argv)
 
 	pid = fork();
 	if (pid < 0)
-		exit(FALSE);
+		return EXIT_FAILURE;
 	else if (pid == 0) {
 		/* Become a proper daemon */
 		setsid();
 		chdir("/");
+#ifdef OPEN_MAX
 		for (pid = 0; pid < OPEN_MAX; pid++) close(pid);
+#else
+		/* glibc 2.1.92 requires using sysconf(_SC_OPEN_MAX) */
+		for (pid = 0; pid < sysconf(_SC_OPEN_MAX); pid++) close(pid);
+#endif
 
 		/*
 		 * This is no longer necessary since 1.3.5x, but it will harmlessly
@@ -94,12 +99,12 @@ extern int update_main(int argc, char **argv)
 					syslog(LOG_INFO,
 						   "This kernel does not need update(8). Exiting.");
 					closelog();
-					exit(TRUE);
+					return EXIT_SUCCESS;
 				}
 			}
 		}
 	}
-	return( TRUE);
+	return EXIT_SUCCESS;
 }
 
 /*

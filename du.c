@@ -60,8 +60,7 @@ static long du(char *filename)
 	int len;
 
 	if ((lstat(filename, &statbuf)) != 0) {
-		printf("du: %s: %s\n", filename, strerror(errno));
-		return 0;
+		perror_msg_and_die("%s", filename);
 	}
 
 	du_depth++;
@@ -97,7 +96,7 @@ static long du(char *filename)
 			}
 
 			if (len + strlen(name) + 1 > BUFSIZ) {
-				errorMsg(name_too_long);
+				error_msg(name_too_long);
 				du_depth--;
 				return 0;
 			}
@@ -125,6 +124,7 @@ static long du(char *filename)
 
 int du_main(int argc, char **argv)
 {
+	int status = EXIT_SUCCESS;
 	int i;
 	int c;
 
@@ -147,23 +147,25 @@ int du_main(int argc, char **argv)
 
 	/* go through remaining args (if any) */
 	if (optind >= argc) {
-		du(".");
+		if (du(".") == 0)
+			status = EXIT_FAILURE;
 	} else {
 		long sum;
 
 		for (i=optind; i < argc; i++) {
-			sum = du(argv[i]);
-			if (sum && isDirectory(argv[i], FALSE, NULL)) {
+			if ((sum = du(argv[i])) == 0)
+				status = EXIT_FAILURE;
+			if (is_directory(argv[i], FALSE, NULL)==FALSE) {
 				print_normal(sum, argv[i]);
 			}
 			reset_ino_dev_hashtable();
 		}
 	}
 
-	return(0);
+	return status;
 }
 
-/* $Id: du.c,v 1.25 2000/09/25 21:45:57 andersen Exp $ */
+/* $Id: du.c,v 1.32 2000/12/12 23:17:26 andersen Exp $ */
 /*
 Local Variables:
 c-file-style: "linux"

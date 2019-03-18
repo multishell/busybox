@@ -5,6 +5,10 @@
  * Copyright (C) 1999,2000 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
+ * Modified by Alcove, Julien Gaulmin <julien.gaulmin@alcove.fr> and
+ * Nicolas Ferre <nicolas.ferre@alcove.fr> to support pre 2.1 kernels
+ * (which lack the query_module() interface).
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -32,8 +36,15 @@
 #include <assert.h>
 #include <getopt.h>
 #include <sys/utsname.h>
+#include <sys/file.h>
 
 
+
+#if !defined(BB_FEATURE_LSMOD_NEW_KERNEL) && !defined(BB_FEATURE_LSMOD_OLD_KERNEL)
+#error "Must have ether BB_FEATURE_LSMOD_NEW_KERNEL or BB_FEATURE_LSMOD_OLD_KERNEL defined"
+#endif
+
+#ifdef BB_FEATURE_LSMOD_NEW_KERNEL
 
 struct module_info
 {
@@ -72,7 +83,7 @@ extern int lsmod_main(int argc, char **argv)
 	module_names = xmalloc(bufsize = 256);
 	deps = xmalloc(bufsize);
 	if (query_module(NULL, QM_MODULES, module_names, bufsize, &nmod)) {
-		fatalError("QM_MODULES: %s\n", strerror(errno));
+		error_msg_and_die("QM_MODULES: %s\n", strerror(errno));
 	}
 
 	printf("Module                  Size  Used by\n");
@@ -83,7 +94,7 @@ extern int lsmod_main(int argc, char **argv)
 				continue;
 			}
 			/* else choke */
-			fatalError("module %s: QM_INFO: %s\n", mn, strerror(errno));
+			error_msg_and_die("module %s: QM_INFO: %s\n", mn, strerror(errno));
 		}
 		while (query_module(mn, QM_REFS, deps, bufsize, &count)) {
 			if (errno == ENOENT) {
@@ -91,7 +102,7 @@ extern int lsmod_main(int argc, char **argv)
 				continue;
 			}
 			if (errno != ENOSPC) {
-				fatalError("module %s: QM_REFS: %s", mn, strerror(errno));
+				error_msg_and_die("module %s: QM_REFS: %s", mn, strerror(errno));
 			}
 			deps = xrealloc(deps, bufsize = count);
 		}
@@ -120,3 +131,30 @@ extern int lsmod_main(int argc, char **argv)
 
 	return( 0);
 }
+
+#else /*BB_FEATURE_LSMOD_OLD_KERNEL*/
+
+#if ! defined BB_FEATURE_USE_PROCFS
+#error Sorry, I depend on the /proc filesystem right now.
+#endif
+
+extern int lsmod_main(int argc, char **argv)
+{
+	int fd, i;
+	char line[128];
+
+	puts("Module                  Size  Used by");
+	fflush(stdout);
+
+	if ((fd = open("/proc/modules", O_RDONLY)) >= 0 ) {
+		while ((i = read(fd, line, sizeof(line))) > 0) {
+			write(fileno(stdout), line, i);
+		}
+		close(fd);
+		return 0;
+	}
+	error_msg_and_die("/proc/modules: %s\n", strerror(errno));
+	return 1;
+}
+
+#endif /*BB_FEATURE_LSMOD_OLD_KERNEL*/

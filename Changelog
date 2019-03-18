@@ -1,3 +1,61 @@
+0.48
+
+	* Glenn McGrath -- tar now supports uncompressing tar files,
+	    define BB_FEATURE_TAR_GZIP to use the -z option.
+	* Matt Kraai -- fix all usage of TRUE and FALSE so all apps now
+	    return EXIT_SUCCESS or EXIT_FAILURE to the system.
+	    Now TRUE and FALSE are set to the C standard where TRUE=1.
+	* me -- Fixed uname problem causing the kernel version to be
+	    mis-detected (causing problems with poweroff, init,
+	    and other things).  
+	* Alcove, Julien Gaulmin <julien.gaulmin@alcove.fr> and 
+	    Nicolas Ferre <nicolas.ferre@alcove.fr> -- insmod support on ARM 
+	    and StrongArm, and suport for lsmod on older 2.0.x kernels.
+	* Kent Robotti -- Renamed unrpm to original rpmunpack, so you can use 
+	    an included shell script called unrpm as a front end to it.  There's
+	    also a shell script called undeb included for debian packages.  
+	* Matt Kraai -- fix an infinite loop with ls -aR
+	* Larry Doolittle -- Shaved off about 100 bytes and 200 bytes heap 
+	    from date.c.  Also document the "-d" option in the usage message.
+	* Gennady Feldman -- fixed dd to use blocksize when reading/writing, 
+	    (it was reading the whole thing and then writing it out).  Also 
+	    updated usage information (was missing conv=notrunc) and added 
+	    conv=sync feature.
+	* Larry Doolittle (in collaboration with Matt Kraai) -- allow for a 
+	    pristine source directory -- where all the .o files and such are 
+	    not placed into the source tree.  Thanks Larry!
+	* Larry Doolittle -- use the applet definitions in applets.h 
+	    to autogenerate the applet function and usage prototypes.
+	* Sebastien Huet, Arne Bernin, and Kent Robotti -- Add in tar -X and
+	    fixed a bug breaking tar --exclude.  
+	* Jonas Holmberg -- echo option handling made GNU-echo compatible
+	* Aleksey Demidov <asd@ixcelerator.com> -- date option handling made 
+	    GNU-date compatible
+	* me -- Progress meter (optional) in wget
+	* Doolittle/me -- programs invoked by full path name take
+	    precedence over applets unless BB_FEATURE_SH_BUILTINS_ALWAYS_WIN
+	* Gaute B Strokkenes <gs234@cam.ac.uk> -- applets found using a
+	    binary search instead of linear search.  Much faster!
+	* new applets: cmp readlink
+	* Mark Whitley -- Removed advertising clause of Berkeley license
+	    according to decision by the Regents of the University of
+	    California; included reference
+	* tail's confusing special treatment of single digit options removed;
+	    people should use -n instead
+	* Larry Doolittle -- \r handled now in echo and tr
+	* Matt Kraai -- rewrite of uniq
+	* Mark Whitley -- remix of xargs
+	* Jim Gleason <jimg@lineo.com> -- fixed tar so it no longer breaks 
+	    hard links.
+	* Matt Kraai -- logger now logs all arguments, not just the first
+	* Gennady Feldman -- syslogd no longer logs to localhost if compiled
+	    for remote logging...
+	* Richard June <rjune@ims1.imagestream-is.com> -- support for 'gzip -d'
+	* various artists -- Other good stuff that I forgot to document.
+
+
+	 -Erik Andersen, 13 December 2000
+
 0.47
 
 	* A bug in syslogd was fixed that allowed it to potentially fork-bomb
@@ -434,7 +492,7 @@
 	* Major init re-work.  init now supports inittab (slightly different
 	    but similar to sysvinit), allowing me to get all the policy out of
 	    init and into the conf file.  It works just fine without inittab
-	    being present, but if you dont like the defautl behavior you can
+	    being present, but if you dont like the default behavior you can
 	    now do something about it.  Init is much cleaner as a result.
 	* Fixed an bug in syslogd causing it to stop after 20 minutes. -erik
 	* Fixed an embarrasing segfault in head	-beppu Fixed the embarrasing

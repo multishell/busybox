@@ -98,10 +98,10 @@ int find_main(int argc, char **argv)
 			break;
 	}
 
-	if (recursiveAction(directory, TRUE, FALSE, FALSE,
+	if (recursive_action(directory, TRUE, FALSE, FALSE,
 						fileAction, fileAction, NULL) == FALSE) {
-		exit(FALSE);
+		return EXIT_FAILURE;
 	}
 
-	return(TRUE);
+	return EXIT_SUCCESS;
 }

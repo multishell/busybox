@@ -595,7 +595,7 @@ Example:
 Usage: dumpkmap
 
 <P>
-Prints out a binary keyboard translation table to standard input.
+Prints out a binary keyboard translation table to standard output.
 
 <P>
 Example:
@@ -660,7 +660,7 @@ Example:
 <P>
 -------------------------------
 
-<DT><STRONG>echo</STRONG><DD>
+<DT><STRONG><A NAME="item_expr">expr</A></STRONG><DD>
 <P>
 Usage: expr EXPRESSION
 
@@ -971,6 +971,7 @@ Options:
 
 <P>
 <PRE>        -c      Write output to standard output instead of FILE.gz
+        -d      decompress
 </PRE>
 <P>
 Example:
@@ -1047,7 +1048,7 @@ Options:
 <PRE>        -s              Short
         -i              Addresses for the hostname
         -d              DNS domain name
-        -F FILE         Use the contents of FILE to specify the hostname
+        -F, --file FILE Use the contents of FILE to specify the hostname
 </PRE>
 <P>
 Example:
@@ -1146,14 +1147,41 @@ follows:
                 once, and ctrlaltdel.
 </PRE>
 <P>
-<PRE>                askfirst acts just like respawn, but before running the specified
-                process it displays the line &quot;Please press Enter to activate this
-                console.&quot; and then waits for the user to press enter before starting
-                the specified process.
+<PRE>                The available actions can be classified into two groups: actions
+                that are run only once, and actions that are re-run when the specified
+                process exits.
 </PRE>
 <P>
-<PRE>                Unrecognized actions (like initdefault) will cause init to emit
-                an error message, and then go along with its business.
+<PRE>                Run only-once actions:
+</PRE>
+<P>
+<PRE>                        'sysinit' is the first item run on boot.  init waits until all
+                        sysinit actions are completed before continuing.  Following the
+                        completion of all sysinit actions, all 'wait' actions are run.
+                        'wait' actions, like  'sysinit' actions, cause init to wait until
+                        the specified task completes.  'once' actions are asyncronous,
+                        therefore, init does not wait for them to complete.  'ctrlaltdel'
+                        actions are run immediately before init causes the system to reboot
+                        (unmounting filesystems with a 'ctrlaltdel' action is a very good
+                        idea).
+</PRE>
+<P>
+<PRE>                Run repeatedly actions:
+</PRE>
+<P>
+<PRE>                        'respawn' actions are run after the 'once' actions.  When a process
+                        started with a 'respawn' action exits, init automatically restarts
+                        it.  Unlike sysvinit, BusyBox init does not stop processes from
+                        respawning out of control.  The 'askfirst' actions acts just like
+                        respawn, except that before running the specified process it
+                        displays the line &quot;Please press Enter to activate this console.&quot;
+                        and then waits for the user to press enter before starting the
+                        specified process.  
+</PRE>
+<P>
+<PRE>                Unrecognized actions (like initdefault) will cause init to emit an
+                error message, and then go along with its business.  All actions are
+                run in the reverse order from how they appear in /etc/inittab.
 </PRE>
 <P>
 <PRE>        &lt;process&gt;: 
@@ -1188,11 +1216,11 @@ Example /etc/inittab file:
 <P>
 <PRE>        # Example of how to put a getty on a serial line (for a terminal)
         #
-        #ttyS0::respawn:/sbin/getty -L ttyS0 9600 vt100
-        #ttyS1::respawn:/sbin/getty -L ttyS1 9600 vt100
+        #::respawn:/sbin/getty -L ttyS0 9600 vt100
+        #::respawn:/sbin/getty -L ttyS1 9600 vt100
         #
         # Example how to put a getty on a modem line.
-        #ttyS2::respawn:/sbin/getty -x0 -s 57600 ttyS2
+        #::respawn:/sbin/getty 57600 ttyS2
 </PRE>
 <P>
 <PRE>        # Stuff to do before rebooting
@@ -2167,11 +2195,12 @@ version of syslogd/klogd ignores /etc/syslog.conf.
 Options:
 
 <P>
-<PRE>        -m NUM          Interval between MARK lines (default=20min, 0=off)
+<PRE>        -m NUM  Interval between MARK lines (default=20min, 0=off)
         -n              Run as a foreground process
         -K              Do not start up the klogd process
-        -O FILE         Use an alternate log file (default=/var/log/messages)
-        -R HOST[:PORT]  Log messages to HOST on PORT (default=514) over UDP.
+        -O FILE Use an alternate log file (default=/var/log/messages)
+        -R HOST[:PORT]  Log remotely to IP or hostname on PORT (default PORT=514/UDP)
+        -L      Log locally as well as network logging (default is network only)
 </PRE>
 <P>
 Example:
@@ -2454,8 +2483,13 @@ Usage: uniq [OPTION]... [INPUT [OUTPUT]]
 
 <P>
 Discard all but one of successive identical lines from INPUT (or standard
-input), writing to OUTPUT (or standard output).
+input), writing to OUTPUT (or standard output). Options:
 
+<P>
+<PRE>        -c              prefix lines by the number of occurrences
+        -d              only print duplicate lines
+        -u              only print unique lines
+</PRE>
 <P>
 Example:
 

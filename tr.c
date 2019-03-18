@@ -34,13 +34,6 @@
 #define bb_need_write_error
 #include "messages.c"
 
-#ifdef TRUE
-#undef TRUE
-#undef FALSE
-#define TRUE	1
-#define FALSE	0
-#endif
-
 #define ASCII		0377
 
 /* some glabals shared across this file */
@@ -70,7 +63,7 @@ static void convert()
 		coded = vector[c];
 		if (del_fl && invec[c])
 			continue;
-		if (sq_fl && last == coded && outvec[coded])
+		if (sq_fl && last == coded && (invec[c] || outvec[coded]))
 			continue;
 		output[out_index++] = last = coded;
 		if (out_index == BUFSIZ) {
@@ -180,7 +173,7 @@ extern int tr_main(int argc, char **argv)
 			input_length = complement(input, input_length);
 		if (argv[index] != NULL) {
 			if (*argv[index] == '\0')
-				fatalError("STRING2 cannot be empty\n");
+				error_msg_and_die("STRING2 cannot be empty\n");
 			output_length = expand(argv[index], output);
 			map(input, input_length, output, output_length);
 		}

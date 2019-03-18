@@ -127,6 +127,7 @@
 
 #define SPLIT_DIR		0
 #define SPLIT_FILE		1
+#define SPLIT_SUBDIR	2
 
 #define TYPEINDEX(mode) (((mode) >> 12) & 0x0f)
 #define TYPECHAR(mode)  ("0pcCd?bB-?l?s???" [TYPEINDEX(mode)])
@@ -173,6 +174,31 @@ static unsigned short tabstops = 8;
 #define column_width    COLUMN_WIDTH
 #endif
 
+static int status = EXIT_SUCCESS;
+
+static int my_stat(struct dnode *cur)
+{
+#ifdef BB_FEATURE_LS_FOLLOWLINKS
+	if (follow_links == TRUE) {
+		if (stat(cur->fullname, &cur->dstat)) {
+			error_msg("%s: %s\n", cur->fullname, strerror(errno));
+			status = EXIT_FAILURE;
+			free(cur->fullname);
+			free(cur);
+			return -1;
+		}
+	} else
+#endif
+	if (lstat(cur->fullname, &cur->dstat)) {
+		error_msg("%s: %s\n", cur->fullname, strerror(errno));
+		status = EXIT_FAILURE;
+		free(cur->fullname);
+		free(cur);
+		return -1;
+	}
+	return 0;
+}
+
 static void newline(void)
 {
     if (column > 0) {
@@ -211,17 +237,34 @@ static void nexttabstop( void )
 }
 
 /*----------------------------------------------------------------------*/
+static int is_subdir(struct dnode *dn)
+{
+	return (S_ISDIR(dn->dstat.st_mode) && strcmp(dn->name, ".") != 0 &&
+			strcmp(dn->name, "..") != 0);
+}
+
 int countdirs(struct dnode **dn, int nfiles)
 {
 	int i, dirs;
 
-	/* count how many dirs and regular files there are */
 	if (dn==NULL || nfiles < 1) return(0);
 	dirs= 0;
 	for (i=0; i<nfiles; i++) {
 		if (S_ISDIR(dn[i]->dstat.st_mode)) dirs++;
 	}
 	return(dirs);
+}
+
+int countsubdirs(struct dnode **dn, int nfiles)
+{
+	int i, subdirs;
+
+	if (dn == NULL || nfiles < 1) return 0;
+	subdirs = 0;
+	for (i = 0; i < nfiles; i++)
+		if (is_subdir(dn[i]))
+			subdirs++;
+	return subdirs;
 }
 
 int countfiles(struct dnode **dnp)
@@ -271,9 +314,13 @@ struct dnode **splitdnarray(struct dnode **dn, int nfiles, int which)
 	if (dn==NULL || nfiles < 1) return(NULL);
 
 	/* count how many dirs and regular files there are */
-	dncnt= countdirs(dn, nfiles); /* assume we are looking for dirs */
-	if (which != SPLIT_DIR)
-		dncnt= nfiles - dncnt;  /* looking for files */
+	if (which == SPLIT_SUBDIR)
+		dncnt = countsubdirs(dn, nfiles);
+	else {
+		dncnt= countdirs(dn, nfiles); /* assume we are looking for dirs */
+		if (which == SPLIT_FILE)
+			dncnt= nfiles - dncnt;  /* looking for files */
+	}
 
 	/* allocate a file array and a dir array */
 	dnp= dnalloc(dncnt);
@@ -284,6 +331,10 @@ struct dnode **splitdnarray(struct dnode **dn, int nfiles, int which)
 			if (S_ISDIR(dn[i]->dstat.st_mode)) {
 				dnp[d++]= dn[i];
 			}  /* else skip the file */
+		} else if (which == SPLIT_SUBDIR) {
+			if (is_subdir(dn[i])) {
+				dnp[d++]= dn[i];
+			}  /* else skip the file or dir */
 		} else {
 			if (!(S_ISDIR(dn[i]->dstat.st_mode))) {
 				dnp[d++]= dn[i];
@@ -408,7 +459,7 @@ void showdirs(struct dnode **dn, int ndirs)
 {
 	int i, nfiles;
 	struct dnode **subdnp;
-#ifdef BB_FEATURE_LS_SORTFILES
+#ifdef BB_FEATURE_LS_RECURSIVE
 	int dndirs;
 	struct dnode **dnd;
 #endif
@@ -430,10 +481,12 @@ void showdirs(struct dnode **dn, int ndirs)
 #ifdef BB_FEATURE_LS_RECURSIVE
 			if (disp_opts & DISP_RECURSIVE) {
 				/* recursive- list the sub-dirs */
-				dnd= splitdnarray(subdnp, nfiles, SPLIT_DIR);
-				dndirs= countdirs(subdnp, nfiles);
+				dnd= splitdnarray(subdnp, nfiles, SPLIT_SUBDIR);
+				dndirs= countsubdirs(subdnp, nfiles);
 				if (dndirs > 0) {
+#ifdef BB_FEATURE_LS_SORTFILES
 					shellsort(dnd, dndirs);
+#endif
 					showdirs(dnd, dndirs);
 					free(dnd);  /* free the array of dnode pointers to the dirs */
 				}
@@ -450,49 +503,32 @@ struct dnode **list_dir(char *path)
 	struct dnode *dn, *cur, **dnp;
 	struct dirent *entry;
 	DIR *dir;
-	char *fnend, fullname[BUFSIZ+1] ;
 	int i, nfiles;
 
 	if (path==NULL) return(NULL);
-	strcpy(fullname, path);
-	fnend = fullname + strlen(fullname);
-	if (fnend[-1] != '/') {
-		strcat(fullname, "/");
-		fnend++;
-	}
 
 	dn= NULL;
 	nfiles= 0;
-	dir = opendir(fullname);
+	dir = opendir(path);
 	if (dir == NULL) {
-		errorMsg("%s: %s\n", fullname, strerror(errno));
+		error_msg("%s: %s\n", path, strerror(errno));
+		status = EXIT_FAILURE;
 		return(NULL);	/* could not open the dir */
 	}
 	while ((entry = readdir(dir)) != NULL) {
 		/* are we going to list the file- it may be . or .. or a hidden file */
-		strcpy(fnend, entry->d_name);
-		if ((strcmp(fnend, ".")==0) && !(disp_opts & DISP_DOT)) continue;
-		if ((strcmp(fnend, "..")==0) && !(disp_opts & DISP_DOT)) continue;
-		if ((fnend[0] ==  '.') && !(disp_opts & DISP_HIDDEN)) continue;
+		if ((strcmp(entry->d_name, ".")==0) && !(disp_opts & DISP_DOT)) continue;
+		if ((strcmp(entry->d_name, "..")==0) && !(disp_opts & DISP_DOT)) continue;
+		if ((entry->d_name[0] ==  '.') && !(disp_opts & DISP_HIDDEN)) continue;
 		cur= (struct dnode *)xmalloc(sizeof(struct dnode));
-		cur->fullname= xstrdup(fullname);
-		cur->name= cur->fullname + (int)(fnend - fullname) ;
-#ifdef BB_FEATURE_LS_FOLLOWLINKS
-		if (follow_links == TRUE) {
-			if (stat(fullname, &cur->dstat)) {
-				errorMsg("%s: %s\n", fullname, strerror(errno));
-				free(cur->fullname);
-				free(cur);
-				continue;
-			}
-		} else
-#endif
-		if (lstat(fullname, &cur->dstat)) {   /* get file stat info into node */
-			errorMsg("%s: %s\n", fullname, strerror(errno));
-			free(cur->fullname);
-			free(cur);
+		cur->fullname = xmalloc(strlen(path)+1+strlen(entry->d_name)+1);
+		strcpy(cur->fullname, path);
+		if (cur->fullname[strlen(cur->fullname)-1] != '/')
+			strcat(cur->fullname, "/");
+		cur->name= cur->fullname + strlen(cur->fullname);
+		strcat(cur->fullname, entry->d_name);
+		if (my_stat(cur))
 			continue;
-		}
 		cur->next= dn;
 		dn= cur;
 		nfiles++;
@@ -521,8 +557,10 @@ int list_single(struct dnode *dn)
 	char *filetime;
 	time_t ttime, age;
 #endif
-#ifdef BB_FEATURE_LS_FILETYPES
+#if defined (BB_FEATURE_LS_FILETYPES)
 	struct stat info;
+#endif
+#ifdef BB_FEATURE_LS_FILETYPES
 	char append;
 #endif
 
@@ -553,7 +591,7 @@ int list_single(struct dnode *dn)
 				column += 5;
 				break;
 			case LIST_MODEBITS:
-				fprintf(stdout, "%10s", (char *)modeString(dn->dstat.st_mode));
+				fprintf(stdout, "%10s", (char *)mode_string(dn->dstat.st_mode));
 				column += 10;
 				break;
 			case LIST_NLINKS:
@@ -562,28 +600,17 @@ int list_single(struct dnode *dn)
 				break;
 			case LIST_ID_NAME:
 #ifdef BB_FEATURE_LS_USERNAME
-				{
-					memset(&info, 0, sizeof(struct stat));
-					memset(scratch, 0, sizeof(scratch));
-					if (!stat(dn->fullname, &info)) {
-						my_getpwuid(scratch, info.st_uid);
-					}
-					if (*scratch) {
-						fprintf(stdout, "%-8.8s ", scratch);
-					} else {
-						fprintf(stdout, "%-8d ", dn->dstat.st_uid);
-					}
-					memset(scratch, 0, sizeof(scratch));
-					if (info.st_ctime != 0) {
-						my_getgrgid(scratch, info.st_gid);
-					}
-					if (*scratch) {
-						fprintf(stdout, "%-8.8s", scratch);
-					} else {
-						fprintf(stdout, "%-8d", dn->dstat.st_gid);
-					}
+				my_getpwuid(scratch, dn->dstat.st_uid);
+				if (*scratch)
+					fprintf(stdout, "%-8.8s ", scratch);
+				else
+					fprintf(stdout, "%-8d ", dn->dstat.st_uid);
+				my_getgrgid(scratch, dn->dstat.st_gid);
+				if (*scratch)
+					fprintf(stdout, "%-8.8s", scratch);
+				else
+					fprintf(stdout, "%-8d", dn->dstat.st_gid);
 				column += 17;
-				}
 				break;
 #endif
 			case LIST_ID_NUMERIC:
@@ -677,7 +704,6 @@ extern int ls_main(int argc, char **argv)
 #endif
 	nfiles=0;
 
-	applet_name= argv[0];
 	/* process options */
 	while ((opt = getopt(argc, argv, "1AaCdgilnsx"
 #ifdef BB_FEATURE_AUTOWIDTH
@@ -705,7 +731,6 @@ extern int ls_main(int argc, char **argv)
 			case 'a': disp_opts |= DISP_HIDDEN | DISP_DOT; break;
 			case 'C': style_fmt = STYLE_COLUMNS; break;
 			case 'd': disp_opts |= DISP_NOLIST; break;
-			case 'e': list_fmt |= LIST_FULLTIME; break;
 			case 'g': /* ignore -- for ftp servers */ break;
 			case 'i': list_fmt |= LIST_INO; break;
 			case 'l': style_fmt = STYLE_LONG; list_fmt |= LIST_LONG; break;
@@ -726,9 +751,24 @@ extern int ls_main(int argc, char **argv)
 			case 'X': sort_opts= SORT_EXT; break;
 #endif
 #ifdef BB_FEATURE_LS_TIMESTAMPS
-			case 'c': time_fmt = TIME_CHANGE; sort_opts= SORT_CTIME; break;
-			case 't': sort_opts= SORT_MTIME; break;
-			case 'u': time_fmt = TIME_ACCESS; sort_opts= SORT_ATIME; break;
+			case 'e': list_fmt |= LIST_FULLTIME; break;
+			case 'c':
+				time_fmt = TIME_CHANGE;
+#ifdef BB_FEATURE_LS_SORTFILES
+				sort_opts= SORT_CTIME;
+#endif
+				break;
+			case 'u':
+				time_fmt = TIME_ACCESS;
+#ifdef BB_FEATURE_LS_SORTFILES
+				sort_opts= SORT_ATIME;
+#endif
+				break;
+			case 't':
+#ifdef BB_FEATURE_LS_SORTFILES
+				sort_opts= SORT_MTIME;
+#endif
+				break;
 #endif
 #ifdef BB_FEATURE_LS_FOLLOWLINKS
 			case 'L': follow_links= TRUE; break;
@@ -747,7 +787,7 @@ extern int ls_main(int argc, char **argv)
 	if (disp_opts & DISP_NOLIST)
 		disp_opts &= ~DISP_RECURSIVE;   /* no recurse if listing only dir */
 #endif
-#ifdef BB_FEATURE_LS_TIMESTAMPS
+#if defined (BB_FEATURE_LS_TIMESTAMPS) && defined (BB_FEATURE_LS_SORTFILES)
 	if (time_fmt & TIME_CHANGE) sort_opts= SORT_CTIME;
 	if (time_fmt & TIME_ACCESS) sort_opts= SORT_ATIME;
 #endif
@@ -790,13 +830,9 @@ extern int ls_main(int argc, char **argv)
 	for (oi=0 ; oi < ac; oi++) {
 		cur= (struct dnode *)xmalloc(sizeof(struct dnode));
 		cur->fullname= xstrdup(av[oi]);
-		cur->name= cur->fullname ;
-		if (lstat(av[oi], &cur->dstat)) {  /* get file info into node */
-			errorMsg("%s: %s\n", av[oi], strerror(errno));
-			free(cur->fullname);
-			free(cur);
+		cur->name= cur->fullname;
+		if (my_stat(cur))
 			continue;
-		}
 		cur->next= dn;
 		dn= cur;
 		nfiles++;
@@ -836,9 +872,8 @@ extern int ls_main(int argc, char **argv)
 		}
 	}
 
-	return(0);
+	return(status);
 
   print_usage_message:
 	usage(ls_usage);
-	return(FALSE);
 }

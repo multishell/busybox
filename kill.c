@@ -158,7 +158,7 @@ extern int kill_main(int argc, char **argv)
 						}
 					}
 					fprintf(stderr, "\n\n");
-					exit(TRUE);
+					return EXIT_SUCCESS;
 				}
 				break;
 			case '-':
@@ -204,10 +204,10 @@ extern int kill_main(int argc, char **argv)
 			int pid;
 
 			if (!isdigit(**argv))
-				fatalError( "Bad PID: %s\n", strerror(errno));
+				error_msg_and_die( "Bad PID: %s\n", strerror(errno));
 			pid = strtol(*argv, NULL, 0);
 			if (kill(pid, sig) != 0) 
-				fatalError( "Could not kill pid '%d': %s\n", pid, strerror(errno));
+				error_msg_and_die( "Could not kill pid '%d': %s\n", pid, strerror(errno));
 			argv++;
 		}
 	} 
@@ -219,30 +219,31 @@ extern int kill_main(int argc, char **argv)
 		while (--argc >= 0) {
 			pid_t* pidList;
 
-			pidList = findPidByName( *argv);
+			pidList = find_pid_by_name( *argv);
 			if (!pidList) {
 				all_found = FALSE;
-				errorMsg( "%s: no process killed\n", *argv);
+				error_msg( "%s: no process killed\n", *argv);
 			}
 
 			for(; pidList && *pidList!=0; pidList++) {
 				if (*pidList==myPid)
 					continue;
 				if (kill(*pidList, sig) != 0) 
-					fatalError( "Could not kill pid '%d': %s\n", *pidList, strerror(errno));
+					error_msg_and_die( "Could not kill pid '%d': %s\n", *pidList, strerror(errno));
 			}
 			/* Note that we don't bother to free the memory
-			 * allocated in findPidByName().  It will be freed
+			 * allocated in find_pid_by_name().  It will be freed
 			 * upon exit, so we can save a byte or two */
 			argv++;
 		}
-		exit (all_found);
+		if (all_found == FALSE)
+			return EXIT_FAILURE;
 	}
 #endif
 
-	exit(TRUE);
+	return EXIT_SUCCESS;
 
 
   end:
-	fatalError( "bad signal name: %s\n", *argv);
+	error_msg_and_die( "bad signal name: %s\n", *argv);
 }

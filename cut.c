@@ -54,12 +54,12 @@ static void decompose_list(const char *list)
 	/* the list must contain only digits and no more than one minus sign */
 	for (ptr = (char *)list; *ptr; ptr++) {
 		if (!isdigit(*ptr) && *ptr != '-') {
-			fatalError("invalid byte or field list\n");
+			error_msg_and_die("invalid byte or field list\n");
 		}
 		if (*ptr == '-') {
 			nminus++;
 			if (nminus > 1) {
-				fatalError("invalid byte or field list\n");
+				error_msg_and_die("invalid byte or field list\n");
 			}
 		}
 	}
@@ -68,7 +68,7 @@ static void decompose_list(const char *list)
 	if (nminus == 0) {
 		startpos = strtol(list, &ptr, 10);
 		if (startpos == 0) {
-			fatalError("missing list of fields\n");
+			error_msg_and_die("missing list of fields\n");
 		}
 		endpos = startpos;
 	}
@@ -102,10 +102,10 @@ static void decompose_list(const char *list)
 static void cut_file(FILE *file)
 {
 	char *line;
+	unsigned int cr_hits = 0;
 
 	/* go through every line in the file */
 	for (line = NULL; (line = get_line_from_file(file)) != NULL; free(line)) {
-
 		/* cut based on chars/bytes */
 		if (part == 'c' || part == 'b') {
 			int i;
@@ -129,34 +129,47 @@ static void cut_file(FILE *file)
 			char *start = line;
 			unsigned int delims_hit = 0;
 
-			for (ptr = line; (ptr = strchr(ptr, delim)) != NULL; ptr++) {
-				delims_hit++;
-				if (delims_hit == (startpos - 1)) {
-					start = ptr+1;
-				}
-				if (delims_hit == endpos) {
-					break;
-				}
-			}
-			/* we didn't hit any delimeters */
-			if (delims_hit == 0 && !supress_non_delimited_lines) {
-				fputs(line, stdout);
-			}
-			/* we =did= hit some delimiters */
-			else if (delims_hit > 0) {
-				/* we have a fixed end point */
-				if (ptr) {
-					while (start < ptr) {
+			if (delim == '\n') {
+				cr_hits++;
+				if (cr_hits >= startpos && cr_hits <= endpos) {
+					while (*start && *start != '\n') {
 						fputc(*start, stdout);
 						start++;
 					}
 					fputc('\n', stdout);
 				}
-				/* or we're just going til the end of the line */
-				else {
-					while (*start) {
-						fputc(*start, stdout);
-						start++;
+			}
+			else {
+				for (ptr = line; (ptr = strchr(ptr, delim)) != NULL; ptr++) {
+					delims_hit++;
+					if (delims_hit == (startpos - 1)) {
+						start = ptr+1;
+					}
+					if (delims_hit == endpos) {
+						break;
+					}
+				}
+			
+				/* we didn't hit any delimeters */
+				if (delims_hit == 0 && !supress_non_delimited_lines) {
+					fputs(line, stdout);
+				}
+				/* we =did= hit some delimiters */
+				else if (delims_hit > 0) {
+					/* we have a fixed end point */
+					if (ptr) {
+						while (start < ptr) {
+							fputc(*start, stdout);
+							start++;
+						}
+						fputc('\n', stdout);
+					}
+					/* or we're just going til the end of the line */
+					else {
+						while (*start) {
+							fputc(*start, stdout);
+							start++;
+						}
 					}
 				}
 			}
@@ -175,14 +188,14 @@ extern int cut_main(int argc, char **argv)
 			case 'f':
 				/* make sure they didn't ask for two types of lists */
 				if (part != 0) {
-					fatalError("only one type of list may be specified");
+					error_msg_and_die("only one type of list may be specified");
 				}
 				part = (char)opt;
 				decompose_list(optarg);
 				break;
 			case 'd':
 				if (strlen(optarg) > 1) {
-					fatalError("the delimiter must be a single character\n");
+					error_msg_and_die("the delimiter must be a single character\n");
 				}
 				delim = optarg[0];
 				break;
@@ -196,16 +209,16 @@ extern int cut_main(int argc, char **argv)
 	}
 
 	if (part == 0) {
-		fatalError("you must specify a list of bytes, characters, or fields\n");
+		error_msg_and_die("you must specify a list of bytes, characters, or fields\n");
 	}
 
 	if (supress_non_delimited_lines && part != 'f') {
-		fatalError("suppressing non-delimited lines makes sense
+		error_msg_and_die("suppressing non-delimited lines makes sense
 	only when operating on fields\n");
 	}
 
 	if (delim != '\t' && part != 'f') {
-		fatalError("a delimiter may be specified only when operating on fields\n");
+		error_msg_and_die("a delimiter may be specified only when operating on fields\n");
 	}
 
 	/* argv[(optind)..(argc-1)] should be names of file to process. If no
@@ -220,7 +233,7 @@ extern int cut_main(int argc, char **argv)
 		for (i = optind; i < argc; i++) {
 			file = fopen(argv[i], "r");
 			if (file == NULL) {
-				errorMsg("%s: %s\n", argv[i], strerror(errno));
+				error_msg("%s: %s\n", argv[i], strerror(errno));
 			} else {
 				cut_file(file);
 				fclose(file);
@@ -228,5 +241,5 @@ extern int cut_main(int argc, char **argv)
 		}
 	}
 
-	return 0;
+	return EXIT_SUCCESS;
 }

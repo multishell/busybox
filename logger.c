@@ -35,7 +35,7 @@
 
 #else
 /* We have to do this since the header file defines static
- * structues.  Argh.... bad libc, bad, bad...
+ * structures.  Argh.... bad libc, bad, bad...
  */
 #include <sys/syslog.h>
 typedef struct _code {
@@ -50,6 +50,8 @@ extern CODE facilitynames[];
  * this function is based on code
  * Copyright (c) 1983, 1993
  * The Regents of the University of California.  All rights reserved.
+ *  
+ * Original copyright notice is retained at the end of this file.
  */
 static int decode(char *name, CODE * codetab)
 {
@@ -70,6 +72,8 @@ static int decode(char *name, CODE * codetab)
  * this function is based on code
  * Copyright (c) 1983, 1993
  * The Regents of the University of California.  All rights reserved.
+ *
+ * Original copyright notice is retained at the end of this file.
  */
 static int pencode(char *s)
 {
@@ -80,19 +84,15 @@ static int pencode(char *s)
 	if (*s) {
 		*s = '\0';
 		fac = decode(save, facilitynames);
-		if (fac < 0) {
-			errorMsg("unknown facility name: %s\n", save);
-			exit(FALSE);
-		}
+		if (fac < 0)
+			error_msg_and_die("unknown facility name: %s\n", save);
 		*s++ = '.';
 	} else {
 		s = save;
 	}
 	lev = decode(s, prioritynames);
-	if (lev < 0) {
-		errorMsg("unknown priority name: %s\n", save);
-		exit(FALSE);
-	}
+	if (lev < 0)
+		error_msg_and_die("unknown priority name: %s\n", save);
 	return ((lev & LOG_PRIMASK) | (fac & LOG_FACMASK));
 }
 
@@ -150,16 +150,63 @@ extern int logger_main(int argc, char **argv)
 		message = buf;
 	} else {
 		if (argc >= 1) {
-			message = *argv;
+			int len = 1; /* for the '\0' */
+			message=xcalloc(1, 1);
+			for (; *argv != NULL; argv++) {
+				len += strlen(*argv);
+				len += 1;  /* for the space between the args */
+				message = xrealloc(message, len);
+				strcat(message, *argv);
+				strcat(message, " ");
+			}
+			message[strlen(message)-1] = '\0';
 		} else {
-			errorMsg("No message\n");
-			exit(FALSE);
+			error_msg_and_die("No message\n");
 		}
 	}
 
 	openlog(name, option, (pri | LOG_FACMASK));
-	syslog(pri, message);
+	syslog(pri, "%s", message);
 	closelog();
 
-	return(TRUE);
+	return EXIT_SUCCESS;
 }
+
+
+/*-
+ * Copyright (c) 1983, 1993
+ *	The Regents of the University of California.  All rights reserved.
+ *
+ * This is the original license statement for the decode and pencode functions.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * 3. <BSD Advertising Clause omitted per the July 22, 1999 licensing change 
+ *		ftp://ftp.cs.berkeley.edu/pub/4bsd/README.Impt.License.Change> 
+ *
+ * 4. Neither the name of the University nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE REGENTS AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE REGENTS OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
+
+
+

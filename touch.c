@@ -43,7 +43,6 @@ extern int touch_main(int argc, char **argv)
 				break;
 			default:
 				usage(touch_usage);
-				exit(FALSE);
 			}
 		}
 	}
@@ -57,18 +56,18 @@ extern int touch_main(int argc, char **argv)
 				S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH);
 		if (fd < 0) {
 			if (create == FALSE && errno == ENOENT)
-				exit(TRUE);
+				return EXIT_SUCCESS;
 			else {
-				fatalError("%s", strerror(errno));
+				error_msg_and_die("%s", strerror(errno));
 			}
 		}
 		close(fd);
 		if (utime(*argv, NULL)) {
-			fatalError("%s", strerror(errno));
+			error_msg_and_die("%s", strerror(errno));
 		}
 		argc--;
 		argv++;
 	}
 
-	return(TRUE);
+	return EXIT_SUCCESS;
 }

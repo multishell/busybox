@@ -79,13 +79,14 @@ static char LocalHostName[32];
 #ifdef BB_FEATURE_REMOTE_LOG
 #include <netinet/in.h>
 /* udp socket for logging to remote host */
-static int  remotefd = -1;
+static int remotefd = -1;
 /* where do we log? */
 static char *RemoteHost;
 /* what port to log to? */
-static int  RemotePort = 514;
+static int RemotePort = 514;
 /* To remote log or not to remote log, that is the question. */
-static int  doRemoteLog = FALSE;
+static int doRemoteLog = FALSE;
+static int local_logging = FALSE;
 #endif
 
 /* Note: There is also a function called "message()" in init.c */
@@ -139,17 +140,17 @@ static void logMessage (int pri, char *msg)
 
 	if (pri != 0) {
 		for (c_fac = facilitynames;
-			 c_fac->c_name && !(c_fac->c_val == LOG_FAC(pri) << 3); c_fac++);
+				c_fac->c_name && !(c_fac->c_val == LOG_FAC(pri) << 3); c_fac++);
 		for (c_pri = prioritynames;
-			 c_pri->c_name && !(c_pri->c_val == LOG_PRI(pri)); c_pri++);
-		if (*c_fac->c_name == '\0' || *c_pri->c_name == '\0')
+				c_pri->c_name && !(c_pri->c_val == LOG_PRI(pri)); c_pri++);
+		if (c_fac->c_name == NULL || c_pri->c_name == NULL)
 			snprintf(res, sizeof(res), "<%d>", pri);
 		else
 			snprintf(res, sizeof(res), "%s.%s", c_fac->c_name, c_pri->c_name);
 	}
 
 	if (strlen(msg) < 16 || msg[3] != ' ' || msg[6] != ' ' ||
-		msg[9] != ':' || msg[12] != ':' || msg[15] != ' ') {
+			msg[9] != ':' || msg[12] != ':' || msg[15] != ' ') {
 		time(&now);
 		timestamp = ctime(&now) + 4;
 		timestamp[15] = '\0';
@@ -161,31 +162,32 @@ static void logMessage (int pri, char *msg)
 
 	/* todo: supress duplicates */
 
-	/* now spew out the message to wherever it is supposed to go */
-	message("%s %s %s %s\n", timestamp, LocalHostName, res, msg);
-
 #ifdef BB_FEATURE_REMOTE_LOG
 	/* send message to remote logger */
-        if ( -1 != remotefd){
+	if ( -1 != remotefd){
 #define IOV_COUNT 2
-          struct iovec iov[IOV_COUNT];
-          struct iovec *v = iov;
+		struct iovec iov[IOV_COUNT];
+		struct iovec *v = iov;
 
-          bzero(&res, sizeof(res));
-          snprintf(res, sizeof(res), "<%d>", pri);
-          v->iov_base = res ;
-          v->iov_len = strlen(res);          
-          v++;
-		
-          v->iov_base = msg;
-          v->iov_len = strlen(msg);          
+		bzero(&res, sizeof(res));
+		snprintf(res, sizeof(res), "<%d>", pri);
+		v->iov_base = res ;
+		v->iov_len = strlen(res);          
+		v++;
 
-          if ( -1 == writev(remotefd,iov, IOV_COUNT)){
-            fatalError("syslogd: cannot write to remote file handle on" 
-                       "%s:%d\n",RemoteHost,RemotePort);
-          }
-        }
+		v->iov_base = msg;
+		v->iov_len = strlen(msg);          
+
+		if ( -1 == writev(remotefd,iov, IOV_COUNT)){
+			error_msg_and_die("syslogd: cannot write to remote file handle on" 
+					"%s:%d\n",RemoteHost,RemotePort);
+		}
+	}
+	if (local_logging == TRUE)
 #endif
+		/* now spew out the message to wherever it is supposed to go */
+		message("%s %s %s %s\n", timestamp, LocalHostName, res, msg);
+
 
 }
 
@@ -260,13 +262,13 @@ static void init_RemoteLog (void){
   remotefd = socket(AF_INET, SOCK_DGRAM, 0);
 
   if (remotefd < 0) {
-    fatalError("syslogd: cannot create socket\n");
+    error_msg_and_die("syslogd: cannot create socket\n");
   }
 
   hostinfo = (struct hostent *) gethostbyname(RemoteHost);
 
   if (!hostinfo) {
-    fatalError("syslogd: cannot resolve remote host name [%s]\n", RemoteHost);
+    error_msg_and_die("syslogd: cannot resolve remote host name [%s]\n", RemoteHost);
   }
 
   remoteaddr.sin_family = AF_INET;
@@ -278,7 +280,7 @@ static void init_RemoteLog (void){
      for future operations
   */
   if ( 0 != (connect(remotefd, (struct sockaddr *) &remoteaddr, len))){
-    fatalError("syslogd: cannot connect to remote host %s:%d\n", RemoteHost, RemotePort);
+    error_msg_and_die("syslogd: cannot connect to remote host %s:%d\n", RemoteHost, RemotePort);
   }
 
 }
@@ -311,7 +313,7 @@ static void doSyslogd (void)
 	/* Create the syslog file so realpath() can work. */
 	close (open (_PATH_LOG, O_RDWR | O_CREAT, 0644));
 	if (realpath (_PATH_LOG, lfile) == NULL)
-		fatalError ("Could not resolve path to " _PATH_LOG ": %s\n", strerror (errno));
+		error_msg_and_die ("Could not resolve path to " _PATH_LOG ": %s\n", strerror (errno));
 
 	unlink (lfile);
 
@@ -319,14 +321,14 @@ static void doSyslogd (void)
 	sunx.sun_family = AF_UNIX;
 	strncpy (sunx.sun_path, lfile, sizeof (sunx.sun_path));
 	if ((sock_fd = socket (AF_UNIX, SOCK_STREAM, 0)) < 0)
-		fatalError ("Couldn't obtain descriptor for socket " _PATH_LOG ": %s\n", strerror (errno));
+		error_msg_and_die ("Couldn't obtain descriptor for socket " _PATH_LOG ": %s\n", strerror (errno));
 
 	addrLength = sizeof (sunx.sun_family) + strlen (sunx.sun_path);
 	if ((bind (sock_fd, (struct sockaddr *) &sunx, addrLength)) || (listen (sock_fd, 5)))
-		fatalError ("Could not connect to socket " _PATH_LOG ": %s\n", strerror (errno));
+		error_msg_and_die ("Could not connect to socket " _PATH_LOG ": %s\n", strerror (errno));
 
 	if (chmod (lfile, 0666) < 0)
-		fatalError ("Could not set permission on " _PATH_LOG ": %s\n", strerror (errno));
+		error_msg_and_die ("Could not set permission on " _PATH_LOG ": %s\n", strerror (errno));
 
 	FD_ZERO (&fds);
 	FD_SET (sock_fd, &fds);
@@ -349,7 +351,7 @@ static void doSyslogd (void)
 
 		if ((n_ready = select (FD_SETSIZE, &readfds, NULL, NULL, NULL)) < 0) {
 			if (errno == EINTR) continue; /* alarm may have happened. */
-			fatalError ("select error: %s\n", strerror (errno));
+			error_msg_and_die ("select error: %s\n", strerror (errno));
 		}
 
 		for (fd = 0; (n_ready > 0) && (fd < FD_SETSIZE); fd++) {
@@ -363,7 +365,7 @@ static void doSyslogd (void)
 					pid_t pid;
 
 					if ((conn = accept (sock_fd, (struct sockaddr *) &sunx, &addrLength)) < 0) {
-						fatalError ("accept error: %s\n", strerror (errno));
+						error_msg_and_die ("accept error: %s\n", strerror (errno));
 					}
 
 					pid = fork();
@@ -401,7 +403,8 @@ static void doKlogd (void)
 {
 	int priority = LOG_INFO;
 	char log_buffer[4096];
-	char *logp;
+	int i, n, lastc;
+	char *start;
 
 	/* Set up sig handlers */
 	signal(SIGINT, klogd_signal);
@@ -418,12 +421,14 @@ static void doKlogd (void)
 	logMessage(0, "klogd started: "
 			   "BusyBox v" BB_VER " (" BB_BT ")");
 
+	/* "Open the log. Currently a NOP." */
 	klogctl(1, NULL, 0);
 
 	while (1) {
 		/* Use kernel syscalls */
 		memset(log_buffer, '\0', sizeof(log_buffer));
-		if (klogctl(2, log_buffer, sizeof(log_buffer)) < 0) {
+		n = klogctl(2, log_buffer, sizeof(log_buffer));
+		if (n < 0) {
 			char message[80];
 
 			if (errno == EINTR)
@@ -433,37 +438,29 @@ static void doKlogd (void)
 			logMessage(LOG_SYSLOG | LOG_ERR, message);
 			exit(1);
 		}
-		logp = log_buffer;
-		if (*log_buffer == '<') {
-			switch (*(log_buffer + 1)) {
-			case '0':
-				priority = LOG_EMERG;
-				break;
-			case '1':
-				priority = LOG_ALERT;
-				break;
-			case '2':
-				priority = LOG_CRIT;
-				break;
-			case '3':
-				priority = LOG_ERR;
-				break;
-			case '4':
-				priority = LOG_WARNING;
-				break;
-			case '5':
-				priority = LOG_NOTICE;
-				break;
-			case '6':
-				priority = LOG_INFO;
-				break;
-			case '7':
-			default:
-				priority = LOG_DEBUG;
+
+		/* klogctl buffer parsing modelled after code in dmesg.c */
+		start=&log_buffer[0];
+		lastc='\0';
+		for (i=0; i<n; i++) {
+			if (lastc == '\0' && log_buffer[i] == '<') {
+				priority = 0;
+				i++;
+				while (isdigit(log_buffer[i])) {
+					priority = priority*10+(log_buffer[i]-'0');
+					i++;
+				}
+				if (log_buffer[i] == '>') i++;
+				start = &log_buffer[i];
 			}
-			logp += 3;
+			if (log_buffer[i] == '\n') {
+				log_buffer[i] = '\0';  /* zero terminate this message */
+				logMessage(LOG_KERN | priority, start);
+				start = &log_buffer[i+1];
+				priority = LOG_INFO;
+			}
+			lastc = log_buffer[i];
 		}
-		logMessage(LOG_KERN | priority, logp);
 	}
 
 }
@@ -481,25 +478,19 @@ static void daemon_init (char **argv, char *dz, void fn (void))
 
 extern int syslogd_main(int argc, char **argv)
 {
-	int pid, klogd_pid;
+	int opt, pid, klogd_pid;
 	int doFork = TRUE;
 
 #ifdef BB_FEATURE_KLOGD
 	int startKlogd = TRUE;
 #endif
-	int stopDoingThat = FALSE;
 	char *p;
-	char **argv1 = argv;
 
-	while (--argc > 0 && **(++argv1) == '-') {
-		stopDoingThat = FALSE;
-		while (stopDoingThat == FALSE && *(++(*argv1))) {
-			switch (**argv1) {
+	/* do normal option parsing */
+	while ((opt = getopt(argc, argv, "m:nKO:R:L")) > 0) {
+		switch (opt) {
 			case 'm':
-				if (--argc == 0) {
-					usage(syslogd_usage);
-				}
-				MarkInterval = atoi(*(++argv1)) * 60;
+				MarkInterval = atoi(optarg) * 60;
 				break;
 			case 'n':
 				doFork = FALSE;
@@ -510,34 +501,31 @@ extern int syslogd_main(int argc, char **argv)
 				break;
 #endif
 			case 'O':
-				if (--argc == 0) {
-					usage(syslogd_usage);
-				}
-				logFilePath = *(++argv1);
-				stopDoingThat = TRUE;
+				logFilePath = strdup(optarg);
 				break;
 #ifdef BB_FEATURE_REMOTE_LOG
 			case 'R':
-                          if (--argc == 0) {
-                            usage(syslogd_usage);
-                          }
-                          RemoteHost = *(++argv1);
-                          if ( (p = strchr(RemoteHost, ':'))){
-                            RemotePort = atoi(p+1);
-                            *p = '\0';
-                          }          
-                          doRemoteLog = TRUE;
-                          stopDoingThat = TRUE;
-                          break;
+				RemoteHost = strdup(optarg);
+				if ( (p = strchr(RemoteHost, ':'))){
+					RemotePort = atoi(p+1);
+					*p = '\0';
+				}          
+				doRemoteLog = TRUE;
+				break;
+			case 'L':
+				local_logging = TRUE;
+				break;
 #endif
 			default:
 				usage(syslogd_usage);
-			}
 		}
 	}
 
-	if (argc > 0)
-		usage(syslogd_usage);
+#ifdef BB_FEATURE_REMOTE_LOG
+	/* If they have not specified remote logging, then log locally */
+	if (doRemoteLog == FALSE)
+		local_logging = TRUE;
+#endif
 
 	/* Store away localhost's name before the fork */
 	gethostname(LocalHostName, sizeof(LocalHostName));
@@ -568,7 +556,7 @@ extern int syslogd_main(int argc, char **argv)
 		doSyslogd();
 	}
 
-	return(TRUE);
+	return EXIT_SUCCESS;
 }
 
 /*

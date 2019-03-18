@@ -93,7 +93,7 @@
 .nr % 0
 .rr F
 .\}
-.TH BUSYBOX 1 "version 0.47" "25/Sep/2000" "BusyBox"
+.TH BUSYBOX 1 "version 0.48" "13/Dec/2000" "BusyBox"
 .UC
 .if n .hy 0
 .if n .na
@@ -619,7 +619,7 @@ Example:
 .Ip "dumpkmap" 4
 Usage: dumpkmap
 .Sp
-Prints out a binary keyboard translation table to standard input.
+Prints out a binary keyboard translation table to standard output.
 .Sp
 Example:
 .Sp
@@ -671,7 +671,7 @@ Example:
 \&        Erik\enis\encool
 .Ve
 -------------------------------
-.Ip "echo" 4
+.Ip "expr" 4
 Usage: expr \s-1EXPRESSION\s0
 .Sp
 Prints the value of \s-1EXPRESSION\s0 to standard output.
@@ -918,8 +918,9 @@ When \s-1FILE\s0 is \*(L'\-\*(R', reads standard input.  Implies \fB\-c\fR.
 .Sp
 Options:
 .Sp
-.Vb 1
+.Vb 2
 \&        -c      Write output to standard output instead of FILE.gz
+\&        -d      decompress
 .Ve
 Example:
 .Sp
@@ -977,7 +978,7 @@ Options:
 \&        -s              Short
 \&        -i              Addresses for the hostname
 \&        -d              DNS domain name
-\&        -F FILE         Use the contents of FILE to specify the hostname
+\&        -F, --file FILE Use the contents of FILE to specify the hostname
 .Ve
 Example:
 .Sp
@@ -1058,15 +1059,42 @@ If you choose to use an /etc/inittab file, the inittab entry format is as follow
 \&                Valid actions include: sysinit, respawn, askfirst, wait, 
 \&                once, and ctrlaltdel.
 .Ve
-.Vb 4
-\&                askfirst acts just like respawn, but before running the specified
-\&                process it displays the line "Please press Enter to activate this
-\&                console." and then waits for the user to press enter before starting
-\&                the specified process.
+.Vb 3
+\&                The available actions can be classified into two groups: actions
+\&                that are run only once, and actions that are re-run when the specified
+\&                process exits.
 .Ve
-.Vb 2
-\&                Unrecognized actions (like initdefault) will cause init to emit
-\&                an error message, and then go along with its business.
+.Vb 1
+\&                Run only-once actions:
+.Ve
+.Vb 9
+\&                        'sysinit' is the first item run on boot.  init waits until all
+\&                        sysinit actions are completed before continuing.  Following the
+\&                        completion of all sysinit actions, all 'wait' actions are run.
+\&                        'wait' actions, like  'sysinit' actions, cause init to wait until
+\&                        the specified task completes.  'once' actions are asyncronous,
+\&                        therefore, init does not wait for them to complete.  'ctrlaltdel'
+\&                        actions are run immediately before init causes the system to reboot
+\&                        (unmounting filesystems with a 'ctrlaltdel' action is a very good
+\&                        idea).
+.Ve
+.Vb 1
+\&                Run repeatedly actions:
+.Ve
+.Vb 8
+\&                        'respawn' actions are run after the 'once' actions.  When a process
+\&                        started with a 'respawn' action exits, init automatically restarts
+\&                        it.  Unlike sysvinit, BusyBox init does not stop processes from
+\&                        respawning out of control.  The 'askfirst' actions acts just like
+\&                        respawn, except that before running the specified process it
+\&                        displays the line "Please press Enter to activate this console."
+\&                        and then waits for the user to press enter before starting the
+\&                        specified process.  
+.Ve
+.Vb 3
+\&                Unrecognized actions (like initdefault) will cause init to emit an
+\&                error message, and then go along with its business.  All actions are
+\&                run in the reverse order from how they appear in /etc/inittab.
 .Ve
 .Vb 1
 \&        <process>: 
@@ -1100,11 +1128,11 @@ Example /etc/inittab file:
 .Vb 7
 \&        # Example of how to put a getty on a serial line (for a terminal)
 \&        #
-\&        #ttyS0::respawn:/sbin/getty -L ttyS0 9600 vt100
-\&        #ttyS1::respawn:/sbin/getty -L ttyS1 9600 vt100
+\&        #::respawn:/sbin/getty -L ttyS0 9600 vt100
+\&        #::respawn:/sbin/getty -L ttyS1 9600 vt100
 \&        #
 \&        # Example how to put a getty on a modem line.
-\&        #ttyS2::respawn:/sbin/getty -x0 -s 57600 ttyS2
+\&        #::respawn:/sbin/getty 57600 ttyS2
 .Ve
 .Vb 3
 \&        # Stuff to do before rebooting
@@ -1833,12 +1861,13 @@ Note that this version of syslogd/klogd ignores /etc/syslog.conf.
 .Sp
 Options:
 .Sp
-.Vb 5
-\&        -m NUM          Interval between MARK lines (default=20min, 0=off)
+.Vb 6
+\&        -m NUM  Interval between MARK lines (default=20min, 0=off)
 \&        -n              Run as a foreground process
 \&        -K              Do not start up the klogd process
-\&        -O FILE         Use an alternate log file (default=/var/log/messages)
-\&        -R HOST[:PORT]  Log messages to HOST on PORT (default=514) over UDP.
+\&        -O FILE Use an alternate log file (default=/var/log/messages)
+\&        -R HOST[:PORT]  Log remotely to IP or hostname on PORT (default PORT=514/UDP)
+\&        -L      Log locally as well as network logging (default is network only)
 .Ve
 Example:
 .Sp
@@ -2057,7 +2086,14 @@ Usage: uniq [\s-1OPTION\s0]... [\s-1INPUT\s0 [\s-1OUTPUT\s0]]
 .Sp
 Discard all but one of successive identical lines from \s-1INPUT\s0
 (or standard input), writing to \s-1OUTPUT\s0 (or standard output).
+	
+Options:
 .Sp
+.Vb 3
+\&        -c              prefix lines by the number of occurrences
+\&        -d              only print duplicate lines
+\&        -u              only print unique lines
+.Ve
 Example:
 .Sp
 .Vb 4
@@ -2410,7 +2446,7 @@ Enrique Zanardi <ezanardi@ull.es>
 
 .IX Item "echo"
 
-.IX Item "echo"
+.IX Item "expr"
 
 .IX Item "false"
 

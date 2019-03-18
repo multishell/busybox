@@ -1,6 +1,6 @@
 /* vi: set sw=4 ts=4: */
 /*
- * $Id: hostname.c,v 1.13 2000/09/25 21:45:57 andersen Exp $
+ * $Id: hostname.c,v 1.16 2000/12/07 19:56:48 markw Exp $
  * Mini hostname implementation for busybox
  *
  * Copyright (C) 1999 by Randolph Chung <tausq@debian.org>
@@ -40,24 +40,20 @@ void do_sethostname(char *s, int isfile)
 	if (!isfile) {
 		if (sethostname(s, strlen(s)) < 0) {
 			if (errno == EPERM)
-				errorMsg("you must be root to change the hostname\n");
+				error_msg("you must be root to change the hostname\n");
 			else
 				perror("sethostname");
 			exit(1);
 		}
 	} else {
-		if ((f = fopen(s, "r")) == NULL) {
-			perror(s);
+		f = xfopen(s, "r");
+		fgets(buf, 255, f);
+		fclose(f);
+		if (buf[strlen(buf) - 1] == '\n')
+			buf[strlen(buf) - 1] = 0;
+		if (sethostname(buf, strlen(buf)) < 0) {
+			perror("sethostname");
 			exit(1);
-		} else {
-			fgets(buf, 255, f);
-			fclose(f);
-			if (buf[strlen(buf) - 1] == '\n')
-				buf[strlen(buf) - 1] = 0;
-			if (sethostname(buf, strlen(buf)) < 0) {
-				perror("sethostname");
-				exit(1);
-			}
 		}
 	}
 }
@@ -89,6 +85,12 @@ int hostname_main(int argc, char **argv)
 				break;
 			case 'F':
 				if (--argc == 0) {
+					usage(hostname_usage);
+				}
+				filename = *(++argv);
+				break;
+			case '-':
+				if (strcmp(++(*argv), "file") || --argc ==0 ) {
 					usage(hostname_usage);
 				}
 				filename = *(++argv);

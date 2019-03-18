@@ -50,8 +50,8 @@ extern int mkdir_main(int argc, char **argv)
 				/* Find the specified modes */
 				mode = 0;
 				if (parse_mode(*(++argv), &mode) == FALSE) {
-					errorMsg("Unknown mode: %s\n", *argv);
-					exit FALSE;
+					error_msg("Unknown mode: %s\n", *argv);
+					return EXIT_FAILURE;
 				}
 				/* Set the umask for this process so it doesn't 
 				 * screw up whatever the user just entered. */
@@ -79,26 +79,26 @@ extern int mkdir_main(int argc, char **argv)
 		char buf[BUFSIZ + 1];
 
 		if (strlen(*argv) > BUFSIZ - 1) {
-			errorMsg(name_too_long);
-			exit FALSE;
+			error_msg(name_too_long);
+			return EXIT_FAILURE;
 		}
 		strcpy(buf, *argv);
 		status = stat(buf, &statBuf);
 		if (parentFlag == FALSE && status != -1 && errno != ENOENT) {
-			errorMsg("%s: File exists\n", buf);
-			exit FALSE;
+			error_msg("%s: File exists\n", buf);
+			return EXIT_FAILURE;
 		}
 		if (parentFlag == TRUE) {
 			strcat(buf, "/");
-			createPath(buf, mode);
+			create_path(buf, mode);
 		} else {
 			if (mkdir(buf, mode) != 0 && parentFlag == FALSE) {
 				perror(buf);
-				exit FALSE;
+				return EXIT_FAILURE;
 			}
 		}
 		argc--;
 		argv++;
 	}
-	return( TRUE);
+	return EXIT_SUCCESS;
 }

@@ -1,6 +1,6 @@
 /* vi: set sw=4 ts=4: */
 /*
- * $Id: ping.c,v 1.25 2000/09/25 21:45:58 andersen Exp $
+ * $Id: ping.c,v 1.28 2000/12/07 19:56:48 markw Exp $
  * Mini ping implementation for busybox
  *
  * Copyright (C) 1999 by Randolph Chung <tausq@debian.org>
@@ -202,7 +202,7 @@ static void ping(const char *host)
 
 	pingaddr.sin_family = AF_INET;
 	if (!(h = gethostbyname(host))) {
-		errorMsg("unknown host %s\n", host);
+		error_msg("unknown host %s\n", host);
 		exit(1);
 	}
 	memcpy(&pingaddr.sin_addr, h->h_addr, sizeof(pingaddr.sin_addr));
@@ -219,7 +219,7 @@ static void ping(const char *host)
 	if (c < 0 || c != sizeof(packet)) {
 		if (c < 0)
 			perror("ping: sendto");
-		errorMsg("write incomplete\n");
+		error_msg("write incomplete\n");
 		exit(1);
 	}
 
@@ -256,7 +256,7 @@ extern int ping_main(int argc, char **argv)
 	if (argc < 1)
 		usage(ping_usage);
 	ping(*argv);
-	exit(TRUE);
+	return EXIT_SUCCESS;
 }
 
 #else /* ! BB_FEATURE_SIMPLE_PING */
@@ -325,9 +325,9 @@ static void sendping(int junk)
 			   (struct sockaddr *) &pingaddr, sizeof(struct sockaddr_in));
 
 	if (i < 0)
-		fatalError("sendto: %s\n", strerror(errno));
+		error_msg_and_die("sendto: %s\n", strerror(errno));
 	else if ((size_t)i != sizeof(packet))
-		fatalError("ping wrote %d chars; %d expected\n", i,
+		error_msg_and_die("ping wrote %d chars; %d expected\n", i,
 			   (int)sizeof(packet));
 
 	signal(SIGALRM, sendping);
@@ -422,7 +422,7 @@ static void unpack(char *buf, int sz, struct sockaddr_in *from)
 		printf("\n");
 	} else 
 		if (icmppkt->icmp_type != ICMP_ECHO)
-			errorMsg("Warning: Got ICMP %d (%s)\n",
+			error_msg("Warning: Got ICMP %d (%s)\n",
 					icmppkt->icmp_type, icmp_type_name (icmppkt->icmp_type));
 }
 
@@ -440,7 +440,7 @@ static void ping(const char *host)
 	if ((pingsock = socket(AF_INET, SOCK_RAW,
 						   (proto ? proto->p_proto : 1))) < 0) {	/* 1 == ICMP */
 		if (errno == EPERM) {
-			errorMsg("permission denied. (are you root?)\n");
+			error_msg("permission denied. (are you root?)\n");
 		} else {
 			perror("ping: creating a raw socket");
 		}
@@ -454,12 +454,12 @@ static void ping(const char *host)
 
 	pingaddr.sin_family = AF_INET;
 	if (!(h = gethostbyname(host))) {
-		errorMsg("unknown host %s\n", host);
+		error_msg("unknown host %s\n", host);
 		exit(1);
 	}
 
 	if (h->h_addrtype != AF_INET) {
-		errorMsg("unknown address type; only AF_INET is currently supported.\n");
+		error_msg("unknown address type; only AF_INET is currently supported.\n");
 		exit(1);
 	}
 
@@ -546,7 +546,7 @@ extern int ping_main(int argc, char **argv)
 
 	myid = getpid() & 0xFFFF;
 	ping(*argv);
-	return(TRUE);
+	return EXIT_SUCCESS;
 }
 #endif /* ! BB_FEATURE_SIMPLE_PING */
 
@@ -565,10 +565,10 @@ extern int ping_main(int argc, char **argv)
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. All advertising materials mentioning features or use of this software
- *    must display the following acknowledgement:
- *	This product includes software developed by the University of
- *	California, Berkeley and its contributors.
+ *
+ * 3. <BSD Advertising Clause omitted per the July 22, 1999 licensing change 
+ *		ftp://ftp.cs.berkeley.edu/pub/4bsd/README.Impt.License.Change> 
+ *
  * 4. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.

@@ -75,8 +75,8 @@ extern int mt_main(int argc, char **argv)
 	}
 
 	if (code->name == 0) {
-		errorMsg("unrecognized opcode %s.\n", argv[1]);
-		exit (FALSE);
+		error_msg("unrecognized opcode %s.\n", argv[1]);
+		return EXIT_FAILURE;
 	}
 
 	op.mt_op = code->value;
@@ -87,13 +87,13 @@ extern int mt_main(int argc, char **argv)
 
 	if ((fd = open(file, O_RDONLY, 0)) < 0) {
 		perror(file);
-		exit (FALSE);
+		return EXIT_FAILURE;
 	}
 
 	if (ioctl(fd, MTIOCTOP, &op) != 0) {
 		perror(file);
-		exit (FALSE);
+		return EXIT_FAILURE;
 	}
 
-	return (TRUE);
+	return EXIT_SUCCESS;
 }

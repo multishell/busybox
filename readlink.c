@@ -1,9 +1,10 @@
 /* vi: set sw=4 ts=4: */
 /*
- * Mini poweroff implementation for busybox
+ * Mini readlink implementation for busybox
  *
  *
- * Copyright (C) 1995, 1996 by Bruce Perens <bruce@pixar.com>.
+ * Copyright (C) 2000 by Lineo, inc.
+ * Written by Matt Kraai <kraai@alumni.carnegiemellon.edu>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,14 +23,27 @@
  */
 
 #include "busybox.h"
-#include <signal.h>
+#include <errno.h>
+#include <unistd.h>
 
-extern int poweroff_main(int argc, char **argv)
+int readlink_main(int argc, char **argv)
 {
-#ifdef BB_FEATURE_LINUXRC
-	/* don't assume init's pid == 1 */
-	return(kill(*(find_pid_by_name("init")), SIGUSR2));
-#else
-	return(kill(1, SIGUSR2));
-#endif
+	char *buf = NULL;
+	int bufsize = 128, size = 128;
+
+	if (argc != 2)
+		usage(readlink_usage);
+
+	while (bufsize < size + 1) {
+		bufsize *= 2;
+		buf = xrealloc(buf, bufsize);
+		size = readlink(argv[1], buf, bufsize);
+		if (size == -1)
+			error_msg_and_die("%s: %s\n", argv[1], strerror(errno));
+	}
+
+	buf[size] = '\0';
+	puts(buf);
+
+	return EXIT_SUCCESS;
 }

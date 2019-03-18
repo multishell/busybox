@@ -1,8 +1,9 @@
 /* vi: set sw=4 ts=4: */
 /*
- * Mini tee implementation for busybox
+ * Mini cmp implementation for busybox
  *
- * Copyright (C) 1999,2000 by Lineo, inc.
+ *
+ * Copyright (C) 2000 by Lineo, inc.
  * Written by Matt Kraai <kraai@alumni.carnegiemellon.edu>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -22,47 +23,43 @@
  */
 
 #include "busybox.h"
-#include <getopt.h>
 #include <stdio.h>
+#include <string.h>
+#include <errno.h>
 
-int
-tee_main(int argc, char **argv)
+int cmp_main(int argc, char **argv)
 {
-	char *mode = "w";
-	int c, i, status = 0, nfiles = 0;
-	FILE **files;
+	FILE *fp1 = NULL, *fp2 = stdin;
+	char *filename1 = argv[1], *filename2 = "-";
+	int c1, c2, char_pos = 1, line_pos = 1;
 
-	while ((c = getopt(argc, argv, "a")) != EOF) {
-		switch (c) {
-		case 'a': 
-			mode = "a";
-			break;
-		default:
-			usage(tee_usage);
-		}
+	/* parse argv[] */
+	if (argc < 2 || 3 < argc)
+		usage(cmp_usage);
+
+	fp1 = xfopen(argv[1], "r");
+	if (argv[2] != NULL) {
+		fp2 = xfopen(argv[2], "r");
+		filename2 = argv[2];
 	}
 
-	files = (FILE **)xmalloc(sizeof(FILE *) * (argc - optind + 1));
-	files[nfiles++] = stdout;
-	while (optind < argc) {
-		if ((files[nfiles++] = fopen(argv[optind++], mode)) == NULL) {
-			nfiles--;
-			error_msg("%s: %s\n", argv[optind-1], strerror(errno));
-			status = 1;
+	do {
+		c1 = fgetc(fp1);
+		c2 = fgetc(fp2);
+		if (c1 != c2) {
+			if (c1 == EOF)
+				printf("EOF on %s\n", filename1);
+			else if (c2 == EOF)
+				printf("EOF on %s\n", filename2);
+			else
+				printf("%s %s differ: char %d, line %d\n", filename1, filename2,
+						char_pos, line_pos);
+			return EXIT_FAILURE;
 		}
-	}
+		char_pos++;
+		if (c1 == '\n')
+			line_pos++;
+	} while (c1 != EOF);
 
-	while ((c = getchar()) != EOF)
-		for (i = 0; i < nfiles; i++)
-			putc(c, files[i]);
-
-	return status;
+	return EXIT_SUCCESS;
 }
-
-/*
-Local Variables:
-c-file-style: "linux"
-c-basic-offset: 4
-tab-width: 4
-End:
-*/

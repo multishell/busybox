@@ -37,7 +37,7 @@
  *     <misiek@misiek.eu.org>)
  * Ported to Busybox - Alfred M. Szmidt <ams@trillian.itslinux.org>
  *  Removed --version/-V and --help/-h in
- *  Removed prase_error(), using errorMsg() from Busybox instead
+ *  Removed prase_error(), using error_msg() from Busybox instead
  *  Replaced our_malloc with xmalloc and our_realloc with xrealloc
  *
  */
@@ -258,7 +258,7 @@ void add_long_options(char *options)
                                         arg_opt=required_argument;
                                 }
                                 if (strlen(tokptr) == 0)
-                                        errorMsg("empty long option after -l or --long argument\n");
+                                        error_msg("empty long option after -l or --long argument\n");
                         }
                         add_longopt(tokptr,arg_opt);
                 }
@@ -277,7 +277,7 @@ void set_shell(const char *new_shell)
         else if (!strcmp(new_shell,"csh"))
                 shell=TCSH;
         else
-                errorMsg("unknown shell after -s or --shell argument\n");
+                error_msg("unknown shell after -s or --shell argument\n");
 }
 
 
@@ -306,22 +306,6 @@ static struct option longopts[]=
 /* Stop scanning as soon as a non-option argument is found! */
 static const char *shortopts="+ao:l:n:qQs:Tu";
 
-static const char getopt_usage[] =
-"getopt [OPTIONS]...\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-"Parse command options\n"
-"  -a, --alternative            Allow long options starting with single -\n"
-"  -l, --longoptions=longopts   Long options to be recognized\n"
-"  -n, --name=progname          The name under which errors are reported\n"
-"  -o, --options=optstring      Short options to be recognized\n"
-"  -q, --quiet                  Disable error reporting by getopt(3)\n"
-"  -Q, --quiet-output           No normal output\n"
-"  -s, --shell=shell            Set shell quoting conventions\n"
-"  -T, --test                   Test for getopt(1) version\n"
-"  -u, --unqote                 Do not quote the output\n"
-#endif
-;
-
 
 int getopt_main(int argc, char *argv[])
 {
@@ -342,7 +326,7 @@ int getopt_main(int argc, char *argv[])
                         printf(" --\n");
                         exit(0);
                 } else
-                        fatalError("missing optstring argument\n");
+                        error_msg_and_die("missing optstring argument\n");
         }
 
         if (argv[1][0] != '-' || compatible) {
@@ -393,7 +377,7 @@ int getopt_main(int argc, char *argv[])
 
         if (!optstr) {
                 if (optind >= argc)
-                        fatalError("missing optstring argument\n");
+                        error_msg_and_die("missing optstring argument\n");
                 else {
                         optstr=xmalloc(strlen(argv[optind])+1);
                         strcpy(optstr,argv[optind]);

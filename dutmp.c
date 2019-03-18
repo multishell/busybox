@@ -35,7 +35,7 @@ extern int dutmp_main(int argc, char **argv)
 	} else  {
 		file = open(argv[1], O_RDONLY);
 		if (file < 0) {
-			fatalError(io_error, argv[1], strerror(errno));
+			error_msg_and_die(io_error, argv[1], strerror(errno));
 		}
 	}
 
@@ -62,5 +62,5 @@ extern int dutmp_main(int argc, char **argv)
 		ut.ut_addr);
 	}
 #endif
-	return(TRUE);
+	return EXIT_SUCCESS;
 }

@@ -114,7 +114,7 @@ extern int method;				/* compression method */
 #  define DECLARE(type, array, size)  type * array
 #  define ALLOC(type, array, size) { \
       array = (type*)calloc((size_t)(((size)+1L)/2), 2*sizeof(type)); \
-      if (array == NULL) errorMsg(memory_exhausted); \
+      if (array == NULL) error_msg(memory_exhausted); \
    }
 #  define FREE(array) {if (array != NULL) free(array), array=NULL;}
 #else
@@ -251,7 +251,7 @@ extern int save_orig_name;		/* set if original name must be saved */
 
 /* Diagnostic functions */
 #ifdef DEBUG
-#  define Assert(cond,msg) {if(!(cond)) errorMsg(msg);}
+#  define Assert(cond,msg) {if(!(cond)) error_msg(msg);}
 #  define Trace(x) fprintf x
 #  define Tracev(x) {if (verbose) fprintf x ;}
 #  define Tracevv(x) {if (verbose>1) fprintf x ;}
@@ -1381,7 +1381,7 @@ int length;
 			   (char *) window + start, length) != EQUAL) {
 		fprintf(stderr,
 				" start %d, match %d, length %d\n", start, match, length);
-		errorMsg("invalid match");
+		error_msg("invalid match\n");
 	}
 	if (verbose > 1) {
 		fprintf(stderr, "\\[%d,%d]", start - match, length);
@@ -1754,34 +1754,23 @@ DECLARE(ush, tab_prefix1, 1L << (BITS - 1));
 
 		/* local variables */
 
-int ascii = 0;					/* convert end-of-lines to local OS conventions */
-int decompress = 0;				/* decompress (-d) */
-int no_name = -1;				/* don't save or restore the original file name */
-int no_time = -1;				/* don't save or restore the original file time */
-int foreground;					/* set if program run in foreground */
-char *progname;					/* program name */
+static int foreground;					/* set if program run in foreground */
 static int method = DEFLATED;	/* compression method */
 static int exit_code = OK;		/* program exit code */
-int save_orig_name;				/* set if original name must be saved */
-int last_member;				/* set for .zip and .Z files */
-int part_nb;					/* number of parts in .gz file */
-long time_stamp;				/* original time stamp (modification time) */
-long ifile_size;				/* input file size, -1 for devices (debug only) */
-char *env;						/* contents of GZIP env variable */
-char z_suffix[MAX_SUFFIX + 1];	/* default suffix (can be set with --suffix) */
-int z_len;						/* strlen(z_suffix) */
+static int part_nb;					/* number of parts in .gz file */
+static long time_stamp;				/* original time stamp (modification time) */
+static long ifile_size;				/* input file size, -1 for devices (debug only) */
+static char z_suffix[MAX_SUFFIX + 1];	/* default suffix (can be set with --suffix) */
+static int z_len;						/* strlen(z_suffix) */
 
-long bytes_in;					/* number of input bytes */
-long bytes_out;					/* number of output bytes */
-char ifname[MAX_PATH_LEN];		/* input file name */
-char ofname[MAX_PATH_LEN];		/* output file name */
-int remove_ofname = 0;			/* remove output file on error */
-struct stat istat;				/* status for input file */
-int ifd;						/* input file descriptor */
-int ofd;						/* output file descriptor */
-unsigned insize;				/* valid bytes in inbuf */
-unsigned inptr;					/* index of next byte to be processed in inbuf */
-unsigned outcnt;				/* bytes in output buffer */
+static long bytes_in;					/* number of input bytes */
+static long bytes_out;					/* number of output bytes */
+static char ifname[MAX_PATH_LEN];		/* input file name */
+static char ofname[MAX_PATH_LEN];		/* output file name */
+static int ifd;						/* input file descriptor */
+static int ofd;						/* output file descriptor */
+static unsigned insize;				/* valid bytes in inbuf */
+static unsigned outcnt;				/* bytes in output buffer */
 
 /* local functions */
 
@@ -1819,6 +1808,8 @@ int gzip_main(int argc, char **argv)
 			case '1': case '2': case '3': case '4': case '5':
 			case '6': case '7': case '8': case '9':
 				break;
+			case 'd':
+				exit(gunzip_main(argc, argv));
 			default:
 				usage(gzip_usage);
 			}
@@ -1830,9 +1821,9 @@ int gzip_main(int argc, char **argv)
 	}
 
 	if (isatty(fileno(stdin)) && fromstdin==1 && force==0)
-		fatalError( "data not read from terminal. Use -f to force it.\n");
+		error_msg_and_die( "data not read from terminal. Use -f to force it.\n");
 	if (isatty(fileno(stdout)) && tostdout==1 && force==0)
-		fatalError( "data not written to terminal. Use -f to force it.\n");
+		error_msg_and_die( "data not written to terminal. Use -f to force it.\n");
 
 	foreground = signal(SIGINT, SIG_IGN) != SIG_IGN;
 	if (foreground) {
@@ -1941,7 +1932,7 @@ int gzip_main(int argc, char **argv)
 
 		if (unlink(delFileName) < 0) {
 			perror(delFileName);
-			exit(FALSE);
+			exit(EXIT_FAILURE);
 		}
 	}
 
@@ -2911,7 +2902,7 @@ int eof;						/* true if this is the last block for a file */
 #endif
 		/* Since LIT_BUFSIZE <= 2*WSIZE, the input data must be there: */
 		if (buf == (char *) 0)
-			errorMsg("block vanished");
+			error_msg("block vanished\n");
 
 		copy_block(buf, (unsigned) stored_len, 0);	/* without header */
 		compressed_len = stored_len << 3;
@@ -3094,7 +3085,7 @@ local void set_file_type()
 		bin_freq += dyn_ltree[n++].Freq;
 	*file_type = bin_freq > (ascii_freq >> 2) ? BINARY : ASCII;
 	if (*file_type == BINARY && translate_eol) {
-		errorMsg("-l used on binary file");
+		error_msg("-l used on binary file\n");
 	}
 }
 
@@ -3250,13 +3241,13 @@ char *env;						/* name of environment variable */
 	nargv = (char **) calloc(*argcp + 1, sizeof(char *));
 
 	if (nargv == NULL)
-		errorMsg(memory_exhausted);
+		error_msg(memory_exhausted);
 	oargv = *argvp;
 	*argvp = nargv;
 
 	/* Copy the program name first */
 	if (oargc-- < 0)
-		errorMsg("argc<=0");
+		error_msg("argc<=0\n");
 	*(nargv++) = *(oargv++);
 
 	/* Then copy the environment args */
@@ -3390,4 +3381,18 @@ unsigned size;
 	crc = updcrc((uch *) buf, len);
 	isize += (ulg) len;
 	return (int) len;
+}
+
+/* ===========================================================================
+ * Write the output buffer outbuf[0..outcnt-1] and update bytes_out.
+ * (used for the compressed data only)
+ */
+void flush_outbuf()
+{
+	if (outcnt == 0)
+		return;
+
+	write_buf(ofd, (char *) outbuf, outcnt);
+	bytes_out += (ulg) outcnt;
+	outcnt = 0;
 }

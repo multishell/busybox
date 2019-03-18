@@ -25,16 +25,15 @@
 
 extern int logname_main(int argc, char **argv)
 {
-	char *user = xmalloc(9);
+	char user[9];
 
 	if (argc > 1)
 		usage(logname_usage);
 
 	my_getpwuid(user, geteuid());
-	if (user) {
+	if (*user) {
 		puts(user);
-		exit(TRUE);
+		return EXIT_SUCCESS;
 	}
-	errorMsg("no login name\n");
-	return(FALSE);
+	error_msg_and_die("no login name\n");
 }

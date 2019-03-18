@@ -26,17 +26,16 @@
 
 extern int whoami_main(int argc, char **argv)
 {
-	char *user = xmalloc(9);
+	char user[9];
 	uid_t uid = geteuid();
 
 	if (argc > 1)
 		usage(whoami_usage);
 
 	my_getpwuid(user, uid);
-	if (user) {
+	if (*user) {
 		puts(user);
-		exit(TRUE);
+		return EXIT_SUCCESS;
 	}
-	errorMsg("cannot find username for UID %u\n", (unsigned) uid);
-	return(FALSE);
+	error_msg_and_die("cannot find username for UID %u\n", (unsigned) uid);
 }

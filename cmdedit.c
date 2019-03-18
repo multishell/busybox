@@ -69,7 +69,7 @@ static struct history *his_end = NULL;	/* Last element in command line list */
 #endif
 
 /* Current termio and the previous termio before starting sh */
-struct termios initial_settings, new_settings;
+static struct termios initial_settings, new_settings;
 
 
 #ifndef	_POSIX_VDISABLE
@@ -106,7 +106,7 @@ cmdedit_setwidth(int w)
 		cmdedit_termw = w;
 		cmdedit_scroll = w / 3;
 	} else {
-		errorMsg("\n*** Error: minimum screen width is 21\n");
+		error_msg("\n*** Error: minimum screen width is 21\n");
 	}
 }
 
@@ -135,7 +135,7 @@ void clean_up_and_die(int sig)
 	cmdedit_reset_term();
 	fprintf(stdout, "\n");
 	if (sig!=SIGINT)
-		exit(TRUE);
+		exit(EXIT_SUCCESS);
 }
 
 /* Go to HOME position */
@@ -283,12 +283,12 @@ char** exe_n_cwd_tab_completion(char* command, int *num_matches)
 	return (matches);
 }
 
-void input_tab(char* command, char* prompt, int outputFd, int *cursor, int *len)
+void input_tab(char* command, char* prompt, int outputFd, int *cursor, int *len, int lastWasTab)
 {
 	/* Do TAB completion */
 	static int num_matches=0;
 	static char **matches = (char **) NULL;
-	int pos = cursor;
+	int pos = *cursor;
 
 
 	if (lastWasTab == FALSE) {
@@ -303,7 +303,7 @@ void input_tab(char* command, char* prompt, int outputFd, int *cursor, int *len)
 		/* Make a local copy of the string -- up 
 		 * to the position of the cursor */
 		matchBuf = (char *) xcalloc(BUFSIZ, sizeof(char));
-		strncpy(matchBuf, command, cursor);
+		strncpy(matchBuf, command, *cursor);
 		tmp=matchBuf;
 
 		/* skip past any command seperator tokens */
@@ -343,10 +343,10 @@ void input_tab(char* command, char* prompt, int outputFd, int *cursor, int *len)
 		if (matches && num_matches==1) {
 			/* write out the matched command */
 			strncpy(command+pos, matches[0]+pos, strlen(matches[0])-pos);
-			len=strlen(command);
-			cursor=len;
+			*len=strlen(command);
+			*cursor=*len;
 			xwrite(outputFd, matches[0]+pos, strlen(matches[0])-pos);
-			break;
+			return;
 		}
 	} else {
 		/* Ok -- the last char was a TAB.  Since they
@@ -372,9 +372,9 @@ void input_tab(char* command, char* prompt, int outputFd, int *cursor, int *len)
 			/* Rewrite the prompt */
 			xwrite(outputFd, prompt, strlen(prompt));
 			/* Rewrite the command */
-			xwrite(outputFd, command, len);
+			xwrite(outputFd, command, *len);
 			/* Put the cursor back to where it used to be */
-			for (cursor=len; cursor > pos; cursor--)
+			for (cursor=len; *cursor > pos; cursor--)
 				xwrite(outputFd, "\b", 1);
 		}
 	}
@@ -505,7 +505,8 @@ extern void cmdedit_read_input(char* prompt, char command[BUFSIZ])
 			break;
 		case '\t':
 #ifdef BB_FEATURE_SH_TAB_COMPLETION
-			input_tab(command, prompt, outputFd, &cursor, &len);
+			input_tab(command, prompt, outputFd, &cursor,
+&len, lastWasTab);
 #endif
 			break;
 		case 14:

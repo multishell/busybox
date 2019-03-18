@@ -25,10 +25,18 @@
  *
  */
 
-
-//#define BB_FEATURE_SH_BACKTICKS
-//#define BB_FEATURE_SH_IF_EXPRESSIONS
+//
+//This works pretty well now, and is not on by default.
 #define BB_FEATURE_SH_ENVIRONMENT
+//
+//Backtick support has some problems, use at your own risk!
+//#define BB_FEATURE_SH_BACKTICKS
+//
+//If, then, else, etc. support is really, really broken.  Don't even
+//bother to mess with this yet, since you will not be happy with it.
+//#define BB_FEATURE_SH_IF_EXPRESSIONS
+//
+//For debugging/development on the shell only...
 //#define DEBUG_SHELL
 
 
@@ -45,13 +53,14 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <getopt.h>
-#ifdef BB_FEATURE_SH_COMMAND_EDITING
 #include "cmdedit.h"
-#endif
 
 #define MAX_LINE	256	/* size of input buffer for `read' builtin */
 #define MAX_READ	128	/* size of input buffer for `read' builtin */
 #define JOB_STATUS_FORMAT "[%d] %-22s %.40s\n"
+extern size_t NUM_APPLETS;
+
+
 
 
 enum redirectionType { REDIRECT_INPUT, REDIRECT_OVERWRITE,
@@ -166,7 +175,7 @@ static struct builtInCommand bltins_forking[] = {
 	{NULL, NULL, NULL}
 };
 
-static char *prompt = "# ";
+static char prompt[3];
 static char *cwd;
 static char *local_pending_command = NULL;
 static char *promptStr = NULL;
@@ -179,9 +188,20 @@ static int lastReturnCode=-1;
 static int showXtrace=FALSE;
 #endif
 	
+#ifdef DEBUG_SHELL
+static inline void debug_printf(const char *format, ...)
+{
+	va_list args;
+	va_start(args, format);
+	vfprintf(stderr, s, p);
+	va_end(args);
+}
+#else
+static inline void debug_printf(const char *format, ...) { }
+#endif
 
 #ifdef BB_FEATURE_SH_COMMAND_EDITING
-void win_changed(int junk)
+static inline void win_changed(int junk)
 {
 	struct winsize win = { 0, 0, 0, 0 };
 	ioctl(0, TIOCGWINSZ, &win);
@@ -189,6 +209,8 @@ void win_changed(int junk)
 		cmdedit_setwidth( win.ws_col - 1);
 	}
 }
+#else
+static inline void win_changed(int junk) {}
 #endif
 
 
@@ -203,11 +225,11 @@ static int builtin_cd(struct job *cmd, struct jobSet *junk)
 		newdir = cmd->progs[0].argv[1];
 	if (chdir(newdir)) {
 		printf("cd: %s: %s\n", newdir, strerror(errno));
-		return FALSE;
+		return EXIT_FAILURE;
 	}
 	getcwd(cwd, sizeof(char)*MAX_LINE);
 
-	return TRUE;
+	return EXIT_SUCCESS;
 }
 
 /* built-in 'env' handler */
@@ -228,17 +250,17 @@ static int builtin_exec(struct job *cmd, struct jobSet *junk)
 	{
 		cmd->progs[0].argv++;
 		execvp(cmd->progs[0].argv[0], cmd->progs[0].argv);
-		fatalError("Exec to %s failed: %s\n", cmd->progs[0].argv[0],
+		error_msg_and_die("Exec to %s failed: %s\n", cmd->progs[0].argv[0],
 				strerror(errno));
 	}
-	return TRUE;
+	return EXIT_SUCCESS;
 }
 
 /* built-in 'exit' handler */
 static int builtin_exit(struct job *cmd, struct jobSet *junk)
 {
 	if (!cmd->progs[0].argv[1] == 1)
-		exit TRUE;
+		exit(EXIT_SUCCESS);
 
 	exit (atoi(cmd->progs[0].argv[1]));
 }
@@ -251,14 +273,14 @@ static int builtin_fg_bg(struct job *cmd, struct jobSet *jobList)
 
 	if (!jobList->head) {
 		if (!cmd->progs[0].argv[1] || cmd->progs[0].argv[2]) {
-			errorMsg("%s: exactly one argument is expected\n",
+			error_msg("%s: exactly one argument is expected\n",
 					cmd->progs[0].argv[0]);
-			return FALSE;
+			return EXIT_FAILURE;
 		}
 		if (sscanf(cmd->progs[0].argv[1], "%%%d", &jobNum) != 1) {
-			errorMsg("%s: bad argument '%s'\n",
+			error_msg("%s: bad argument '%s'\n",
 					cmd->progs[0].argv[0], cmd->progs[0].argv[1]);
-			return FALSE;
+			return EXIT_FAILURE;
 			for (job = jobList->head; job; job = job->next) {
 				if (job->jobId == jobNum) {
 					break;
@@ -270,9 +292,9 @@ static int builtin_fg_bg(struct job *cmd, struct jobSet *jobList)
 	}
 
 	if (!job) {
-		errorMsg("%s: unknown job %d\n",
+		error_msg("%s: unknown job %d\n",
 				cmd->progs[0].argv[0], jobNum);
-		return FALSE;
+		return EXIT_FAILURE;
 	}
 
 	if (*cmd->progs[0].argv[0] == 'f') {
@@ -291,7 +313,7 @@ static int builtin_fg_bg(struct job *cmd, struct jobSet *jobList)
 
 	job->stoppedProgs = 0;
 
-	return TRUE;
+	return EXIT_SUCCESS;
 }
 
 /* built-in 'help' handler */
@@ -312,7 +334,7 @@ static int builtin_help(struct job *dummy, struct jobSet *junk)
 		fprintf(stdout, "%s\t%s\n", x->cmd, x->descr);
 	}
 	fprintf(stdout, "\n\n");
-	return TRUE;
+	return EXIT_SUCCESS;
 }
 
 /* built-in 'jobs' handler */
@@ -329,7 +351,7 @@ static int builtin_jobs(struct job *dummy, struct jobSet *jobList)
 
 		printf(JOB_STATUS_FORMAT, job->jobId, statusString, job->text);
 	}
-	return TRUE;
+	return EXIT_SUCCESS;
 }
 
 
@@ -338,7 +360,7 @@ static int builtin_pwd(struct job *dummy, struct jobSet *junk)
 {
 	getcwd(cwd, sizeof(char)*MAX_LINE);
 	fprintf(stdout, "%s\n", cwd);
-	return TRUE;
+	return EXIT_SUCCESS;
 }
 
 /* built-in 'export VAR=value' handler */
@@ -401,22 +423,14 @@ static int builtin_if(struct job *cmd, struct jobSet *jobList)
 	local_pending_command = xmalloc(status+1);
 	strncpy(local_pending_command, charptr1, status); 
 	local_pending_command[status]='\0';
-#ifdef DEBUG_SHELL
-	fprintf(stderr, "'if' now testing '%s'\n", local_pending_command);
-#endif
+	debug_printf(stderr, "'if' now testing '%s'\n", local_pending_command);
 	status = busy_loop(NULL); /* Frees local_pending_command */
-#ifdef DEBUG_SHELL
-	fprintf(stderr, "if test returned ");
-#endif
+	debug_printf(stderr, "if test returned ");
 	if (status == 0) {
-#ifdef DEBUG_SHELL
-		fprintf(stderr, "TRUE\n");
-#endif
+		debug_printf(stderr, "TRUE\n");
 		cmd->jobContext |= IF_TRUE_CONTEXT;
 	} else {
-#ifdef DEBUG_SHELL
-		fprintf(stderr, "FALSE\n");
-#endif
+		debug_printf(stderr, "FALSE\n");
 		cmd->jobContext |= IF_FALSE_CONTEXT;
 	}
 
@@ -430,12 +444,12 @@ static int builtin_then(struct job *cmd, struct jobSet *junk)
 	char* charptr1=cmd->text+5; /* skip over the leading 'then ' */
 
 	if (! (cmd->jobContext & (IF_TRUE_CONTEXT|IF_FALSE_CONTEXT))) {
-		errorMsg("unexpected token `then'\n");
-		return FALSE;
+		error_msg("unexpected token `then'\n");
+		return EXIT_FAILURE;
 	}
 	/* If the if result was FALSE, skip the 'then' stuff */
 	if (cmd->jobContext & IF_FALSE_CONTEXT) {
-		return TRUE;
+		return EXIT_SUCCESS;
 	}
 
 	cmd->jobContext |= THEN_EXP_CONTEXT;
@@ -446,9 +460,7 @@ static int builtin_then(struct job *cmd, struct jobSet *junk)
 	local_pending_command = xmalloc(status+1);
 	strncpy(local_pending_command, charptr1, status); 
 	local_pending_command[status]='\0';
-#ifdef DEBUG_SHELL
-	fprintf(stderr, "'then' now running '%s'\n", charptr1);
-#endif
+	debug_printf(stderr, "'then' now running '%s'\n", charptr1);
 	return( busy_loop(NULL));
 }
 
@@ -459,12 +471,12 @@ static int builtin_else(struct job *cmd, struct jobSet *junk)
 	char* charptr1=cmd->text+5; /* skip over the leading 'else ' */
 
 	if (! (cmd->jobContext & (IF_TRUE_CONTEXT|IF_FALSE_CONTEXT))) {
-		errorMsg("unexpected token `else'\n");
-		return FALSE;
+		error_msg("unexpected token `else'\n");
+		return EXIT_FAILURE;
 	}
 	/* If the if result was TRUE, skip the 'else' stuff */
 	if (cmd->jobContext & IF_TRUE_CONTEXT) {
-		return TRUE;
+		return EXIT_SUCCESS;
 	}
 
 	cmd->jobContext |= ELSE_EXP_CONTEXT;
@@ -475,9 +487,7 @@ static int builtin_else(struct job *cmd, struct jobSet *junk)
 	local_pending_command = xmalloc(status+1);
 	strncpy(local_pending_command, charptr1, status); 
 	local_pending_command[status]='\0';
-#ifdef DEBUG_SHELL
-	fprintf(stderr, "'else' now running '%s'\n", charptr1);
-#endif
+	debug_printf(stderr, "'else' now running '%s'\n", charptr1);
 	return( busy_loop(NULL));
 }
 
@@ -485,15 +495,13 @@ static int builtin_else(struct job *cmd, struct jobSet *junk)
 static int builtin_fi(struct job *cmd, struct jobSet *junk)
 {
 	if (! (cmd->jobContext & (IF_TRUE_CONTEXT|IF_FALSE_CONTEXT))) {
-		errorMsg("unexpected token `fi'\n");
-		return FALSE;
+		error_msg("unexpected token `fi'\n");
+		return EXIT_FAILURE;
 	}
 	/* Clear out the if and then context bits */
 	cmd->jobContext &= ~(IF_TRUE_CONTEXT|IF_FALSE_CONTEXT|THEN_EXP_CONTEXT|ELSE_EXP_CONTEXT);
-#ifdef DEBUG_SHELL
-	fprintf(stderr, "Hit an fi   -- jobContext=%d\n", cmd->jobContext);
-#endif
-	return TRUE;
+	debug_printf(stderr, "Hit an fi   -- jobContext=%d\n", cmd->jobContext);
+	return EXIT_SUCCESS;
 }
 #endif
 
@@ -504,13 +512,13 @@ static int builtin_source(struct job *cmd, struct jobSet *junk)
 	int status;
 
 	if (!cmd->progs[0].argv[1] == 1)
-		return FALSE;
+		return EXIT_FAILURE;
 
 	input = fopen(cmd->progs[0].argv[1], "r");
 	if (!input) {
 		fprintf(stdout, "Couldn't open file '%s'\n",
 				cmd->progs[0].argv[1]);
-		return FALSE;
+		return EXIT_FAILURE;
 	}
 
 	/* Now run the file */
@@ -524,10 +532,10 @@ static int builtin_unset(struct job *cmd, struct jobSet *junk)
 {
 	if (!cmd->progs[0].argv[1] == 1) {
 		fprintf(stdout, "unset: parameter required.\n");
-		return FALSE;
+		return EXIT_FAILURE;
 	}
 	unsetenv(cmd->progs[0].argv[1]);
-	return TRUE;
+	return EXIT_SUCCESS;
 }
 
 /* free up all memory from a job */
@@ -627,10 +635,10 @@ static int setupRedirections(struct childProgram *prog)
 			mode = O_RDONLY;
 			break;
 		case REDIRECT_OVERWRITE:
-			mode = O_RDWR | O_CREAT | O_TRUNC;
+			mode = O_WRONLY | O_CREAT | O_TRUNC;
 			break;
 		case REDIRECT_APPEND:
-			mode = O_RDWR | O_CREAT | O_APPEND;
+			mode = O_WRONLY | O_CREAT | O_APPEND;
 			break;
 		}
 
@@ -638,7 +646,7 @@ static int setupRedirections(struct childProgram *prog)
 		if (openfd < 0) {
 			/* this could get lost if stderr has been redirected, but
 			   bash and ash both lose it as well (though zsh doesn't!) */
-			errorMsg("error opening %s: %s\n", redir->filename,
+			error_msg("error opening %s: %s\n", redir->filename,
 					strerror(errno));
 			return 1;
 		}
@@ -655,6 +663,8 @@ static int setupRedirections(struct childProgram *prog)
 
 static int getCommand(FILE * source, char *command)
 {
+	char user[9],buf[255],*s;
+	
 	if (source == NULL) {
 		if (local_pending_command) {
 			/* a command specified (-c option): return it & mark it done */
@@ -666,6 +676,16 @@ static int getCommand(FILE * source, char *command)
 		return 1;
 	}
 
+	/* get User Name and setup prompt */
+	strcpy(prompt,( geteuid() != 0 ) ? "$ ":"# ");
+	my_getpwuid(user, geteuid());
+	
+	/* get HostName */
+	gethostname(buf, 255);
+	s = strchr(buf, '.');
+	if (s)
+		*s = 0;
+	
 	if (source == stdin) {
 #ifdef BB_FEATURE_SH_COMMAND_EDITING
 		int len;
@@ -678,17 +698,26 @@ static int getCommand(FILE * source, char *command)
 		*/
 		cmdedit_init();
 		signal(SIGWINCH, win_changed);
-		len=fprintf(stdout, "%s %s", cwd, prompt);
+		len=fprintf(stdout, "[%s@%s %s]%s", user, buf, 
+				get_last_path_component(cwd), prompt);
 		fflush(stdout);
 		promptStr=(char*)xmalloc(sizeof(char)*(len+1));
-		sprintf(promptStr, "%s %s", cwd, prompt);
+		sprintf(promptStr, "[%s@%s %s]%s", user, buf, 
+				get_last_path_component(cwd), prompt);
 		cmdedit_read_input(promptStr, command);
 		free( promptStr);
 		cmdedit_terminate();
 		signal(SIGWINCH, SIG_DFL);
 		return 0;
 #else
-		fprintf(stdout, "%s %s", cwd, prompt);
+		i=strlen(cwd);
+		i--;
+		if (i>1){
+			while ((i>0) && (*(cwd+i)!='/') ) i--;
+			if (*(cwd+i)=='/') i++;
+		}
+		
+		fprintf(stdout, "[%s@%s %s]%s",user, buf, (cwd+i), prompt);
 		fflush(stdout);
 #endif
 	}
@@ -706,10 +735,9 @@ static int getCommand(FILE * source, char *command)
 }
 
 #ifdef BB_FEATURE_SH_ENVIRONMENT
-#define __MAX_INT_CHARS 7
 static char* itoa(register int i)
 {
-	static char a[__MAX_INT_CHARS];
+	static char a[7]; /* Max 7 ints */
 	register char *b = a + sizeof(a) - 1;
 	int   sign = (i < 0);
 
@@ -785,30 +813,51 @@ static void globLastArgument(struct childProgram *prog, int *argcPtr,
 #endif
 	}
 
-	rc = glob(prog->argv[argc_l - 1], flags, NULL, &prog->globResult);
-	if (rc == GLOB_NOSPACE) {
-		errorMsg("out of space during glob operation\n");
-		return;
-	} else if (rc == GLOB_NOMATCH ||
+	if (strpbrk(prog->argv[argc_l - 1],"*[]?")!= NULL){
+		rc = glob(prog->argv[argc_l - 1], flags, NULL, &prog->globResult);
+		if (rc == GLOB_NOSPACE) {
+			error_msg("out of space during glob operation\n");
+			return;
+		} else if (rc == GLOB_NOMATCH ||
 			   (!rc && (prog->globResult.gl_pathc - i) == 1 &&
 				strcmp(prog->argv[argc_l - 1],
 						prog->globResult.gl_pathv[i]) == 0)) {
-		/* we need to remove whatever \ quoting is still present */
-		src = dst = prog->argv[argc_l - 1];
-		while (*src) {
-			if (*src != '\\')
-				*dst++ = *src;
-			src++;
+			/* we need to remove whatever \ quoting is still present */
+			src = dst = prog->argv[argc_l - 1];
+			while (*src) {
+				if (*src == '\\') {
+					src++; 
+					*dst++ = process_escape_sequence(&src);
+				} else { 
+					*dst++ = *src;
+					src++;
+				}
+			}
+			*dst = '\0';
+		} else if (!rc) {
+			argcAlloced += (prog->globResult.gl_pathc - i);
+			prog->argv = xrealloc(prog->argv, argcAlloced * sizeof(*prog->argv));
+			memcpy(prog->argv + (argc_l - 1), prog->globResult.gl_pathv + i,
+				   sizeof(*(prog->argv)) * (prog->globResult.gl_pathc - i));
+			argc_l += (prog->globResult.gl_pathc - i - 1);
 		}
-		*dst = '\0';
-	} else if (!rc) {
-		argcAlloced += (prog->globResult.gl_pathc - i);
-		prog->argv = xrealloc(prog->argv, argcAlloced * sizeof(*prog->argv));
-		memcpy(prog->argv + (argc_l - 1), prog->globResult.gl_pathv + i,
-			   sizeof(*(prog->argv)) * (prog->globResult.gl_pathc - i));
-		argc_l += (prog->globResult.gl_pathc - i - 1);
+	}else{
+	 		src = dst = prog->argv[argc_l - 1];
+			while (*src) {
+				if (*src == '\\') {
+					src++; 
+					*dst++ = process_escape_sequence(&src);
+				} else { 
+					*dst++ = *src;
+					src++;
+				}
+			}
+			*dst = '\0';
+			
+			prog->globResult.gl_pathc=0;
+			if (flags==0)
+				prog->globResult.gl_pathv=NULL;
 	}
-
 	*argcAllocedPtr = argcAlloced;
 	*argcPtr = argc_l;
 }
@@ -874,14 +923,16 @@ static int parseCommand(char **commandPtr, struct job *job, struct jobSet *jobLi
 			if (*src == '\\') {
 				src++;
 				if (!*src) {
-					errorMsg("character expected after \\\n");
+					error_msg("character expected after \\\n");
 					freeJob(job);
 					return 1;
 				}
 
 				/* in shell, "\'" should yield \' */
-				if (*src != quote)
+				if (*src != quote) {
 					*buf++ = '\\';
+					*buf++ = '\\';
+				}
 			} else if (*src == '*' || *src == '?' || *src == '[' ||
 					   *src == ']') *buf++ = '\\';
 			*buf++ = *src;
@@ -956,7 +1007,7 @@ static int parseCommand(char **commandPtr, struct job *job, struct jobSet *jobLi
 					chptr++;
 
 				if (!*chptr) {
-					errorMsg("file name expected after %c\n", *src);
+					error_msg("file name expected after %c\n", *src);
 					freeJob(job);
 					job->numProgs=0;
 					return 1;
@@ -975,7 +1026,7 @@ static int parseCommand(char **commandPtr, struct job *job, struct jobSet *jobLi
 				if (*prog->argv[argc_l])
 					argc_l++;
 				if (!argc_l) {
-					errorMsg("empty command in pipe\n");
+					error_msg("empty command in pipe\n");
 					freeJob(job);
 					job->numProgs=0;
 					return 1;
@@ -1002,7 +1053,7 @@ static int parseCommand(char **commandPtr, struct job *job, struct jobSet *jobLi
 					src++;
 
 				if (!*src) {
-					errorMsg("empty command in pipe\n");
+					error_msg("empty command in pipe\n");
 					freeJob(job);
 					job->numProgs=0;
 					return 1;
@@ -1061,7 +1112,7 @@ static int parseCommand(char **commandPtr, struct job *job, struct jobSet *jobLi
 					 * command line, making extra room as needed  */
 					--src;
 					charptr1 = xmalloc(BUFSIZ);
-					while ( (size=fullRead(pipefd[0], charptr1, BUFSIZ-1)) >0) {
+					while ( (size=full_read(pipefd[0], charptr1, BUFSIZ-1)) >0) {
 						int newSize=src - *commandPtr + size + 1 + strlen(charptr2);
 						if (newSize > BUFSIZ) {
 							*commandPtr=xrealloc(*commandPtr, src - *commandPtr + 
@@ -1092,7 +1143,7 @@ static int parseCommand(char **commandPtr, struct job *job, struct jobSet *jobLi
 			case '\\':
 				src++;
 				if (!*src) {
-					errorMsg("character expected after \\\n");
+					error_msg("character expected after \\\n");
 					freeJob(job);
 					return 1;
 				}
@@ -1128,7 +1179,7 @@ static int parseCommand(char **commandPtr, struct job *job, struct jobSet *jobLi
 	}
 
 	*commandPtr = returnCommand;
-
+	
 	return 0;
 }
 
@@ -1140,9 +1191,8 @@ static int runCommand(struct job *newJob, struct jobSet *jobList, int inBg, int 
 	int pipefds[2];				/* pipefd[0] is for reading */
 	struct builtInCommand *x;
 #ifdef BB_FEATURE_SH_STANDALONE_SHELL
-	const struct BB_applet *a = applets;
+	struct BB_applet search_applet, *applet;
 #endif
-
 
 	nextin = 0, nextout = 1;
 	for (i = 0; i < newJob->numProgs; i++) {
@@ -1203,23 +1253,44 @@ static int runCommand(struct job *newJob, struct jobSet *jobList, int inBg, int 
 				}
 			}
 #ifdef BB_FEATURE_SH_STANDALONE_SHELL
-			/* Check if the command matches any busybox internal commands here */
-			while (a->name != 0) {
-				if (strcmp(get_last_path_component(newJob->progs[i].argv[0]), a->name) == 0) {
-					int argc_l;
-					char** argv=newJob->progs[i].argv;
-					for(argc_l=0;*argv!=NULL; argv++, argc_l++);
-					applet_name=a->name;
-					optind = 1;
-					exit((*(a->main)) (argc_l, newJob->progs[i].argv));
-				}
-				a++;
+			/* Check if the command matches any busybox internal
+			 * commands ("applets") here.  Following discussions from
+			 * November 2000 on busybox@opensource.lineo.com, don't use
+			 * get_last_path_component().  This way explicit (with
+			 * slashes) filenames will never be interpreted as an
+			 * applet, just like with builtins.  This way the user can
+			 * override an applet with an explicit filename reference.
+			 * The only downside to this change is that an explicit
+			 * /bin/foo invocation fill fork and exec /bin/foo, even if
+			 * /bin/foo is a symlink to busybox.
+			 */
+			search_applet.name = newJob->progs[i].argv[0];
+
+#ifdef BB_FEATURE_SH_APPLETS_ALWAYS_WIN
+			/* If you enable BB_FEATURE_SH_APPLETS_ALWAYS_WIN, then
+			 * if you run /bin/cat, it will use BusyBox cat even if 
+			 * /bin/cat exists on the filesystem and is _not_ busybox.
+			 * Some systems want this, others do not.  Choose wisely.  :-)
+			 */
+			search_applet.name = get_last_path_component(search_applet.name);
+#endif
+
+			/* Do a binary search to find the applet entry given the name. */
+			applet = bsearch(&search_applet, applets, NUM_APPLETS,
+					sizeof(struct BB_applet), applet_name_compare);
+			if (applet != NULL) {
+				int argc_l;
+				char** argv=newJob->progs[i].argv;
+				for(argc_l=0;*argv!=NULL; argv++, argc_l++);
+				applet_name=applet->name;
+				optind = 1;
+				exit((*(applet->main)) (argc_l, newJob->progs[i].argv));
 			}
 #endif
 
 			execvp(newJob->progs[i].argv[0], newJob->progs[i].argv);
-			fatalError("%s: %s\n", newJob->progs[i].argv[0],
-					   strerror(errno));
+			error_msg_and_die("%s: %s\n", newJob->progs[i].argv[0],
+					strerror(errno));
 		}
 		if (outPipe[1]!=-1) {
 			close(outPipe[1]);
@@ -1339,9 +1410,7 @@ static int busy_loop(FILE * input)
 #ifdef BB_FEATURE_SH_ENVIRONMENT
 				lastReturnCode=WEXITSTATUS(status);
 #endif
-#if 0
-				printf("'%s' exited -- return code %d\n", jobList.fg->text, lastReturnCode);
-#endif
+				debug_printf("'%s' exited -- return code %d\n", jobList.fg->text, lastReturnCode);
 				if (!jobList.fg->runningProgs) {
 					/* child exited */
 
@@ -1407,16 +1476,24 @@ int shell_main(int argc_l, char **argv_l)
 	argv = argv_l;
 
 
-	//if (argv[0] && argv[0][0] == '-') {
-	//      builtin_source("/etc/profile");
-	//}
+	if (argv[0] && argv[0][0] == '-') {
+		  FILE *input;
+		  input = fopen("/etc/profile", "r");
+		  if (!input) {
+			  fprintf(stdout, "Couldn't open file '/etc/profile'\n");
+		  } else {
+			  /* Now run the file */
+			  busy_loop(input);
+			  fclose(input);
+		  }
+	}
 
-	while ((opt = getopt(argc_l, argv_l, "cx")) > 0) {
+	while ((opt = getopt(argc_l, argv_l, "cxi")) > 0) {
 		switch (opt) {
 			case 'c':
 				input = NULL;
 				if (local_pending_command != 0)
-					fatalError("multiple -c arguments\n");
+					error_msg_and_die("multiple -c arguments\n");
 				local_pending_command = xstrdup(argv[optind]);
 				optind++;
 				argv = argv+optind;
@@ -1447,10 +1524,7 @@ int shell_main(int argc_l, char **argv_l)
 		fprintf(stdout, "Enter 'help' for a list of built-in commands.\n\n");
 	} else if (local_pending_command==NULL) {
 		//fprintf(stdout, "optind=%d  argv[optind]='%s'\n", optind, argv[optind]);
-		input = fopen(argv[optind], "r");
-		if (!input) {
-			fatalError("%s: %s\n", argv[optind], strerror(errno));
-		}
+		input = xfopen(argv[optind], "r");
 	}
 
 	/* initialize the cwd -- this is never freed...*/
@@ -1461,9 +1535,6 @@ int shell_main(int argc_l, char **argv_l)
 	atexit(free_memory);
 #endif
 
-#ifdef BB_FEATURE_SH_COMMAND_EDITING
 	win_changed(0);
-#endif
-
 	return (busy_loop(input));
 }

@@ -93,6 +93,15 @@ const char clear_usage[] =
 	;
 #endif
 
+#if defined BB_CMP
+const char cmp_usage[] =
+	"cmp FILE1 [FILE2]\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nCompare files.\n"
+#endif
+	;
+#endif
+
 #if defined BB_CP_MV
 const char cp_usage[] =
 	"cp [OPTION]... SOURCE DEST\n"
@@ -131,9 +140,10 @@ const char date_usage[] =
 	"  or:  date [OPTION] [MMDDhhmm[[CC]YY][.ss]]\n"
 #ifndef BB_FEATURE_TRIVIAL_HELP
 	"\nDisplays the current time in the given FORMAT, or sets the system date.\n"
-	"\nOptions:\n\t-R\tOutputs RFC-822 compliant date string\n"
-	"\t-s\tSets time described by STRING\n"
-	"\t-u\tPrints or sets Coordinated Universal Time\n"
+	"\nOptions:\n\t-R\t\tOutputs RFC-822 compliant date string\n"
+	"\t-d STRING\tdisplay time described by STRING, not `now'\n"
+	"\t-s\t\tSets time described by STRING\n"
+	"\t-u\t\tPrints or sets Coordinated Universal Time\n"
 #endif
 	;
 #endif
@@ -151,7 +161,7 @@ const char dc_usage[] =
 
 #if defined BB_DD
 const char dd_usage[] =
-	"dd [if=FILE] [of=FILE] [bs=N] [count=N] [skip=N] [seek=N]\n"
+	"dd [if=FILE] [of=FILE] [bs=N] [count=N] [skip=N] [seek=N] [conv=notrunc|sync]\n"
 #ifndef BB_FEATURE_TRIVIAL_HELP
 	"\nCopy a file, converting and formatting according to options\n\n"
 	"\tif=FILE\tread from FILE instead of stdin\n"
@@ -161,6 +171,7 @@ const char dd_usage[] =
 	"\tskip=N\tskip N input blocks\n"
 	"\tseek=N\tskip N output blocks\n"
 	"\tconv=notrunc\t dont truncate of at end of write\n"
+	"\tconv=sync\t pad the last block with zeros until blocksize\n"
 	"\n"
 	"Numbers may be suffixed by w (x2), k (x1024), b (x512), or M (x1024^2)\n"
 #endif
@@ -366,6 +377,24 @@ const char fsck_minix_usage[] =
 	;
 #endif
 
+#if defined BB_GETOPT
+const char getopt_usage[] =
+"getopt [OPTIONS]...\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+"Parse command options\n"
+"  -a, --alternative            Allow long options starting with single -\n"
+"  -l, --longoptions=longopts   Long options to be recognized\n"
+"  -n, --name=progname          The name under which errors are reported\n"
+"  -o, --options=optstring      Short options to be recognized\n"
+"  -q, --quiet                  Disable error reporting by getopt(3)\n"
+"  -Q, --quiet-output           No normal output\n"
+"  -s, --shell=shell            Set shell quoting conventions\n"
+"  -T, --test                   Test for getopt(1) version\n"
+"  -u, --unqote                 Do not quote the output\n"
+#endif
+;
+#endif
+
 #if defined BB_GREP
 const char grep_usage[] =
 	"grep [-ihHnqvs] pattern [files...]\n"
@@ -403,6 +432,7 @@ const char gzip_usage[] =
 	"When FILE is '-', reads standard input.  Implies -c.\n\n"
 	"Options:\n"
 	"\t-c\tWrite output to standard output instead of FILE.gz\n"
+	"\t-d\tdecompress\n"
 #endif
 	;
 #endif
@@ -449,7 +479,7 @@ const char hostname_usage[] =
 
 	"\t-i\t\tAddresses for the hostname\n"
 	"\t-d\t\tDNS domain name\n"
-	"\t-F FILE\t\tUse the contents of FILE to specify the hostname\n"
+	"\t-F, --file FILE\tUse the contents of FILE to specify the hostname\n"
 #endif
 	;
 #endif
@@ -959,6 +989,15 @@ const char rdate_usage[] =
 	;
 #endif
 
+#if defined BB_READLINK
+const char readlink_usage[] =
+	"readlink\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nRead a symbolic link.\n"
+#endif
+	;
+#endif
+
 #if defined BB_REBOOT
 const char reboot_usage[] =
 	"reboot\n"
@@ -967,7 +1006,6 @@ const char reboot_usage[] =
 #endif
 	;
 #endif
-
 	
 #if defined BB_RENICE
 const char renice_usage[] =
@@ -1019,6 +1057,15 @@ const char rmmod_usage[] =
 	"\nUnloads the specified kernel modules from the kernel.\n\n"
 	"Options:\n" 
 	"\t-a\tTry to remove all unused kernel modules.\n"
+#endif
+	;
+#endif
+
+#if defined BB_RPMUNPACK
+const char rpmunpack_usage[] =
+	"rpmunpack < package.rpm | gunzip | cpio -idmuv\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nExtracts an rpm archive.\n"
 #endif
 	;
 #endif
@@ -1130,6 +1177,7 @@ const char syslogd_usage[] =
 	"\t-O FILE\t\tUse an alternate log file (default=/var/log/messages)\n"
 #ifdef BB_FEATURE_REMOTE_LOG
 	"\t-R HOST[:PORT]\t\tLog remotely to IP or hostname on PORT (default PORT=514/UDP)\n"
+	"\t-L\t\tLog locally as well as network logging (default is network only)\n"
 #endif
 #endif
 	;
@@ -1147,7 +1195,6 @@ const char tail_usage[] =
 	"\t-c=N[kbm]\toutput the last N bytes\n"
 #endif
 	"\t-n NUM\t\tPrint last NUM lines instead of first 10\n"
-	"\t\t\tAlso can be -NUM or +NUM.\n"
 	"\t-f\t\tOutput data as the file grows.\n"
 #ifndef BB_FEATURE_SIMPLE_TAIL
 	"\t-q\t\tnever output headers giving file names\n"
@@ -1173,11 +1220,11 @@ const char tar_usage[] =
 #endif
 #if defined BB_FEATURE_TAR_EXCLUDE
 	"[--exclude File] "
+        "[-X File]"
 #endif
 	"[-f tarFile] [FILE(s)] ...\n"
 #ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nCreate, extract, or list files from a tar file.  Note that\n"
-	"this version of tar treats hard links as separate files.\n\n"
+	"\nCreate, extract, or list files from a tar file.\n\n"
 	"Main operation mode:\n"
 #ifdef BB_FEATURE_TAR_CREATE
 	"\tc\t\tcreate\n"
@@ -1189,6 +1236,7 @@ const char tar_usage[] =
 	"\tO\t\textract to stdout\n"
 #if defined BB_FEATURE_TAR_EXCLUDE
 	"\texclude\t\tfile to exclude\n"
+        "\tX\t\tfile with names to exclude\n"
 #endif
 	"\nInformative output:\n"
 	"\tv\t\tverbosely list files processed\n"
@@ -1318,6 +1366,10 @@ const char uniq_usage[] =
 #ifndef BB_FEATURE_TRIVIAL_HELP
 	"\nDiscard all but one of successive identical lines from INPUT\n"
 	"(or standard input), writing to OUTPUT (or standard output).\n"
+	"Options:\n"
+	"\t-c\tprefix lines by the number of occurrences\n"
+	"\t-d\tonly print duplicate lines\n"
+	"\t-u\tonly print unique lines\n"
 #endif
 	;
 #endif
@@ -1327,15 +1379,6 @@ const char unix2dos_usage[] =
 	"unix2dos < unixfile > dosfile\n"
 #ifndef BB_FEATURE_TRIVIAL_HELP
 	"\nConverts a text file from unix format to dos format.\n"
-#endif
-	;
-#endif
-
-#if defined BB_UNRPM
-const char unrpm_usage[] =
-	"unrpm < package.rpm | gzip -d | cpio -idmuv\n"
-#ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nExtracts an rpm archive.\n"
 #endif
 	;
 #endif
@@ -1439,11 +1482,9 @@ const char whoami_usage[] =
 #endif
 
 #if defined BB_XARGS
-const char xargs_usage[] = "xargs [OPTIONS] [COMMAND] [ARGS...]\n"
+const char xargs_usage[] = "xargs [COMMAND] [ARGS...]\n"
 #ifndef BB_FEATURE_TRIVIAL_HELP
-	"\nExecutes COMMAND on every item given by standard input.\n\n" 
-	"Options:\n"
-	"\t-t\tPrint the command just before it is run\n"
+	"\nExecutes COMMAND on every item given by standard input.\n" 
 #endif
 	;
 #endif
@@ -1456,3 +1497,4 @@ const char yes_usage[] =
 #endif
 	;
 #endif
+

@@ -56,7 +56,7 @@ struct tm *date_conv_time(struct tm *tm_time, const char *t_string)
 				&(tm_time->tm_min), &(tm_time->tm_year));
 
 	if (nr < 4 || nr > 5) {
-		fatalError(invalid_date, t_string); 
+		error_msg_and_die(invalid_date, t_string); 
 	}
 
 	/* correct for century  - minor Y2K problem here? */
@@ -74,73 +74,57 @@ struct tm *date_conv_time(struct tm *tm_time, const char *t_string)
 
 struct tm *date_conv_ftime(struct tm *tm_time, const char *t_string)
 {
-	struct tm itm_time, jtm_time, ktm_time, ltm_time, mtm_time, ntm_time;
-
-	itm_time = *tm_time;
-	jtm_time = *tm_time;
-	ktm_time = *tm_time;
-	ltm_time = *tm_time;
-	mtm_time = *tm_time;
-	ntm_time = *tm_time;
+	struct tm t;
 
 	/* Parse input and assign appropriately to tm_time */
 
-	if (sscanf(t_string, "%d:%d:%d",
-			   &itm_time.tm_hour, &itm_time.tm_min, &itm_time.tm_sec) == 3) {
+	if (t=*tm_time,sscanf(t_string, "%d:%d:%d",
+			   &t.tm_hour, &t.tm_min, &t.tm_sec) == 3) {
+					/* no adjustments needed */
 
-		*tm_time = itm_time;
-		return (tm_time);
+	} else if (t=*tm_time,sscanf(t_string, "%d:%d",
+					  &t.tm_hour, &t.tm_min) == 2) {
+					/* no adjustments needed */
 
-	} else if (sscanf(t_string, "%d:%d",
-					  &jtm_time.tm_hour, &jtm_time.tm_min) == 2) {
 
-		*tm_time = jtm_time;
-		return (tm_time);
+	} else if (t=*tm_time,sscanf(t_string, "%d.%d-%d:%d:%d",
+					  &t.tm_mon,
+					  &t.tm_mday,
+					  &t.tm_hour,
+					  &t.tm_min, &t.tm_sec) == 5) {
 
-	} else if (sscanf(t_string, "%d.%d-%d:%d:%d",
-					  &ktm_time.tm_mon,
-					  &ktm_time.tm_mday,
-					  &ktm_time.tm_hour,
-					  &ktm_time.tm_min, &ktm_time.tm_sec) == 5) {
+		t.tm_mon -= 1;	/* Adjust dates from 1-12 to 0-11 */
 
-		ktm_time.tm_mon -= 1;	/* Adjust dates from 1-12 to 0-11 */
-		*tm_time = ktm_time;
-		return (tm_time);
+	} else if (t=*tm_time,sscanf(t_string, "%d.%d-%d:%d",
+					  &t.tm_mon,
+					  &t.tm_mday,
+					  &t.tm_hour, &t.tm_min) == 4) {
 
-	} else if (sscanf(t_string, "%d.%d-%d:%d",
-					  &ltm_time.tm_mon,
-					  &ltm_time.tm_mday,
-					  &ltm_time.tm_hour, &ltm_time.tm_min) == 4) {
+		t.tm_mon -= 1;	/* Adjust dates from 1-12 to 0-11 */
 
-		ltm_time.tm_mon -= 1;	/* Adjust dates from 1-12 to 0-11 */
-		*tm_time = ltm_time;
-		return (tm_time);
+	} else if (t=*tm_time,sscanf(t_string, "%d.%d.%d-%d:%d:%d",
+					  &t.tm_year,
+					  &t.tm_mon,
+					  &t.tm_mday,
+					  &t.tm_hour,
+					  &t.tm_min, &t.tm_sec) == 6) {
 
-	} else if (sscanf(t_string, "%d.%d.%d-%d:%d:%d",
-					  &mtm_time.tm_year,
-					  &mtm_time.tm_mon,
-					  &mtm_time.tm_mday,
-					  &mtm_time.tm_hour,
-					  &mtm_time.tm_min, &mtm_time.tm_sec) == 6) {
+		t.tm_year -= 1900;	/* Adjust years */
+		t.tm_mon -= 1;	/* Adjust dates from 1-12 to 0-11 */
 
-		mtm_time.tm_year -= 1900;	/* Adjust years */
-		mtm_time.tm_mon -= 1;	/* Adjust dates from 1-12 to 0-11 */
-		*tm_time = mtm_time;
-		return (tm_time);
+	} else if (t=*tm_time,sscanf(t_string, "%d.%d.%d-%d:%d",
+					  &t.tm_year,
+					  &t.tm_mon,
+					  &t.tm_mday,
+					  &t.tm_hour, &t.tm_min) == 5) {
+		t.tm_year -= 1900;	/* Adjust years */
+		t.tm_mon -= 1;	/* Adjust dates from 1-12 to 0-11 */
 
-	} else if (sscanf(t_string, "%d.%d.%d-%d:%d",
-					  &ntm_time.tm_year,
-					  &ntm_time.tm_mon,
-					  &ntm_time.tm_mday,
-					  &ntm_time.tm_hour, &ntm_time.tm_min) == 5) {
-		ntm_time.tm_year -= 1900;	/* Adjust years */
-		ntm_time.tm_mon -= 1;	/* Adjust dates from 1-12 to 0-11 */
-		*tm_time = ntm_time;
-		return (tm_time);
-
+	} else {
+		error_msg_and_die(invalid_date, t_string); 
 	}
-
-	fatalError(invalid_date, t_string); 
+	*tm_time = t;
+	return (tm_time);
 }
 
 
@@ -160,26 +144,27 @@ int date_main(int argc, char **argv)
 	/* Interpret command line args */
 	while ((c = getopt(argc, argv, "Rs:ud:")) != EOF) {
 		switch (c) {
-		case 'R':
-			rfc822 = 1;
-			break;
-		case 's':
-			set_time = 1;
-			if ((date_str != NULL) || ((date_str = optarg) == NULL))
+			case 'R':
+				rfc822 = 1;
+				break;
+			case 's':
+				set_time = 1;
+				if ((date_str != NULL) || ((date_str = optarg) == NULL)) {
+					usage(date_usage);
+				}
+				break;
+			case 'u':
+				utc = 1;
+				if (putenv("TZ=UTC0") != 0)
+					error_msg_and_die(memory_exhausted);
+				break;
+			case 'd':
+				use_arg = 1;
+				if ((date_str != NULL) || ((date_str = optarg) == NULL))
+					usage(date_usage);
+				break;
+			default:
 				usage(date_usage);
-			break;
-		case 'u':
-			utc = 1;
-			if (putenv("TZ=UTC0") != 0) 
-				fatalError(memory_exhausted);
-			break;
-		case 'd':
-			use_arg = 1;
-			if ((date_str != NULL) || ((date_str = optarg) == NULL))
-				usage(date_usage);
-			break;
-		default:
-			usage(date_usage);
 		}
 	}
 
@@ -188,9 +173,13 @@ int date_main(int argc, char **argv)
 	else if (date_str == NULL) {
 		set_time = 1;
 		date_str = argv[optind];
-	} else {
+	} 
+#if 0
+	else {
+		error_msg("date_str='%s'  date_fmt='%s'\n", date_str, date_fmt);
 		usage(date_usage);
 	}
+#endif
 
 	/* Now we have parsed all the information except the date format
 	   which depends on whether the clock is being set or read */
@@ -216,12 +205,16 @@ int date_main(int argc, char **argv)
 		/* Correct any day of week and day of year etc fields */
 		tm = mktime(&tm_time);
 		if (tm < 0)
-			fatalError(invalid_date, date_str); 
+			error_msg_and_die(invalid_date, date_str); 
+		if ( utc ) {
+			if (putenv("TZ=UTC0") != 0)
+				error_msg_and_die(memory_exhausted);
+		}
 
 		/* if setting time, set it */
 		if (set_time) {
 			if (stime(&tm) < 0) {
-				fatalError("can't set date.\n");
+				perror_msg("cannot set date");
 			}
 		}
 	}
@@ -239,7 +232,7 @@ int date_main(int argc, char **argv)
 	} else if (*date_fmt == '\0') {
 		/* Imitate what GNU 'date' does with NO format string! */
 		printf("\n");
-		exit(TRUE);
+		return EXIT_SUCCESS;
 	}
 
 	/* Handle special conversions */
@@ -253,5 +246,5 @@ int date_main(int argc, char **argv)
 	strftime(t_buff, 200, date_fmt, &tm_time);
 	printf("%s\n", t_buff);
 
-	return(TRUE);
+	return EXIT_SUCCESS;
 }
