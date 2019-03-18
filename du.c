@@ -32,16 +32,31 @@
 #include <sys/stat.h>
 #endif
 
-static const char du_usage[] =
-"Usage: du [OPTION]... [FILE]...\n";
-
 typedef void (Display)(size_t, char *);
 
+static const char du_usage[] =
+"Usage: du [OPTION]... [FILE]...\n\n"
+"\t-s\tdisplay only a total for each argument\n"
+;
+
+static int	du_depth = 0;
+
+static Display	*print;
+
 static void
-print(size_t size, char *filename)
+print_normal(size_t size, char *filename)
 {
     fprintf(stdout, "%-7d %s\n", (size >> 1), filename);
 }
+
+static void
+print_summary(size_t size, char *filename)
+{
+    if (du_depth == 1) { 
+	print_normal(size, filename); 
+    }
+}
+
 
 /* tiny recursive du */
 static size_t
@@ -54,6 +69,8 @@ du(char *filename)
 	fprintf(stdout, "du: %s: %s\n", filename, strerror(errno));
 	return 0; 
     }
+
+    du_depth++;
     sum = statbuf.st_blocks;
 
     if (S_ISDIR(statbuf.st_mode)) {
@@ -76,6 +93,7 @@ du(char *filename)
 	closedir(dir);
 	print(sum, filename);
     }
+    du_depth--;
     return sum;
 }
 
@@ -85,12 +103,16 @@ du_main(int argc, char **argv)
     int i;
     char opt;
 
+    /* default behaviour */
+    print = print_normal;
+
     /* parse argv[] */
     for (i = 1; i < argc; i++) {
 	if (argv[i][0] == '-') {
 	    opt = argv[i][1];
 	    switch (opt) {
 		case 's':
+		    print = print_summary;
 		    break;
 		case 'h':
 		    usage(du_usage);
@@ -110,12 +132,12 @@ du_main(int argc, char **argv)
     } else {
 	int sum;
 	for ( ; i < argc; i++) {
-	    sum = du(argv[i]) >> 1;
-	    if (sum) printf("%-7d %s\n", sum, argv[i]);
+	    sum = du(argv[i]);
+	    if ((sum) && (isDirectory(argv[i]))) { print_normal(sum, argv[i]); }
 	}
     }
 
     exit(0);
 }
 
-/* $Id: du.c,v 1.5 1999/12/10 15:23:47 beppu Exp $ */
+/* $Id: du.c,v 1.8 1999/12/17 18:44:15 erik Exp $ */

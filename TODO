@@ -3,25 +3,22 @@ is listed here doesn't mean that it is going to be added to busybox,
 or that doing so is even a good idea. It just means that I _might_ get
 around to it some time. If you have any good ideas, please let me know.
 
+* login/sulogin/passwd/getty/etc are part of tinylogin, and so are not
+    needed or wanted in busybox (or else I'd have to link in libcrypt).
+
  -Erik
 
 -----------
 
 * Allow tar to create archives with sockets, devices, and other special files
-* Add in a mini insmod, rmmod, lsmod
-* init clearly needs to support some type of minimalist /etc/inittab. I
-    currently have _way_ too much policy hardcoded in the source.  Adding
-    support for getty has made me realize how much that sucks.
+* Make insmod actually work
 * dnsdomainname
 * traceroute/nslookup/netstat
 * rdate
 * hwclock
 * killall
 * stty
-* sort/uniq
 * wc
 * tr
 * expr (maybe?)  (ash builtin?)
-* login/sulogin/passwd/getty  (These are actully now part of tinylogin, which 
-                                I've just started to maintain).
 

@@ -58,14 +58,17 @@ extern int more_main(int argc, char** argv);
 extern int cp_main(int argc, char** argv);
 extern int chmod_chown_chgrp_main(int argc, char** argv);
 extern int chroot_main(int argc, char** argv);
+extern int chvt_main(int argc, char** argv);
 extern int clear_main(int argc, char** argv);
 extern int date_main(int argc, char** argv);
 extern int dd_main(int argc, char** argv);
+extern int deallocvt_main(int argc, char** argv);
 extern int df_main(int argc, char** argv);
 extern int dmesg_main(int argc, char** argv);
 extern int du_main(int argc, char** argv);
 extern int dutmp_main(int argc, char** argv);
 extern int false_main(int argc, char** argv);
+extern int fbset_main(int argc, char** argv);
 extern int fdisk_main(int argc, char** argv);
 extern int fdflush_main(int argc, char **argv);
 extern int fsck_minix_main(int argc, char **argv);
@@ -76,6 +79,7 @@ extern int halt_main(int argc, char** argv);
 extern int head_main(int argc, char** argv);
 extern int hostname_main(int argc, char** argv);
 extern int init_main(int argc, char** argv);
+extern int insmod_main(int argc, char** argv);
 extern int kill_main(int argc, char** argv);
 extern int length_main(int argc, char** argv);
 extern int ln_main(int argc, char** argv);
@@ -83,8 +87,7 @@ extern int loadfont_main(int argc, char** argv);
 extern int loadkmap_main(int argc, char** argv);
 extern int losetup_main(int argc, char** argv);
 extern int ls_main(int argc, char** argv);
-extern int chvt_main(int argc, char** argv);
-extern int deallocvt_main(int argc, char** argv);
+extern int lsmod_main(int argc, char** argv);
 extern int makedevs_main(int argc, char** argv);
 extern int math_main(int argc, char** argv);
 extern int mkdir_main(int argc, char** argv);
@@ -102,13 +105,15 @@ extern int printf_main(int argc, char** argv);
 extern int ps_main(int argc, char** argv);
 extern int pwd_main(int argc, char** argv);
 extern int reboot_main(int argc, char** argv);
-extern int rmdir_main(int argc, char **argv);
 extern int rm_main(int argc, char** argv);
+extern int rmdir_main(int argc, char **argv);
+extern int rmmod_main(int argc, char** argv);
 extern int scan_partitions_main(int argc, char** argv);
 extern int sh_main(int argc, char** argv);
 extern int sfdisk_main(int argc, char** argv);
 extern int sed_main(int argc, char** argv);
 extern int sleep_main(int argc, char** argv);
+extern int sort_main(int argc, char** argv);
 extern int swap_on_off_main(int argc, char** argv);
 extern int sync_main(int argc, char** argv);
 extern int syslogd_main(int argc, char **argv);
@@ -121,10 +126,12 @@ extern int tput_main(int argc, char** argv);
 extern int true_main(int argc, char** argv);
 extern int tryopen_main(int argc, char** argv);
 extern int umount_main(int argc, char** argv);
+extern int uniq_main(int argc, char** argv);
 extern int update_main(int argc, char** argv);
 extern int uname_main(int argc, char** argv);
 extern int gunzip_main (int argc, char** argv);
 extern int gzip_main(int argc, char** argv);
+extern int loadacm_main(int argc, char** argv);
 
 
 const char *modeString(int mode);
@@ -163,11 +170,8 @@ extern int check_wildcard_match(const char* text, const char* pattern);
 extern long getNum (const char *cp);
 extern pid_t findInitPid();
 
-
-#if defined BB_MTAB
-#define whine_if_fstab_is_missing() {} 
-#else
-extern void whine_if_fstab_is_missing();
+#if (__GLIBC__ < 2) && defined BB_SYSLOGD
+extern int vdprintf(int d, const char *format, va_list ap);
 #endif
 
 #if defined BB_NFSMOUNT

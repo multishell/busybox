@@ -23,6 +23,7 @@
 
 #include "internal.h"
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <unistd.h>
@@ -41,6 +42,7 @@
 #include <linux/serial.h>	/* for serial_struct */
 #include <sys/vt.h>		/* for vt_stat */
 #include <sys/ioctl.h>
+#include <linux/version.h>
 #ifdef BB_SYSLOGD
 #include <sys/syslog.h>
 #endif
@@ -49,18 +51,61 @@
 #error Sorry, I depend on the /proc filesystem right now.
 #endif
 
+#ifndef KERNEL_VERSION
+#define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))
+#endif
 
-#define VT_PRIMARY      "/dev/tty1"	/* Primary virtual console */
-#define VT_SECONDARY    "/dev/tty2"	/* Virtual console */
-#define VT_LOG          "/dev/tty3"	/* Virtual console */
-#define SERIAL_CON0     "/dev/ttyS0"    /* Primary serial console */
-#define SERIAL_CON1     "/dev/ttyS1"    /* Serial console */
-#define GETTY           "/sbin/getty"	/* Default location of getty */
-#define SHELL           "/bin/sh"	/* Default shell */
-#define INITSCRIPT      "/etc/init.d/rcS"	/* Initscript. */
+
+#define VT_PRIMARY      "/dev/tty1"	  /* Primary virtual console */
+#define VT_SECONDARY    "/dev/tty2"	  /* Virtual console */
+#define VT_LOG          "/dev/tty3"	  /* Virtual console */
+#define SERIAL_CON0     "/dev/ttyS0"      /* Primary serial console */
+#define SERIAL_CON1     "/dev/ttyS1"      /* Serial console */
+#define SHELL           "/bin/sh"	  /* Default shell */
+#define INITTAB         "/etc/inittab"	  /* inittab file location */
+#ifndef INIT_SCRIPT
+#define INIT_SCRIPT	"/etc/init.d/rcS" /* Default sysinit script. */
+#endif
 
 #define LOG             0x1
 #define CONSOLE         0x2
+
+/* Allowed init action types */
+typedef enum {
+    SYSINIT=1,
+    RESPAWN,
+    ASKFIRST,
+    WAIT,
+    ONCE
+} initActionEnum;
+
+/* And now a list of the actions we support in the version of init */
+typedef struct initActionType{
+    const char*	name;
+    initActionEnum action;
+} initActionType;
+
+static const struct initActionType actions[] = {
+    {"sysinit",     SYSINIT},
+    {"respawn",     RESPAWN},
+    {"askfirst",    ASKFIRST},
+    {"wait",        WAIT},
+    {"once",        ONCE},
+    {0}
+};
+
+/* Set up a linked list of initactions, to be read from inittab */
+typedef struct initActionTag initAction;
+struct initActionTag {
+    pid_t pid;
+    char process[256];
+    char console[256];
+    initAction *nextPtr;
+    initActionEnum action;
+};
+initAction* initActionList = NULL;
+
+
 static char *console = _PATH_CONSOLE;
 static char *second_console = VT_SECONDARY;
 static char *log = VT_LOG;
@@ -90,8 +135,9 @@ int device_open(char *device, int mode)
  * device may be bitwise-or'd from LOG | CONSOLE */
 void message(int device, char *fmt, ...)
 {
-    int fd;
     va_list arguments;
+    int fd;
+
 #ifdef BB_SYSLOGD
 
     /* Log the message to syslogd */
@@ -266,7 +312,7 @@ static void console_init()
 	/* check for serial console and disable logging to tty3 & running a
 	* shell to tty2 */
 	if (ioctl(0,TIOCGSERIAL,&sr) == 0) {
-	    message(LOG|CONSOLE, "serial console detected.  Disabling 2nd virtual terminal.\r\n", console );
+	    message(LOG|CONSOLE, "serial console detected.  Disabling virtual terminals.\r\n", console );
 	    log = NULL;
 	    second_console = NULL;
 	}
@@ -275,34 +321,34 @@ static void console_init()
     message(LOG, "console=%s\n", console );
 }
 
-static int waitfor(int pid)
-{
-    int status, wpid;
-
-    message(LOG, "Waiting for process %d.\n", pid);
-    while ((wpid = wait(&status)) != pid) {
-	if (wpid > 0)
-	    message(LOG, "pid %d exited, status=0x%x.\n", wpid, status);
-    }
-    return wpid;
-}
-
-
-static pid_t run(const char * const* command, 
+static pid_t run(char* command, 
 	char *terminal, int get_enter)
 {
-    int fd;
+    int i;
     pid_t pid;
-    const char * const* cmd = command+1;
+    char* tmpCmd;
+    char* cmd[255];
     static const char press_enter[] =
 	"\nPlease press Enter to activate this console. ";
 
     if ((pid = fork()) == 0) {
+	int fd;
+	pid_t shell_pgid = getpid ();
+
 	/* Clean up */
 	close(0);
 	close(1);
 	close(2);
 	setsid();
+
+	if ((fd=device_open(terminal, O_RDWR)) < 0) {
+	    message(LOG|CONSOLE, "Bummer, can't open %s\r\n", terminal);
+	    exit(1);
+	}
+	dup(fd);
+	dup(fd);
+	set_term(fd);
+	tcsetpgrp (fd, getpgrp());
 
 	/* Reset signal handlers set for parent process */
 	signal(SIGUSR1, SIG_DFL);
@@ -310,14 +356,6 @@ static pid_t run(const char * const* command,
 	signal(SIGINT, SIG_DFL);
 	signal(SIGTERM, SIG_DFL);
 
-	if ((fd = device_open(terminal, O_RDWR)) < 0) {
-	    message(LOG, "Bummer, can't open %s\r\n", terminal);
-	    exit(-1);
-	}
-	dup(fd);
-	dup(fd);
-	tcsetpgrp(0, getpgrp());
-	set_term(0);
 
 	if (get_enter==TRUE) {
 	    /*
@@ -330,40 +368,68 @@ static pid_t run(const char * const* command,
 	     */
 	    char c;
 	    message(LOG, "Waiting for enter to start '%s' (pid %d, console %s)\r\n", 
-		    *cmd, getpid(), terminal );
-	    write(1, press_enter, sizeof(press_enter) - 1);
-	    read(0, &c, 1);
+		    command, shell_pgid, terminal );
+	    write(fileno(stdout), press_enter, sizeof(press_enter) - 1);
+	    read(fileno(stdin), &c, 1);
 	}
 
+	/* Convert command (char*) into cmd (char**, one word per string) */
+	for (tmpCmd=command, i=0; (tmpCmd=strsep(&command, " \t")) != NULL;) {
+	    if (*tmpCmd != '\0') {
+		cmd[i] = tmpCmd;
+		tmpCmd++;
+		i++;
+	    }
+	}
+	cmd[i] = NULL;
+
 	/* Log the process name and args */
-	message(LOG|CONSOLE, "Starting pid %d, console %s: '", getpid(), terminal);
-	while ( *cmd) message(LOG|CONSOLE, "%s ", *cmd++);
-	message(LOG|CONSOLE, "'\r\n");
-	
+	message(LOG, "Starting pid %d, console %s: '%s'\r\n", 
+		shell_pgid, terminal, cmd[0]);
+
 	/* Now run it.  The new program will take over this PID, 
 	 * so nothing further in init.c should be run. */
-	execvp(*command, (char**)command+1);
+	execvp(cmd[0], cmd);
 
-	message(LOG, "Bummer, could not run '%s'\n", command);
+	/* We're still here?  Some error happened. */
+	message(LOG|CONSOLE, "Bummer, could not run '%s': %s\n", cmd[0],
+		strerror(errno));
 	exit(-1);
     }
     return pid;
+}
+
+static int waitfor(char* command, 
+	char *terminal, int get_enter)
+{
+    int status, wpid;
+    int pid = run( command, terminal, get_enter);
+
+    while (1) {
+	wpid = wait(&status);
+	if (wpid > 0 ) {
+	    message(LOG, "Process '%s' (pid %d) exited.\n", 
+			    command, wpid);
+	    break;
+	}
+	if (wpid == pid )
+	    break;
+    }
+    return wpid;
 }
 
 /* Make sure there is enough memory to do something useful. *
  * Calls swapon if needed so be sure /proc is mounted. */
 static void check_memory()
 {
-    struct stat statbuf;
-    const char* const swap_on_cmd[] = 
-	    { "/bin/swapon", "swapon", "-a", 0};
+    struct stat statBuf;
 
     if (mem_total() > 3500)
 	return;
 
-    if (stat("/etc/fstab", &statbuf) == 0) {
+    if (stat("/etc/fstab", &statBuf) == 0) {
 	/* Try to turn on swap */
-	waitfor(run(swap_on_cmd, log, FALSE));
+	waitfor("/bin/swapon swapon -a", log, FALSE);
 	if (mem_total() < 3500)
 	    goto goodnight;
     } else
@@ -375,37 +441,31 @@ goodnight:
 	while (1) sleep(1);
 }
 
+#ifndef DEBUG_INIT
 static void shutdown_system(void)
 {
-    const char* const swap_off_cmd[] = { "swapoff", "swapoff", "-a", 0};
-    const char* const umount_cmd[] = { "umount", "umount", "-a", 0};
-
-#ifndef DEBUG_INIT
     /* Allow Ctrl-Alt-Del to reboot system. */
     reboot(RB_ENABLE_CAD);
-#endif
     message(CONSOLE, "\r\nThe system is going down NOW !!\r\n");
     sync();
+
     /* Send signals to every process _except_ pid 1 */
     message(CONSOLE, "Sending SIGHUP to all processes.\r\n");
-#ifndef DEBUG_INIT
     kill(-1, SIGHUP);
-#endif
     sleep(2);
     sync();
+
     message(CONSOLE, "Sending SIGKILL to all processes.\r\n");
-#ifndef DEBUG_INIT
     kill(-1, SIGKILL);
-#endif
     sleep(1);
+
     message(CONSOLE, "Disabling swap.\r\n");
-    waitfor(run( swap_off_cmd, console, FALSE));
+    waitfor( "swapoff -a", console, FALSE);
     message(CONSOLE, "Unmounting filesystems.\r\n");
-    waitfor(run( umount_cmd, console, FALSE));
+    waitfor("umount -a", console, FALSE);
     sync();
     if (kernel_version > 0 && kernel_version <= 2 * 65536 + 2 * 256 + 11) {
 	/* bdflush, kupdate not needed for kernels >2.2.11 */
-	message(CONSOLE, "Flushing buffers.\r\n");
 	bdflush(1, 0);
 	sync();
     }
@@ -417,12 +477,12 @@ static void halt_signal(int sig)
     message(CONSOLE,
 	    "The system is halted. Press CTRL-ALT-DEL or turn off power\r\n");
     sync();
-#ifndef DEBUG_INIT
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,2,0)
     if (sig == SIGUSR2)
 	reboot(RB_POWER_OFF);
     else
-	reboot(RB_HALT_SYSTEM);
 #endif
+    reboot(RB_HALT_SYSTEM);
     exit(0);
 }
 
@@ -431,53 +491,175 @@ static void reboot_signal(int sig)
     shutdown_system();
     message(CONSOLE, "Please stand by while rebooting the system.\r\n");
     sync();
-#ifndef DEBUG_INIT
     reboot(RB_AUTOBOOT);
-#endif
     exit(0);
+}
+
+#endif
+
+void new_initAction (initActionEnum action,
+	char* process, char* cons)
+{
+    initAction* newAction;
+
+    /* If BusyBox detects that a serial console is in use, 
+     * then entries containing non-empty id fields will _not_ be run.
+     */
+    if (second_console == NULL && *cons != '\0') {
+	return;
+    }
+
+    newAction = calloc ((size_t)(1), sizeof(initAction));
+    if (!newAction) {
+	message(LOG|CONSOLE,"Memory allocation failure\n");
+	while (1) sleep(1);
+    }
+    newAction->nextPtr = initActionList;
+    initActionList = newAction;
+    strncpy( newAction->process, process, 255);
+    newAction->action = action;
+    if (*cons != '\0') {
+	strncpy(newAction->console, cons, 255);
+    } else
+	strncpy(newAction->console, console, 255);
+    newAction->pid = 0;
+//    message(LOG|CONSOLE, "process='%s' action='%d' console='%s'\n",
+//	    newAction->process, newAction->action, newAction->console);
+}
+
+void delete_initAction (initAction *action)
+{
+    initAction *a, *b=NULL;
+    for( a=initActionList ; a; b=a, a=a->nextPtr) {
+	if (a == action && b != NULL) {
+	    b->nextPtr=a->nextPtr;
+	    free( a);
+	    break;
+	}
+    }
+}
+
+/* NOTE that if BB_FEATURE_USE_INITTAB is NOT defined,
+ * then parse_inittab() simply adds in some default
+ * actions(i.e runs INIT_SCRIPT and then starts a pair 
+ * of "askfirst" shells).  If BB_FEATURE_USE_INITTAB 
+ * _is_ defined, but /etc/inittab is missing, this 
+ * results in the same set of default behaviors.
+ * */
+void parse_inittab(void) 
+{
+#ifdef BB_FEATURE_USE_INITTAB
+    FILE* file;
+    char buf[256], lineAsRead[256], tmpConsole[256];
+    char *p, *q, *r, *s;
+    const struct initActionType *a = actions;
+    int foundIt;
+
+
+    file = fopen(INITTAB, "r");
+    if (file == NULL) {
+	/* No inittab file -- set up some default behavior */
+#endif
+	/* Askfirst shell on tty1 */
+	new_initAction( ASKFIRST, SHELL, console );
+	/* Askfirst shell on tty2 */
+	if (second_console != NULL) 
+	    new_initAction( ASKFIRST, SHELL, second_console );
+	/* sysinit */
+	new_initAction( SYSINIT, INIT_SCRIPT, console );
+
+	return;
+#ifdef BB_FEATURE_USE_INITTAB
+    }
+
+    while ( fgets(buf, 255, file) != NULL) {
+	foundIt=FALSE;
+	for(p = buf; *p == ' ' || *p == '\t'; p++);
+	if (*p == '#' || *p == '\n') continue;
+
+	/* Trim the trailing \n */
+	q = strrchr( p, '\n');
+	if (q != NULL)
+	    *q='\0';
+
+	/* Keep a copy around for posterity's sake (and error msgs) */
+	strcpy(lineAsRead, buf);
+
+	/* Grab the ID field */
+	s=p;
+	p = strchr( p, ':');
+	if ( p != NULL || *(p+1) != '\0' ) {
+	    *p='\0';
+	    ++p;
+	}
+
+	/* Now peal off the process field from the end
+	 * of the string */
+	q = strrchr( p, ':');
+	if ( q == NULL || *(q+1) == '\0' ) {
+	    message(LOG|CONSOLE,"Bad inittab entry: %s\n", lineAsRead);
+	    continue;
+	} else {
+	    *q='\0';
+	    ++q;
+	}
+
+	/* Now peal off the action field */
+	r = strrchr( p, ':');
+	if ( r == NULL || *(r+1) == '\0') {
+	    message(LOG|CONSOLE,"Bad inittab entry: %s\n", lineAsRead);
+	    continue;
+	} else {
+	    ++r;
+	}
+
+	/* Ok, now process it */
+	a = actions;
+	while (a->name != 0) {
+	    if (strcmp(a->name, r) == 0) {
+		if (*s != '\0') {
+		    struct stat statBuf;
+		    strcpy(tmpConsole, "/dev/");
+		    strncat(tmpConsole, s, 200);
+		    if (stat(tmpConsole, &statBuf) != 0) {
+			message(LOG|CONSOLE, "device '%s' does not exist.  Did you read the directions?\n", tmpConsole);
+			break;
+		    }
+		    s = tmpConsole;
+		}
+		new_initAction( a->action, q, s);
+		foundIt=TRUE;
+	    }
+	    a++;
+	}
+	if (foundIt==TRUE)
+	    continue;
+	else {
+	    /* Choke on an unknown action */
+	    message(LOG|CONSOLE, "Bad inittab entry: %s\n", lineAsRead);
+	}
+    }
+    return;
+#endif
 }
 
 extern int init_main(int argc, char **argv)
 {
-    int run_rc = FALSE;
-    int single = FALSE;
-    int wait_for_enter_tty1 = TRUE;
-    int wait_for_enter_tty2 = TRUE;
-    pid_t pid1 = 0;
-    pid_t pid2 = 0;
-    struct stat statbuf;
-    char which_vt1[30];
-    char which_vt2[30];
-    const char* const rc_script_command[] = { INITSCRIPT, INITSCRIPT, 0};
-    const char* const getty1_command[] = { GETTY, GETTY, "38400", which_vt1, 0};
-    const char* const getty2_command[] = { GETTY, GETTY, "38400", which_vt2, 0};
-    const char* const shell_command[] = { SHELL, "-" SHELL, 0};
-    const char* const* tty1_command = shell_command;
-    const char* const* tty2_command = shell_command;
-#ifdef BB_INIT_CMD_IF_RC_SCRIPT_EXITS
-    const char* const rc_exit_command[] = { "BB_INIT_CMD_IF_RC_SCRIPT_EXITS", 
-					    "BB_INIT_CMD_IF_RC_SCRIPT_EXITS", 0 };
-#endif
+    initAction *a;
+    pid_t wpid;
+    int status;
 
-#ifdef DEBUG_INIT
-    char *hello_msg_format =
-	"init(%d) started:  BusyBox v%s (%s) multi-call binary\r\n";
-#else
-    char *hello_msg_format =
-	"init started:  BusyBox v%s (%s) multi-call binary\r\n";
-#endif
-
-    
 #ifndef DEBUG_INIT
     /* Expect to be PID 1 iff we are run as init (not linuxrc) */
     if (getpid() != 1 && strstr(argv[0], "init")!=NULL ) {
 	usage( "init\n\nInit is the parent of all processes.\n\n"
 		"This version of init is designed to be run only by the kernel\n");
     }
-#endif
 
-    /* Set up sig handlers  -- be sure to
-     * clear all of these in run() */
+    /* from the controlling terminal */
+    setsid();
+
+    /* Set up sig handlers  -- be sure to clear all of these in run() */
     signal(SIGUSR1, halt_signal);
     signal(SIGUSR2, reboot_signal);
     signal(SIGINT, reboot_signal);
@@ -485,10 +667,9 @@ extern int init_main(int argc, char **argv)
 
     /* Turn off rebooting via CTL-ALT-DEL -- we get a 
      * SIGINT on CAD so we can shut things down gracefully... */
-#ifndef DEBUG_INIT
     reboot(RB_DISABLE_CAD);
 #endif 
-
+    
     /* Figure out where the default console should be */
     console_init();
 
@@ -497,7 +678,6 @@ extern int init_main(int argc, char **argv)
     close(1);
     close(2);
     set_term(0);
-    setsid();
 
     /* Make sure PATH is set to something sane */
     putenv(_PATH_STDPATH);
@@ -505,98 +685,111 @@ extern int init_main(int argc, char **argv)
    
     /* Hello world */
 #ifndef DEBUG_INIT
-    message(CONSOLE|LOG, hello_msg_format, BB_VER, BB_BT);
+    message(LOG|CONSOLE, 
+	    "init started:  BusyBox v%s (%s) multi-call binary\r\n", 
+	    BB_VER, BB_BT);
 #else
-    message(CONSOLE|LOG, hello_msg_format, getpid(), BB_VER, BB_BT);
+    message(LOG|CONSOLE, 
+	    "init(%d) started:  BusyBox v%s (%s) multi-call binary\r\n", 
+	    getpid(), BB_VER, BB_BT);
 #endif
 
     
     /* Mount /proc */
     if (mount ("proc", "/proc", "proc", 0, 0) == 0) {
-	message(CONSOLE|LOG, "Mounting /proc: done.\n");
+	message(LOG|CONSOLE, "Mounting /proc: done.\n");
 	kernel_version = get_kernel_revision();
     } else
-	message(CONSOLE|LOG, "Mounting /proc: failed!\n");
+	message(LOG|CONSOLE, "Mounting /proc: failed!\n");
 
     /* Make sure there is enough memory to do something useful. */
     check_memory();
 
     /* Check if we are supposed to be in single user mode */
     if ( argc > 1 && (!strcmp(argv[1], "single") || 
-		!strcmp(argv[1], "-s") || !strcmp(argv[1], "1"))) {
-	single = TRUE;
-	tty1_command = shell_command;
-	tty2_command = shell_command;
+		!strcmp(argv[1], "-s") || !strcmp(argv[1], "1"))) 
+    {
+	/* Ask first then start a shell on tty2 */
+	if (second_console != NULL) 
+	    new_initAction( ASKFIRST, SHELL, second_console);
+	/* Ask first then start a shell on tty1 */
+	new_initAction( ASKFIRST, SHELL, console);
+    } else {
+	/* Not in single user mode -- see what inittab says */
+
+	/* NOTE that if BB_FEATURE_USE_INITTAB is NOT defined,
+	 * then parse_inittab() simply adds in some default
+	 * actions(i.e runs INIT_SCRIPT and then starts a pair 
+	 * of "askfirst" shells */
+	parse_inittab();
     }
 
-    /* Make sure an init script exists before trying to run it */
-    if (single==FALSE && stat(INITSCRIPT, &statbuf)==0) {
-	run_rc = TRUE;
-	wait_for_enter_tty1 = FALSE;
-	tty1_command = rc_script_command;
-    }
-    
-    /* Make sure /sbin/getty exists before trying to run it */
-    if (stat(GETTY, &statbuf)==0) {
-	char* where;
-	/* First do tty2 */
-	wait_for_enter_tty2 = FALSE;
-	where = strrchr( second_console, '/');
-	if ( where != NULL) {
-	    where++;
-	    strncpy( which_vt2, where, sizeof(which_vt2));
+    /* Now run everything that needs to be run */
+
+    /* First run the sysinit command */
+    for( a=initActionList ; a; a=a->nextPtr) {
+	if (a->action == SYSINIT) {
+	    waitfor(a->process, a->console, FALSE);
+	    /* Now remove the "sysinit" entry from the list */
+	    delete_initAction( a);
 	}
-	tty2_command = getty2_command;
+    }
+    /* Next run anything that wants to block */
+    for( a=initActionList ; a; a=a->nextPtr) {
+	if (a->action == WAIT) {
+	    waitfor(a->process, a->console, FALSE);
+	    /* Now remove the "wait" entry from the list */
+	    delete_initAction( a);
+	}
+    }
+    /* Next run anything to be run only once */
+    for( a=initActionList ; a; a=a->nextPtr) {
+	if (a->action == ONCE) {
+	    run(a->process, a->console, FALSE);
+	    /* Now remove the "once" entry from the list */
+	    delete_initAction( a);
+	}
+    }
+    /* If there is nothing else to do, stop */
+    if (initActionList == NULL) {
+	message(LOG|CONSOLE, "No more tasks for init -- sleeping forever.\n");
+	while (1) sleep(1);
+    }
 
-	/* Check on hooking a getty onto tty1 */
-	if (run_rc == FALSE && single==FALSE) {
-	    wait_for_enter_tty1 = FALSE;
-	    where = strrchr( console, '/');
-	    if ( where != NULL) {
-		where++;
-		strncpy( which_vt1, where, sizeof(which_vt1));
+    /* Now run the looping stuff for the rest of forever */
+    while (1) {
+	for( a=initActionList ; a; a=a->nextPtr) {
+	    /* Only run stuff with pid==0.  If they have
+	     * a pid, that means they are still running */
+	    if (a->pid == 0) {
+		switch(a->action) {
+		    case RESPAWN:
+			/* run the respawn stuff */
+			a->pid = run(a->process, a->console, FALSE);
+			break;
+		    case ASKFIRST:
+			/* run the askfirst stuff */
+			a->pid = run(a->process, a->console, TRUE);
+			break;
+		    /* silence the compiler's incessant whining */
+		    default:
+			break;
+		}
 	    }
-	    tty1_command = getty1_command;
 	}
-    }
-    
-
-    /* Ok, now launch the tty1_command and tty2_command */
-    for (;;) {
-	pid_t wpid;
-	int status;
-
-	if (pid1 == 0 && tty1_command) {
-	    pid1 = run(tty1_command, console, wait_for_enter_tty1);
-	}
-#ifdef BB_FEATURE_INIT_SECOND_CONSOLE
-	if (pid2 == 0 && tty2_command && second_console) {
-	    pid2 = run(tty2_command, second_console, wait_for_enter_tty2);
-	}
-#endif
+	/* Wait for a child process to exit */
 	wpid = wait(&status);
 	if (wpid > 0 ) {
-	    message(LOG, "pid %d exited, status=%x.\n", wpid, status);
-	}
-	/* Don't respawn init script if it exits */
-	if (wpid == pid1) {
-	    if (run_rc == FALSE) {
-		pid1 = 0;
+	    /* Find out who died and clean up their corpse */
+	    for( a=initActionList ; a; a=a->nextPtr) {
+		if (a->pid==wpid) {
+		    a->pid=0;
+		    message(LOG, "Process '%s' (pid %d) exited.  Scheduling it for restart.\n", 
+			    a->process, wpid);
+		}
 	    }
-#ifdef BB_INIT_CMD_IF_RC_SCRIPT_EXITS
-	    else {
-		pid1 = 0;
-		run_rc=FALSE;
-		wait_for_enter_tty1=TRUE;
-		tty1_command=rc_exit_command;
-	    }
-#endif
 	}
-#ifdef BB_FEATURE_INIT_SECOND_CONSOLE
-	if (wpid == pid2) {
-	    pid2 = 0;
-	}
-#endif
 	sleep(1);
     }
 }
+

@@ -151,7 +151,8 @@ copyFile( const char *srcName, const char *destName,
     if (S_ISDIR(srcStatBuf.st_mode)) {
 	//fprintf(stderr, "copying directory %s to %s\n", srcName, destName);
 	/* Make sure the directory is writable */
-	if (mkdir(destName, 0777777 ^ umask(0))) {
+	result = mkdir(destName, 0777777 ^ umask(0));
+	if (result < 0 && errno != EEXIST) {
 	    perror(destName);
 	    return (FALSE);
 	}
@@ -217,10 +218,12 @@ copyFile( const char *srcName, const char *destName,
     if (setModes == TRUE) {
 	//fprintf(stderr, "Setting permissions for %s\n", destName);
 	chmod(destName, srcStatBuf.st_mode);
-	if (followLinks == TRUE)
-	    chown(destName, srcStatBuf.st_uid, srcStatBuf.st_gid);
-	else
+#if (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 1)
+	if (followLinks == FALSE)
 	    lchown(destName, srcStatBuf.st_uid, srcStatBuf.st_gid);
+	else
+#endif
+	    chown(destName, srcStatBuf.st_uid, srcStatBuf.st_gid);
 
 	times.actime = srcStatBuf.st_atime;
 	times.modtime = srcStatBuf.st_mtime;
@@ -376,7 +379,7 @@ int fullRead(int fd, char *buf, int len)
 #endif
 
 
-#if defined (BB_CHOWN) || defined (BB_CP) || defined (BB_FIND) || defined (BB_LS)
+#if defined (BB_CHMOD_CHOWN_CHGRP) || defined (BB_CP) || defined (BB_FIND) || defined (BB_LS) || defined (BB_INSMOD)
 /*
  * Walk down all the directories under the specified 
  * location, and do something (something specified
@@ -966,7 +969,7 @@ check_wildcard_match(const char* text, const char* pattern)
 
 
 
-#if defined BB_DF | defined BB_MTAB
+#if defined BB_DF || defined BB_MTAB
 /*
  * Given a block device, find the mount table entry if that block device
  * is mounted.
@@ -1005,19 +1008,8 @@ extern struct mntent *findMountPoint(const char *name, const char *table)
     endmntent(mountTable);
     return mountEntry;
 }
-
 #endif
 
-
-
-#if !defined BB_MTAB && (defined BB_MOUNT || defined BB_DF )
-extern void whine_if_fstab_is_missing()
-{
-    struct stat statBuf;
-    if (stat("/etc/fstab", &statBuf) < 0) 
-	fprintf(stderr, "/etc/fstab file missing -- install one to name /dev/root.\n\n");
-}
-#endif
 
 
 #if defined BB_DD || defined BB_TAIL
@@ -1105,6 +1097,17 @@ findInitPid()
 	}
     }
     return 0;
+}
+#endif
+
+#if (__GLIBC__ < 2) && (defined BB_SYSLOGD || defined BB_INIT)
+extern int vdprintf(int d, const char *format, va_list ap)
+{
+    char buf[BUF_SIZE];
+    int len;
+
+    len = vsprintf(buf, format, ap);
+    return write(d, buf, len);
 }
 #endif
 

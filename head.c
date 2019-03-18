@@ -54,7 +54,7 @@ head_main(int argc, char **argv)
     int	    len = 10;
 
     /* 1st option is potentially special */
-    if ((argv[1][0] == '-') && isDecimal(argv[1][1])) {
+    if ((argc > 1) && (argv[1][0] == '-') && isDecimal(argv[1][1])) {
 	int tmplen = atoi(&argv[1][1]);
 	if (tmplen) { len = tmplen; }
 	i = 2;
@@ -103,4 +103,4 @@ head_main(int argc, char **argv)
     exit(0);
 }
 
-/* $Id: head.c,v 1.2 1999/12/10 08:29:20 andersen Exp $ */
+/* $Id: head.c,v 1.4 1999/12/17 18:52:06 erik Exp $ */

@@ -51,6 +51,9 @@ static const struct Applet applets[] = {
 #ifdef BB_DUTMP			//usr/sbin
     {"dutmp", dutmp_main},
 #endif
+#ifdef BB_FBSET                 //usr/sbin
+    {"fbset", fbset_main},
+#endif
 #ifdef BB_FDFLUSH		//bin
     {"fdflush", fdflush_main},
 #endif
@@ -84,6 +87,9 @@ static const struct Applet applets[] = {
 #ifdef BB_INIT			//sbin
     {"init", init_main},
 #endif
+#ifdef BB_INSMOD		//sbin
+    {"insmod", insmod_main},
+#endif
 #ifdef BB_FEATURE_LINUXRC	//
     {"linuxrc", init_main},
 #endif
@@ -96,6 +102,9 @@ static const struct Applet applets[] = {
 #ifdef BB_LN			//bin
     {"ln", ln_main},
 #endif
+#ifdef BB_LOADACM               //usr/bin
+    {"loadacm", loadacm_main},
+#endif    
 #ifdef BB_LOADFONT		//usr/bin
     {"loadfont", loadfont_main},
 #endif
@@ -104,6 +113,9 @@ static const struct Applet applets[] = {
 #endif
 #ifdef BB_LS			//bin
     {"ls", ls_main},
+#endif
+#ifdef BB_LSMOD			//sbin
+    {"lsmod", lsmod_main},
 #endif
 #ifdef BB_MAKEDEVS		//sbin
     {"makedevs", makedevs_main},
@@ -162,6 +174,9 @@ static const struct Applet applets[] = {
 #ifdef BB_RMDIR			//bin
     {"rmdir", rmdir_main},
 #endif
+#ifdef BB_RMMOD			//sbin
+    {"rmmod", rmmod_main},
+#endif
 #ifdef BB_SFDISK		//sbin
     {"fdisk", sfdisk_main},
     {"sfdisk", sfdisk_main},
@@ -171,6 +186,9 @@ static const struct Applet applets[] = {
 #endif
 #ifdef BB_SLEEP			//bin
     {"sleep", sleep_main},
+#endif
+#ifdef BB_SORT			//bin
+    {"sort", sort_main},
 #endif
 #ifdef BB_SYNC			//bin
     {"sync", sync_main},
@@ -206,6 +224,9 @@ static const struct Applet applets[] = {
 #endif
 #ifdef BB_UMOUNT		//bin
     {"umount",  umount_main},
+#endif
+#ifdef BB_UNIQ			//bin
+    {"uniq", uniq_main},
 #endif
 #ifdef BB_UPDATE		//sbin
     {"update", update_main},

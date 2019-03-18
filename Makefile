@@ -17,7 +17,7 @@
 
 
 PROG=busybox
-VERSION=0.39
+VERSION=0.40
 BUILDTIME=$(shell date "+%Y%m%d-%H%M")
 
 # Comment out the following to make a debuggable build
@@ -31,8 +31,8 @@ DOSTATIC=false
 #This will choke on a non-debian system
 ARCH=`uname -m | sed -e 's/i.86/i386/' | sed -e 's/sparc.*/sparc/'`
 
-GCCMAJVERSION=`$(CC) --version | sed -n "s/^\([0-9]\)\.\([0-9].*\)[\.].*/\1/p"`
-GCCMINVERSION=`$(CC) --version | sed -n "s/^\([0-9]\)\.\([0-9].*\)[\.].*/\2/p"`
+GCCMAJVERSION=$(shell $(CC) --version | sed -n "s/^\([^\.]*\).*/\1/p" )
+GCCMINVERSION=$(shell $(CC) --version | sed -n "s/^[^\.]*\.\([^\.]*\)[\.].*/\1/p" )
 
 GCCSUPPORTSOPTSIZE=$(shell \
 if ( test $(GCCMAJVERSION) -eq 2 ) ; then \
@@ -80,8 +80,8 @@ LIBRARIES=
 OBJECTS=$(shell ./busybox.sh)
 CFLAGS+= -DBB_VER='"$(VERSION)"'
 CFLAGS+= -DBB_BT='"$(BUILDTIME)"'
-ifdef BB_INIT_RC_EXIT_CMD
-    CFLAGS += -DBB_INIT_CMD_IF_RC_SCRIPT_EXITS=${BB_INIT_RC_EXIT_CMD}
+ifdef BB_INIT_SCRIPT
+    CFLAGS += -DINIT_SCRIPT=${BB_INIT_SCRIPT}
 endif
 
 all: busybox busybox.links
@@ -108,6 +108,6 @@ install: busybox busybox.links
 dist: release
 
 release: distclean
-	(cd .. ; rm -rf busybox-$(VERSION) ; cp -a busybox busybox-$(VERSION); rm -rf busybox-$(VERSION)/CVS busybox-$(VERSION)/.cvsignore ; tar -cvzf busybox-$(VERSION).tar.gz busybox-$(VERSION)) 
+	(cd .. ; rm -rf busybox-$(VERSION) ; cp -a busybox busybox-$(VERSION); rm -rf busybox-$(VERSION)/CVS busybox-$(VERSION)/scripts/CVS busybox-$(VERSION)/docs/CVS busybox-$(VERSION)/.cvsignore ; tar -cvzf busybox-$(VERSION).tar.gz busybox-$(VERSION)) 
 
 
