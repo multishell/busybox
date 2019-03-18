@@ -27,6 +27,9 @@ static const struct Applet applets[] = {
 #ifdef BB_CLEAR			//usr/bin
     {"clear", clear_main},
 #endif
+#ifdef BB_CHVT			//usr/bin
+    {"chvt", chvt_main},
+#endif
 #ifdef BB_CP			//bin
     {"cp", cp_main},
 #endif
@@ -42,6 +45,9 @@ static const struct Applet applets[] = {
 #ifdef BB_DMESG			//bin
     {"dmesg", dmesg_main},
 #endif
+#ifdef BB_DU			//bin
+    {"du", du_main},
+#endif
 #ifdef BB_DUTMP			//usr/sbin
     {"dutmp", dutmp_main},
 #endif
@@ -51,8 +57,8 @@ static const struct Applet applets[] = {
 #ifdef BB_FIND			//usr/bin
     {"find", find_main},
 #endif
-#ifdef BB_CHVT			//usr/bin
-    {"chvt", chvt_main},
+#ifdef BB_FREE			//usr/bin
+    {"free", free_main},
 #endif
 #ifdef BB_DEALLOCVT			//usr/bin
     {"deallocvt", deallocvt_main},
@@ -68,6 +74,12 @@ static const struct Applet applets[] = {
 #endif
 #ifdef BB_HALT			//sbin
     {"halt", halt_main},
+#endif
+#ifdef BB_HEAD			//bin
+    {"head", head_main},
+#endif
+#ifdef BB_HOSTNAME              //bin
+    {"hostname", hostname_main},
 #endif
 #ifdef BB_INIT			//sbin
     {"init", init_main},
@@ -102,6 +114,9 @@ static const struct Applet applets[] = {
 #ifdef BB_MKDIR			//bin
     {"mkdir", mkdir_main},
 #endif
+#ifdef BB_MKFIFO		//usr/bin
+    {"mkfifo", mkfifo_main},
+#endif
 #ifdef BB_MKNOD			//bin
     {"mknod", mknod_main},
 #endif
@@ -122,6 +137,12 @@ static const struct Applet applets[] = {
 #endif
 #ifdef BB_MV			//bin
     {"mv", mv_main},
+#endif
+#ifdef BB_PING                  //bin
+    {"ping", ping_main},
+#endif
+#ifdef BB_POWEROFF              //sbin
+    {"poweroff", poweroff_main},
 #endif
 #ifdef BB_PRINTF		//usr/bin
     {"printf", printf_main},
@@ -164,8 +185,14 @@ static const struct Applet applets[] = {
     {"swapon", swap_on_off_main},
     {"swapoff", swap_on_off_main},
 #endif
+#ifdef BB_TAIL			//usr/bin
+    {"tail", tail_main},
+#endif
 #ifdef BB_TAR			//bin
     {"tar", tar_main},
+#endif
+#ifdef BB_TEE			//bin
+    {"tee", tee_main},
 #endif
 #ifdef BB_TOUCH			//usr/bin
     {"touch", touch_main},

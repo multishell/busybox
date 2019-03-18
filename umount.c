@@ -107,7 +107,6 @@ umount_all(int useMtab)
 extern int
 umount_main(int argc, char** argv)
 {
-
     if (argc < 2) {
 	usage( umount_usage); 
     }

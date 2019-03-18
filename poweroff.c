@@ -1,8 +1,8 @@
 /*
- * Mini Cat implementation for busybox
+ * Mini poweroff implementation for busybox
  *
- * Copyright (C) 1999 by Lineo, inc.
- * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
+ *
+ * Copyright (C) 1995, 1996 by Bruce Perens <bruce@pixar.com>.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,39 +21,11 @@
  */
 
 #include "internal.h"
-#include <stdio.h>
+#include <signal.h>
 
-
-static void print_file( FILE *file) 
+extern int
+poweroff_main(int argc, char ** argv)
 {
-    int c;
-    while ((c = getc(file)) != EOF)
-	putc(c, stdout);
-    fclose(file);
-    fflush(stdout);
-}
-
-extern int cat_main(int argc, char **argv)
-{
-    FILE *file;
-
-    if (argc==1) {
-	print_file( stdin);
-	exit( TRUE);
-    }
-
-    if ( **(argv+1) == '-' ) {
-	usage ("cat [file ...]\n");
-    }
-    argc--;
-
-    while (argc-- > 0 && *(argv++) != '\0' && strlen(*argv) ) {
-	file = fopen(*argv, "r");
-	if (file == NULL) {
-	    perror(*argv);
-	    exit(FALSE);
-	}
-	print_file( file);
-    }
-    exit(TRUE);
+    /* don't assume init's pid == 1 */
+    exit( kill(findInitPid(), SIGUSR2));
 }

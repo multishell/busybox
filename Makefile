@@ -17,7 +17,7 @@
 
 
 PROG=busybox
-VERSION=0.38
+VERSION=0.39
 BUILDTIME=$(shell date "+%Y%m%d-%H%M")
 
 # Comment out the following to make a debuggable build
@@ -73,7 +73,7 @@ else
 endif
 
 ifndef $(PREFIX)
-    PREFIX=`pwd`/busybox_install
+    PREFIX=`pwd`/_install
 endif
 
 LIBRARIES=
@@ -95,7 +95,7 @@ busybox.links:
 
 clean:
 	- rm -f $(PROG) busybox.links *~ *.o core 
-	- rm -rf busybox_install
+	- rm -rf _install
 
 distclean: clean
 	- rm -f $(PROG)

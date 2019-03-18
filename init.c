@@ -55,6 +55,7 @@
 #define VT_LOG          "/dev/tty3"	/* Virtual console */
 #define SERIAL_CON0     "/dev/ttyS0"    /* Primary serial console */
 #define SERIAL_CON1     "/dev/ttyS1"    /* Serial console */
+#define GETTY           "/sbin/getty"	/* Default location of getty */
 #define SHELL           "/bin/sh"	/* Default shell */
 #define INITSCRIPT      "/etc/init.d/rcS"	/* Initscript. */
 
@@ -150,19 +151,11 @@ void message(int device, char *fmt, ...)
 void set_term( int fd)
 {
     struct termios tty;
-#if 0
-    static const char control_characters[] = {
-	'\003', '\034', '\177', '\030', '\004', '\0',
-	'\1', '\0', '\021', '\023', '\032', '\0', '\022',
-	'\017', '\027', '\026', '\0'
-	};
-#else	
     static const char control_characters[] = {
 	'\003', '\034', '\177', '\025', '\004', '\0',
 	'\1', '\0', '\021', '\023', '\032', '\0', '\022',
 	'\017', '\027', '\026', '\0'
 	};
-#endif
 
     tcgetattr(fd, &tty);
 
@@ -343,9 +336,9 @@ static pid_t run(const char * const* command,
 	}
 
 	/* Log the process name and args */
-	message(LOG, "Starting pid %d, console %s: '", getpid(), terminal);
-	while ( *cmd) message(LOG, "%s ", *cmd++);
-	message(LOG, "'\r\n");
+	message(LOG|CONSOLE, "Starting pid %d, console %s: '", getpid(), terminal);
+	while ( *cmd) message(LOG|CONSOLE, "%s ", *cmd++);
+	message(LOG|CONSOLE, "'\r\n");
 	
 	/* Now run it.  The new program will take over this PID, 
 	 * so nothing further in init.c should be run. */
@@ -385,7 +378,7 @@ goodnight:
 static void shutdown_system(void)
 {
     const char* const swap_off_cmd[] = { "swapoff", "swapoff", "-a", 0};
-    const char* const umount_cmd[] = { "umount", "umount", "-a", "-n", 0};
+    const char* const umount_cmd[] = { "umount", "umount", "-a", 0};
 
 #ifndef DEBUG_INIT
     /* Allow Ctrl-Alt-Del to reboot system. */
@@ -425,9 +418,10 @@ static void halt_signal(int sig)
 	    "The system is halted. Press CTRL-ALT-DEL or turn off power\r\n");
     sync();
 #ifndef DEBUG_INIT
-    while (1) sleep(1);
-    reboot(RB_HALT_SYSTEM);
-    //reboot(RB_POWER_OFF);
+    if (sig == SIGUSR2)
+	reboot(RB_POWER_OFF);
+    else
+	reboot(RB_HALT_SYSTEM);
 #endif
     exit(0);
 }
@@ -437,7 +431,6 @@ static void reboot_signal(int sig)
     shutdown_system();
     message(CONSOLE, "Please stand by while rebooting the system.\r\n");
     sync();
-    while (1) sleep(1);
 #ifndef DEBUG_INIT
     reboot(RB_AUTOBOOT);
 #endif
@@ -446,15 +439,21 @@ static void reboot_signal(int sig)
 
 extern int init_main(int argc, char **argv)
 {
-    int run_rc = TRUE;
-    int wait_for_enter = TRUE;
+    int run_rc = FALSE;
+    int single = FALSE;
+    int wait_for_enter_tty1 = TRUE;
+    int wait_for_enter_tty2 = TRUE;
     pid_t pid1 = 0;
     pid_t pid2 = 0;
     struct stat statbuf;
+    char which_vt1[30];
+    char which_vt2[30];
     const char* const rc_script_command[] = { INITSCRIPT, INITSCRIPT, 0};
+    const char* const getty1_command[] = { GETTY, GETTY, "38400", which_vt1, 0};
+    const char* const getty2_command[] = { GETTY, GETTY, "38400", which_vt2, 0};
     const char* const shell_command[] = { SHELL, "-" SHELL, 0};
-    const char* const* tty0_command = shell_command;
     const char* const* tty1_command = shell_command;
+    const char* const* tty2_command = shell_command;
 #ifdef BB_INIT_CMD_IF_RC_SCRIPT_EXITS
     const char* const rc_exit_command[] = { "BB_INIT_CMD_IF_RC_SCRIPT_EXITS", 
 					    "BB_INIT_CMD_IF_RC_SCRIPT_EXITS", 0 };
@@ -477,13 +476,6 @@ extern int init_main(int argc, char **argv)
     }
 #endif
 
-    /* Check if we are supposed to be in single user mode */
-    if ( argc > 1 && (!strcmp(argv[1], "single") || 
-		!strcmp(argv[1], "-s") || !strcmp(argv[1], "1"))) {
-	run_rc = FALSE;
-    }
-
-    
     /* Set up sig handlers  -- be sure to
      * clear all of these in run() */
     signal(SIGUSR1, halt_signal);
@@ -529,27 +521,59 @@ extern int init_main(int argc, char **argv)
     /* Make sure there is enough memory to do something useful. */
     check_memory();
 
-
-    /* Make sure an init script exists before trying to run it */
-    if (run_rc == TRUE && stat(INITSCRIPT, &statbuf)==0) {
-	wait_for_enter = FALSE;
-	tty0_command = rc_script_command;
+    /* Check if we are supposed to be in single user mode */
+    if ( argc > 1 && (!strcmp(argv[1], "single") || 
+		!strcmp(argv[1], "-s") || !strcmp(argv[1], "1"))) {
+	single = TRUE;
+	tty1_command = shell_command;
+	tty2_command = shell_command;
     }
 
+    /* Make sure an init script exists before trying to run it */
+    if (single==FALSE && stat(INITSCRIPT, &statbuf)==0) {
+	run_rc = TRUE;
+	wait_for_enter_tty1 = FALSE;
+	tty1_command = rc_script_command;
+    }
+    
+    /* Make sure /sbin/getty exists before trying to run it */
+    if (stat(GETTY, &statbuf)==0) {
+	char* where;
+	/* First do tty2 */
+	wait_for_enter_tty2 = FALSE;
+	where = strrchr( second_console, '/');
+	if ( where != NULL) {
+	    where++;
+	    strncpy( which_vt2, where, sizeof(which_vt2));
+	}
+	tty2_command = getty2_command;
 
-    /* Ok, now launch the rc script and/or prepare to 
-     * start up some VTs if somebody hits enter... 
-     */
+	/* Check on hooking a getty onto tty1 */
+	if (run_rc == FALSE && single==FALSE) {
+	    wait_for_enter_tty1 = FALSE;
+	    where = strrchr( console, '/');
+	    if ( where != NULL) {
+		where++;
+		strncpy( which_vt1, where, sizeof(which_vt1));
+	    }
+	    tty1_command = getty1_command;
+	}
+    }
+    
+
+    /* Ok, now launch the tty1_command and tty2_command */
     for (;;) {
 	pid_t wpid;
 	int status;
 
-	if (pid1 == 0 && tty0_command) {
-	    pid1 = run(tty0_command, console, wait_for_enter);
+	if (pid1 == 0 && tty1_command) {
+	    pid1 = run(tty1_command, console, wait_for_enter_tty1);
 	}
-	if (pid2 == 0 && tty1_command && second_console) {
-	    pid2 = run(tty1_command, second_console, TRUE);
+#ifdef BB_FEATURE_INIT_SECOND_CONSOLE
+	if (pid2 == 0 && tty2_command && second_console) {
+	    pid2 = run(tty2_command, second_console, wait_for_enter_tty2);
 	}
+#endif
 	wpid = wait(&status);
 	if (wpid > 0 ) {
 	    message(LOG, "pid %d exited, status=%x.\n", wpid, status);
@@ -563,14 +587,16 @@ extern int init_main(int argc, char **argv)
 	    else {
 		pid1 = 0;
 		run_rc=FALSE;
-		wait_for_enter=TRUE;
-		tty0_command=rc_exit_command;
+		wait_for_enter_tty1=TRUE;
+		tty1_command=rc_exit_command;
 	    }
 #endif
 	}
+#ifdef BB_FEATURE_INIT_SECOND_CONSOLE
 	if (wpid == pid2) {
 	    pid2 = 0;
 	}
+#endif
 	sleep(1);
     }
 }

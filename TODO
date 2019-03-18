@@ -9,23 +9,19 @@ around to it some time. If you have any good ideas, please let me know.
 
 * Allow tar to create archives with sockets, devices, and other special files
 * Add in a mini insmod, rmmod, lsmod
-* Change init so halt, reboot (and poweroff) work with an initrd
-    when init is not PID 1
-* poweroff
-* du
-* mkfifo
-* hostname/dnsdomainname
-* ping/traceroute/nslookup/netstat
+* init clearly needs to support some type of minimalist /etc/inittab. I
+    currently have _way_ too much policy hardcoded in the source.  Adding
+    support for getty has made me realize how much that sucks.
+* dnsdomainname
+* traceroute/nslookup/netstat
 * rdate
 * hwclock
-* login/getty
-* free
 * killall
-* tee
 * stty
-* head/tail
 * sort/uniq
 * wc
 * tr
-* expr (maybe)?
+* expr (maybe?)  (ash builtin?)
+* login/sulogin/passwd/getty  (These are actully now part of tinylogin, which 
+                                I've just started to maintain).
 

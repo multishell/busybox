@@ -49,7 +49,6 @@ const char mtab_file[] = "/etc/mtab";
 #endif
 
 
-/* volatile so gcc knows this is the end of the line */
 extern void usage(const char *usage)
 {
     fprintf(stderr, "BusyBox v%s (%s) multi-call binary -- GPL2\n\n", BB_VER, BB_BT);
@@ -290,7 +289,7 @@ const char *modeString(int mode)
 #endif
 
 
-#ifdef BB_TAR
+#if defined BB_TAR
 /*
  * Return the standard ls-like time string from a time_t
  * This is static and so is overwritten on each call.
@@ -341,8 +340,10 @@ int fullWrite(int fd, const char *buf, int len)
 
     return total;
 }
+#endif
 
 
+#if defined BB_TAR || defined BB_TAIL
 /*
  * Read all of the supplied buffer from a file.
  * This does multiple reads as necessary.
@@ -646,11 +647,14 @@ my_getid(const char *filename, char *name, uid_t id)
 			continue;
 
 		if (name) {
-		    if (0 == strcmp(rname, name))
+		    if (0 == strcmp(rname, name)) {
+			fclose( file);
 			return( rid);
+		    }
                 }
 		if ( id != -1 && id == rid ) {
 		    strncpy(name, rname, 8);
+		    fclose( file);
 		    return( TRUE);
 		}
 	}
@@ -1016,13 +1020,92 @@ extern void whine_if_fstab_is_missing()
 #endif
 
 
+#if defined BB_DD || defined BB_TAIL
+/*
+ * Read a number with a possible multiplier.
+ * Returns -1 if the number format is illegal.
+ */
+extern long getNum (const char *cp)
+{
+    long value;
+
+    if (!isDecimal (*cp))
+	return -1;
+
+    value = 0;
+
+    while (isDecimal (*cp))
+	value = value * 10 + *cp++ - '0';
+
+    switch (*cp++) {
+    case 'm':
+	value *= 1048576;
+	break;
+
+    case 'k':
+	value *= 1024;
+	break;
+
+    case 'b':
+	value *= 512;
+	break;
+
+    case 'w':
+	value *= 2;
+	break;
+
+    case '\0':
+	return value;
+
+    default:
+	return -1;
+    }
+
+    if (*cp)
+	return -1;
+
+    return value;
+}
+#endif
+
+
+#if defined BB_INIT || defined BB_HALT || defined BB_REBOOT 
+
+#if ! defined BB_FEATURE_USE_PROCFS
+#error Sorry, I depend on the /proc filesystem right now.
+#endif
+/* findInitPid()
+ *  
+ *  This finds the pid of init (which is not always 1).
+ *  Currently, it's implemented by rummaging through the proc filesystem.
+ *
+ *  [return]
+ *  0	    failure
+ *  pid	    when init's pid is found.
+ */
+extern pid_t
+findInitPid()
+{
+    pid_t   init_pid;
+    char    filename[256];
+    char    buffer[256];
+
+    /* no need to opendir ;) */
+    for (init_pid = 1; init_pid < 65536; init_pid++) {
+	FILE	*status;
+
+	sprintf(filename, "/proc/%d/status", init_pid);
+	status = fopen(filename, "r");
+	if (!status) { continue; }
+	fgets(buffer, 256, status);
+	fclose(status);
+
+	if ( (strstr(buffer, "init\n") != NULL )) {
+	    return init_pid;
+	}
+    }
+    return 0;
+}
+#endif
+
 /* END CODE */
-
-
-
-
-
-
-
-
-
