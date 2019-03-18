@@ -24,6 +24,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <ctype.h>		/* for isdigit() */
 #include "libbb.h"
 #include "dump.h"
@@ -248,8 +249,8 @@ static void rewrite(FS * fs)
 			pr->cchar = pr->fmt + (p1 - fmtp);
 
 			/* DBU:[dave@cray.com] w/o this, trailing fmt text, space is lost.
-			 * Skip subsequent text and up to the next % sign and tack the 
-			 * additional text onto fmt: eg. if fmt is "%x is a HEX number", 
+			 * Skip subsequent text and up to the next % sign and tack the
+			 * additional text onto fmt: eg. if fmt is "%x is a HEX number",
 			 * we lose the " is a HEX number" part of fmt.
 			 */
 			for (p3 = p2; *p3 && *p3 != '%'; p3++);
@@ -311,7 +312,7 @@ static void do_skip(char *fname, int statok)
 	struct stat sbuf;
 
 	if (statok) {
-		if (fstat(fileno(stdin), &sbuf)) {
+		if (fstat(STDIN_FILENO, &sbuf)) {
 			bb_perror_msg_and_die("%s", fname);
 		}
 		if ((!(S_ISCHR(sbuf.st_mode) ||
@@ -650,7 +651,7 @@ static void display(void)
 		for (pr = endfu->nextpr; pr; pr = pr->nextpr) {
 			switch (pr->flags) {
 			case F_ADDRESS:
-				(void) printf(pr->fmt, eaddress);
+				(void) printf(pr->fmt, (unsigned int) eaddress);
 				break;
 			case F_TEXT:
 				(void) printf(pr->fmt);

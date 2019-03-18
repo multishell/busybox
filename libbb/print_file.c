@@ -2,7 +2,7 @@
 /*
  * Utility routines.
  *
- * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include "libbb.h"
 
 extern void bb_xprint_and_close_file(FILE *file)
@@ -28,7 +29,7 @@ extern void bb_xprint_and_close_file(FILE *file)
 	bb_xfflush_stdout();
 	/* Note: Do not use STDOUT_FILENO here, as this is a lib routine
 	 *       and the calling code may have reassigned stdout. */
-	if (bb_copyfd_eof(fileno(file), fileno(stdout)) == -1) {
+	if (bb_copyfd_eof(fileno(file), STDOUT_FILENO) == -1) {
 		/* bb_copyfd outputs any needed messages, so just die. */
 		exit(bb_default_error_retval);
 	}

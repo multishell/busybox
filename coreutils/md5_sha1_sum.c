@@ -1,7 +1,7 @@
 /*
  *  Copyright (C) 2003 Glenn L. McGrath
- *  Copyright (C) 2003 Erik Andersen
- * 
+ *  Copyright (C) 2003-2004 Erik Andersen
+ *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation; either version 2 of the License, or
@@ -55,7 +55,7 @@ static uint8_t *hash_file(const char *filename, uint8_t hash_algo)
 	int src_fd;
 
 	if (strcmp(filename, "-") == 0) {
-		src_fd = fileno(stdin);
+		src_fd = STDIN_FILENO;
 	} else {
 		src_fd = open(filename, O_RDONLY);
 	}

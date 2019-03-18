@@ -315,7 +315,7 @@ static int count_dirs(struct dnode **dn, int nfiles, int notsubdirs)
 		if (S_ISDIR(dn[i]->dstat.st_mode)
 			&& (notsubdirs
 				|| ((dn[i]->name[0] != '.')
-					|| (dn[i]->name[1] 
+					|| (dn[i]->name[1]
 						&& ((dn[i]->name[1] != '.')
 							|| dn[i]->name[2])))))
 			dirs++;
@@ -532,7 +532,7 @@ static void showfiles(struct dnode **dn, int nfiles)
 }
 
 /*----------------------------------------------------------------------*/
-static void showdirs(struct dnode **dn, int ndirs)
+static void showdirs(struct dnode **dn, int ndirs, int first)
 {
 	int i, nfiles;
 	struct dnode **subdnp;
@@ -547,7 +547,10 @@ static void showdirs(struct dnode **dn, int ndirs)
 
 	for (i = 0; i < ndirs; i++) {
 		if (all_fmt & (DISP_DIRNAME | DISP_RECURSIVE)) {
-			printf("\n%s:\n", dn[i]->fullname);
+			if (!first)
+				printf("\n");
+			first = 0;
+			printf("%s:\n", dn[i]->fullname);
 		}
 		subdnp = list_dir(dn[i]->fullname);
 		nfiles = countfiles(subdnp);
@@ -566,7 +569,7 @@ static void showdirs(struct dnode **dn, int ndirs)
 #ifdef CONFIG_FEATURE_LS_SORTFILES
 					shellsort(dnd, dndirs);
 #endif
-					showdirs(dnd, dndirs);
+					showdirs(dnd, dndirs, 0);
 					free(dnd);	/* free the array of dnode pointers to the dirs */
 				}
 			}
@@ -917,10 +920,10 @@ static const unsigned opt_flags[] = {
 # endif
 #endif
 #ifdef CONFIG_FEATURE_LS_SORTFILES
-	SORT_ORDER_REVERSE,       	/* r */
 	SORT_SIZE,               	/* S */
+	SORT_EXT,                	/* X */
+	SORT_ORDER_REVERSE,       	/* r */
 	SORT_VERSION,             	/* v */
-	SORT_EXT,                	/* v */
 #endif
 #ifdef CONFIG_FEATURE_LS_FILETYPES
 	LIST_FILETYPE | LIST_EXEC,	/* F */
@@ -979,13 +982,13 @@ extern int ls_main(int argc, char **argv)
 
 #ifdef CONFIG_FEATURE_AUTOWIDTH
 	/* Obtain the terminal width.  */
-	get_terminal_width_height(0, &terminal_width, NULL);
+	get_terminal_width_height(STDOUT_FILENO, &terminal_width, NULL);
 	/* Go one less... */
 	terminal_width--;
 #endif
 
 #ifdef CONFIG_FEATURE_LS_COLOR
-	if (isatty(fileno(stdout)))
+	if (isatty(STDOUT_FILENO))
 		show_color = 1;
 #endif
 
@@ -1052,14 +1055,14 @@ extern int ls_main(int argc, char **argv)
 	if ((all_fmt & STYLE_MASK) == STYLE_LONG && (all_fmt & LIST_ID_NUMERIC))
 		all_fmt &= ~LIST_ID_NAME;	/* don't list names if numeric uid */
 #endif
-			
+
 	/* choose a display format */
 	if ((all_fmt & STYLE_MASK) == STYLE_AUTO)
 #if STYLE_AUTO != 0
 		all_fmt = (all_fmt & ~STYLE_MASK)
-				| (isatty(fileno(stdout)) ? STYLE_COLUMNS : STYLE_SINGLE);
+				| (isatty(STDOUT_FILENO) ? STYLE_COLUMNS : STYLE_SINGLE);
 #else
-		all_fmt |= (isatty(fileno(stdout)) ? STYLE_COLUMNS : STYLE_SINGLE);
+		all_fmt |= (isatty(STDOUT_FILENO) ? STYLE_COLUMNS : STYLE_SINGLE);
 #endif
 
 	/*
@@ -1107,7 +1110,6 @@ extern int ls_main(int argc, char **argv)
 		cur = cur->next;
 	}
 
-
 	if (all_fmt & DISP_NOLIST) {
 #ifdef CONFIG_FEATURE_LS_SORTFILES
 		shellsort(dnp, nfiles);
@@ -1129,7 +1131,7 @@ extern int ls_main(int argc, char **argv)
 #ifdef CONFIG_FEATURE_LS_SORTFILES
 			shellsort(dnd, dndirs);
 #endif
-			showdirs(dnd, dndirs);
+			showdirs(dnd, dndirs, dnfiles == 0);
 		}
 	}
 	return (status);

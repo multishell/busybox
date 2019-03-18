@@ -76,15 +76,15 @@ const int tftp_cmd_put = 2;
 
 #ifdef CONFIG_FEATURE_TFTP_BLOCKSIZE
 
-static int tftp_blocksize_check(int blocksize, int bufsize)  
+static int tftp_blocksize_check(int blocksize, int bufsize)
 {
-        /* Check if the blocksize is valid: 
+        /* Check if the blocksize is valid:
 	 * RFC2348 says between 8 and 65464,
 	 * but our implementation makes it impossible
 	 * to use blocksizes smaller than 22 octets.
 	 */
 
-        if ((bufsize && (blocksize > bufsize)) || 
+        if ((bufsize && (blocksize > bufsize)) ||
 	    (blocksize < 8) || (blocksize > 65464)) {
 	        bb_error_msg("bad blocksize");
 	        return 0;
@@ -93,12 +93,12 @@ static int tftp_blocksize_check(int blocksize, int bufsize)
 	return blocksize;
 }
 
-static char *tftp_option_get(char *buf, int len, char *option)  
+static char *tftp_option_get(char *buf, int len, char *option)
 {
         int opt_val = 0;
 	int opt_found = 0;
 	int k;
-  
+
 	while (len > 0) {
 
 	        /* Make sure the options are terminated correctly */
@@ -117,21 +117,21 @@ static char *tftp_option_get(char *buf, int len, char *option)
 			if (strcasecmp(buf, option) == 0) {
 			        opt_found = 1;
 			}
-		}      
+		}
 		else {
 		        if (opt_found) {
 				return buf;
 			}
 		}
-    
+
 		k++;
-		
+
 		buf += k;
 		len -= k;
-		
+
 		opt_val ^= 1;
 	}
-	
+
 	return NULL;
 }
 
@@ -207,7 +207,7 @@ static inline int tftp(const int cmd, const struct hostent *host,
 
 		if ((cmd_get && (opcode == TFTP_RRQ)) ||
 			(cmd_put && (opcode == TFTP_WRQ))) {
-                        int too_long = 0; 
+                        int too_long = 0;
 
 			/* see if the filename fits into buf */
 			/* and fill in packet                */
@@ -294,7 +294,7 @@ static inline int tftp(const int cmd, const struct hostent *host,
 #ifdef CONFIG_FEATURE_TFTP_DEBUG
 			fprintf(stderr, "sending %u bytes\n", len);
 			for (cp = buf; cp < &buf[len]; cp++)
-				fprintf(stderr, "%02x ", *cp);
+				fprintf(stderr, "%02x ", (unsigned char)*cp);
 			fprintf(stderr, "\n");
 #endif
 			if (sendto(socketfd, buf, len, 0,
@@ -380,7 +380,7 @@ static inline int tftp(const int cmd, const struct hostent *host,
 			if (buf[4] != '\0') {
 				msg = &buf[4];
 				buf[tftp_bufsize - 1] = '\0';
-			} else if (tmp < (sizeof(tftp_bb_error_msg) 
+			} else if (tmp < (sizeof(tftp_bb_error_msg)
 					  / sizeof(char *))) {
 
 				msg = (char *) tftp_bb_error_msg[tmp];
@@ -404,12 +404,12 @@ static inline int tftp(const int cmd, const struct hostent *host,
 
 			         char *res;
 
-				 res = tftp_option_get(&buf[2], len-2, 
+				 res = tftp_option_get(&buf[2], len-2,
 						       "blksize");
 
 				 if (res) {
 				         int blksize = atoi(res);
-			     
+			
 					 if (tftp_blocksize_check(blksize,
 							   tftp_bufsize - 4)) {
 
@@ -443,7 +443,7 @@ static inline int tftp(const int cmd, const struct hostent *host,
 		if (cmd_get && (opcode == TFTP_DATA)) {
 
 			if (tmp == block_nr) {
-			    
+			
 				len = write(localfd, &buf[4], len - 4);
 
 				if (len < 0) {
@@ -506,13 +506,13 @@ int tftp_main(int argc, char **argv)
 #ifdef CONFIG_FEATURE_TFTP_GET
 #define GET "g"
 #else
-#define GET 
+#define GET
 #endif
 
 #ifdef CONFIG_FEATURE_TFTP_PUT
 #define PUT "p"
 #else
-#define PUT 
+#define PUT
 #endif
 
 	while ((opt = getopt(argc, argv, BS GET PUT "l:r:")) != -1) {
@@ -528,7 +528,7 @@ int tftp_main(int argc, char **argv)
 #ifdef CONFIG_FEATURE_TFTP_GET
 		case 'g':
 			cmd = tftp_cmd_get;
-			flags = O_WRONLY | O_CREAT;
+			flags = O_WRONLY | O_CREAT | O_TRUNC;
 			break;
 #endif
 #ifdef CONFIG_FEATURE_TFTP_PUT
@@ -537,7 +537,7 @@ int tftp_main(int argc, char **argv)
 			flags = O_RDONLY;
 			break;
 #endif
-		case 'l': 
+		case 'l':
 			localfile = bb_xstrdup(optarg);
 			break;
 		case 'r':
@@ -576,7 +576,7 @@ int tftp_main(int argc, char **argv)
 	result = tftp(cmd, host, remotefile, fd, port, blocksize);
 
 #ifdef CONFIG_FEATURE_CLEAN_UP
-	if (!(fd == fileno(stdout) || fd == fileno(stdin))) {
+	if (!(fd == STDOUT_FILENO || fd == STDIN_FILENO)) {
 	    close(fd);
 	}
 #endif

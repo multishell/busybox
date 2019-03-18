@@ -1,7 +1,7 @@
 /* vi: set sw=4 ts=4: */
 /*
- * ftpget 
- *  
+ * ftpget
+ *
  * Mini implementation of FTP to retrieve a remote file.
  *
  * Copyright (C) 2002 Jeff Angielski, The PTR Group <jeff@theptrgroup.com>
@@ -131,7 +131,7 @@ static FILE *ftp_login(ftp_host_info_t *server)
 }
 
 #ifdef CONFIG_FTPGET
-static int ftp_recieve(ftp_host_info_t *server, FILE *control_stream, 
+static int ftp_recieve(ftp_host_info_t *server, FILE *control_stream,
 		const char *local_path, char *server_path)
 {
 	char buf[512];
@@ -147,11 +147,14 @@ static int ftp_recieve(ftp_host_info_t *server, FILE *control_stream,
 	fd_data = xconnect_ftpdata(server, buf);
 
 	if (ftpcmd("SIZE ", server_path, control_stream, buf) == 213) {
-		filesize = atol(buf + 4);
+		unsigned long value=filesize;
+		if (safe_strtoul(buf + 4, &value))
+			bb_error_msg_and_die("SIZE error: %s", buf + 4);
+		filesize = value;
 	}
 
 	if ((local_path[0] == '-') && (local_path[1] == '\0')) {
-		fd_local = fileno(stdout);
+		fd_local = STDOUT_FILENO;
 		do_continue = 0;
 	}
 
@@ -200,13 +203,13 @@ static int ftp_recieve(ftp_host_info_t *server, FILE *control_stream,
 		bb_error_msg_and_die("ftp error: %s", buf + 4);
 	}
 	ftpcmd("QUIT", NULL, control_stream, buf);
-	
+
 	return(EXIT_SUCCESS);
 }
 #endif
 
 #ifdef CONFIG_FTPPUT
-static int ftp_send(ftp_host_info_t *server, FILE *control_stream, 
+static int ftp_send(ftp_host_info_t *server, FILE *control_stream,
 		const char *server_path, char *local_path)
 {
 	struct stat sbuf;
@@ -227,7 +230,7 @@ static int ftp_send(ftp_host_info_t *server, FILE *control_stream,
 
 	/* get the local file */
 	if ((local_path[0] == '-') && (local_path[1] == '\0')) {
-		fd_local = fileno(stdin);
+		fd_local = STDIN_FILENO;
 	} else {
 		fd_local = bb_xopen(local_path, O_RDONLY);
 		fstat(fd_local, &sbuf);
@@ -326,8 +329,8 @@ int ftpgetput_main(int argc, char **argv)
 	server->password = "busybox@";
 	verbose_flag = 0;
 
-	/* 
-	 * Decipher the command line 
+	/*
+	 * Decipher the command line
 	 */
 	bb_applet_long_options = ftpgetput_long_options;
 	opt = bb_getopt_ulflags(argc, argv, "cvu:p:P:", &server->user, &server->password, &port);

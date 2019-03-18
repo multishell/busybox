@@ -2,7 +2,7 @@
 /*
  * lash -- the BusyBox Lame-Ass SHell
  *
- * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
  *
  * Based in part on ladsh.c by Michael K. Johnson and Erik W. Troan, which is
  * under the following liberal license: "We have placed this source code in the
@@ -927,7 +927,7 @@ static int expand_arguments(char *command)
 
 		}
 		if (var) {
-			/* a single character construction was found, and 
+			/* a single character construction was found, and
 			 * already handled in the case statement */
 			src=dst+2;
 		} else {
@@ -1093,7 +1093,7 @@ static int parse_command(char **command_ptr, struct job *job, int *inbg)
 
 				prog->redirects[i].fd = -1;
 				if (buf != prog->argv[argc_l]) {
-					/* the stuff before this character may be the file number 
+					/* the stuff before this character may be the file number
 					   being redirected */
 					prog->redirects[i].fd =
 						strtol(prog->argv[argc_l], &chptr, 10);
@@ -1275,15 +1275,6 @@ static int pseudo_exec(struct child_prog *child)
 	 */
 	name = child->argv[0];
 
-#ifdef CONFIG_FEATURE_SH_APPLETS_ALWAYS_WIN
-	/* If you enable CONFIG_FEATURE_SH_APPLETS_ALWAYS_WIN, then
-	 * if you run /bin/cat, it will use BusyBox cat even if
-	 * /bin/cat exists on the filesystem and is _not_ busybox.
-	 * Some systems want this, others do not.  Choose wisely.  :-)
-	 */
-	name = bb_get_last_path_component(name);
-#endif
-
 	{
 	    char** argv_l=child->argv;
 	    int argc_l;
@@ -1457,14 +1448,13 @@ static int busy_loop(FILE * input)
 	int i;
 	int inbg;
 	int status;
-	newjob.job_list = &job_list;
-	newjob.job_context = DEFAULT_CONTEXT;
 #ifdef CONFIG_LASH_JOB_CONTROL
 	pid_t  parent_pgrp;
-
 	/* save current owner of TTY so we can restore it on exit */
 	parent_pgrp = tcgetpgrp(shell_terminal);
 #endif
+	newjob.job_list = &job_list;
+	newjob.job_context = DEFAULT_CONTEXT;
 
 	command = (char *) xcalloc(BUFSIZ, sizeof(char));
 
@@ -1669,7 +1659,7 @@ int lash_main(int argc_l, char **argv_l)
 	 *    standard output is a terminal
 	 *    Refer to Posix.2, the description of the `sh' utility. */
 	if (argv[optind]==NULL && input==stdin &&
-			isatty(fileno(stdin)) && isatty(fileno(stdout))) {
+			isatty(STDIN_FILENO) && isatty(STDOUT_FILENO)) {
 		interactive=TRUE;
 	}
 	setup_job_control();

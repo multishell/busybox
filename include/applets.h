@@ -292,7 +292,7 @@
 #ifdef CONFIG_IP
 	APPLET(ip, ip_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
-#ifdef CONFIG_IPADDRESS
+#ifdef CONFIG_IPADDR
 	APPLET(ipaddr, ipaddr_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_IPCALC
@@ -501,7 +501,7 @@
 #endif
 #ifdef CONFIG_RUN_PARTS
 	APPLET_ODDNAME("run-parts", run_parts_main, _BB_DIR_BIN, _BB_SUID_NEVER, run_parts)
-#endif	
+#endif
 #ifdef CONFIG_RX
 	APPLET(rx, rx_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif

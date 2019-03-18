@@ -2,7 +2,7 @@
 /*
  * Mini rmmod implementation for busybox
  *
- * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,9 +29,6 @@
 #include <sys/syscall.h>
 #include "busybox.h"
 
-extern int delete_module(const char * name);
-
-
 extern int rmmod_main(int argc, char **argv)
 {
 	int n, ret = EXIT_SUCCESS;
@@ -46,16 +43,16 @@ extern int rmmod_main(int argc, char **argv)
 		switch (n) {
 			case 'w':       // --wait
 				flags &= ~O_NONBLOCK;
-				break;  
+				break;
 			case 'f':       // --force
 				flags |= O_TRUNC;
-				break;  
+				break;
 			case 'a':
 				/* Unload _all_ unused modules via NULL delete_module() call */
 				/* until the number of modules does not change */
 				buf = xmalloc(bufsize = 256);
 				while (nmod != pnmod) {
-					if (delete_module(NULL))
+					if (syscall(__NR_delete_module, NULL, flags) < 0)
 						bb_perror_msg_and_die("rmmod");
 					pnmod = nmod;
 					/* 1 == QM_MODULES */

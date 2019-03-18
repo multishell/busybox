@@ -41,7 +41,7 @@ config CONFIG_ASH
 	  the most complete and most pedantically correct shell included with
 	  busybox.  This shell is actually a derivative of the Debian 'dash'
 	  shell (by Herbert Xu), which was created by porting the 'ash' shell
-	  (written by Kenneth Almquist) from NetBSD.  
+	  (written by Kenneth Almquist) from NetBSD.
 
 comment "Ash Shell Options"
 	depends on CONFIG_ASH
@@ -97,6 +97,17 @@ config CONFIG_ASH_OPTIMIZE_FOR_SIZE
 	help
 	  Compile ash for reduced size at price of speed.
 
+config CONFIG_ASH_RANDOM_SUPPORT
+	bool "  Enable pseudorandom generator and variable $RANDOM"
+	default n
+	depends on CONFIG_ASH
+	help
+	  Enable pseudorandom generator and dynamic variable "$RANDOM".
+	  Each read of "$RANDOM" will generate a new pseudorandom value.
+	  You can reset the generator by using a specified start value.
+	  After "unset RANDOM" then generator will switch off and this
+	  variable will no longer have special treatment.
+
 config CONFIG_HUSH
 	bool "hush"
 	default n
@@ -149,16 +160,14 @@ config CONFIG_FEATURE_SH_STANDALONE_SHELL
 	default n
 	depends on CONFIG_MSH || CONFIG_LASH || CONFIG_HUSH || CONFIG_ASH
 	help
-	  Have all the busybox commands built into the shell, creating
-	  a standalone shell.
-
-config CONFIG_FEATURE_SH_APPLETS_ALWAYS_WIN
-	bool "Standalone shell -- applets always win"
-	default n
-	depends on CONFIG_FEATURE_SH_STANDALONE_SHELL
-	help
-	  Use a command builtin to the shell over one with the same name,
-	  that may be on the system.
+	  This option causes the selected busybox shell to use busybox applets
+	  in preference to executables in the PATH whenever possible.  For
+	  example, entering the command 'ifconfig' into the shell would cause
+	  busybox to use the ifconfig busybox applet.  Specifying the fully
+	  qualified executable name, such as '/sbin/ifconfig' will still
+	  execute the /sbin/ifconfig executable on the filesystem.  This option
+	  is generally used when creating a staticly linked version of busybox
+	  for use as a rescue shell, in the event that you screw up your system.
 
 config CONFIG_FEATURE_COMMAND_EDITING
 	bool "command line editing"

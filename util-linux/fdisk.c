@@ -52,7 +52,7 @@
 #define BLKSSZGET  _IO(0x12,104)   /* get block device sector size */
 
 /* Avoid conflicts with the 2.6 kernel headers, which define
- * _IOR rather differently */ 
+ * _IOR rather differently */
 #undef _IOR
 #define _IOR(type,nr,size)      _IOC(_IOC_READ,(type),(nr),sizeof(size))
 #define BLKGETSIZE64 _IOR(0x12,114,uint64_t)
@@ -90,13 +90,6 @@
 
 #ifdef CONFIG_FEATURE_SUN_LABEL
 #define SCSI_IOCTL_GET_IDLUN 0x5382
-#endif
-
-
-#if defined(CONFIG_LFS) || defined(FDISK_SUPPORT_LARGE_DISKS) || defined(__alpha__) || defined(__ia64__) || defined(__s390x__)
-typedef long long fdisk_loff_t;
-#else
-typedef long fdisk_loff_t;
 #endif
 
 
@@ -846,71 +839,6 @@ typedef struct {
 #define SUN_SSWAP32(x) (sun_other_endian ? __swap32(x) \
 				 : (uint32_t)(x))
 
-#if defined(CONFIG_LFS) || defined(FDISK_SUPPORT_LARGE_DISKS)
-/*
- * llseek.c -- stub calling the llseek system call
- *
- * Copyright (C) 1994 Remy Card.  This file may be redistributed
- * under the terms of the GNU Public License.
- */
-
-
-#if defined(__alpha__) || defined(__ia64__) || defined(__s390x__)
-
-#define my_llseek lseek
-
-#else
-
-#include <syscall.h>
-
-static fdisk_loff_t my_llseek (unsigned int f_d, fdisk_loff_t offset,
-		unsigned int origin)
-{
-	fdisk_loff_t result;
-	int retval;
-
-	retval = syscall(__NR__llseek, f_d, (unsigned long)(((unsigned long long) offset) >> 32),
-			(unsigned long)(((unsigned long long) offset) & 0xffffffff),
-			&result, origin);
-	return (retval == -1 ? (fdisk_loff_t) retval : result);
-}
-
-#endif /* __alpha__ */
-
-
-static fdisk_loff_t fdisk_llseek (unsigned int f_d, fdisk_loff_t offset,
-			 unsigned int origin)
-{
-	fdisk_loff_t result;
-	static int do_compat = 0;
-
-	if (!do_compat) {
-		result = my_llseek (f_d, offset, origin);
-		if (!(result == -1 && errno == ENOSYS))
-			return result;
-
-		/*
-		 * Just in case this code runs on top of an old kernel
-		 * which does not support the llseek system call
-		 */
-		do_compat = 1;
-		/*
-		 * Now try ordinary lseek.
-		 */
-	}
-
-	if ((sizeof(off_t) >= sizeof(fdisk_loff_t)) ||
-	    (offset < ((fdisk_loff_t) 1 << ((sizeof(off_t)*8) -1))))
-		return lseek(f_d, (off_t) offset, origin);
-
-	errno = EINVAL;
-	return -1;
-}
-#else
-# define fdisk_llseek lseek
-#endif  /* FDISK_SUPPORT_LARGE_DISKS */
-
-
 
 #ifdef CONFIG_FEATURE_OSF_LABEL
 /*
@@ -1437,7 +1365,7 @@ xbsd_write_bootstrap (void)
   sector = get_start_sect(xbsd_part);
 #endif
 
-  if (fdisk_llseek (fd, (fdisk_loff_t) sector * SECTOR_SIZE, SEEK_SET) == -1)
+  if (lseek (fd, sector * SECTOR_SIZE, SEEK_SET) == -1)
     fdisk_fatal (unable_to_seek);
   if (BSD_BBSIZE != write (fd, disklabelbuffer, BSD_BBSIZE))
     fdisk_fatal (unable_to_write);
@@ -1605,7 +1533,7 @@ xbsd_readlabel (struct partition *p, struct xbsd_disklabel *d)
 	sector = 0;
 #endif
 
-	if (fdisk_llseek (fd, (fdisk_loff_t) sector * SECTOR_SIZE, SEEK_SET) == -1)
+	if (lseek (fd, sector * SECTOR_SIZE, SEEK_SET) == -1)
 		fdisk_fatal (unable_to_seek);
 	if (BSD_BBSIZE != read (fd, disklabelbuffer, BSD_BBSIZE))
 		fdisk_fatal (unable_to_read);
@@ -1651,12 +1579,12 @@ xbsd_writelabel (struct partition *p, struct xbsd_disklabel *d)
 
 #if defined (__alpha__) && BSD_LABELSECTOR == 0
   alpha_bootblock_checksum (disklabelbuffer);
-  if (fdisk_llseek (fd, (fdisk_loff_t) 0, SEEK_SET) == -1)
+  if (lseek (fd, 0, SEEK_SET) == -1)
     fdisk_fatal (unable_to_seek);
   if (BSD_BBSIZE != write (fd, disklabelbuffer, BSD_BBSIZE))
     fdisk_fatal (unable_to_write);
 #else
-  if (fdisk_llseek (fd, (fdisk_loff_t) sector * SECTOR_SIZE + BSD_LABELOFFSET,
+  if (lseek (fd, sector * SECTOR_SIZE + BSD_LABELOFFSET,
 		   SEEK_SET) == -1)
     fdisk_fatal (unable_to_seek);
   if (sizeof (struct xbsd_disklabel) != write (fd, d, sizeof (struct xbsd_disklabel)))
@@ -2083,8 +2011,7 @@ sgi_write_table(void) {
 	 */
 	 sgiinfo *info = fill_sgiinfo();
 	 int infostartblock = SGI_SSWAP32(sgilabel->directory[0].vol_file_start);
-	 if (fdisk_llseek(fd, (long long)infostartblock*
-				SECTOR_SIZE, SEEK_SET) < 0)
+	 if (lseek(fd, infostartblock*SECTOR_SIZE, SEEK_SET) < 0)
 	    fdisk_fatal(unable_to_seek);
 	 if (write(fd, info, SECTOR_SIZE) != SECTOR_SIZE)
 	    fdisk_fatal(unable_to_write);
@@ -3466,8 +3393,8 @@ static void fdisk_fatal(enum failure why) {
 
 static void
 seek_sector(uint secno) {
-	fdisk_loff_t offset = (fdisk_loff_t) secno * sector_size;
-	if (fdisk_llseek(fd, offset, SEEK_SET) == (fdisk_loff_t) -1)
+	off_t offset = secno * sector_size;
+	if (lseek(fd, offset, SEEK_SET) == (off_t) -1)
 		fdisk_fatal(unable_to_seek);
 }
 
@@ -4279,7 +4206,7 @@ read_int(uint low, uint dflt, uint high, uint base, char *mesg)
 
 		       while (isdigit(*++line_ptr))
 			       use_default = 0;
-	    
+	
 		       switch (*line_ptr) {
 			       case 'c':
 			       case 'C':

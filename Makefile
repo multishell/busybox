@@ -1,6 +1,6 @@
 # Makefile for busybox
 #
-# Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
+# Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -46,6 +46,7 @@ all: busybox busybox.links doc
 # In this section, we need .config
 -include .config.cmd
 include $(patsubst %,%/Makefile.in, $(DIRS))
+-include $(TOPDIR).depend
 
 busybox: .depend include/config.h $(libraries-y)
 	$(CC) $(LDFLAGS) -o $@ -Wl,--start-group $(libraries-y) $(LIBRARIES) -Wl,--end-group
@@ -66,10 +67,7 @@ install-hardlinks: applets/install.sh busybox busybox.links
 
 
 # Documentation Targets
-doc: olddoc
-
-# Old Docs...
-olddoc: docs/busybox.pod docs/BusyBox.txt docs/BusyBox.1 docs/BusyBox.html
+doc: docs/busybox.pod docs/BusyBox.txt docs/BusyBox.1 docs/BusyBox.html
 
 docs/busybox.pod : docs/busybox_header.pod include/usage.h docs/busybox_footer.pod
 	- ( cat docs/busybox_header.pod; \
@@ -99,33 +97,6 @@ docs/busybox.net/BusyBox.html: docs/busybox.pod
 	    docs/busybox.net/BusyBox.html
 	-@ rm -f pod2htm*
 
-
-# New docs based on DOCBOOK SGML
-newdoc: docs/busybox.txt docs/busybox.pdf docs/busybox/busyboxdocumentation.html
-
-docs/busybox.txt: docs/busybox.sgml
-	@echo
-	@echo BusyBox Documentation
-	@echo
-	- mkdir -p docs
-	(cd docs; sgmltools -b txt busybox.sgml)
-
-docs/busybox.dvi: docs/busybox.sgml
-	- mkdir -p docs
-	(cd docs; sgmltools -b dvi busybox.sgml)
-
-docs/busybox.ps: docs/busybox.sgml
-	- mkdir -p docs
-	(cd docs; sgmltools -b ps busybox.sgml)
-
-docs/busybox.pdf: docs/busybox.ps
-	- mkdir -p docs
-	(cd docs; ps2pdf busybox.ps)
-
-docs/busybox/busyboxdocumentation.html: docs/busybox.sgml
-	- mkdir -p docs
-	(cd docs/busybox.net; sgmltools -b html ../busybox.sgml)
-
 # The nifty new buildsystem stuff
 scripts/mkdep: scripts/mkdep.c
 	$(HOSTCC) $(HOSTCFLAGS) -o scripts/mkdep scripts/mkdep.c
@@ -138,10 +109,9 @@ scripts/split-include: scripts/split-include.c
 	mkdir -p include/config;
 	$(HOSTCC) $(HOSTCFLAGS) -o scripts/mkdep scripts/mkdep.c
 	scripts/mkdep -I include -- \
-		`find . -name \*.c -print` >> .depend;
+		`find -name \*.c -print | sed -e "s,^./,,"` >> .depend;
 	scripts/mkdep -I include -- \
-		`find . -name \*.h -print` >> .hdepend;
-	$(MAKE) $(patsubst %,_sfdep_%,$(DIRS)) _FASTDEP_ALL_SUB_DIRS="$(DIRS)" ;
+		`find -name \*.h -print | sed -e "s,^./,,"` >> .hdepend;
 
 depend dep: include/config.h .depend
 
@@ -195,6 +165,11 @@ randconfig: scripts/config/conf
 
 allyesconfig: scripts/config/conf
 	@./scripts/config/conf -y $(CONFIG_CONFIG_IN)
+	sed -i -e "s/^CONFIG_DEBUG.*/# CONFIG_DEBUG is not set/" .config
+	sed -i -e "s/^USING_CROSS_COMPILER.*/# USING_CROSS_COMPILER is not set/" .config
+	sed -i -e "s/^CONFIG_STATIC.*/# CONFIG_STATIC is not set/" .config
+	sed -i -e "s/^CONFIG_SELINUX.*/# CONFIG_SELINUX is not set/" .config
+	@./scripts/config/conf -o $(CONFIG_CONFIG_IN)
 
 allnoconfig: scripts/config/conf
 	@./scripts/config/conf -n $(CONFIG_CONFIG_IN)
@@ -212,14 +187,14 @@ check: busybox
 
 clean:
 	- $(MAKE) -C tests clean
-	- rm -f docs/busybox.txt docs/busybox.dvi docs/busybox.ps \
-	    docs/busybox.pdf docs/busybox.pod docs/busybox.net/busybox.html \
+	- rm -f docs/busybox.dvi docs/busybox.ps \
+	    docs/busybox.pod docs/busybox.net/busybox.html \
 	    docs/busybox pod2htm* *.gdb *.elf *~ core .*config.log \
 	    docs/BusyBox.txt docs/BusyBox.1 docs/BusyBox.html \
 	    docs/busybox.net/BusyBox.html busybox.links libbb/loop.h \
 	    .config.old .hdepend busybox
 	- rm -rf _install
-	- find . -name .\*.flags -exec rm -f {} \;   
+	- find . -name .\*.flags -exec rm -f {} \;
 	- find . -name \*.o -exec rm -f {} \;
 	- find . -name \*.a -exec rm -f {} \;
 

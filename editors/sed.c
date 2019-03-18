@@ -6,6 +6,7 @@
  * Copyright (C) 1999,2000,2001 by Mark Whitley <markw@codepoet.org>
  * Copyright (C) 2002  Matt Kraai
  * Copyright (C) 2003 by Glenn McGrath <bug1@optushome.com.au>
+ * Copyright (C) 2003,2004 by Rob Landley <rob@landley.net>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -209,7 +210,7 @@ static char *copy_parsing_slashn(const char *string, int len)
 /*
  * index_of_next_unescaped_regexp_delim - walks left to right through a string
  * beginning at a specified index and returns the index of the next regular
- * expression delimiter (typically a forward * slash ('/')) not preceeded by 
+ * expression delimiter (typically a forward * slash ('/')) not preceeded by
  * a backslash ('\').
  */
 static int index_of_next_unescaped_regexp_delim(const char delimiter,
@@ -294,7 +295,7 @@ static int get_address(char *my_str, int *linenum, regex_t ** regex)
 		next = index_of_next_unescaped_regexp_delim(delimiter, ++pos);
 		if (next == -1)
 			bb_error_msg_and_die("unterminated match expression");
-		
+
 		temp=copy_parsing_slashn(pos,next);
 		*regex = (regex_t *) xmalloc(sizeof(regex_t));
 		xregcomp(*regex, temp, REG_NEWLINE);
@@ -372,7 +373,7 @@ static int parse_subst_cmd(sed_cmd_t * const sed_cmd, char *substr)
 			{
 				char *temp;
 				idx+=parse_file_cmd(sed_cmd,substr+idx,&temp);
-				
+
 				break;
 			}
 			/* Ignore case (gnu exension) */
@@ -410,7 +411,13 @@ static char *parse_cmd_args(sed_cmd_t *sed_cmd, char *cmdstr)
 		if ((sed_cmd->end_line || sed_cmd->end_match) && sed_cmd->cmd != 'c')
 			bb_error_msg_and_die
 				("only a beginning address can be specified for edit commands");
-		while(isspace(*cmdstr)) cmdstr++;
+		for(;;) {
+			if(*cmdstr=='\n' || *cmdstr=='\\') {
+				cmdstr++;
+				break;
+			} else if(isspace(*cmdstr)) cmdstr++;
+			else break;
+		}
 		sed_cmd->string = bb_xstrdup(cmdstr);
 		parse_escapes(sed_cmd->string,sed_cmd->string,strlen(cmdstr),0,0);
 		cmdstr += strlen(cmdstr);

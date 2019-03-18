@@ -13,7 +13,7 @@
  *
  * General cleanup to better adhere to the style guide and make use of standard
  * busybox functions by Glenn McGrath <bug1@optushome.com.au>
- * 
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -98,7 +98,7 @@ extern int gunzip_main(int argc, char **argv)
 		optind++;
 
 		if (old_path == NULL || strcmp(old_path, "-") == 0) {
-			src_fd = fileno(stdin);
+			src_fd = STDIN_FILENO;
 			opt |= GUNZIP_OPT_STDOUT;
 		} else {
 			src_fd = bb_xopen(old_path, O_RDONLY);
@@ -119,7 +119,7 @@ extern int gunzip_main(int argc, char **argv)
 		if (opt & GUNZIP_OPT_TEST) {
 			dst_fd = bb_xopen("/dev/null", O_WRONLY);	/* why does test use filenum 2 ? */
 		} else if (opt & GUNZIP_OPT_STDOUT) {
-			dst_fd = fileno(stdout);
+			dst_fd = STDOUT_FILENO;
 		} else {
 			char *extension;
 
@@ -153,12 +153,12 @@ extern int gunzip_main(int argc, char **argv)
 		/* do the decompression, and cleanup */
 		if (bb_xread_char(src_fd) == 0x1f) {
 			unsigned char magic2;
-			
+
 			magic2 = bb_xread_char(src_fd);
 #ifdef CONFIG_FEATURE_GUNZIP_UNCOMPRESS
 			if (magic2 == 0x9d) {
 				status = uncompress(src_fd, dst_fd);
-			} else 
+			} else
 #endif
 				if (magic2 == 0x8b) {
 					check_header_gzip(src_fd);
@@ -178,10 +178,10 @@ extern int gunzip_main(int argc, char **argv)
 			delete_path = new_path;
 		}
 
-		if (dst_fd != fileno(stdout)) {
+		if (dst_fd != STDOUT_FILENO) {
 			close(dst_fd);
 		}
-		if (src_fd != fileno(stdin)) {
+		if (src_fd != STDIN_FILENO) {
 			close(src_fd);
 		}
 

@@ -14,6 +14,8 @@ Emanuele Aina <emanuele.aina@tiscali.it>
 Erik Andersen <andersen@codepoet.org>
     Tons of new stuff, major rewrite of most of the
     core apps, tons of new apps as noted in header files.
+    Lots of tedious effort writing these boring docs that
+    nobody is going to actually read.
 
 Laurence Anderson <l.d.anderson@warwick.ac.uk>
     rpm2cpio, unzip, get_header_cpio, read_gz interface, rpm
@@ -23,7 +25,7 @@ Jeff Angielski <jeff@theptrgroup.com>
 
 Edward Betts <edward@debian.org>
     expr, hostid, logname, whoami
- 
+
 John Beppu <beppu@codepoet.org>
     du, nslookup, sort
 
@@ -33,8 +35,8 @@ Brian Candler <B.Candler@pobox.com>
 Randolph Chung <tausq@debian.org>
     fbset, ping, hostname
 
-Dave Cinege <dcinege@psychosis.com>	
-    more(v2), makedevs, dutmp, modularization, auto links file, 
+Dave Cinege <dcinege@psychosis.com>
+    more(v2), makedevs, dutmp, modularization, auto links file,
     various fixes, Linux Router Project maintenance
 
 Jordan Crouse <jordan@cosmicpenguin.net>
@@ -66,7 +68,7 @@ Matt Kraai <kraai@alumni.cmu.edu>
 Stephan Linz <linz@li-pro.net>
 	ipcalc, Red Hat equivalence
 
-John Lombardo <john@deltanet.com>	
+John Lombardo <john@deltanet.com>
     tr
 
 Glenn McGrath <bug1@optushome.com.au>
@@ -80,7 +82,7 @@ Manuel Novoa III <mjn3@codepoet.org>
     also bug fixes, partial rewrites, and size optimizations in
     ash, basename, cal, cmp, cp, df, du, echo, env, ln, logname, md5sum, mkdir,
     mv, realpath, rm, sort, tail, touch, uname, watch, arith, human_readable,
-    interface, dutmp, ifconfig
+    interface, dutmp, ifconfig, route
 
 Vladimir Oleynik <dzo@simtreas.ru>
     cmdedit; xargs(current), httpd(current);
@@ -89,7 +91,7 @@ Vladimir Oleynik <dzo@simtreas.ru>
     and irreconcilable critic of everything not perfect.
 
 Bruce Perens <bruce@pixar.com>
-    Original author of BusyBox in 1995, 1996. Some of his code can 
+    Original author of BusyBox in 1995, 1996. Some of his code can
     still be found hiding here and there...
 
 Tim Riker <Tim@Rikers.org>

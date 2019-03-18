@@ -55,7 +55,7 @@ static volatile unsigned long statbytes = 0; /* Number of bytes transferred so f
 /* For progressmeter() -- number of seconds before xfer considered "stalled" */
 static const int STALLTIME = 5;
 #endif
-		
+
 static void close_and_delete_outfile(FILE* output, char *fname_out, int do_continue)
 {
 	if (output != stdout && do_continue==0) {
@@ -236,18 +236,18 @@ int wget_main(int argc, char **argv)
 			use_proxy = 0;
 		}
 	}
-	
+
 	/* Guess an output filename */
 	if (!fname_out) {
-		fname_out = 
+		fname_out =
 #ifdef CONFIG_FEATURE_WGET_STATUSBAR
-			curfile = 
+			curfile =
 #endif
 			bb_get_last_path_component(target.path);
 		if (fname_out==NULL || strlen(fname_out)<1) {
-			fname_out = 
+			fname_out =
 #ifdef CONFIG_FEATURE_WGET_STATUSBAR
-				curfile = 
+				curfile =
 #endif
 				"index.html";
 		}
@@ -309,7 +309,7 @@ int wget_main(int argc, char **argv)
 			 */
 			if (sfp) fclose(sfp);
 			sfp = open_socket(&s_in);
-			
+
 			/*
 			 * Send HTTP request.
 			 */
@@ -351,7 +351,7 @@ int wget_main(int argc, char **argv)
 read_response:
 			if (fgets(buf, sizeof(buf), sfp) == NULL)
 				close_delete_and_die("no response from server");
-				
+
 			for (s = buf ; *s != '\0' && !isspace(*s) ; ++s)
 			;
 			for ( ; isspace(*s) ; ++s)
@@ -379,13 +379,17 @@ read_response:
 					chomp(buf);
 					close_delete_and_die("server returned error %d: %s", atoi(s), buf);
 			}
-		
+
 			/*
 			 * Retrieve HTTP headers.
 			 */
 			while ((s = gethdr(buf, sizeof(buf), sfp, &n)) != NULL) {
 				if (strcasecmp(buf, "content-length") == 0) {
-					filesize = atol(s);
+					unsigned long value;
+					if (safe_strtoul(s, &value)) {
+						close_delete_and_die("content-length %s is garbage", s);
+					}
+					filesize = value;
 					got_clen = 1;
 					continue;
 				}
@@ -412,7 +416,7 @@ read_response:
 				}
 			}
 		} while(status >= 300);
-		
+
 		dfp = sfp;
 	}
 	else
@@ -427,7 +431,7 @@ read_response:
 		if (ftpcmd(NULL, NULL, sfp, buf) != 220)
 			close_delete_and_die("%s", buf+4);
 
-		/* 
+		/*
 		 * Splitting username:password pair,
 		 * trying to log in
 		 */
@@ -444,18 +448,22 @@ read_response:
 			default:
 				close_delete_and_die("ftp login: %s", buf+4);
 		}
-		
+
 		ftpcmd("CDUP", NULL, sfp, buf);
 		ftpcmd("TYPE I", NULL, sfp, buf);
-		
+
 		/*
 		 * Querying file size
 		 */
 		if (ftpcmd("SIZE /", target.path, sfp, buf) == 213) {
-			filesize = atol(buf+4);
+			unsigned long value;
+			if (safe_strtoul(buf+4, &value)) {
+				close_delete_and_die("SIZE value is garbage");
+			}
+			filesize = value;
 			got_clen = 1;
 		}
-		
+
 		/*
 		 * Entering passive mode
 		 */
@@ -478,7 +486,7 @@ read_response:
 			} else
 				filesize -= beg_range;
 		}
-		
+
 		if (ftpcmd("RETR /", target.path, sfp, buf) > 150)
 			close_delete_and_die("RETR: %s", buf+4);
 
@@ -653,27 +661,27 @@ char *gethdr(char *buf, size_t bufsiz, FILE *fp, int *istrunc)
 static int ftpcmd(char *s1, char *s2, FILE *fp, char *buf)
 {
 	char *p;
-	
+
 	if (s1) {
 		if (!s2) s2="";
 		fprintf(fp, "%s%s\r\n", s1, s2);
 		fflush(fp);
 	}
-	
+
 	do {
 		p = fgets(buf, 510, fp);
 		if (!p)
 			bb_perror_msg_and_die("fgets()");
 	} while (! isdigit(buf[0]) || buf[3] != ' ');
-	
+
 	return atoi(buf);
 }
 
 #ifdef CONFIG_FEATURE_WGET_STATUSBAR
-/* Stuff below is from BSD rcp util.c, as added to openshh. 
+/* Stuff below is from BSD rcp util.c, as added to openshh.
  * Original copyright notice is retained at the end of this file.
- * 
- */ 
+ *
+ */
 
 
 static int
@@ -786,7 +794,7 @@ progressmeter(int flag)
 		snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
 			 "%02d:%02d ETA", i / 60, i % 60);
 	}
-	write(fileno(stderr), buf, strlen(buf));
+	write(STDERR_FILENO, buf, strlen(buf));
 
 	if (flag == -1) {
 		struct sigaction sa;
@@ -805,7 +813,7 @@ progressmeter(int flag)
 
 /* Original copyright notice which applies to the CONFIG_FEATURE_WGET_STATUSBAR stuff,
  * much of which was blatently stolen from openssh.  */
- 
+
 /*-
  * Copyright (c) 1992, 1993
  *	The Regents of the University of California.  All rights reserved.
@@ -819,8 +827,8 @@ progressmeter(int flag)
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
  *
- * 3. <BSD Advertising Clause omitted per the July 22, 1999 licensing change 
- *		ftp://ftp.cs.berkeley.edu/pub/4bsd/README.Impt.License.Change> 
+ * 3. <BSD Advertising Clause omitted per the July 22, 1999 licensing change
+ *		ftp://ftp.cs.berkeley.edu/pub/4bsd/README.Impt.License.Change>
  *
  * 4. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
@@ -838,7 +846,7 @@ progressmeter(int flag)
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	$Id: wget.c,v 1.69 2004/02/22 00:27:34 bug1 Exp $
+ *	$Id: wget.c,v 1.72 2004/03/27 10:02:43 andersen Exp $
  */
 
 

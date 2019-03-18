@@ -17,7 +17,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  *
- * Based in part on code from sash, Copyright (c) 1999 by David I. Bell 
+ * Based in part on code from sash, Copyright (c) 1999 by David I. Bell
  * Permission has been granted to redistribute this code under the GPL.
  *
  */
@@ -130,7 +130,7 @@ extern int get_kernel_revision(void);
 
 extern int get_console_fd(void);
 extern struct mntent *find_mount_point(const char *name, const char *table);
-extern void write_mtab(char* blockDevice, char* directory, 
+extern void write_mtab(char* blockDevice, char* directory,
 					   char* filesystemType, long flags, char* string_flags);
 extern void erase_mtab(const char * name);
 extern long *find_pid_by_name( const char* pidName);
@@ -188,7 +188,11 @@ extern void *xcalloc(size_t nmemb, size_t size);
 #endif
 extern char *bb_xstrdup (const char *s);
 extern char *bb_xstrndup (const char *s, int n);
-extern char * safe_strncpy(char *dst, const char *src, size_t size);
+extern char *safe_strncpy(char *dst, const char *src, size_t size);
+extern int safe_strtoi(char *arg, int* value);
+extern int safe_strtod(char *arg, double* value);
+extern int safe_strtol(char *arg, long* value);
+extern int safe_strtoul(char *arg, unsigned long* value);
 
 struct suffix_mult {
 	const char *suffix;
@@ -272,7 +276,7 @@ enum {
 	MEGABYTE = (KILOBYTE*1024),
 	GIGABYTE = (MEGABYTE*1024)
 };
-const char *make_human_readable_str(unsigned long long size, 
+const char *make_human_readable_str(unsigned long long size,
 		unsigned long block_size, unsigned long display_unit);
 
 int bb_ask_confirmation(void);

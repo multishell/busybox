@@ -73,7 +73,7 @@ extern int rpm2cpio_main(int argc, char **argv)
 	unsigned char magic[2];
 
 	if (argc == 1) {
-		rpm_fd = fileno(stdin);
+		rpm_fd = STDIN_FILENO;
 	} else {
 		rpm_fd = bb_xopen(argv[1], O_RDONLY);
 	}
@@ -89,14 +89,14 @@ extern int rpm2cpio_main(int argc, char **argv)
 
 	/* Skip the main header */
 	skip_header(rpm_fd);
-	
+
 	bb_xread_all(rpm_fd, &magic, 2);
 	if ((magic[0] != 0x1f) || (magic[1] != 0x8b)) {
 		bb_error_msg_and_die("Invalid gzip magic");
 	}
 
 	check_header_gzip(rpm_fd);
-	if (inflate_gunzip(rpm_fd, fileno(stdout)) != 0) {
+	if (inflate_gunzip(rpm_fd, STDOUT_FILENO) != 0) {
 		bb_error_msg("Error inflating");
 	}
 

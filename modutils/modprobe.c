@@ -67,15 +67,17 @@ int parse_tag_value ( char *buffer, char **ptag, char **pvalue )
 		buffer++;
 	tag = value = buffer;
 	while ( !isspace ( *value ))
-		value++;
+		if (!*value) return 0;
+		else value++;
 	*value++ = 0;
 	while ( isspace ( *value ))
 		value++;
+	if (!*value) return 0;
 
 	*ptag = tag;
 	*pvalue = value;
 
-	return bb_strlen( tag ) && bb_strlen( value );
+	return 1;
 }
 
 /* Jump through hoops to simulate how fgets() grabs just one line at a
@@ -306,16 +308,16 @@ static struct dep_t *build_dep ( void )
 					// fprintf ( stderr, "ALIAS: '%s' -> '%s'\n", alias, mod );
 
 					if ( !current ) {
-						first = current = (struct dep_t *) xmalloc ( sizeof ( struct dep_t ));
+						first = current = (struct dep_t *) xcalloc ( 1, sizeof ( struct dep_t ));
 					}
 					else {
-						current-> m_next = (struct dep_t *) xmalloc ( sizeof ( struct dep_t ));
+						current-> m_next = (struct dep_t *) xcalloc ( 1, sizeof ( struct dep_t ));
 						current = current-> m_next;
 					}
 					current-> m_module  = bb_xstrdup ( alias );
 					current-> m_isalias = 1;
 
-					if (( strcmp ( alias, "off" ) == 0 ) || ( strcmp ( alias, "null" ) == 0 )) {
+					if (( strcmp ( mod, "off" ) == 0 ) || ( strcmp ( mod, "null" ) == 0 )) {
 						current-> m_depcnt = 0;
 						current-> m_deparr = 0;
 					}
