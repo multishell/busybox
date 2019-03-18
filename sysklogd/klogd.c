@@ -38,14 +38,7 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <sys/syslog.h>
-
-#if __GNU_LIBRARY__ < 5
-# ifdef __alpha__
-#   define klogctl syslog
-# endif
-#else
-# include <sys/klog.h>
-#endif
+#include <sys/klog.h>
 
 #include "busybox.h"
 
@@ -154,11 +147,10 @@ extern int klogd_main(int argc, char **argv)
 	}
 
 	if (doFork) {
-#if !defined(__UCLIBC__) || defined(__UCLIBC_HAS_MMU__)
 		if (daemon(0, 1) < 0)
 			bb_perror_msg_and_die("daemon");
-#else
-		bb_error_msg_and_die("daemon not supported");
+#if defined(__uClinux__)
+		vfork_daemon_rexec(argc, argv, "-n");
 #endif
 	}
 	doKlogd(console_log_level);

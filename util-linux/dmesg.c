@@ -22,20 +22,17 @@
 #include <stdlib.h>
 #include <getopt.h>
 #include <errno.h>
-
-#if __GNU_LIBRARY__ < 5
-# ifdef __alpha__
-#   define klogctl syslog
-# endif
-#else
-# include <sys/klog.h>
-#endif
+#include <sys/klog.h>
 
 #include "busybox.h"
 
 int dmesg_main(int argc, char **argv)
 {
-	char *buf;
+	char *buf
+#ifdef CONFIG_FEATURE_CLEAN_UP
+		= NULL
+#endif
+		;
 	int bufsize = 8196;
 	int i, n;
 	int level = 0;

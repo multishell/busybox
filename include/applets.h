@@ -241,6 +241,9 @@
 #ifdef CONFIG_HALT
 	APPLET(halt, halt_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_HDPARM
+	APPLET(hdparm, hdparm_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
+#endif
 #ifdef CONFIG_HEAD
 	APPLET(head, head_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
@@ -455,7 +458,7 @@
 	APPLET(pwd, pwd_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_RDATE
-	APPLET(rdate, rdate_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
+	APPLET(rdate, rdate_main, _BB_DIR_USR_SBIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_READLINK
 	APPLET(readlink, readlink_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
@@ -609,9 +612,6 @@
 #endif
 #ifdef CONFIG_UNZIP
 	APPLET(unzip, unzip_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
-#endif
-#ifdef CONFIG_UPDATE
-	APPLET(update, update_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_UPTIME
 	APPLET(uptime, uptime_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)

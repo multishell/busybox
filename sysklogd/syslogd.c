@@ -86,12 +86,6 @@ static int local_logging = FALSE;
 
 /* circular buffer variables/structures */
 #ifdef CONFIG_FEATURE_IPC_SYSLOG
-#if __GNU_LIBRARY__ < 5
-#error Sorry.  Looks like you are using libc5.
-#error libc5 shm support isnt good enough.
-#error Please disable CONFIG_FEATURE_IPC_SYSLOG
-#endif
-
 #include <sys/ipc.h>
 #include <sys/sem.h>
 #include <sys/shm.h>
@@ -414,7 +408,7 @@ static void domark(int sig)
 	}
 }
 
-/* This must be a #define, since when DODEBUG and BUFFERS_GO_IN_BSS are
+/* This must be a #define, since when CONFIG_DEBUG and BUFFERS_GO_IN_BSS are
  * enabled, we otherwise get a "storage size isn't constant error. */
 static int serveConnection(char *tmpbuf, int n_read)
 {
@@ -638,11 +632,12 @@ extern int syslogd_main(int argc, char **argv)
 
 	umask(0);
 
-#if ! defined(__uClinux__)
 	if ((doFork == TRUE) && (daemon(0, 1) < 0)) {
 		bb_perror_msg_and_die("daemon");
-	}
+#if ! defined(__uClinux__)
+		vfork_daemon_rexec(argc, argv, "-n");
 #endif
+	}
 	doSyslogd();
 
 	return EXIT_SUCCESS;

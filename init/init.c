@@ -42,6 +42,7 @@
 #include <sys/mount.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/reboot.h>
 #include "busybox.h"
 
 #include "init_shared.h"
@@ -49,9 +50,6 @@
 
 #ifdef CONFIG_SYSLOGD
 # include <sys/syslog.h>
-#endif
-#if (__GNU_LIBRARY__ > 5) || defined(__dietlibc__)
-#include <sys/reboot.h>
 #endif
 
 
@@ -665,11 +663,7 @@ static void init_reboot(unsigned long magic)
 	 * linux/kernel/sys.c, which can cause the machine to panic when 
 	 * the init process is killed.... */
 	if ((pid = fork()) == 0) {
-#if (__GNU_LIBRARY__ > 5) || defined(__dietlibc__)
 		reboot(magic);
-#else
-		reboot(0xfee1dead, 672274793, magic);
-#endif
 		_exit(0);
 	}
 	waitpid (pid, NULL, 0);
@@ -740,6 +734,11 @@ static void exec_signal(int sig)
 			sigaddset(&unblock_signals, SIGSTOP);
 			sigaddset(&unblock_signals, SIGTSTP);
 			sigprocmask(SIG_UNBLOCK, &unblock_signals, NULL);
+
+			/* Close whatever files are open. */
+			close(0);
+			close(1);
+			close(2);
 
 			/* Open the new terminal device */
 			if ((device_open(a->terminal, O_RDWR)) < 0) {
@@ -831,6 +830,13 @@ static void cont_handler(int sig)
 	got_cont = 1;
 }
 
+/* Reap any zombie processes that are reparented to init */
+static void child_handler(int sig)
+{
+	int status;
+	while ( wait3(&status, WNOHANG, NULL) > 0 );
+}
+
 #endif							/* ! DEBUG_INIT */
 
 static void new_init_action(int action, char *command, const char *cons)
@@ -853,7 +859,14 @@ static void new_init_action(int action, char *command, const char *cons)
 	}
 
 	/* Append to the end of the list */
-	for (a = init_action_list; a && a->next; a = a->next);
+	for (a = init_action_list; a && a->next; a = a->next) {
+		/* don't enter action if it's already in the list */
+		if ((strcmp(a->command, command) == 0) && 
+		    (strcmp(a->terminal, cons) ==0)) {
+			free(new_action);
+			return;
+		}
+	}
 	if (a) {
 		a->next = new_action;
 	} else {
@@ -1028,7 +1041,14 @@ static void parse_inittab(void)
 #endif							/* CONFIG_FEATURE_USE_INITTAB */
 }
 
-
+static void reload_signal(int sig)
+{
+        message(LOG, "Reloading /etc/inittab");
+        parse_inittab();
+	run_actions(RESPAWN);
+        return;
+}
+                                                                                
 extern int init_main(int argc, char **argv)
 {
 	struct init_action *a;
@@ -1057,6 +1077,7 @@ extern int init_main(int argc, char **argv)
 	signal(SIGCONT, cont_handler);
 	signal(SIGSTOP, stop_handler);
 	signal(SIGTSTP, stop_handler);
+	signal(SIGCHLD, child_handler);
 
 	/* Turn off rebooting via CTL-ALT-DEL -- we get a 
 	 * SIGINT on CAD so we can shut things down gracefully... */
@@ -1125,6 +1146,9 @@ extern int init_main(int argc, char **argv)
 				"No more tasks for init -- sleeping forever.");
 		loop_forever();
 	}
+
+	/* Redefine SIGHUP to reread /etc/inittab */
+	signal(SIGHUP, reload_signal);
 
 	/* Now run the looping stuff for the rest of forever */
 	while (1) {

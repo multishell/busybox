@@ -19,7 +19,7 @@
 
 #--------------------------------------------------------
 PROG      := busybox
-VERSION   := 1.00-pre1
+VERSION   := 1.00-pre2
 BUILDTIME := $(shell TZ=UTC date -u "+%Y.%m.%d-%H:%M%z")
 
 
@@ -74,11 +74,7 @@ BB_SRC_DIR=
 # using the compatible RPMs (compat-*) at http://www.redhat.com !
 #LIBCDIR:=/usr/i386-glibc20-linux
 #
-# The following is used for libc5 (if you install altgcc and libc5-altdev
-# on a Debian system).  
-#LIBCDIR:=/usr/i486-linuxlibc1
-#
-# For other libraries, you are on your own...
+# For other libraries, you are on your own.  But these may (or may not) help...
 #LDFLAGS+=-nostdlib
 #LIBRARIES:=$(LIBCDIR)/lib/libc.a -lgcc
 #CROSS_CFLAGS+=-nostdinc -I$(LIBCDIR)/include -I$(GCCINCDIR)
@@ -128,7 +124,7 @@ ifeq ($(strip $(TARGET_ARCH)),arm)
 	OPTIMIZATION+=-fstrict-aliasing
 endif
 ifeq ($(strip $(TARGET_ARCH)),i386)
-	OPTIMIZATION+=-march=i386
+	OPTIMIZATION+=$(call check_gcc,-march=i386,)
 	OPTIMIZATION+=$(call check_gcc,-mpreferred-stack-boundary=2,)
 	OPTIMIZATION+=$(call check_gcc,-falign-functions=0 -falign-jumps=0 -falign-loops=0,\
 		-malign-functions=0 -malign-jumps=0 -malign-loops=0)
@@ -144,20 +140,20 @@ OPTIMIZATIONS=$(OPTIMIZATION) -fomit-frame-pointer
 # prone to casual user adjustment.
 # 
 
-ifeq ($(strip $(DOLFS)),y)
+ifeq ($(strip $(CONFIG_LFS)),y)
     # For large file summit support
     CFLAGS+=-D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
 endif
-ifeq ($(strip $(DODMALLOC)),y)
+ifeq ($(strip $(CONFIG_DMALLOC)),y)
     # For testing mem leaks with dmalloc
     CFLAGS+=-DDMALLOC
     LIBRARIES:=-ldmalloc
 else
-    ifeq ($(strip $(DOEFENCE)),y)
+    ifeq ($(strip $(CONFIG_EFENCE)),y)
 	LIBRARIES:=-lefence
     endif
 endif
-ifeq ($(strip $(DODEBUG)),y)
+ifeq ($(strip $(CONFIG_DEBUG)),y)
     CFLAGS  +=$(WARNINGS) -g -D_GNU_SOURCE
     LDFLAGS +=-Wl,-warn-common
     STRIPCMD:=/bin/true -Not_stripping_since_we_are_debugging
@@ -166,7 +162,7 @@ else
     LDFLAGS += -s -Wl,-warn-common
     STRIPCMD:=$(STRIP) --remove-section=.note --remove-section=.comment
 endif
-ifeq ($(strip $(DOSTATIC)),y)
+ifeq ($(strip $(CONFIG_STATIC)),y)
     LDFLAGS += --static
 endif
 

@@ -57,18 +57,6 @@
 # define inline
 #endif
 
-#if (__GNU_LIBRARY__ < 5) && (!defined __dietlibc__)
-/* libc5 doesn't define socklen_t */
-#ifndef _SOCKLEN_T
-#define _SOCKLEN_T
-typedef unsigned int socklen_t;
-#endif
-/* libc5 doesn't implement BSD 4.4 daemon() */
-extern int daemon (int nochdir, int noclose);
-/* libc5 doesn't implement strtok_r */
-char *strtok_r(char *s, const char *delim, char **ptrptr);
-#endif	
-
 /* Convenience macros to test the version of gcc. */
 #if defined __GNUC__ && defined __GNUC_MINOR__
 # define __GNUC_PREREQ(maj, min) \
@@ -359,10 +347,19 @@ extern int bb_default_error_retval;
 # define VC_3 "/dev/vc/3"
 # define VC_4 "/dev/vc/4"
 # define VC_5 "/dev/vc/5"
-# define SC_0 "/dev/tts/0"
-# define SC_1 "/dev/tts/1"
+#if defined(__sh__) || defined(__H8300H__) || defined(__H8300S__)
+/* Yes, this sucks, but both SH (including sh64) and H8 have a SCI(F) for their
+   respective serial ports .. as such, we can't use the common device paths for
+   these. -- PFM */
+#  define SC_0 "/dev/ttsc/0"
+#  define SC_1 "/dev/ttsc/1"
+#  define SC_FORMAT "/dev/ttsc/%d"
+#else
+#  define SC_0 "/dev/tts/0"
+#  define SC_1 "/dev/tts/1"
+#  define SC_FORMAT "/dev/tts/%d"
+#endif
 # define VC_FORMAT "/dev/vc/%d"
-# define SC_FORMAT "/dev/tts/%d"
 # define LOOP_FORMAT "/dev/loop/%d"
 #else
 # define CURRENT_VC "/dev/tty0"
@@ -371,10 +368,16 @@ extern int bb_default_error_retval;
 # define VC_3 "/dev/tty3"
 # define VC_4 "/dev/tty4"
 # define VC_5 "/dev/tty5"
-# define SC_0 "/dev/ttyS0"
-# define SC_1 "/dev/ttyS1"
+#if defined(__sh__) || defined(__H8300H__) || defined(__H8300S__)
+#  define SC_0 "/dev/ttySC0"
+#  define SC_1 "/dev/ttySC1"
+#  define SC_FORMAT "/dev/ttySC%d"
+#else
+#  define SC_0 "/dev/ttyS0"
+#  define SC_1 "/dev/ttyS1"
+#  define SC_FORMAT "/dev/ttyS%d"
+#endif
 # define VC_FORMAT "/dev/tty%d"
-# define SC_FORMAT "/dev/ttyS%d"
 # define LOOP_FORMAT "/dev/loop%d"
 #endif
 
@@ -402,7 +405,7 @@ extern void run_shell ( const char *shell, int loginshell, const char *command, 
 	, security_id_t sid
 #endif
 );
-extern int run_parts(char **args, const unsigned char test_mode);
+extern int run_parts(char **args, const unsigned char test_mode, char **env);
 extern int restricted_shell ( const char *shell );
 extern void setup_environment ( const char *shell, int loginshell, int changeenv, const struct passwd *pw );
 extern int correct_password ( const struct passwd *pw );
@@ -449,5 +452,7 @@ extern llist_t *llist_add_to(llist_t *old_head, char *new_item);
 
 void print_login_issue(const char *issue_file, const char *tty);
 void print_login_prompt(void);
+
+void vfork_daemon_rexec(int argc, char **argv, char *foreground_opt);
 
 #endif /* __LIBCONFIG_H__ */

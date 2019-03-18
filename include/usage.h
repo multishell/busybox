@@ -805,6 +805,81 @@
 #define halt_full_usage \
 	"Halt the system."
 
+#ifdef CONFIG_FEATURE_HDPARM_GET_IDENTITY
+#define USAGE_HDPARM_IDENT(a) a
+#else
+#define USAGE_HDPARM_IDENT(a)
+#endif
+
+#ifdef CONFIG_FEATURE_HDPARM_HDIO_SCAN_HWIF
+#define USAGE_SCAN_HWIF(a) a
+#else
+#define USAGE_SCAN_HWIF(a)
+#endif
+
+#ifdef CONFIG_FEATURE_HDPARM_HDIO_UNREGISTER_HWIF
+#define USAGE_UNREGISTER_HWIF(a) a
+#else
+#define USAGE_UNREGISTER_HWIF(a)
+#endif
+
+#ifdef CONFIG_FEATURE_HDPARM_HDIO_DRIVE_RESET
+#define USAGE_DRIVE_RESET(a) a
+#else
+#define USAGE_DRIVE_RESET(a)
+#endif
+
+#ifdef CONFIG_FEATURE_HDPARM_HDIO_TRISTATE_HWIF
+#define USAGE_TRISTATE_HWIF(a) a
+#else
+#define USAGE_TRISTATE_HWIF(a)
+#endif
+
+#define hdparm_trivial_usage \
+	"[options] [device] .."
+#define hdparm_full_usage \
+	"Options:" \
+	" -a   get/set fs readahead\n" \
+	" -A   set drive read-lookahead flag (0/1)\n" \
+	" -b   get/set bus state (0 == off, 1 == on, 2 == tristate)\n" \
+	" -B   set Advanced Power Management setting (1-255)\n" \
+	" -c   get/set IDE 32-bit IO setting\n" \
+	" -C   check IDE power mode status\n" \
+	" -d   get/set using_dma flag\n" \
+	" -D   enable/disable drive defect-mgmt\n" \
+	" -f   flush buffer cache for device on exit\n" \
+	" -g   display drive geometry\n" \
+	" -h   display terse usage information\n" \
+	" -i   display drive identification\n" \
+	USAGE_HDPARM_IDENT(" -I   detailed/current information directly from drive\n") \
+	USAGE_HDPARM_IDENT(" -Istdin  similar to -I, but wants /proc/ide/" "*" "/hd?/identify as input\n") \
+	" -k   get/set keep_settings_over_reset flag (0/1)\n" \
+	" -K   set drive keep_features_over_reset flag (0/1)\n" \
+	" -L   set drive doorlock (0/1) (removable harddisks only)\n" \
+	" -m   get/set multiple sector count\n" \
+	" -n   get/set ignore-write-errors flag (0/1)\n" \
+	" -p   set PIO mode on IDE interface chipset (0,1,2,3,4,...)\n" \
+	" -P   set drive prefetch count\n" \
+	" -q   change next setting quietly\n" \
+	" -Q   get/set DMA tagged-queuing depth (if supported)\n" \
+	" -r   get/set readonly flag (DANGEROUS to set)\n" \
+	USAGE_SCAN_HWIF(" -R   register an IDE interface (DANGEROUS)\n") \
+	" -S   set standby (spindown) timeout\n" \
+	" -t   perform device read timings\n" \
+	" -T   perform cache read timings\n" \
+	" -u   get/set unmaskirq flag (0/1)\n" \
+	USAGE_UNREGISTER_HWIF(" -U   un-register an IDE interface (DANGEROUS)\n") \
+	" -v   defaults; same as -mcudkrag for IDE drives\n" \
+	" -V   display program version and exit immediately\n" \
+	USAGE_DRIVE_RESET(" -w   perform device reset (DANGEROUS)\n") \
+	" -W   set drive write-caching flag (0/1) (DANGEROUS)\n" \
+	USAGE_TRISTATE_HWIF(" -x   tristate device for hotswap (0/1) (DANGEROUS)\n") \
+	" -X   set IDE xfer mode (DANGEROUS)\n" \
+	" -y   put IDE drive in standby mode\n" \
+	" -Y   put IDE drive to sleep\n" \
+	" -Z   disable Seagate auto-powersaving mode\n" \
+	" -z   re-read partition table\n"
+
 #ifdef CONFIG_FEATURE_FANCY_HEAD
 #define USAGE_FANCY_HEAD(a) a
 #else
@@ -864,20 +939,47 @@
 #define hostname_example_usage \
 	"$ hostname\n" \
 	"sage \n"
+
 #ifdef CONFIG_FEATURE_HTTPD_BASIC_AUTH
   #define USAGE_HTTPD_BASIC_AUTH(a) a
+  #ifdef CONFIG_FEATURE_HTTPD_AUTH_MD5
+    #define USAGE_HTTPD_AUTH_MD5(a) a
+  #else
+    #define USAGE_HTTPD_AUTH_MD5(a)
+  #endif
 #else
   #define USAGE_HTTPD_BASIC_AUTH(a)
+  #define USAGE_HTTPD_AUTH_MD5(a)
+#endif
+#ifdef CONFIG_FEATURE_HTTPD_USAGE_FROM_INETD_ONLY
+  #define USAGE_HTTPD_STANDALONE(a)
+  #define USAGE_HTTPD_SETUID(a)
+#else
+  #define USAGE_HTTPD_STANDALONE(a) a
+  #ifdef CONFIG_FEATURE_HTTPD_SETUID
+    #define USAGE_HTTPD_SETUID(a) a
+  #else
+    #define USAGE_HTTPD_SETUID(a)
+  #endif
 #endif
 #define httpd_trivial_usage \
-	"[-p <port>] [-d/-e <string>]" USAGE_HTTPD_BASIC_AUTH(" [-c <conf file>] [-r <realm>]")
+	"[-c <conf file>]" \
+	USAGE_HTTPD_STANDALONE(" [-p <port>]") \
+	USAGE_HTTPD_SETUID(" [-u user]") \
+	USAGE_HTTPD_BASIC_AUTH(" [-r <realm>]") \
+	USAGE_HTTPD_AUTH_MD5(" [-m pass]") \
+	" [-d/-e <string>]"
 #define httpd_full_usage \
        "Listens for incoming http server requests.\n"\
        "Options:\n" \
-       "\t-p PORT\tServer port (default 80).\n" \
-       USAGE_HTTPD_BASIC_AUTH("\t-c FILE\tSpecifies configuration file.  (default httpd.conf)\n\t-r REALM\tAuthentication Realm for Basic Authentication\n") \
+       "\t-c FILE\tSpecifies configuration file. (default httpd.conf)\n" \
+       USAGE_HTTPD_STANDALONE("\t-p PORT\tServer port (default 80)\n") \
+       USAGE_HTTPD_SETUID("\t-u USER\tSet uid to USER after listening privilegies port\n") \
+       USAGE_HTTPD_BASIC_AUTH("\t-r REALM\tAuthentication Realm for Basic Authentication\n") \
+       USAGE_HTTPD_AUTH_MD5("\t-m PASS\tCrypt PASS with md5 algorithm\n") \
        "\t-e STRING\tHtml encode STRING\n" \
-       "\t-d STRING\tURL decode STRING\n" 
+       "\t-d STRING\tURL decode STRING"
+
 #define hwclock_trivial_usage \
 	"[-r|--show] [-s|--hctosys] [-w|--systohc] [-l|--localtime] [-u|--utc]"
 #define hwclock_full_usage \
@@ -1823,7 +1925,7 @@
 	"/root\n"
 
 #define rdate_trivial_usage \
-	"[OPTION] HOST"
+	"[-sp] HOST"
 #define rdate_full_usage \
 	"Get and possibly set the system date and time from a remote HOST.\n\n" \
 	"Options:\n" \
@@ -2458,15 +2560,6 @@
 	"\t-x\texclude these files\n" \
 	"\t-d\textract files into this directory"
 
-#define update_trivial_usage \
-	"[options]"
-#define update_full_usage \
-	"Periodically flushes filesystem buffers.\n\n" \
-	"Options:\n" \
-	"\t-S\tforce use of sync(2) instead of flushing\n" \
-	"\t-s SECS\tcall sync this often (default 30)\n" \
-	"\t-f SECS\tflush some buffers this often (default 5)"
-
 #define uptime_trivial_usage \
 	""
 #define uptime_full_usage \
@@ -2545,9 +2638,11 @@
 	"Mon Dec 17 10:31:44 GMT 2000" 
 
 #define watchdog_trivial_usage \
-	"DEV"
+	"[-t <seconds>] DEV"
 #define watchdog_full_usage \
-	"Periodically write to watchdog device DEV"
+	"Periodically write to watchdog device DEV.\n" \
+	"Options:\n" \
+	"\t-t\tTimer period in seconds - default is 30."
 
 #define wc_trivial_usage \
 	"[OPTION]... [FILE]..."

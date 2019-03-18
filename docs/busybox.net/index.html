@@ -75,10 +75,18 @@
             "screenshot.html">right here</a>.</p>
 
             <h3>Mailing List Information</h3>
-            BusyBox now has a <a href="/lists/busybox/">mailing
-            list</a>!<br>
-            To subscribe, go and visit <a href=
-            "/mailman/listinfo/busybox">this page</a>. 
+            BusyBox has a <a href="/lists/busybox/">mailing list</a>.<br>
+            To subscribe, go and visit <a href="/mailman/listinfo/busybox">this page</a>. 
+	    <br> 
+	    Before asking questions on the mailing list
+	    you should probably first search the mailing list archives...
+	    <form method="GET" action="http://www.google.com/custom">
+	    <input type="hidden" name="domains" value="busybox.net">
+	    <input type="hidden" name="sitesearch" value="busybox.net">
+	    <a href="http://www.google.com"><img src="http://www.google.com/logos/Logo_25wht.gif" border="0" alt="Google" height="32" width="75" align="middle"></a>&nbsp;<input type="text" name="q" size="31" maxlength="255" value="">&nbsp;<input type="submit" name="sa" value="search the mailing list archives">...
+	    </form>
+
+
 
             <!-- Begin Latest News section -->
           </td>
@@ -94,41 +102,41 @@
             <ul>
 
               <p>
-              <li><b>15 July 2003 -- BusyBox 1.0.0-pre1 released</b><p> 
+              <li><b>30 July 2003 -- BusyBox 1.0.0-pre2 released</b><p> 
 
-		The busybox development series has been under construction for
-		nearly two years now.  Which is just entirely too long...  So
-		it is with great pleasure that I announce the imminent release
-		of a new stable series.  Due to the huge number of changes
-		since the last stable release (and the usual mindless version
-		number inflation) I am branding this new stable series verison
-		1.0.x...
+		Here goes another pre release for the new BusyBox stable
+		series.  The last prerelease (pre1) was given quite a lot of
+		testing (thanks everyone!) which has helped turn up a number of
+		bugs, and these problems have now been fixed.
+
 		<p>
 
-		The point of "-preX" versions is to get a larger group of
-		people and vendors testing, so any problems that turn up can be
-		fixed prior to the magic 1.0.0 release (which should happen
-		later this month)...  I plan to release BusyBox 1.0.0-pre2 next
-		Monday (July 21st), and, if necessary, -pre3 on July 28th.
-		Hopefully (i.e. unless some horrible catastrophic problem turns
-		up) the final BusyBox 1.0.0 release should be ready by the end
-		of July.
+		Highlights of -pre2 include updating the 'ash' shell to sync up
+		with the Debian 'dash' shell, a new 'hdparm' applet was added,
+		init again supports pivot_root,  The 'reboot' 'halt' and
+		'poweroff' applets can now be used without using busybox init.
+		an ifconfig buffer overflow was fixed, losetup now allows
+		read-write loop devices, uClinux daemon support was added, the
+		'watchdog', 'fdisk', and 'kill' applets were rewritten, there were
+		tons of doc updates, and there were many other bugs fixed.
 		<p>
 		
-		If you have submitted patches, and they are not in this release
-		and I have not emailed you explaining why your patch was
-		rejected, it is safe to say that I have lost your patch.  That
-		happens sometimes.  Please do <B>NOT</b> send all your patches,
-		support questions, etc, directly to Erik.  I get hundreds of
-		emails every day (which is why I end up losing patches
-		sometimes in the flood)...  The busybox mailing list is the
-		right place to send your patches, support questions, etc.
+		If you have submitted a patch and it is not included in this
+		release and Erik has not emailed you explaining why your patch
+		was rejected, it is safe to say that he has lost your patch.
+		That happens sometimes.   Please re-submit your patch to the
+		BusyBox mailing list.
 		<p>
 
-		I would like to especially thank Vladimir Oleynik (vodz), Glenn
-		McGrath (bug1), Robert Griebl (sandman), and Manuel Novoa III
-		(mjn3) for their significant efforts and contributions that
-		have made this release possible.
+		The point of the "-preX" versions is to get a larger group of
+		people and vendors testing, so any problems that turn up can be
+		fixed prior to the final 1.0.0 release.  The main feature that
+		is still still on the TODO list before the final BusyBox 1.0.0
+		release is adding module support for the new 2.6.x kernels.  If
+		necessary, a -pre3 BusyBox release will happen on August 6th.
+		Hopefully (i.e.  unless some horrible catastrophic problem
+		turns up) the final BusyBox 1.0.0 release will be ready by
+		then...
 		<p>
 
 		As usual you can <a href="downloads">download busybox here</a>.
@@ -174,14 +182,11 @@
 	      Embedded open source consulting in Europe.
 	      </li>
 
-	      <li><a href="http://i-netinnovations.com/">http://i-netinnovations.com/</a><br>
-	      Web hosting (currently hosting busybox.net and uclibc.org)
-	      </li>
-
 	      <li><a href="http://www.codepoet-consulting.com">Codepoet Consulting</a><br>
 	      Custom Linux, embedded Linux, BusyBox, and uClibc
 	      development.
 	      </li>
+
 	    </ul>
 	    Several individuals have also contributed. If you have
 	    already contributed and would like your name added
@@ -417,21 +422,24 @@
               </li><li><a href="http://www.timesys.com/">TimeSys real-time Linux</a>
               </li><li><a href="http://movix.sf.net/">MoviX</a> -- boots from CD and automatically plays every video file on the CD
               </li><li><a href="http://katamaran.sourceforge.net">katamaran</a>Linux, X11, xfce windowmanager, based on BusyBox
-              </li><li><a href="http://www.sourceforge.net/projects/simplygnustep"></a>Prometheus SimplyGNUstep
+              </li><li><a href="http://www.sourceforge.net/projects/simplygnustep">Prometheus SimplyGNUstep</a>
               </li><li><a href="http://www.renyi.hu/~ekho/lowlife/">lowlife</a>A documentation project on how to make your own uClibc-based systems and floppy.
               </li><li><a href="http://metadistros.hispalinux.es/">Metadistros</a>a project to allow you easily make Live-CD distributions.
               </li><li><a href="http://salvare.sourceforge.net/">Salvare</a>More Linux than tomsrtbt but less than Knoppix, aims to provide a useful workstation as well as a rescue disk.
+              </li><li><a href="http://www.stresslinux.org/">stresslinux</a>minimal linux distribution running from a bootable cdrom or via PXE.
               </li><li><a href="http://thinstation.sourceforge.net/">thinstation</a>convert standard PCs into full-featured diskless thinclients.
+              </li><li><a href="http://www.uhulinux.hu/">UHU-Linux Hungary</a>
 
               </li><li><a href="http://tuxscreen.net">Tuxscreen Linux Phone</a>
               </li><li><a href="http://www.kerbango.com/">The Kerbango Internet Radio</a>
-              </li><li><a href= "http://www.linuxmagic.com/vpn/">LinuxMagic VPN Firewall</a>
+              </li><li><a href="http://www.linuxmagic.com/vpn/">LinuxMagic VPN Firewall</a>
               </li><li><a href="http://www.isilver-inc.com/">I-Silver Linux appliance servers</a>
               </li><li><a href="http://zaurus.sourceforge.net/">Sharp Zaurus PDA</a>
               </li><li><a href="http://www.cyclades.com/">Cyclades-TS and other Cyclades products</a>
               </li><li><a href="http://www.buffalo-technology.com/products/wireless/wbr-g54.htm">Buffalo WBR-G54 wireless router</a>
               </li><li><a href="http://catalog.belkin.com/IWCatProductPage.process?Merchant_Id=&Section_Id=201522&pcount=&Product_Id=136493">Belkin 54g Wireless DSL/Cable Gateway Router</a>
               </li><li><a href="http://www.linksys.com/products/product.asp?prid=508">Linksys WRT54G - Wireless-G Broadband Router</a>
+              </li><li><a href="http://www.dell.com/us/en/biz/topics/sbtopic_005_truemobile.htm">Dell TrueMobile 1184</a>
 
 
             </ul>
