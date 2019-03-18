@@ -31,9 +31,6 @@
 #include <string.h>
 #include <errno.h>
 #include "busybox.h"
-#define BB_DECLARE_EXTERN
-#define bb_need_name_too_long
-#include "messages.c"
 
 
 #ifdef BB_FEATURE_HUMAN_READABLE
@@ -49,19 +46,8 @@ static Display *print;
 
 static void print_normal(long size, char *filename)
 {
-	unsigned long base;
 #ifdef BB_FEATURE_HUMAN_READABLE
-	switch (disp_hr) {
-		case MEGABYTE:
-			base = KILOBYTE;
-			break;
-		case KILOBYTE:
-			base = 1;
-			break;
-		default:
-			base = 0;
-	}
-	printf("%s\t%s\n", make_human_readable_str(size, base), filename);
+	printf("%s\t%s\n", make_human_readable_str(size<<10, 1, disp_hr), filename);
 #else
 	printf("%ld\t%s\n", size, filename);
 #endif
@@ -70,8 +56,79 @@ static void print_normal(long size, char *filename)
 static void print_summary(long size, char *filename)
 {
 	if (du_depth == 1) {
-		printf("summary\n");
 		print_normal(size, filename);
+	}
+}
+
+#define HASH_SIZE       311             /* Should be prime */
+#define hash_inode(i)   ((i) % HASH_SIZE)
+
+typedef struct ino_dev_hash_bucket_struct {
+  struct ino_dev_hash_bucket_struct *next;
+  ino_t ino;
+  dev_t dev;
+  char name[1];
+} ino_dev_hashtable_bucket_t;
+
+static ino_dev_hashtable_bucket_t *ino_dev_hashtable[HASH_SIZE];
+
+/*
+ * Return 1 if statbuf->st_ino && statbuf->st_dev are recorded in
+ * `ino_dev_hashtable', else return 0
+ *
+ * If NAME is a non-NULL pointer to a character pointer, and there is
+ * a match, then set *NAME to the value of the name slot in that
+ * bucket.
+ */
+static int is_in_ino_dev_hashtable(const struct stat *statbuf, char **name)
+{
+	ino_dev_hashtable_bucket_t *bucket;
+
+	bucket = ino_dev_hashtable[hash_inode(statbuf->st_ino)];
+	while (bucket != NULL) {
+	  if ((bucket->ino == statbuf->st_ino) &&
+		  (bucket->dev == statbuf->st_dev))
+	  {
+		if (name) *name = bucket->name;
+		return 1;
+	  }
+	  bucket = bucket->next;
+	}
+	return 0;
+}
+
+/* Add statbuf to statbuf hash table */
+static void add_to_ino_dev_hashtable(const struct stat *statbuf, const char *name)
+{
+	int i;
+	size_t s;
+	ino_dev_hashtable_bucket_t *bucket;
+
+	i = hash_inode(statbuf->st_ino);
+	s = name ? strlen(name) : 0;
+	bucket = xmalloc(sizeof(ino_dev_hashtable_bucket_t) + s);
+	bucket->ino = statbuf->st_ino;
+	bucket->dev = statbuf->st_dev;
+	if (name)
+		strcpy(bucket->name, name);
+	else
+		bucket->name[0] = '\0';
+	bucket->next = ino_dev_hashtable[i];
+	ino_dev_hashtable[i] = bucket;
+}
+
+/* Clear statbuf hash table */
+static void reset_ino_dev_hashtable(void)
+{
+	int i;
+	ino_dev_hashtable_bucket_t *bucket;
+
+	for (i = 0; i < HASH_SIZE; i++) {
+		while (ino_dev_hashtable[i] != NULL) {
+			bucket = ino_dev_hashtable[i]->next;
+			free(ino_dev_hashtable[i]);
+			ino_dev_hashtable[i] = bucket;
+		}
 	}
 }
 
@@ -80,7 +137,6 @@ static long du(char *filename)
 {
 	struct stat statbuf;
 	long sum;
-	int len;
 
 	if ((lstat(filename, &statbuf)) != 0) {
 		perror_msg("%s", filename);
@@ -93,12 +149,13 @@ static long du(char *filename)
 	/* Don't add in stuff pointed to by symbolic links */
 	if (S_ISLNK(statbuf.st_mode)) {
 		sum = 0L;
-		if (du_depth == 1)
-			print(sum, filename);
+		if (du_depth == 1) {
+		}
 	}
 	if (S_ISDIR(statbuf.st_mode)) {
 		DIR *dir;
 		struct dirent *entry;
+		char *newfile;
 
 		dir = opendir(filename);
 		if (!dir) {
@@ -106,12 +163,11 @@ static long du(char *filename)
 			return 0;
 		}
 
-		len = strlen(filename);
-		if (filename[len - 1] == '/')
-			filename[--len] = '\0';
+		newfile = last_char_is(filename, '/');
+		if (newfile)
+			*newfile = '\0';
 
 		while ((entry = readdir(dir))) {
-			char *newfile;
 			char *name = entry->d_name;
 
 			if ((strcmp(name, "..") == 0)
@@ -180,8 +236,7 @@ int du_main(int argc, char **argv)
 		long sum;
 
 		for (i=optind; i < argc; i++) {
-			if ((sum = du(argv[i])) == 0)
-				status = EXIT_FAILURE;
+			sum = du(argv[i]);
 			if(is_directory(argv[i], FALSE, NULL)==FALSE) {
 				print_normal(sum, argv[i]);
 			}
@@ -192,7 +247,7 @@ int du_main(int argc, char **argv)
 	return status;
 }
 
-/* $Id: du.c,v 1.44 2001/04/09 22:48:11 andersen Exp $ */
+/* $Id: du.c,v 1.50 2001/06/30 17:54:20 andersen Exp $ */
 /*
 Local Variables:
 c-file-style: "linux"

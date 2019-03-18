@@ -92,7 +92,7 @@ will also cause BusyBox to behave as 'ls'.
 <HR>
 <H1><A NAME="COMMON_OPTIONS">COMMON OPTIONS</A></H1>
 <P>
-Most BusyBox commands support the <STRONG>--help</STRONG> option to provide a terse runtime description of their behavior. 
+Most BusyBox commands support the <STRONG>-h</STRONG> option to provide a terse runtime description of their behavior. 
 
 <P>
 <HR>
@@ -101,19 +101,19 @@ Most BusyBox commands support the <STRONG>--help</STRONG> option to provide a te
 Currently defined functions include:
 
 <P>
-ar, basename, busybox, cat, chgrp, chmod, chown, chroot, chvt, clear, cmp,
-cp, cut, date, dc, dd, deallocvt, df, dirname, dmesg, dos2unix, dpkg,
-dpkg-deb, du, dumpkmap, dutmp, echo, expr, false, fbset, fdflush, find,
-free, freeramdisk, fsck.minix, getopt, grep, gunzip, gzip, halt, head,
-hostid, hostname, id, ifconfig, init, insmod, kill, killall, klogd, length,
-ln, loadacm, loadfont, loadkmap, logger, logname, ls, lsmod, makedevs,
-md5sum, mkdir, mkfifo, mkfs.minix, mknod, mkswap, mktemp, more, mount, mt,
-mv, nc, nslookup, ping, pivot_root, poweroff, printf, ps, pwd, rdate,
-readlink, reboot, renice, reset, rm, rmdir, rmmod, route, rpmunpack, sed,
-setkeycodes, sh, sleep, sort, stty, swapoff, swapon, sync, syslogd, tail,
-tar, tee, telnet, test, tftp, touch, tr, true, tty, umount, uname, uniq,
-unix2dos, update, uptime, usleep, uudecode, uuencode, watchdog, wc, wget,
-which, whoami, xargs, yes, zcat, [
+adjtimex, ar, basename, busybox, cat, chgrp, chmod, chown, chroot, chvt,
+clear, cmp, cp, cpio, cut, date, dc, dd, deallocvt, df, dirname, dmesg,
+dos2unix, dpkg, dpkg-deb, du, dumpkmap, dutmp, echo, expr, false, fbset,
+fdflush, find, free, freeramdisk, fsck.minix, getopt, grep, gunzip, gzip,
+halt, head, hostid, hostname, id, ifconfig, init, insmod, kill, killall,
+klogd, length, ln, loadacm, loadfont, loadkmap, logger, logname, ls, lsmod,
+makedevs, md5sum, mkdir, mkfifo, mkfs.minix, mknod, mkswap, mktemp, more,
+mount, mt, mv, nc, nslookup, ping, pivot_root, poweroff, printf, ps, pwd,
+rdate, readlink, reboot, renice, reset, rm, rmdir, rmmod, route, rpm2cpio,
+rpmunpack, sed, setkeycodes, sh, sleep, sort, stty, swapoff, swapon, sync,
+syslogd, tail, tar, tee, telnet, test, tftp, touch, tr, true, tty, umount,
+uname, uniq, unix2dos, update, uptime, usleep, uudecode, uuencode,
+watchdog, wc, wget, which, whoami, xargs, yes, zcat, [
 
 <DL>
 <DT><STRONG><A NAME="item_adjtimex">adjtimex</A></STRONG><DD>
@@ -140,10 +140,10 @@ Options:
 
 <DT><STRONG><A NAME="item_ar">ar</A></STRONG><DD>
 <P>
-ar -[ovR]{ptx} archive filenames
+ar -[ov][ptx] ARCHIVE FILES
 
 <P>
-Extract or list files from an ar archive.
+Extract or list FILES from an ar archive.
 
 <P>
 Options:
@@ -154,7 +154,6 @@ Options:
         -t              list
         -x              extract
         -v              verbosely list files processed
-        -R              recursive action
 </PRE>
 <P>
 -------------------------------
@@ -256,7 +255,7 @@ Example:
 
 <DT><STRONG><A NAME="item_chown">chown</A></STRONG><DD>
 <P>
-chown [OPTION]... OWNER[&lt;.|:&gt;[GROUP]] FILE...
+chown [ <STRONG>-Rh</STRONG> ]... OWNER[&lt;.|:&gt;[GROUP]] FILE...
 
 <P>
 Change the owner and/or group of each FILE to OWNER and/or GROUP.
@@ -266,6 +265,7 @@ Options:
 
 <P>
 <PRE>        -R      Changes files and directories recursively.
+        -h      Do not dereference symbolic links.
 </PRE>
 <P>
 Example:
@@ -329,8 +329,9 @@ Clear screen.
 cmp FILE1 [FILE2]
 
 <P>
+<PRE>        -s      quiet mode - do not print
 Compare files.
-
+</PRE>
 <P>
 -------------------------------
 
@@ -347,6 +348,23 @@ Copies SOURCE to DEST, or multiple <CODE>SOURCE(s)</CODE> to DIRECTORY.
         -p      Preserves file attributes if possible
         -f      force (implied; ignored) - always set
         -R      Copies directories recursively
+</PRE>
+<P>
+-------------------------------
+
+<DT><STRONG><A NAME="item_cpio">cpio</A></STRONG><DD>
+<P>
+cpio -[dimtuv][F cpiofile]
+
+<P>
+Extract or list files from a cpio archive Main operation mode:
+
+<P>
+<PRE>        d               make leading directories
+        i               extract
+        m               preserve mtime
+        t               list
+        u               unconditional overwrite         F               input from file 
 </PRE>
 <P>
 -------------------------------
@@ -413,8 +431,8 @@ dc expression ...
 
 <P>
 This is a Tiny RPN calculator that understands the following operations: +,
--, /, *, and, or, not, eor. i.e. 'dc 2 2 add' -&gt; 4, and 'dc 8 8 \* 2 2 +
-/' -&gt; 16
+-, /, *, and, or, not, eor. i.e., 'dc 2 2 add' -&gt; 4, and 'dc 8 8 \* 2 2
++ /' -&gt; 16
 
 <P>
 Example:
@@ -479,7 +497,7 @@ Deallocate unused virtual terminal /dev/ttyN
 
 <DT><STRONG><A NAME="item_df">df</A></STRONG><DD>
 <P>
-df [<STRONG>-hmk</STRONG>] [filesystem ...]
+df [<STRONG>-hmk</STRONG>] [FILESYSTEM ...]
 
 <P>
 Print the filesystem space used and space available.
@@ -546,10 +564,12 @@ Options:
 
 <DT><STRONG><A NAME="item_dos2unix">dos2unix</A></STRONG><DD>
 <P>
-dos2unix [option] [file]
+dos2unix [option] [FILE]
 
 <P>
-Converts a text file to/from dos format to unix format.
+Converts FILE from dos format to unix format. When no option is given, the
+input is converted to the opposite output format. When no file is given,
+uses stdin for input and stdout for output.
 
 <P>
 Options:
@@ -559,13 +579,6 @@ Options:
         -d      output will be in DOS format
 </PRE>
 <P>
-- when no option is given then input format will be automaticaly detected
-
-<P>
-<PRE>  and converted to the oposite format on output
-- when no file is given, then stdin is used as input and stdout as output
-</PRE>
-<P>
 -------------------------------
 
 <DT><STRONG><A NAME="item_dpkg">dpkg</A></STRONG><DD>
@@ -573,14 +586,14 @@ Options:
 dpkg [<STRONG>-i</STRONG>|<STRONG>-r</STRONG>|-<STRONG>-unpack</STRONG>|-<STRONG>-configure</STRONG>] my.deb
 
 <P>
-WORK IN PROGRESS, only usefull for debian-installer
+WORK IN PROGRESS, only useful for debian-installer
 
 <P>
 -------------------------------
 
 <DT><STRONG><A NAME="item_dpkg_deb">dpkg_deb</A></STRONG><DD>
 <P>
-dpkg_deb [<STRONG>-cexX</STRONG>] file directory
+dpkg_deb [<STRONG>-cefItxX</STRONG>] FILE [argument]
 
 <P>
 Perform actions on debian packages (.debs)
@@ -589,10 +602,12 @@ Perform actions on debian packages (.debs)
 Options:
 
 <P>
-<PRE>        -c      List contents of filesystem tree (verbose)
-        -l      List contents of filesystem tree (.list format)
-        -e      Extract control files to directory
-        -x      Exctract packages filesystem tree to directory
+<PRE>        -c      List contents of filesystem tree
+        -e      Extract control files to [argument] directory
+        -f      Display control field name starting with [argument]
+        -I      Display the control filenamed [argument]
+        -t      Extract filesystem tree to stdout in tar format
+        -x      Extract packages filesystem tree to directory
         -X      Verbose extract
 </PRE>
 <P>
@@ -662,7 +677,7 @@ Example:
 dutmp [FILE]
 
 <P>
-Dump utmp file format (pipe delimited) from FILE or stdin to stdout. (i.e.
+Dump utmp file format (pipe delimited) from FILE or stdin to stdout. (i.e.,
 'dutmp /var/run/utmp')
 
 <P>
@@ -693,7 +708,7 @@ Options:
 
 <P>
 <PRE>        -n      suppress trailing newline
-        -e      interpret backslash-escaped characters (i.e. \t=tab etc)
+        -e      interpret backslash-escaped characters (i.e., \t=tab)
         -E      disable interpretation of backslash-escaped characters
 </PRE>
 <P>
@@ -702,25 +717,19 @@ Example:
 <P>
 <PRE>        $ echo &quot;Erik is cool&quot;
         Erik is cool
-        $  echo -e &quot;Erik
-        is
-        cool&quot;
+        $  echo -e &quot;Erik\nis\ncool&quot;
         Erik
         is
         cool
-        $ echo &quot;Erik
-        is
-        cool&quot;
-        Erik
-        is
-        cool
+        $ echo &quot;Erik\nis\ncool&quot;
+        Erik\nis\ncool
 </PRE>
 <P>
 -------------------------------
 
 <DT><STRONG><A NAME="item_env">env</A></STRONG><DD>
 <P>
-env [-] [<STRONG>-iu</STRONG>] [name=value ...] [command]
+env [<STRONG>-iu</STRONG>] [-] [name=value]... [command]
 
 <P>
 Prints the current environment or runs a program after setting up the
@@ -844,7 +853,8 @@ EXPRESSION may consist of:
 
 <P>
 <PRE>        -follow         Dereference symbolic links.
-        -name PATTERN   File name (leading directories removed) matches PATTERN.        -print          Print (default and assumed).
+        -name PATTERN   File name (leading directories removed) matches PATTERN.
+        -print          Print (default and assumed).
 </PRE>
 <P>
 <PRE>        -type X         Filetype matches X (where X is one of: f,d,l,b,c,...)
@@ -968,7 +978,7 @@ Example:
 
 <DT><STRONG><A NAME="item_grep">grep</A></STRONG><DD>
 <P>
-grep [<STRONG>-ihHnqvs</STRONG>] pattern [files...]
+grep [<STRONG>-ihHnqvs</STRONG>] PATTERN [FILEs...]
 
 <P>
 Search for PATTERN in each FILE or standard input.
@@ -1044,11 +1054,11 @@ Options:
 Example:
 
 <P>
-<PRE>        $ ls -la /tmp/BusyBox*
-        -rw-rw-r--    1 andersen andersen  1761280 Apr 14 17:47 /tmp/BusyBox-0.43.tar
-        $ gzip /tmp/BusyBox-0.43.tar
-        $ ls -la /tmp/BusyBox*
-        -rw-rw-r--    1 andersen andersen   554058 Apr 14 17:49 /tmp/BusyBox-0.43.tar.gz
+<PRE>        $ ls -la /tmp/busybox*
+        -rw-rw-r--    1 andersen andersen  1761280 Apr 14 17:47 /tmp/busybox.tar
+        $ gzip /tmp/busybox.tar
+        $ ls -la /tmp/busybox*
+        -rw-rw-r--    1 andersen andersen   554058 Apr 14 17:49 /tmp/busybox.tar.gz
 </PRE>
 <P>
 -------------------------------
@@ -1101,11 +1111,11 @@ Print out a unique 32-bit identifier for the machine.
 
 <DT><STRONG><A NAME="item_hostname">hostname</A></STRONG><DD>
 <P>
-hostname [OPTION] {hostname | <STRONG>-F</STRONG> file}
+hostname [OPTION] {hostname | <STRONG>-F</STRONG> FILE}
 
 <P>
-Get or set the hostname or DNS domain name. If a hostname is given (or a
-file with the <STRONG>-F</STRONG> parameter), the host name will be set.
+Get or set the hostname or DNS domain name. If a hostname is given (or FILE
+with the <STRONG>-F</STRONG> parameter), the host name will be set.
 
 <P>
 Options:
@@ -1121,7 +1131,7 @@ Example:
 
 <P>
 <PRE>        $ hostname
-        slag 
+        sage 
 </PRE>
 <P>
 -------------------------------
@@ -1258,7 +1268,7 @@ follows:
                         sysinit actions are completed before continuing.  Following the
                         completion of all sysinit actions, all 'wait' actions are run.
                         'wait' actions, like  'sysinit' actions, cause init to wait until
-                        the specified task completes.  'once' actions are asyncronous,
+                        the specified task completes.  'once' actions are asynchronous,
                         therefore, init does not wait for them to complete.  'ctrlaltdel'
                         actions are run when the system detects that someone on the system
                        console has pressed the CTRL-ALT-DEL key combination.  Typically one
@@ -1429,7 +1439,7 @@ Prints out the length of the specified STRING.
 Example:
 
 <P>
-<PRE>        $ length &quot;Hello&quot;
+<PRE>        $ length Hello
         5
 </PRE>
 <P>
@@ -1698,7 +1708,7 @@ Example:
 mkdir [OPTION] DIRECTORY...
 
 <P>
-Create the <CODE>DIRECTORY(ies),</CODE> if they do not already exist
+Create the <CODE>DIRECTORY(ies)</CODE> if they do not already exist
 
 <P>
 Options:
@@ -1814,7 +1824,7 @@ mktemp [<STRONG>-q</STRONG>] TEMPLATE
 
 <P>
 Creates a temporary file with its name based on TEMPLATE. TEMPLATE is any
-name with six `Xs' (i.e. /tmp/temp.XXXXXX).
+name with six `Xs' (i.e., /tmp/temp.XXXXXX).
 
 <P>
 Example:
@@ -1846,7 +1856,7 @@ Example:
 
 <DT><STRONG><A NAME="item_mount">mount</A></STRONG><DD>
 <P>
-mount [flags] device directory [<STRONG>-o</STRONG> options,more-options]
+mount [flags] DEVICE NODE [<STRONG>-o</STRONG> options,more-options]
 
 <P>
 Mount a filesystem
@@ -1875,10 +1885,11 @@ Options for use with the ``<STRONG>-o</STRONG>'' flag:
         suid/nosuid:    Allow set-user-id-root programs / disallow them.
         remount:        Re-mount a mounted filesystem, changing its flags.
         ro/rw:          Mount for read-only / read-write.
+        bind:           Use the linux 2.4.x &quot;bind&quot; feature.
 </PRE>
 <P>
 There are EVEN MORE flags that are specific to each filesystem. You'll have
-to see the written documentation for those.
+to see the written documentation for those filesystems.
 
 <P>
 Example:
@@ -1953,10 +1964,11 @@ Example:
 
 <DT><STRONG><A NAME="item_nslookup">nslookup</A></STRONG><DD>
 <P>
-nslookup [HOST]
+nslookup [HOST] [SERVER]
 
 <P>
-Queries the nameserver for the IP address of the given HOST
+Queries the nameserver for the IP address of the given HOST optionally
+using a specified DNS server
 
 <P>
 Example:
@@ -2005,10 +2017,10 @@ Example:
 
 <DT><STRONG><A NAME="item_pivot_root">pivot_root</A></STRONG><DD>
 <P>
-pivot_root new_root put_old
+pivot_root NEW_ROOT PUT_OLD
 
 <P>
-Move the current root file system to put_old and make new_root the new root
+Move the current root file system to PUT_OLD and make NEW_ROOT the new root
 file system.
 
 <P>
@@ -2036,8 +2048,7 @@ FORMAT controls the output exactly as in C printf.
 Example:
 
 <P>
-<PRE>        $ printf &quot;Val=%d
-        &quot; 5
+<PRE>        $ printf &quot;Val=%d\n&quot; 5
         Val=5
 </PRE>
 <P>
@@ -2160,8 +2171,7 @@ all following arguments are non-options.
 Options:
 
 <P>
-<PRE>        -i              always prompt before removing each destinations
-        -f              remove existing destinations, never prompt
+<PRE>        -i              always prompt before removing each destination  -f              remove existing destinations, never prompt
         -r or -R        remove the contents of directories recursively
 </PRE>
 <P>
@@ -2221,6 +2231,16 @@ Edit the kernel's routing tables
 <P>
 -------------------------------
 
+<DT><STRONG><A NAME="item_rpm2cpio">rpm2cpio</A></STRONG><DD>
+<P>
+rpm2cpio package.rpm
+
+<P>
+Outputs a cpio archive of the rpm file.
+
+<P>
+-------------------------------
+
 <DT><STRONG><A NAME="item_rpmunpack">rpmunpack</A></STRONG><DD>
 <P>
 rpmunpack &lt; package.rpm | gunzip | cpio <STRONG>-idmuv</STRONG>
@@ -2235,7 +2255,7 @@ Extracts an rpm archive.
 
 <DT><STRONG><A NAME="item_sed">sed</A></STRONG><DD>
 <P>
-sed [<STRONG>-Vhnef</STRONG>] pattern [files...]
+sed [<STRONG>-nef</STRONG>] pattern [files...]
 
 <P>
 Options:
@@ -2244,7 +2264,6 @@ Options:
 <PRE>        -n              suppress automatic printing of pattern space
         -e script       add the script to the commands to be executed
         -f scriptfile   add the contents of script-file to the commands to be executed
-        -h              display this help message
 </PRE>
 <P>
 If no <STRONG>-e</STRONG> or <STRONG>-f</STRONG> is given, the first non-option argument is taken as the sed script to
@@ -2322,21 +2341,24 @@ Example:
 
 <DT><STRONG><A NAME="item_sort">sort</A></STRONG><DD>
 <P>
-sort [<STRONG>-n</STRONG>] [<STRONG>-r</STRONG>] [FILE]...
+sort [<STRONG>-nru</STRONG>] [FILE]...
 
 <P>
 Sorts lines of text in the specified files
 
 <P>
+Options:
+
+<P>
+<PRE>        -u      suppress duplicate lines
+        -r      sort in reverse order
+        -n      sort numerics
+</PRE>
+<P>
 Example:
 
 <P>
-<PRE>        $ echo -e &quot;e
-        f
-        b
-        d
-        c
-        a&quot; | sort
+<PRE>        $ echo -e &quot;e\nf\nb\nd\nc\na&quot; | sort
         a
         b
         c
@@ -2349,7 +2371,7 @@ Example:
 
 <DT><STRONG><A NAME="item_stty">stty</A></STRONG><DD>
 <P>
-stty [<STRONG>-a</STRONG>|g] [<STRONG>-F</STRONG> device] [SETTING]...
+stty [<STRONG>-a</STRONG>|g] [<STRONG>-F</STRONG> DEVICE] [SETTING]...
 
 <P>
 Without arguments, prints baud rate, line discipline, and deviations from
@@ -2359,20 +2381,20 @@ stty sane.
 Options:
 
 <P>
-<PRE>        -F device       open device instead of stdin
+<PRE>        -F DEVICE       open device instead of stdin
         -a              print all current settings in human-readable form
         -g              print in stty-readable form
-        [SETTING]       see documentation
+        [SETTING]       see manpage
 </PRE>
 <P>
 -------------------------------
 
 <DT><STRONG><A NAME="item_swapoff">swapoff</A></STRONG><DD>
 <P>
-swapoff [OPTION] [device]
+swapoff [OPTION] [DEVICE]
 
 <P>
-Stop swapping virtual memory pages on the given device.
+Stop swapping virtual memory pages on DEVICE.
 
 <P>
 Options:
@@ -2385,10 +2407,10 @@ Options:
 
 <DT><STRONG><A NAME="item_swapon">swapon</A></STRONG><DD>
 <P>
-swapon [OPTION] [device]
+swapon [OPTION] [DEVICE]
 
 <P>
-Start swapping virtual memory pages on the given device.
+Start swapping virtual memory pages on DEVICE.
 
 <P>
 Options:
@@ -2474,13 +2496,13 @@ Example:
 
 <DT><STRONG><A NAME="item_tar">tar</A></STRONG><DD>
 <P>
-tar -[cxtvO] [-<STRONG>-exclude</STRONG> File] [<STRONG>-X</STRONG> File][<STRONG>-f</STRONG> tarFile] [FILE(s)] ...
+tar -[cxtvO] [-<STRONG>-exclude</STRONG> FILE] [<STRONG>-X</STRONG> FILE][<STRONG>-f</STRONG> TARFILE] [<STRONG>-C</STRONG> DIR] [FILE(s)] ...
 
 <P>
 Create, extract, or list files from a tar file.
 
 <P>
-Main operation mode:
+Options:
 
 <P>
 <PRE>        c               create
@@ -2491,16 +2513,12 @@ Main operation mode:
 File selection:
 
 <P>
-<PRE>        f               name of tarfile or &quot;-&quot; for stdin
+<PRE>        f               name of TARFILE or &quot;-&quot; for stdin
         O               extract to stdout
         exclude         file to exclude
         X               file with names to exclude
-</PRE>
-<P>
-Informative output:
-
-<P>
-<PRE>        v               verbosely list files processed
+        C               change to directory DIR before operation
+        v               verbosely list files processed
 </PRE>
 <P>
 Example:
@@ -2538,7 +2556,7 @@ Example:
 
 <DT><STRONG><A NAME="item_telnet">telnet</A></STRONG><DD>
 <P>
-telnet host [port]
+telnet HOST [PORT]
 
 <P>
 Telnet is used to establish interactive communication with another computer
@@ -2590,17 +2608,17 @@ Commands:
         put     Put local file SOURCE to server DEST.
 </PRE>
 <P>
-When nameing a server, use the syntax ``server:file''.
+When naming a server, use the syntax ``server:file''.
 
 <P>
 -------------------------------
 
 <DT><STRONG><A NAME="item_touch">touch</A></STRONG><DD>
 <P>
-touch [<STRONG>-c</STRONG>] file [file ...]
+touch [<STRONG>-c</STRONG>] FILE [FILE ...]
 
 <P>
-Update the last-modified date on the given file[s].
+Update the last-modified date on the given FILE[s].
 
 <P>
 Options:
@@ -2690,7 +2708,7 @@ Example:
 
 <DT><STRONG><A NAME="item_umount">umount</A></STRONG><DD>
 <P>
-umount [flags] filesystem|directory
+umount [flags] FILESYSTEM|DIRECTORY
 
 <P>
 Unmount file systems
@@ -2699,11 +2717,11 @@ Unmount file systems
 Flags:
 
 <P>
-<PRE>        -a:     Unmount all file systems in /etc/mtab
-        -n:     Don't erase /etc/mtab entries
-        -r:     Try to remount devices as read-only if mount is busy
-        -f:     Force filesystem umount (i.e. unreachable NFS server)
-        -l:     Do not free loop device (if a loop device has been used)
+<PRE>        -a      Unmount all file systems in /etc/mtab
+        -n      Don't erase /etc/mtab entries
+        -r      Try to remount devices as read-only if mount is busy
+        -f      Force umount (i.e., unreachable NFS server)
+        -l      Do not free loop device (if a loop device has been used)
 </PRE>
 <P>
 Example:
@@ -2763,12 +2781,7 @@ Options:
 Example:
 
 <P>
-<PRE>        $ echo -e &quot;a
-        a
-        b
-        c
-        c
-        a&quot; | sort | uniq
+<PRE>        $ echo -e &quot;a\na\nb\nc\nc\na&quot; | sort | uniq
         a
         b
         c
@@ -2778,11 +2791,17 @@ Example:
 
 <DT><STRONG><A NAME="item_unix2dos">unix2dos</A></STRONG><DD>
 <P>
-unix2dos [option] [file]
+unix2dos [option] [FILE]
 
 <P>
-See 'dos2unix -<STRONG>-help</STRONG>' for help!
+Converts FILE from unix format to dos format. When no option is given, the
+input is converted to the opposite output format. When no file is given,
+uses stdin for input and stdout for output. Options:
 
+<P>
+<PRE>        -u      output will be in UNIX format
+        -d      output will be in DOS format
+</PRE>
 <P>
 -------------------------------
 
@@ -2873,7 +2892,7 @@ Uuencode a file.
 Options:
 
 <P>
-<PRE>        -m      use base64 encoding as of RFC1521
+<PRE>        -m      use base64 encoding per RFC1521
 </PRE>
 <P>
 Example:
@@ -2943,7 +2962,7 @@ Example:
 
 <DT><STRONG><A NAME="item_wget">wget</A></STRONG><DD>
 <P>
-wget [<STRONG>-c</STRONG>] [<STRONG>-O</STRONG> file] url
+wget [<STRONG>-c</STRONG>|-<STRONG>-continue</STRONG>] [<STRONG>-q</STRONG>|-<STRONG>-quiet</STRONG>] [<STRONG>-O</STRONG>|-<STRONG>-output</STRONG>-document file] [-<STRONG>-header</STRONG> 'header: value'] [<STRONG>-P</STRONG> DIR] url
 
 <P>
 wget retrieves files via HTTP or FTP
@@ -2954,6 +2973,7 @@ Options:
 <P>
 <PRE>        -c      continue retrieval of aborted transfers
         -q      quiet mode - do not print
+        -P      Set directory prefix to DIR
         -O      save to filename ('-' for stdout)
 </PRE>
 <P>
@@ -3079,6 +3099,15 @@ HREF="mailto:andersee@debian.org">andersee@debian.org</A>&gt;
 <br>
 
 <P>
+John Beppu &lt;<A HREF="mailto:beppu@lineo.com">beppu@lineo.com</A>&gt;
+
+<P>
+<PRE>    du, head, nslookup, sort, tee, uniq (so Kraai could rewrite them ;-),
+    documentation
+</PRE>
+<br>
+
+<P>
 Edward Betts &lt;<A
 HREF="mailto:edward@debian.org">edward@debian.org</A>&gt;
 
@@ -3087,14 +3116,6 @@ HREF="mailto:edward@debian.org">edward@debian.org</A>&gt;
  
 =for html &lt;br&gt;
 </PRE>
-<P>
-John Beppu &lt;<A HREF="mailto:beppu@lineo.com">beppu@lineo.com</A>&gt;
-
-<P>
-<PRE>    du, head, nslookup, sort, tee, uniq
-</PRE>
-<br>
-
 <P>
 Brian Candler &lt;<A
 HREF="mailto:B.Candler@pobox.com">B.Candler@pobox.com</A>&gt;
@@ -3124,11 +3145,29 @@ HREF="mailto:dcinege@psychosis.com">dcinege@psychosis.com</A>&gt;
 <br>
 
 <P>
+Larry Doolittle &lt;<A
+HREF="mailto:ldoolitt@recycle.lbl.gov">ldoolitt@recycle.lbl.gov</A>&gt;
+
+<P>
+<PRE>    various fixes, shell rewrite
+</PRE>
+<br>
+
+<P>
 Karl M. Hegbloom &lt;<A
 HREF="mailto:karlheg@debian.org">karlheg@debian.org</A>&gt;
 
 <P>
 <PRE>    cp_mv.c, the test suite, various fixes to utility.c, &amp;c.
+</PRE>
+<br>
+
+<P>
+Sterling Huxley &lt;<A
+HREF="mailto:sterling@europa.com">sterling@europa.com</A>&gt;
+
+<P>
+<PRE>    vi (!!!)
 </PRE>
 <br>
 

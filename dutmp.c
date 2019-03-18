@@ -20,9 +20,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "busybox.h"
-#define BB_DECLARE_EXTERN
-#define bb_need_io_error
-#include "messages.c"
 
 extern int dutmp_main(int argc, char **argv)
 {
@@ -52,7 +49,7 @@ extern int dutmp_main(int argc, char **argv)
 				(long)ut.ut_addr);
 	}
 #else
-	/* Glibc, uClibc, etc */
+	/* Glibc, uClibc, etc. */
 	while (read(file, (void*)&ut, sizeof(struct utmp))) {
 		printf("%d|%d|%s|%s|%s|%s|%d|%d|%ld|%ld|%ld|%x\n",
 		ut.ut_type, ut.ut_pid, ut.ut_line,

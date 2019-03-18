@@ -24,6 +24,11 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#include <getopt.h>
+
 #include "busybox.h"
 
 /* Stupid libc5 doesn't define this... */
@@ -59,7 +64,7 @@ static int chunked = 0;			/* chunked transfer encoding */
 #ifdef BB_FEATURE_WGET_STATUSBAR
 static char *curfile;			/* Name of current file being transferred. */
 static struct timeval start;	/* Time a transfer started. */
-static volatile unsigned long statbytes; /* Number of bytes transferred so far. */
+static volatile unsigned long statbytes = 0; /* Number of bytes transferred so far. */
 /* For progressmeter() -- number of seconds before xfer considered "stalled" */
 static const int STALLTIME = 5;
 #endif
@@ -70,6 +75,50 @@ static void close_and_delete_outfile(FILE* output, char *fname_out, int do_conti
 		fclose(output);
 		unlink(fname_out);
 	}
+}
+
+/* Read NMEMB elements of SIZE bytes into PTR from STREAM.  Returns the
+ * number of elements read, and a short count if an eof or non-interrupt
+ * error is encountered.  */
+static size_t safe_fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
+{
+	size_t ret = 0;
+
+	do {
+		clearerr(stream);
+		ret += fread((char *)ptr + (ret * size), size, nmemb - ret, stream);
+	} while (ret < nmemb && ferror(stream) && errno == EINTR);
+
+	return ret;
+}
+
+/* Write NMEMB elements of SIZE bytes from PTR to STREAM.  Returns the
+ * number of elements written, and a short count if an eof or non-interrupt
+ * error is encountered.  */
+static size_t safe_fwrite(void *ptr, size_t size, size_t nmemb, FILE *stream)
+{
+	size_t ret = 0;
+
+	do {
+		clearerr(stream);
+		ret += fwrite((char *)ptr + (ret * size), size, nmemb - ret, stream);
+	} while (ret < nmemb && ferror(stream) && errno == EINTR);
+
+	return ret;
+}
+
+/* Read a line or SIZE - 1 bytes into S, whichever is less, from STREAM.
+ * Returns S, or NULL if an eof or non-interrupt error is encountered.  */
+static char *safe_fgets(char *s, int size, FILE *stream)
+{
+	char *ret;
+
+	do {
+		clearerr(stream);
+		ret = fgets(s, size, stream);
+	} while (ret == NULL && ferror(stream) && errno == EINTR);
+
+	return ret;
 }
 
 #define close_delete_and_die(s...) { \
@@ -111,9 +160,13 @@ int wget_main(int argc, char **argv)
 	int n, try=5, status;
 	int port;
 	char *proxy;
+	char *dir_prefix=NULL;
 	char *s, buf[512];
 	struct stat sbuf;
-
+	char extra_headers[1024];
+	char *extra_headers_ptr = extra_headers;
+	int extra_headers_left = sizeof(extra_headers);
+	int which_long_opt = 0, option_index = -1;
 	struct host_info server, target;
 
 	FILE *sfp = NULL;			/* socket to web/ftp server			*/
@@ -125,13 +178,24 @@ int wget_main(int argc, char **argv)
 	FILE *output;				/* socket to web server				*/
 	int quiet_flag = FALSE;		/* Be verry, verry quiet...			*/
 
+#define LONG_HEADER	1
+	struct option long_options[] = {
+		{ "continue",		0, NULL, 'c' },
+		{ "quiet",		0, NULL, 'q' },
+		{ "output-document",	1, NULL, 'O' },
+		{ "header",		1, &which_long_opt, LONG_HEADER },
+		{ 0,			0, 0, 0 }
+	};
 	/*
 	 * Crack command line.
 	 */
-	while ((n = getopt(argc, argv, "cqO:")) != EOF) {
+	while ((n = getopt_long(argc, argv, "cqO:P:", long_options, &option_index)) != EOF) {
 		switch (n) {
 		case 'c':
 			++do_continue;
+			break;
+		case 'P':
+			dir_prefix = optarg;	
 			break;
 		case 'q':
 			quiet_flag = TRUE;
@@ -141,7 +205,23 @@ int wget_main(int argc, char **argv)
 			 * this gets interpreted as the auto-gen output filename
 			 * case below  - tausq@debian.org
 			 */
-			fname_out = (strcmp(optarg, "-") == 0 ? (char *)1 : optarg);
+			fname_out = optarg;
+			break;
+		case 0:
+			switch (which_long_opt) {
+				case LONG_HEADER: {
+					int arglen = strlen(optarg);
+					if(extra_headers_left - arglen - 2 <= 0)
+						error_msg_and_die("extra_headers buffer too small(need %i)", extra_headers_left - arglen);
+					strcpy(extra_headers_ptr, optarg);
+					extra_headers_ptr += arglen;
+					extra_headers_left -= ( arglen + 2 );
+					*extra_headers_ptr++ = '\r';
+					*extra_headers_ptr++ = '\n';
+					*(extra_headers_ptr + 1) = 0;
+					break;
+				}
+			}
 			break;
 		default:
 			show_usage();
@@ -188,10 +268,12 @@ int wget_main(int argc, char **argv)
 	/*
 	 * Open the output file stream.
 	 */
-	if (fname_out != (char *)1) {
-		output = xfopen( fname_out, (do_continue ? "a" : "w") );
-	} else {
+	if (strcmp(fname_out, "-") == 0) {
 		output = stdout;
+		quiet_flag = TRUE;
+	} else {
+		fname_out = concat_path_file(dir_prefix, fname_out);
+		output = xfopen(fname_out, (do_continue ? "a" : "w"));
 	}
 
 	/*
@@ -246,6 +328,8 @@ int wget_main(int argc, char **argv)
 
 			if (do_continue)
 				fprintf(sfp, "Range: bytes=%ld-\r\n", beg_range);
+			if(extra_headers_left < sizeof(extra_headers))
+				fputs(extra_headers,sfp);
 			fprintf(sfp,"Connection: close\r\n\r\n");
 
 			/*
@@ -390,26 +474,23 @@ read_response:		if (fgets(buf, sizeof(buf), sfp) == NULL)
 		fgets(buf, sizeof(buf), dfp);
 		filesize = strtol(buf, (char **) NULL, 16);
 	}
-	do {
 #ifdef BB_FEATURE_WGET_STATUSBAR
-	statbytes=0;
 	if (quiet_flag==FALSE)
 		progressmeter(-1);
 #endif
-		while ((filesize > 0 || !got_clen) && (n = fread(buf, 1, chunked ? (filesize > sizeof(buf) ? sizeof(buf) : filesize) : sizeof(buf), dfp)) > 0) {
-		fwrite(buf, 1, n, output);
+	do {
+		while ((filesize > 0 || !got_clen) && (n = safe_fread(buf, 1, chunked ? (filesize > sizeof(buf) ? sizeof(buf) : filesize) : sizeof(buf), dfp)) > 0) {
+		safe_fwrite(buf, 1, n, output);
 #ifdef BB_FEATURE_WGET_STATUSBAR
 		statbytes+=n;
-		if (quiet_flag==FALSE)
-			progressmeter(1);
 #endif
 		if (got_clen)
 			filesize -= n;
 	}
 
 		if (chunked) {
-			fgets(buf, sizeof(buf), dfp); /* This is a newline */
-			fgets(buf, sizeof(buf), dfp);
+			safe_fgets(buf, sizeof(buf), dfp); /* This is a newline */
+			safe_fgets(buf, sizeof(buf), dfp);
 			filesize = strtol(buf, (char **) NULL, 16);
 			if (filesize==0) chunked = 0; /* all done! */
 		}
@@ -417,14 +498,16 @@ read_response:		if (fgets(buf, sizeof(buf), sfp) == NULL)
 	if (n == 0 && ferror(dfp))
 		perror_msg_and_die("network read error");
 	} while (chunked);
-
+#ifdef BB_FEATURE_WGET_STATUSBAR
+	if (quiet_flag==FALSE)
+		progressmeter(1);
+#endif
 	if (!proxy && target.is_ftp) {
 		fclose(dfp);
 		if (ftpcmd(NULL, NULL, sfp, buf) != 226)
 			error_msg_and_die("ftp error: %s", buf+4);
 		ftpcmd("QUIT", NULL, sfp, buf);
 	}
-	printf("\n");
 	exit(EXIT_SUCCESS);
 }
 
@@ -477,8 +560,7 @@ FILE *open_socket(char *host, int port)
 
 	memset(&s_in, 0, sizeof(s_in));
 	s_in.sin_family = AF_INET;
-	if ((hp = (struct hostent *) gethostbyname(host)) == NULL)
-		error_msg_and_die("cannot resolve %s", host);
+	hp = xgethostbyname(host);
 	memcpy(&s_in.sin_addr, hp->h_addr_list[0], hp->h_length);
 	s_in.sin_port = htons(port);
 
@@ -606,7 +688,7 @@ progressmeter(int flag)
 {
 	static const char prefixes[] = " KMGTP";
 	static struct timeval lastupdate;
-	static off_t lastsize;
+	static off_t lastsize, totalsize;
 	struct timeval now, td, wait;
 	off_t cursize, abbrevsize;
 	double elapsed;
@@ -617,12 +699,13 @@ progressmeter(int flag)
 		(void) gettimeofday(&start, (struct timezone *) 0);
 		lastupdate = start;
 		lastsize = 0;
+		totalsize = filesize; /* as filesize changes.. */
 	}
 
 	(void) gettimeofday(&now, (struct timezone *) 0);
 	cursize = statbytes;
-	if (filesize != 0 && !chunked) {
-		ratio = 100.0 * cursize / filesize;
+	if (totalsize != 0 && !chunked) {
+		ratio = 100.0 * cursize / totalsize;
 		ratio = MAX(ratio, 0);
 		ratio = MIN(ratio, 100);
 	} else
@@ -662,14 +745,14 @@ progressmeter(int flag)
 	timersub(&now, &start, &td);
 	elapsed = td.tv_sec + (td.tv_usec / 1000000.0);
 
-	if (statbytes <= 0 || elapsed <= 0.0 || cursize > filesize) {
-		snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
-			 "   --:-- ETA");
-	} else if (wait.tv_sec >= STALLTIME) {
+	if (wait.tv_sec >= STALLTIME) {
 		snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
 			 " - stalled -");
+	} else if (statbytes <= 0 || elapsed <= 0.0 || cursize > totalsize || chunked) {
+		snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
+			 "   --:-- ETA");
 	} else {
-		remaining = (int) (filesize / (statbytes / elapsed) - elapsed);
+		remaining = (int) (totalsize / (statbytes / elapsed) - elapsed);
 		i = remaining / 3600;
 		if (i)
 			snprintf(buf + strlen(buf), sizeof(buf) - strlen(buf),
@@ -693,6 +776,7 @@ progressmeter(int flag)
 	} else if (flag == 1) {
 		alarmtimer(0);
 		statbytes = 0;
+		putc('\n', stderr);
 	}
 }
 #endif
@@ -732,7 +816,7 @@ progressmeter(int flag)
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	$Id: wget.c,v 1.32 2001/04/10 18:17:05 andersen Exp $
+ *	$Id: wget.c,v 1.42 2001/06/21 19:45:06 andersen Exp $
  */
 
 

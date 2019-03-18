@@ -18,8 +18,8 @@
 #
 
 PROG      := busybox
-VERSION   := 0.51
-BUILDTIME := $(shell TZ=UTC date --utc "+%Y.%m.%d-%H:%M%z")
+VERSION   := 0.52
+BUILDTIME := $(shell TZ=UTC date -u "+%Y.%m.%d-%H:%M%z")
 export VERSION
 
 # With a modern GNU make(1) (highly recommended, that's what all the
@@ -37,19 +37,18 @@ DOSTATIC = false
 
 # Set the following to `true' to make a debuggable build.
 # Leave this set to `false' for production use.
-# eg: `make DODEBUG=true tests'
-# Do not enable this for production builds...
 DODEBUG = false
 
 # Setting this to `true' will cause busybox to directly use the system's
 # password and group functions.  Assuming you use GNU libc, when this is
 # `true', you will need to install the /etc/nsswitch.conf configuration file
 # and the required libnss_* libraries. This generally makes your embedded
-# system quite a bit larger... If you leave this off, busybox will directly
-# use the /etc/password, /etc/group files (and your system will be smaller, and
-# I will get fewer emails asking about how glibc NSS works).  Enabling this adds
-# just 1.4k to the binary size (which is a _lot_ less then glibc NSS costs),
-# Most people will want to leave this set to false.
+# system quite a bit larger... If you leave this off, busybox will directly use
+# the /etc/password, /etc/group files (and your system will be smaller, and I
+# will get fewer emails asking about how glibc NSS works).  Enabling this adds
+# just 1.4k to the binary size (which is a _lot_ less then glibc NSS costs).
+# Note that if you want hostname resolution to work with glibc, you still need
+# the libnss_* libraries.  Most people will want to leave this set to false.
 USE_SYSTEM_PWD_GRP = true
 
 # This enables compiling with dmalloc ( http://dmalloc.com/ )
@@ -212,7 +211,7 @@ endif
 # And option 4:
 -include applet_source_list
 
-OBJECTS   = $(APPLET_SOURCES:.c=.o) busybox.o messages.o usage.o applets.o
+OBJECTS   = $(APPLET_SOURCES:.c=.o) busybox.o usage.o applets.o
 CFLAGS    += $(CROSS_CFLAGS)
 CFLAGS    += -DBB_VER='"$(VERSION)"'
 CFLAGS    += -DBB_BT='"$(BUILDTIME)"'
@@ -235,23 +234,36 @@ endif
     
 LIBBB	  = libbb
 LIBBB_LIB = libbb.a
-LIBBB_CSRC= ask_confirmation.c check_wildcard_match.c chomp.c copy_file.c \
-copy_file_chunk.c create_path.c daemon.c device_open.c error_msg.c \
-find_mount_point.c find_pid_by_name.c find_root_device.c full_read.c \
-full_write.c get_console.c get_last_path_component.c get_line_from_file.c \
-human_readable.c inode_hash.c isdirectory.c kernel_version.c loop.c \
-mode_string.c parse_mode.c parse_number.c print_file.c process_escape_sequence.c \
-my_getgrgid.c my_getpwnamegid.c my_getpwuid.c my_getgrnam.c my_getpwnam.c \
-recursive_action.c safe_read.c safe_strncpy.c syscalls.c module_syscalls.c \
-syslog_msg_with_name.c time_string.c trim.c vdprintf.c wfopen.c xfuncs.c \
-xregcomp.c error_msg_and_die.c perror_msg.c perror_msg_and_die.c \
-verror_msg.c vperror_msg.c mtab.c mtab_file.c xgetcwd.c concat_path_file.c
-
+LIBBB_CSRC= ask_confirmation.c chomp.c concat_path_file.c copy_file.c \
+copy_file_chunk.c daemon.c device_open.c error_msg.c \
+error_msg_and_die.c fgets_str.c find_mount_point.c find_pid_by_name.c \
+find_root_device.c full_read.c full_write.c get_console.c \
+get_last_path_component.c get_line_from_file.c gz_open.c human_readable.c \
+isdirectory.c kernel_version.c loop.c mode_string.c module_syscalls.c mtab.c \
+mtab_file.c my_getgrnam.c my_getgrgid.c my_getpwnam.c my_getpwnamegid.c \
+my_getpwuid.c parse_mode.c parse_number.c perror_msg.c perror_msg_and_die.c \
+print_file.c process_escape_sequence.c read_package_field.c recursive_action.c \
+safe_read.c safe_strncpy.c syscalls.c syslog_msg_with_name.c time_string.c \
+trim.c unzip.c vdprintf.c verror_msg.c vperror_msg.c wfopen.c xfuncs.c \
+xgetcwd.c xreadlink.c xregcomp.c interface.c remove_file.c last_char_is.c \
+copyfd.c vherror_msg.c herror_msg.c herror_msg_and_die.c xgethostbyname.c \
+dirname.c make_directory.c
 LIBBB_OBJS=$(patsubst %.c,$(LIBBB)/%.o, $(LIBBB_CSRC))
 LIBBB_CFLAGS = -I$(LIBBB)
 ifneq ($(strip $(BB_SRC_DIR)),)
     LIBBB_CFLAGS += -I$(BB_SRC_DIR)/$(LIBBB)
 endif
+
+LIBBB_MSRC=libbb/messages.c
+LIBBB_MESSAGES= full_version name_too_long omitting_directory not_a_directory \
+memory_exhausted invalid_date invalid_option io_error dash_dash_help \
+write_error too_few_args name_longer_than_foo unknown
+LIBBB_MOBJ=$(patsubst %,$(LIBBB)/%.o, $(LIBBB_MESSAGES))
+
+LIBBB_ARCSRC=libbb/unarchive.c
+LIBBB_ARCOBJ= archive_offset seek_sub_file extract_archive unarchive \
+get_header_ar get_header_cpio get_header_tar deb_extract
+LIBBB_AROBJS=$(patsubst %,$(LIBBB)/%.o, $(LIBBB_ARCOBJ))
 
 
 # Put user-supplied flags at the end, where they
@@ -263,7 +275,7 @@ CFLAGS += $(CFLAGS_EXTRA)
 all: applet_source_list busybox busybox.links doc
 
 applet_source_list: busybox.sh Config.h
-	(echo -n "APPLET_SOURCES := "; $(SHELL) $^ $(BB_SRC_DIR)) > $@
+	(echo -n "APPLET_SOURCES := "; BB_SRC_DIR=$(BB_SRC_DIR) $(SHELL) $^) > $@
 
 doc: olddoc
 
@@ -296,7 +308,7 @@ docs/busybox.lineo.com/BusyBox.html: docs/busybox.pod
 	-@ mkdir -p docs/busybox.lineo.com
 	-  pod2html --noindex $< > \
 	    docs/busybox.lineo.com/BusyBox.html
-	-@ rm -f pod2html*
+	-@ rm -f pod2htm*
 
 
 # New docs based on DOCBOOK SGML
@@ -327,7 +339,7 @@ docs/busybox/busyboxdocumentation.html: docs/busybox.sgml
 
 
 busybox: $(PWD_LIB) $(LIBBB_LIB) $(OBJECTS) 
-	$(CC) $(LDFLAGS) -o $@ $(OBJECTS) $(PWD_LIB) $(LIBBB_LIB) $(LIBRARIES)
+	$(CC) $(LDFLAGS) -o $@ $(OBJECTS) $(LIBBB_LIB) $(PWD_LIB) $(LIBRARIES)
 	$(STRIP)
 
 # Without VPATH, rule expands to "/bin/sh busybox.mkll Config.h applets.h"
@@ -349,13 +361,23 @@ $(LIBBB_OBJS): %.o: %.c Config.h busybox.h applets.h Makefile libbb/libbb.h
 	- mkdir -p $(LIBBB)
 	$(CC) $(CFLAGS) $(LIBBB_CFLAGS) -c $< -o $*.o
 
+$(LIBBB_MOBJ): $(LIBBB_MSRC)
+	- mkdir -p $(LIBBB)
+	$(CC) $(CFLAGS) $(LIBBB_CFLAGS) -DL_$(patsubst libbb/%,%,$*) -c $< -o $*.o
+
+$(LIBBB_AROBJS): $(LIBBB_ARCSRC)
+	- mkdir -p $(LIBBB)
+	$(CC) $(CFLAGS) $(LIBBB_CFLAGS) -DL_$(patsubst libbb/%,%,$*) -c $< -o $*.o
+
 libpwd.a: $(PWD_OBJS)
 	$(AR) $(ARFLAGS) $@ $^
 
-libbb.a: $(LIBBB_OBJS)
+libbb.a:  $(LIBBB_MOBJ) $(LIBBB_AROBJS) $(LIBBB_OBJS)
 	$(AR) $(ARFLAGS) $@ $^
 
 usage.o: usage.h
+
+sh.o: sh.c lash.c hush.c msh.c ash.c
 
 libbb/loop.o: libbb/loop.h
 
@@ -375,12 +397,12 @@ clean:
 	- rm -f docs/busybox.txt docs/busybox.dvi docs/busybox.ps \
 	    docs/busybox.pdf docs/busybox.lineo.com/busybox.html
 	- rm -f multibuild.log Config.h.orig
-	- rm -rf docs/busybox _install libpwd.a libbb.a
+	- rm -rf docs/busybox _install libpwd.a libbb.a pod2htm*
 	- rm -f busybox.links libbb/loop.h *~ slist.mk core applet_source_list
 	- find -name \*.o -exec rm -f {} \;
 
 distclean: clean
-	- rm -f busybox
+	- rm -f busybox applet_source_list
 	- cd tests && $(MAKE) distclean
 
 install: install.sh busybox busybox.links
@@ -402,11 +424,6 @@ dist release: distclean doc
 				 -name CVS	\
 				 -print		\
 		-exec rm -rf {} \; ;            \
-						\
-	find busybox-$(VERSION)/ -type f	\
-				 -name .cvsignore \
-				 -print		\
-		-exec rm -f {}  \; ;            \
 						\
 	find busybox-$(VERSION)/ -type f	\
 				 -name .\#*	\

@@ -12,16 +12,15 @@
 	"\t-p timeconstant\n"
 
 #define ar_trivial_usage \
-	"-[ovR]{ptx} archive filenames"
+	"-[ov][ptx] ARCHIVE FILES"
 #define ar_full_usage \
-	"Extract or list files from an ar archive.\n\n" \
+	"Extract or list FILES from an ar archive.\n\n" \
 	"Options:\n" \
 	"\t-o\t\tpreserve original dates\n" \
 	"\t-p\t\textract to stdout\n" \
 	"\t-t\t\tlist\n" \
 	"\t-x\t\textract\n" \
-	"\t-v\t\tverbosely list files processed\n" \
-	"\t-R\t\trecursive action"
+	"\t-v\t\tverbosely list files processed\n"
 
 #define basename_trivial_usage \
 	"FILE [SUFFIX]"
@@ -75,11 +74,12 @@
 	"-r--r--r--    1 root     root            0 Apr 12 18:25 /tmp/foo\n"
 
 #define chown_trivial_usage \
-	"[OPTION]...  OWNER[<.|:>[GROUP]] FILE..."
+	"[ -Rh ]...  OWNER[<.|:>[GROUP]] FILE..."
 #define chown_full_usage \
 	"Change the owner and/or group of each FILE to OWNER and/or GROUP.\n" \
 	"\nOptions:\n" \
-	"\t-R\tChanges files and directories recursively."
+	"\t-R\tChanges files and directories recursively.\n" \
+	"\t-h\tDo not dereference symbolic links."
 #define chown_example_usage \
 	"$ ls -l /tmp/foo\n" \
 	"-r--r--r--    1 andersen andersen        0 Apr 12 18:25 /tmp/foo\n" \
@@ -115,6 +115,7 @@
 #define cmp_trivial_usage \
 	"FILE1 [FILE2]"
 #define cmp_full_usage \
+	"\t-s\tquiet mode - do not print\n" \
 	"Compare files."
 
 #define cp_trivial_usage \
@@ -128,6 +129,18 @@
 	"\t-f\tforce (implied; ignored) - always set\n" \
 	"\t-R\tCopies directories recursively"
 
+#define cpio_trivial_usage \
+	"-[dimtuv][F cpiofile]"
+#define cpio_full_usage \
+	"Extract or list files from a cpio archive\n" \
+	"Main operation mode:\n" \
+	"\td\t\tmake leading directories\n" \
+	"\ti\t\textract\n" \
+	"\tm\t\tpreserve mtime\n" \
+	"\tt\t\tlist\n" \
+	"\tu\t\tunconditional overwrite\t" \
+	"\tF\t\tinput from file\t"
+	
 #define cut_trivial_usage \
 	"[OPTION]... [FILE]..."
 #define cut_full_usage \
@@ -163,7 +176,7 @@
 #define dc_full_usage \
 	"This is a Tiny RPN calculator that understands the\n" \
 	"following operations: +, -, /, *, and, or, not, eor.\n" \
-	"i.e. 'dc 2 2 add' -> 4, and 'dc 8 8 \\* 2 2 + /' -> 16"
+	"i.e., 'dc 2 2 add' -> 4, and 'dc 8 8 \\* 2 2 + /' -> 16"
 #define dc_example_usage \
 	"$ dc 2 2 +\n" \
 	"4\n" \
@@ -211,7 +224,7 @@
   #define USAGE_NOT_HUMAN_READABLE(a) a
 #endif
 #define df_trivial_usage \
-	"[-" USAGE_HUMAN_READABLE("hm") USAGE_NOT_HUMAN_READABLE("") "k] [filesystem ...]"
+	"[-" USAGE_HUMAN_READABLE("hm") USAGE_NOT_HUMAN_READABLE("") "k] [FILESYSTEM ...]"
 #define df_full_usage \
 	"Print the filesystem space used and space available.\n\n" \
 	"Options:\n" \
@@ -219,7 +232,7 @@
 	"\n\t-h\tprint sizes in human readable format (e.g., 1K 243M 2G )\n" \
 	"\t-m\tprint sizes in megabytes\n" \
 	"\t-k\tprint sizes in kilobytes(default)") USAGE_NOT_HUMAN_READABLE( \
-	"\n\t-k\tprint sizes in kilobytes(compatability)")
+	"\n\t-k\tprint sizes in kilobytes(compatibility)")
 #define df_example_usage \
 	"$ df\n" \
 	"Filesystem           1k-blocks      Used Available Use% Mounted on\n" \
@@ -249,30 +262,31 @@
 	"\t-s SIZE\t\tUse a buffer of size SIZE"
 
 #define dos2unix_trivial_usage \
-	"[option] [file]"
+	"[option] [FILE]"
 #define dos2unix_full_usage \
-	"Converts a text file to/from dos format to unix format.\n\n" \
+	"Converts FILE from dos format to unix format.  When no option\n" \
+	"is given, the input is converted to the opposite output format.\n" \
+	"When no file is given, uses stdin for input and stdout for output.\n\n" \
 	"Options:\n" \
 	"\t-u\toutput will be in UNIX format\n" \
-	"\t-d\toutput will be in DOS format\n\n" \
-	"- when no option is given then input format will be automaticaly detected\n" \
-	"  and converted to the oposite format on output\n" \
-	"- when no file is given, then stdin is used as input and stdout as output"
+	"\t-d\toutput will be in DOS format"
 
 #define dpkg_trivial_usage \
 	"[-i|-r|--unpack|--configure] my.deb"
 #define dpkg_full_usage \
-	"WORK IN PROGRESS, only usefull for debian-installer"
+	"WORK IN PROGRESS, only useful for debian-installer"
 
 #define dpkg_deb_trivial_usage \
-	"[-cexX] file directory"
+	"[-cefItxX] FILE [argument]"
 #define dpkg_deb_full_usage \
 	"Perform actions on debian packages (.debs)\n\n" \
 	"Options:\n" \
-	"\t-c\tList contents of filesystem tree (verbose)\n" \
-	"\t-l\tList contents of filesystem tree (.list format)\n" \
-	"\t-e\tExtract control files to directory\n" \
-	"\t-x\tExctract packages filesystem tree to directory\n" \
+	"\t-c\tList contents of filesystem tree\n" \
+	"\t-e\tExtract control files to [argument] directory\n" \
+	"\t-f\tDisplay control field name starting with [argument]\n" \
+	"\t-I\tDisplay the control filenamed [argument]\n" \
+	"\t-t\tExtract filesystem tree to stdout in tar format\n" \
+	"\t-x\tExtract packages filesystem tree to directory\n" \
 	"\t-X\tVerbose extract"
 #define dpkg_deb_example_usage \
 	"$ dpkg-deb -X ./busybox_0.48-1_i386.deb /tmp\n"
@@ -289,7 +303,7 @@
 	"\n\t-h\tprint sizes in human readable format (e.g., 1K 243M 2G )\n" \
 	"\t-m\tprint sizes in megabytes\n" \
 	"\t-k\tprint sizes in kilobytes(default)") USAGE_NOT_HUMAN_READABLE( \
-	"\n\t-k\tprint sizes in kilobytes(compatability)")
+	"\n\t-k\tprint sizes in kilobytes(compatibility)")
 #define du_example_usage \
 	"$ du\n" \
 	"16      ./CVS\n" \
@@ -314,7 +328,7 @@
 	"[FILE]"
 #define dutmp_full_usage \
 	"Dump utmp file format (pipe delimited) from FILE\n" \
-	"or stdin to stdout.  (i.e. 'dutmp /var/run/utmp')"
+	"or stdin to stdout.  (i.e., 'dutmp /var/run/utmp')"
 #define dutmp_example_usage \
 	"$ dutmp /var/run/utmp\n" \
 	"8|7||si|||0|0|0|955637625|760097|0\n" \
@@ -331,20 +345,20 @@
 	"Prints the specified ARGs to stdout\n\n" \
 	"Options:\n" \
 	"\t-n\tsuppress trailing newline\n" \
-	"\t-e\tinterpret backslash-escaped characters (i.e. \\t=tab etc)\n" \
+	"\t-e\tinterpret backslash-escaped characters (i.e., \\t=tab)\n" \
 	"\t-E\tdisable interpretation of backslash-escaped characters"
 #define echo_example_usage \
 	"$ echo "Erik is cool"\n" \
 	"Erik is cool\n" \
-	"$  echo -e "Erik\nis\ncool"\n" \
+	"$  echo -e "Erik\\nis\\ncool"\n" \
 	"Erik\n" \
 	"is\n" \
 	"cool\n" \
-	"$ echo "Erik\nis\ncool"\n" \
-	"Erik\nis\ncool\n"
+	"$ echo "Erik\\nis\\ncool"\n" \
+	"Erik\\nis\\ncool\n"
 
 #define env_trivial_usage \
-	"[-] [-iu] [name=value ...] [command]"
+	"[-iu] [-] [name=value]... [command]"
 #define env_full_usage \
 	"Prints the current environment or runs a program after setting\n" \
 	"up the specified environment.\n\n" \
@@ -437,7 +451,7 @@
 	"the current directory; default EXPRESSION is '-print'\n" \
 	"\nEXPRESSION may consist of:\n" \
 	"\t-follow\t\tDereference symbolic links.\n" \
-	"\t-name PATTERN\tFile name (leading directories removed) matches PATTERN." \
+	"\t-name PATTERN\tFile name (leading directories removed) matches PATTERN.\n" \
 	"\t-print\t\tPrint (default and assumed).\n" \
 	USAGE_FIND_TYPE( \
 	"\n\t-type X\t\tFiletype matches X (where X is one of: f,d,l,b,c,...)" \
@@ -515,7 +529,7 @@
         "done\n"
 
 #define grep_trivial_usage \
-	"[-ihHnqvs] pattern [files...]"
+	"[-ihHnqvs] PATTERN [FILEs...]"
 #define grep_full_usage \
 	"Search for PATTERN in each FILE or standard input.\n\n" \
 	"Options:\n" \
@@ -556,11 +570,11 @@
 	"\t-c\tWrite output to standard output instead of FILE.gz\n" \
 	"\t-d\tdecompress"
 #define gzip_example_usage \
-	"$ ls -la /tmp/BusyBox*\n" \
-	"-rw-rw-r--    1 andersen andersen  1761280 Apr 14 17:47 /tmp/BusyBox-0.43.tar\n" \
-	"$ gzip /tmp/BusyBox-0.43.tar\n" \
-	"$ ls -la /tmp/BusyBox*\n" \
-	"-rw-rw-r--    1 andersen andersen   554058 Apr 14 17:49 /tmp/BusyBox-0.43.tar.gz\n"
+	"$ ls -la /tmp/busybox*\n" \
+	"-rw-rw-r--    1 andersen andersen  1761280 Apr 14 17:47 /tmp/busybox.tar\n" \
+	"$ gzip /tmp/busybox.tar\n" \
+	"$ ls -la /tmp/busybox*\n" \
+	"-rw-rw-r--    1 andersen andersen   554058 Apr 14 17:49 /tmp/busybox.tar.gz\n"
 
 #define halt_trivial_usage \
 	""
@@ -586,10 +600,10 @@
 	"Print out a unique 32-bit identifier for the machine."
 
 #define hostname_trivial_usage \
-	"[OPTION] {hostname | -F file}"
+	"[OPTION] {hostname | -F FILE}"
 #define hostname_full_usage \
 	"Get or set the hostname or DNS domain name. If a hostname is given\n" \
-	"(or a file with the -F parameter), the host name will be set.\n\n" \
+	"(or FILE with the -F parameter), the host name will be set.\n\n" \
 	"Options:\n" \
 	"\t-s\t\tShort\n" \
 	"\t-i\t\tAddresses for the hostname\n" \
@@ -597,7 +611,7 @@
 	"\t-F, --file FILE\tUse the contents of FILE to specify the hostname"
 #define hostname_example_usage \
 	"$ hostname\n" \
-	"slag \n"
+	"sage \n"
 
 #define id_trivial_usage \
 	"[OPTIONS]... [USERNAME]"
@@ -710,7 +724,7 @@
 "			sysinit actions are completed before continuing.  Following the\n" \
 "			completion of all sysinit actions, all 'wait' actions are run.\n" \
 "			'wait' actions, like  'sysinit' actions, cause init to wait until\n" \
-"			the specified task completes.  'once' actions are asyncronous,\n" \
+"			the specified task completes.  'once' actions are asynchronous,\n" \
 "			therefore, init does not wait for them to complete.  'ctrlaltdel'\n" \
 "			actions are run when the system detects that someone on the system\n" \
 "                       console has pressed the CTRL-ALT-DEL key combination.  Typically one\n" \
@@ -820,7 +834,7 @@
 #define length_full_usage \
 	"Prints out the length of the specified STRING."
 #define length_example_usage \
-	"$ length "Hello"\n" \
+	"$ length Hello\n" \
 	"5\n"
 
 #define ln_trivial_usage \
@@ -946,7 +960,7 @@
 	USAGE_HUMAN_READABLE( \
 	"\t-h\tprint sizes in human readable format (e.g., 1K 243M 2G )\n" \
 	"\t-k\tprint sizes in kilobytes(default)") USAGE_NOT_HUMAN_READABLE( \
-	"\t-k\tprint sizes in kilobytes(compatability)") 
+	"\t-k\tprint sizes in kilobytes(compatibility)") 
 
 #define lsmod_trivial_usage \
 	""
@@ -1000,7 +1014,7 @@
 #define mkdir_trivial_usage \
 	"[OPTION] DIRECTORY..."
 #define mkdir_full_usage \
-	"Create the DIRECTORY(ies), if they do not already exist\n\n" \
+	"Create the DIRECTORY(ies) if they do not already exist\n\n" \
 	"Options:\n" \
 	"\t-m\tset permission mode (as in chmod), not rwxrwxrwx - umask\n" \
 	"\t-p\tno error if existing, make parent directories as needed"
@@ -1058,7 +1072,7 @@
 	"[-q] TEMPLATE"
 #define mktemp_full_usage \
 	"Creates a temporary file with its name based on TEMPLATE.\n" \
-	"TEMPLATE is any name with six `Xs' (i.e. /tmp/temp.XXXXXX)."
+	"TEMPLATE is any name with six `Xs' (i.e., /tmp/temp.XXXXXX)."
 #define mktemp_example_usage \
 	"$ mktemp /tmp/temp.XXXXXX\n" \
 	"/tmp/temp.mWiLjM\n" \
@@ -1083,7 +1097,7 @@
   #define USAGE_MTAB(a)
 #endif
 #define mount_trivial_usage \
-	"[flags] device directory [-o options,more-options]"
+	"[flags] DEVICE NODE [-o options,more-options]"
 #define mount_full_usage \
 	"Mount a filesystem\n\n" \
 	"Flags:\n"  \
@@ -1108,8 +1122,9 @@
 	"\tsuid/nosuid:\tAllow set-user-id-root programs / disallow them.\n" \
 	"\tremount:\tRe-mount a mounted filesystem, changing its flags.\n" \
 	"\tro/rw:\t\tMount for read-only / read-write.\n" \
+	"\tbind:\t\tUse the linux 2.4.x \"bind\" feature.\n" \
 	"\nThere are EVEN MORE flags that are specific to each filesystem.\n" \
-	"You'll have to see the written documentation for those."
+	"You'll have to see the written documentation for those filesystems."
 #define mount_example_usage \
 	"$ mount\n" \
 	"/dev/hda3 on / type minix (rw)\n" \
@@ -1151,9 +1166,10 @@
 	"221 foobar closing connection\n" 
 
 #define nslookup_trivial_usage \
-	"[HOST]"
+	"[HOST] [SERVER]"
 #define nslookup_full_usage \
-	"Queries the nameserver for the IP address of the given HOST"
+	"Queries the nameserver for the IP address of the given HOST\n" \
+	"optionally using a specified DNS server"
 #define nslookup_example_usage \
 	"$ nslookup localhost\n" \
 	"Server:     default\n" \
@@ -1162,7 +1178,7 @@
 	"Name:       debian\n" \
 	"Address:    127.0.0.1\n" 
 
-#ifdef BB_FEATURE_SIMPLE_PING
+#ifndef BB_FEATURE_FANCY_PING
 #define ping_trivial_usage "host"
 #define ping_full_usage    "Send ICMP ECHO_REQUEST packets to network hosts"
 #else
@@ -1186,9 +1202,9 @@
 	"round-trip min/avg/max = 20.1/20.1/20.1 ms\n" 
 
 #define pivot_root_trivial_usage \
-	"new_root put_old"
+	"NEW_ROOT PUT_OLD"
 #define pivot_root_full_usage \
-	"Move the current root file system to put_old and make new_root\n" \
+	"Move the current root file system to PUT_OLD and make NEW_ROOT\n" \
 	"the new root file system."
 
 #define poweroff_trivial_usage \
@@ -1202,7 +1218,7 @@
 	"Formats and prints ARGUMENT(s) according to FORMAT,\n" \
 	"Where FORMAT controls the output exactly as in C printf."
 #define printf_example_usage \
-	"$ printf "Val=%d\n" 5\n" \
+	"$ printf "Val=%d\\n" 5\n" \
 	"Val=5\n" 
 
 #define ps_trivial_usage \
@@ -1261,18 +1277,13 @@
 #define reset_full_usage \
 	"Resets the screen."
 
-#ifdef BB_FEATURE_RM_INTERACTIVE
-  #define USAGE_RM_INTERACTIVE(a) a
-#else
-  #define USAGE_RM_INTERACTIVE(a)
-#endif
 #define rm_trivial_usage \
 	"[OPTION]... FILE..."
 #define rm_full_usage \
 	"Remove (unlink) the FILE(s).  You may use '--' to\n" \
 	"indicate that all following arguments are non-options.\n\n" \
 	"Options:\n" \
-	USAGE_RM_INTERACTIVE("\t-i\t\talways prompt before removing each destinations\n") \
+	"\t-i\t\talways prompt before removing each destination" \
 	"\t-f\t\tremove existing destinations, never prompt\n" \
 	"\t-r or -R\tremove the contents of directories recursively"
 #define rm_example_usage \
@@ -1299,19 +1310,23 @@
 #define route_full_usage \
 	"Edit the kernel's routing tables"
 
+#define rpm2cpio_trivial_usage \
+	"package.rpm"
+#define rpm2cpio_full_usage \
+	"Outputs a cpio archive of the rpm file."
+
 #define rpmunpack_trivial_usage \
 	"< package.rpm | gunzip | cpio -idmuv"
 #define rpmunpack_full_usage \
 	"Extracts an rpm archive."
-
+	
 #define sed_trivial_usage \
-	"[-Vhnef] pattern [files...]"
+	"[-nef] pattern [files...]"
 #define sed_full_usage \
 	"Options:\n" \
 	"\t-n\t\tsuppress automatic printing of pattern space\n" \
 	"\t-e script\tadd the script to the commands to be executed\n" \
 	"\t-f scriptfile\tadd the contents of script-file to the commands to be executed\n" \
-	"\t-h\t\tdisplay this help message\n" \
 	"\n" \
 	"If no -e or -f is given, the first non-option argument is taken as the\n" \
 	"sed script to interpret. All remaining arguments are names of input\n" \
@@ -1354,17 +1369,26 @@
 	"[2 second delay results]\n"
 
 
+#ifdef BB_FEATURE_SORT_UNIQUE
+  #define USAGE_SORT_UNIQUE(a) a
+#else
+  #define USAGE_SORT_UNIQUE(a)
+#endif
 #ifdef BB_FEATURE_SORT_REVERSE
   #define USAGE_SORT_REVERSE(a) a
 #else
   #define USAGE_SORT_REVERSE(a)
 #endif
 #define sort_trivial_usage \
-	"[-n]" USAGE_SORT_REVERSE(" [-r]") " [FILE]..."
+	"[-n" USAGE_SORT_REVERSE("r") USAGE_SORT_UNIQUE("u") "] [FILE]..."
 #define sort_full_usage \
-	"Sorts lines of text in the specified files"
+	"Sorts lines of text in the specified files\n\n"\
+	"Options:\n" \
+	USAGE_SORT_UNIQUE("\t-u\tsuppress duplicate lines\n") \
+	USAGE_SORT_REVERSE("\t-r\tsort in reverse order\n") \
+	"\t-n\tsort numerics"
 #define sort_example_usage \
-	"$ echo -e "e\nf\nb\nd\nc\na" | sort\n" \
+	"$ echo -e \"e\\nf\\nb\\nd\\nc\\na\" | sort\n" \
 	"a\n" \
 	"b\n" \
 	"c\n" \
@@ -1373,27 +1397,27 @@
 	"f\n"
 
 #define stty_trivial_usage \
-	"[-a|g] [-F device] [SETTING]..."
+	"[-a|g] [-F DEVICE] [SETTING]..."
 #define stty_full_usage \
 	"Without arguments, prints baud rate, line discipline," \
 	"\nand deviations from stty sane." \
 	"\n\nOptions:" \
-	"\n\t-F device\topen device instead of stdin" \
+	"\n\t-F DEVICE\topen device instead of stdin" \
 	"\n\t-a\t\tprint all current settings in human-readable form" \
 	"\n\t-g\t\tprint in stty-readable form" \
-	"\n\t[SETTING]\tsee documentation"
+	"\n\t[SETTING]\tsee manpage"
 
 #define swapoff_trivial_usage \
-	"[OPTION] [device]"
+	"[OPTION] [DEVICE]"
 #define swapoff_full_usage \
-	"Stop swapping virtual memory pages on the given device.\n\n" \
+	"Stop swapping virtual memory pages on DEVICE.\n\n" \
 	"Options:\n" \
 	"\t-a\tStop swapping on all swap devices"
 
 #define swapon_trivial_usage \
-	"[OPTION] [device]"
+	"[OPTION] [DEVICE]"
 #define swapon_full_usage \
-	"Start swapping virtual memory pages on the given device.\n\n" \
+	"Start swapping virtual memory pages on DEVICE.\n\n" \
 	"Options:\n" \
 	"\t-a\tStart swapping on all swap devices"
 
@@ -1425,7 +1449,7 @@
 	"$ syslogd -R 192.168.1.1:601\n"
 
 
-#ifdef BB_FEATURE_SIMPLE_TAIL
+#ifndef BB_FEATURE_FANCY_TAIL
   #define USAGE_UNSIMPLE_TAIL(a)
 #else
   #define USAGE_UNSIMPLE_TAIL(a) a
@@ -1462,22 +1486,22 @@
 #endif
 #define tar_trivial_usage \
 	"-[" USAGE_TAR_CREATE("c") "xtvO] " \
-	USAGE_TAR_EXCLUDE("[--exclude File] [-X File]") \
-	"[-f tarFile] [FILE(s)] ..."
+	USAGE_TAR_EXCLUDE("[--exclude FILE] [-X FILE]") \
+	"[-f TARFILE] [-C DIR] [FILE(s)] ..."
 #define tar_full_usage \
 	"Create, extract, or list files from a tar file.\n\n" \
-	"Main operation mode:\n" \
+	"Options:\n" \
 	USAGE_TAR_CREATE("\tc\t\tcreate\n") \
 	"\tx\t\textract\n" \
 	"\tt\t\tlist\n" \
 	"\nFile selection:\n" \
-	"\tf\t\tname of tarfile or \"-\" for stdin\n" \
+	"\tf\t\tname of TARFILE or \"-\" for stdin\n" \
 	"\tO\t\textract to stdout\n" \
 	USAGE_TAR_EXCLUDE( \
 	"\texclude\t\tfile to exclude\n" \
 	 "\tX\t\tfile with names to exclude\n" \
 	) \
-	"\nInformative output:\n" \
+	"\tC\t\tchange to directory DIR before operation\n" \
 	"\tv\t\tverbosely list files processed"
 #define tar_example_usage \
 	"$ zcat /tmp/tarball.tar.gz | tar -xf -\n" \
@@ -1495,7 +1519,7 @@
 	"Hello\n"
 
 #define telnet_trivial_usage \
-	"host [port]"
+	"HOST [PORT]"
 #define telnet_full_usage \
 	"Telnet is used to establish interactive communication with another\n"\
 	"computer over a network using the TELNET protocol."
@@ -1541,12 +1565,12 @@
         USAGE_TFTP_PUT(	\
 	"\tput\tPut local file SOURCE to server DEST.\n" \
 	) \
-	"\nWhen nameing a server, use the syntax \"server:file\"."
+	"\nWhen naming a server, use the syntax \"server:file\"."
 
 #define touch_trivial_usage \
-	"[-c] file [file ...]"
+	"[-c] FILE [FILE ...]"
 #define touch_full_usage \
-	"Update the last-modified date on the given file[s].\n\n" \
+	"Update the last-modified date on the given FILE[s].\n\n" \
 	"Options:\n" \
 	"\t-c\tDo not create any files"
 #define touch_example_usage \
@@ -1594,14 +1618,14 @@
   #define USAGE_MOUNT_FORCE(a)
 #endif
 #define umount_trivial_usage \
-	"[flags] filesystem|directory"
+	"[flags] FILESYSTEM|DIRECTORY"
 #define umount_full_usage \
 	"Unmount file systems\n" \
-	"\nFlags:\n" "\t-a:\tUnmount all file systems" \
-	USAGE_MTAB(" in /etc/mtab\n\t-n:\tDon't erase /etc/mtab entries") \
-	"\n\t-r:\tTry to remount devices as read-only if mount is busy" \
-	USAGE_MOUNT_FORCE("\n\t-f:\tForce filesystem umount (i.e. unreachable NFS server)") \
-	USAGE_MOUNT_LOOP("\n\t-l:\tDo not free loop device (if a loop device has been used)")
+	"\nFlags:\n" "\t-a\tUnmount all file systems" \
+	USAGE_MTAB(" in /etc/mtab\n\t-n\tDon't erase /etc/mtab entries") \
+	"\n\t-r\tTry to remount devices as read-only if mount is busy" \
+	USAGE_MOUNT_FORCE("\n\t-f\tForce umount (i.e., unreachable NFS server)") \
+	USAGE_MOUNT_LOOP("\n\t-l\tDo not free loop device (if a loop device has been used)")
 #define umount_example_usage \
 	"$ umount /dev/hdc1 \n"
 
@@ -1631,15 +1655,20 @@
 	"\t-d\tonly print duplicate lines\n" \
 	"\t-u\tonly print unique lines"
 #define uniq_example_usage \
-	"$ echo -e "a\na\nb\nc\nc\na" | sort | uniq\n" \
+	"$ echo -e \"a\\na\\nb\\nc\\nc\\na\" | sort | uniq\n" \
 	"a\n" \
 	"b\n" \
 	"c\n"
 
 #define unix2dos_trivial_usage \
-	"[option] [file]"
+	"[option] [FILE]"
 #define unix2dos_full_usage \
-	"See 'dos2unix --help' for help!"
+	"Converts FILE from unix format to dos format.  When no option\n" \
+	"is given, the input is converted to the opposite output format.\n" \
+	"When no file is given, uses stdin for input and stdout for output.\n" \
+	"Options:\n" \
+	"\t-u\toutput will be in UNIX format\n" \
+	"\t-d\toutput will be in DOS format"
 
 #define update_trivial_usage \
 	"[options]"
@@ -1682,7 +1711,7 @@
 #define uuencode_full_usage \
 	"Uuencode a file.\n\n" \
 	"Options:\n" \
-	"\t-m\tuse base64 encoding as of RFC1521"
+	"\t-m\tuse base64 encoding per RFC1521"
 #define uuencode_example_usage \
 	"$ uuencode busybox busybox\n" \
 	"begin 755 busybox\n" \
@@ -1717,12 +1746,13 @@
 	"     31      46    1365 /etc/passwd\n" 
 
 #define wget_trivial_usage \
-	"[-c] [-O file] url"
+	"[-c|--continue] [-q|--quiet] [-O|--output-document file]\n\t[--header 'header: value'] [-P DIR] url"
 #define wget_full_usage \
 	"wget retrieves files via HTTP or FTP\n\n" \
 	"Options:\n" \
 	"\t-c\tcontinue retrieval of aborted transfers\n" \
 	"\t-q\tquiet mode - do not print\n" \
+	"\t-P\tSet directory prefix to DIR\n" \
 	"\t-O\tsave to filename ('-' for stdout)"
 
 #define which_trivial_usage \

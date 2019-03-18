@@ -29,32 +29,46 @@
 #include <sys/stat.h>
 #include "libbb.h"
 
-/*
- * Copy chunksize bytes between two file descriptors
- */
-int copy_file_chunk(int srcfd, int dstfd, off_t chunksize)
+/* Copy CHUNKSIZE bytes (or until EOF if CHUNKSIZE equals -1) from SRC_FILE
+ * to DST_FILE.  */
+extern int copy_file_chunk(FILE *src_file, FILE *dst_file, unsigned long long chunksize)
 {
-        off_t size;
-        char buffer[BUFSIZ]; /* BUFSIZ is declared in stdio.h */
+	size_t nread, nwritten, size;
+	char buffer[BUFSIZ];
 
-        while (chunksize > 0) {
-                if (chunksize > BUFSIZ)
-                        size = BUFSIZ;
-                else
-                        size = chunksize;
-                if (full_write(dstfd, buffer, full_read(srcfd, buffer, size)) < size)
-                        return(FALSE);
-                chunksize -= size;
-        }
-        return (TRUE);
+	while (chunksize != 0) {
+		if (chunksize > BUFSIZ)
+			size = BUFSIZ;
+		else
+			size = chunksize;
+
+		nread = fread (buffer, 1, size, src_file);
+
+		if (nread != size && ferror (src_file)) {
+			perror_msg ("read");
+			return -1;
+		} else if (nread == 0) {
+			if (chunksize != -1) {
+				error_msg ("Unable to read all data");
+				return -1;
+			}
+
+			return 0;
+		}
+
+		nwritten = fwrite (buffer, 1, nread, dst_file);
+
+		if (nwritten != nread) {
+			if (ferror (dst_file))
+				perror_msg ("write");
+			else
+				error_msg ("Unable to write all data");
+			return -1;
+		}
+
+		if (chunksize != -1)
+			chunksize -= nwritten;
+	}
+
+	return 0;
 }
-
-
-/* END CODE */
-/*
-Local Variables:
-c-file-style: "linux"
-c-basic-offset: 4
-tab-width: 4
-End:
-*/

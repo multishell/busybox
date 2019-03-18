@@ -1,6 +1,6 @@
 /* vi: set sw=4 ts=4: */
 /*
- * $Id: hostname.c,v 1.26 2001/03/09 21:24:12 andersen Exp $
+ * $Id: hostname.c,v 1.30 2001/06/26 02:06:08 bug1 Exp $
  * Mini hostname implementation for busybox
  *
  * Copyright (C) 1999 by Randolph Chung <tausq@debian.org>
@@ -23,7 +23,6 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-#include "busybox.h"
 #include <errno.h>
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -31,6 +30,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "busybox.h"
 
 static void do_sethostname(char *s, int isfile)
 {
@@ -49,10 +49,11 @@ static void do_sethostname(char *s, int isfile)
 	} else {
 		f = xfopen(s, "r");
 		fgets(buf, 255, f);
+#ifdef BB_FEATURE_CLEAN_UP
 		fclose(f);
+#endif
 		chomp(buf);
-		if (sethostname(buf, strlen(buf)) < 0)
-			perror_msg_and_die("sethostname");
+		do_sethostname(buf, 0);
 	}
 }
 
@@ -112,19 +113,15 @@ int hostname_main(int argc, char **argv)
 			if (!s)
 				s = buf;
 			*s = 0;
-			printf("%s\n", buf);
+			puts(buf);
 		} else if (opt_domain) {
 			s = strchr(buf, '.');
-			printf("%s\n", (s ? s + 1 : ""));
+			puts(s ? s + 1 : "");
 		} else if (opt_ip) {
-			h = gethostbyname(buf);
-			if (!h) {
-				printf("Host not found\n");
-				exit(1);
-			}
-			printf("%s\n", inet_ntoa(*(struct in_addr *) (h->h_addr)));
+			h = xgethostbyname(buf);
+			puts(inet_ntoa(*(struct in_addr *) (h->h_addr)));
 		} else {
-			printf("%s\n", buf);
+			puts(buf);
 		}
 	}
 	return(0);

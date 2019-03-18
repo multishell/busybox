@@ -97,8 +97,18 @@ extern pid_t* find_pid_by_name( char* pidName)
 			pidList[j++]=info.pid;
 		}
 	}
-	if (pidList)
+	if (pidList) {
 		pidList[j]=0;
+	} else if ( strcmp(pidName, "init")==0) {
+		/* If we found nothing and they were trying to kill "init", 
+		 * guess PID 1 and call it good...  Perhaps we should simply
+		 * exit if /proc isn't mounted, but this will do for now. */
+		pidList=xrealloc( pidList, sizeof(pid_t));
+		pidList[0]=1;
+	} else {
+		pidList=xrealloc( pidList, sizeof(pid_t));
+		pidList[0]=-1;
+	}
 
 	/* Free memory */
 	free( pid_array);
@@ -137,6 +147,10 @@ extern pid_t* find_pid_by_name( char* pidName)
 		char buffer[READ_BUF_SIZE];
 		char name[READ_BUF_SIZE];
 
+		/* Must skip ".." since that is outside /proc */
+		if (strcmp(next->d_name, "..") == 0)
+			continue;
+
 		/* If it isn't a number, we don't want it */
 		if (!isdigit(*next->d_name))
 			continue;
@@ -161,6 +175,16 @@ extern pid_t* find_pid_by_name( char* pidName)
 
 	if (pidList)
 		pidList[i]=0;
+	else if ( strcmp(pidName, "init")==0) {
+		/* If we found nothing and they were trying to kill "init", 
+		 * guess PID 1 and call it good...  Perhaps we should simply
+		 * exit if /proc isn't mounted, but this will do for now. */
+		pidList=xrealloc( pidList, sizeof(pid_t));
+		pidList[0]=1;
+	} else {
+		pidList=xrealloc( pidList, sizeof(pid_t));
+		pidList[0]=-1;
+	}
 	return pidList;
 }
 #endif							/* BB_FEATURE_USE_DEVPS_PATCH */

@@ -25,39 +25,19 @@
  *
  */
 
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
+#include <stdarg.h>
+#include <stdlib.h>
+
 #include "libbb.h"
 
-/*
- * Attempt to create the directories along the specified path, except for
- * the final component.  The mode is given for the final directory only,
- * while all previous ones get default protections.  Errors are not reported
- * here, as failures to restore files can be reported later.
- */
-extern int create_path(const char *name, int mode)
+extern void herror_msg_and_die(const char *s, ...)
 {
-	char *cp;
-	char *cpOld;
-	char buf[BUFSIZ + 1];
-	int retVal = 0;
+	va_list p;
 
-	strcpy(buf, name);
-	for (cp = buf; *cp == '/'; cp++);
-	cp = strchr(cp, '/');
-	while (cp) {
-		cpOld = cp;
-		cp = strchr(cp + 1, '/');
-		*cpOld = '\0';
-		retVal = mkdir(buf, cp ? 0777 : mode);
-		if (retVal != 0 && errno != EEXIST) {
-			perror_msg("%s", buf);
-			return FALSE;
-		}
-		*cpOld = '/';
-	}
-	return TRUE;
+	va_start(p, s);
+	vherror_msg(s, p);
+	va_end(p);
+	exit(EXIT_FAILURE);
 }
 
 

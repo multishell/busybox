@@ -4,7 +4,7 @@
  *
  * Note, that as of BusyBox-0.43, tar has been completely rewritten from the
  * ground up.  It still has remnents of the old code lying about, but it is
- * very different now (i.e. cleaner, less global variables, etc)
+ * very different now (i.e., cleaner, less global variables, etc.)
  *
  * Copyright (C) 1999,2000,2001 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
@@ -51,16 +51,6 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "busybox.h"
-#define BB_DECLARE_EXTERN
-#define bb_need_io_error
-#define bb_need_name_longer_than_foo
-#include "messages.c"
-
-#ifdef BB_FEATURE_TAR_GZIP
-extern int unzip(int in, int out);
-extern int gz_open(FILE *compressed_file, int *pid);
-extern void gz_close(int gunzip_pid);
-#endif
 
 /* Tar file constants  */
 #ifndef MAJOR
@@ -131,7 +121,7 @@ struct TarInfo
 	gid_t            gid;            /* Numeric GID */
 	size_t           size;           /* Size of file */
 	time_t           mtime;          /* Last-modified time */
-	enum TarFileType type;           /* Regular, directory, link, etc */
+	enum TarFileType type;           /* Regular, directory, link, etc. */
 	char *           linkname;       /* Name for symbolic and hard links */
 	long             devmajor;       /* Major number for special device */
 	long             devminor;       /* Minor number for special device */
@@ -139,7 +129,7 @@ struct TarInfo
 typedef struct TarInfo TarInfo;
 
 /* Local procedures to restore files from a tar file.  */
-extern int readTarFile(int tarFd, int extractFlag, int listFlag, 
+static int readTarFile(int tarFd, int extractFlag, int listFlag, 
 		int tostdoutFlag, int verboseFlag, char** extractList,
 		char** excludeList);
 
@@ -161,6 +151,7 @@ extern int tar_main(int argc, char **argv)
 	char** excludeList=NULL;
 	char** extractList=NULL;
 	const char *tarName="-";
+	const char *cwd=NULL;
 #if defined BB_FEATURE_TAR_EXCLUDE
 	int excludeListSize=0;
 	FILE *fileList;
@@ -191,9 +182,9 @@ extern int tar_main(int argc, char **argv)
 
 	while (
 #ifndef BB_FEATURE_TAR_EXCLUDE
-			(opt = getopt(argc, argv, "cxtzvOf:"))
+			(opt = getopt(argc, argv, "cxtzvOf:pC:"))
 #else
-			(opt = getopt_long(argc, argv, "cxtzvOf:X:", longopts, NULL))
+			(opt = getopt_long(argc, argv, "cxtzvOf:X:pC:", longopts, NULL))
 #endif
 			> 0) {
 		switch (opt) {
@@ -248,7 +239,16 @@ extern int tar_main(int argc, char **argv)
 				fclose(fileList);
 				break;
 #endif
-				default:
+			case 'p':
+				break;
+			case 'C':
+				cwd = xgetcwd((char *)cwd);
+				if (chdir(optarg)) {
+					printf("cd: %s: %s\n", optarg, strerror(errno));
+					return EXIT_FAILURE;
+				}
+				break;
+			default:
 					show_usage();
 		}
 	}
@@ -284,7 +284,7 @@ extern int tar_main(int argc, char **argv)
 		/* unzip tarFd in a seperate process */
 		if (unzipFlag == TRUE) {
 			comp_file = fdopen(tarFd, "r");
-			if ((tarFd = gz_open(comp_file, &pid)) == EXIT_FAILURE) {
+			if ((tarFd = fileno(gz_open(comp_file, &pid))) == EXIT_FAILURE) {
 				error_msg_and_die("Couldnt unzip file");
 			}
 		}
@@ -300,6 +300,8 @@ extern int tar_main(int argc, char **argv)
 #endif			
 	}
 
+	if (cwd)
+		chdir(cwd);
 	if (status == TRUE)
 		return EXIT_SUCCESS;
 	else
@@ -313,7 +315,7 @@ static void
 fixUpPermissions(TarInfo *header)
 {
 	struct utimbuf t;
-	/* Now set permissions etc for the new file */
+	/* Now set permissions etc. for the new file */
 	chown(header->name, header->uid, header->gid);
 	chmod(header->name, header->mode);
 	/* Reset the time */
@@ -336,7 +338,9 @@ tarExtractRegularFile(TarInfo *header, int extractFlag, int tostdoutFlag)
 	if (extractFlag==TRUE && tostdoutFlag==FALSE) {
 		/* Create the path to the file, just in case it isn't there...
 		 * This should not screw up path permissions or anything. */
-		create_path(header->name, 0777);
+		char *dir = dirname (header->name);
+		make_directory (dir, -1, FILEUTILS_RECUR);
+		free (dir);
 		if ((outFd=open(header->name, O_CREAT|O_TRUNC|O_WRONLY, 
 						header->mode & ~S_IFMT)) < 0) {
 			error_msg(io_error, header->name, strerror(errno)); 
@@ -392,21 +396,11 @@ tarExtractRegularFile(TarInfo *header, int extractFlag, int tostdoutFlag)
 static int
 tarExtractDirectory(TarInfo *header, int extractFlag, int tostdoutFlag)
 {
-
 	if (extractFlag==FALSE || tostdoutFlag==TRUE)
 		return( TRUE);
 
-	if (create_path(header->name, header->mode) != TRUE) {
-		perror_msg("%s: Cannot mkdir", header->name); 
+	if (make_directory(header->name, header->mode, FILEUTILS_RECUR) < 0)
 		return( FALSE);
-	}
-	/* make the final component, just in case it was
-	 * omitted by create_path() (which will skip the
-	 * directory if it doesn't have a terminating '/') */
-	if (mkdir(header->name, header->mode) < 0 && errno != EEXIST) {
-		perror_msg("%s", header->name);
-		return FALSE;
-	}
 
 	fixUpPermissions(header);
 	return( TRUE);
@@ -424,7 +418,7 @@ tarExtractHardLink(TarInfo *header, int extractFlag, int tostdoutFlag)
 		return( FALSE);
 	}
 
-	/* Now set permissions etc for the new directory */
+	/* Now set permissions etc. for the new directory */
 	fixUpPermissions(header);
 	return( TRUE);
 }
@@ -477,30 +471,10 @@ tarExtractSpecial(TarInfo *header, int extractFlag, int tostdoutFlag)
 		}
 	}
 
-	/* Now set permissions etc for the new directory */
+	/* Now set permissions etc. for the new directory */
 	fixUpPermissions(header);
 	return( TRUE);
 }
-
-/* Read an octal value in a field of the specified width, with optional
- * spaces on both sides of the number and with an optional null character
- * at the end.  Returns -1 on an illegal format.  */
-static long getOctal(const char *cp, int size)
-{
-	long val = 0;
-
-	for(;(size > 0) && (*cp == ' '); cp++, size--);
-	if ((size == 0) || !is_octal(*cp))
-		return -1;
-	for(; (size > 0) && is_octal(*cp); size--) {
-		val = val * 8 + *cp++ - '0';
-	}
-	for (;(size > 0) && (*cp == ' '); cp++, size--);
-	if ((size > 0) && *cp)
-		return -1;
-	return val;
-}
-
 
 /* Parse the tar header and fill in the nice struct with the details */
 static int
@@ -516,7 +490,7 @@ readTarHeader(struct TarHeader *rawHeader, struct TarInfo *header)
 		static int alreadyWarned=FALSE;
 
 		while (*(header->name) == '/')
-			++*(header->name);
+			header->name++;
 
 		if (alreadyWarned == FALSE) {
 			error_msg("Removing leading '/' from member names");
@@ -524,16 +498,16 @@ readTarHeader(struct TarHeader *rawHeader, struct TarInfo *header)
 		}
 	}
 
-	header->mode  = getOctal(rawHeader->mode, sizeof(rawHeader->mode));
-	header->uid   =  getOctal(rawHeader->uid, sizeof(rawHeader->uid));
-	header->gid   =  getOctal(rawHeader->gid, sizeof(rawHeader->gid));
-	header->size  = getOctal(rawHeader->size, sizeof(rawHeader->size));
-	header->mtime = getOctal(rawHeader->mtime, sizeof(rawHeader->mtime));
-	chksum = getOctal(rawHeader->chksum, sizeof(rawHeader->chksum));
+	header->mode  = strtol(rawHeader->mode, NULL, 8);
+	header->uid   = strtol(rawHeader->uid, NULL, 8);
+	header->gid   = strtol(rawHeader->gid, NULL, 8);
+	header->size  = strtol(rawHeader->size, NULL, 8);
+	header->mtime = strtol(rawHeader->mtime, NULL, 8);
+	chksum = strtol(rawHeader->chksum, NULL, 8);
 	header->type  = rawHeader->typeflag;
 	header->linkname  = rawHeader->linkname;
-	header->devmajor  = getOctal(rawHeader->devmajor, sizeof(rawHeader->devmajor));
-	header->devminor  = getOctal(rawHeader->devminor, sizeof(rawHeader->devminor));
+	header->devmajor  = strtol(rawHeader->devmajor, NULL, 8);
+	header->devminor  = strtol(rawHeader->devminor, NULL, 8);
 
 	/* Check the checksum */
 	for (i = sizeof(*rawHeader); i-- != 0;) {
@@ -597,7 +571,7 @@ static int extract_file(char **extract_files, const char *file)
  * Read a tar file and extract or list the specified files within it.
  * If the list is empty than all files are extracted or listed.
  */
-extern int readTarFile(int tarFd, int extractFlag, int listFlag, 
+static int readTarFile(int tarFd, int extractFlag, int listFlag, 
 		int tostdoutFlag, int verboseFlag, char** extractList,
 		char** excludeList)
 {
@@ -606,10 +580,6 @@ extern int readTarFile(int tarFd, int extractFlag, int listFlag,
 	int skipNextHeaderFlag=FALSE;
 	TarHeader rawHeader;
 	TarInfo header;
-
-	/* Set the umask for this process so it doesn't 
-	 * screw up permission setting for us later. */
-	umask(0);
 
 	/* Read the tar file, and iterate over it one file at a time */
 	while ( (status = full_read(tarFd, (char*)&rawHeader, TAR_BLOCK_SIZE)) == TAR_BLOCK_SIZE ) {
@@ -625,7 +595,7 @@ extern int readTarFile(int tarFd, int extractFlag, int listFlag,
 			}
 		}
 		if ( *(header.name) == '\0' )
-				goto endgame;
+			continue;
 		header.tarFd = tarFd;
 
 		/* Skip funky extra GNU headers that precede long files */
@@ -736,7 +706,7 @@ extern int readTarFile(int tarFd, int extractFlag, int listFlag,
 			case REGTYPE0:
 				/* If the name ends in a '/' then assume it is
 				 * supposed to be a directory, and fall through */
-				if (header.name[strlen(header.name)-1] != '/') {
+				if (!last_char_is(header.name,'/')) {
 					if (tarExtractRegularFile(&header, extractFlag, tostdoutFlag)==FALSE)
 						errorFlag=TRUE;
 					break;
@@ -951,16 +921,12 @@ writeTarHeader(struct TarBallInfo *tbInfo, const char *header_name,
 		header.typeflag = LNKTYPE;
 		strncpy(header.linkname, tbInfo->hlInfo->name, sizeof(header.linkname));
 	} else if (S_ISLNK(statbuf->st_mode)) {
-		int link_size=0;
-		char buffer[BUFSIZ];
-		header.typeflag  = SYMTYPE;
-		link_size = readlink(real_name, buffer, sizeof(buffer) - 1);
-		if ( link_size < 0) {
-			perror_msg("Error reading symlink '%s'", header.name);
+		char *lpath = xreadlink(real_name);
+		if (!lpath) /* Already printed err msg inside xreadlink() */
 			return ( FALSE);
-		}
-		buffer[link_size] = '\0';
-		strncpy(header.linkname, buffer, sizeof(header.linkname)); 
+		header.typeflag  = SYMTYPE;
+		strncpy(header.linkname, lpath, sizeof(header.linkname)); 
+		free(lpath);
 	} else if (S_ISDIR(statbuf->st_mode)) {
 		header.typeflag  = DIRTYPE;
 		strncat(header.name, "/", sizeof(header.name)); 
@@ -982,7 +948,7 @@ writeTarHeader(struct TarBallInfo *tbInfo, const char *header_name,
 		return ( FALSE);
 	}
 
-	/* Calculate and store the checksum (i.e. the sum of all of the bytes of
+	/* Calculate and store the checksum (i.e., the sum of all of the bytes of
 	 * the header).  The checksum field must be filled with blanks for the
 	 * calculation.  The checksum field is formatted differently from the
 	 * other fields: it has [6] digits, a null, then a space -- rather than
@@ -1143,10 +1109,6 @@ static int writeTarFile(const char* tarName, int verboseFlag, char **argv,
 	 * can avoid including the tarball into itself....  */
 	if (fstat(tbInfo.tarFd, &tbInfo.statBuf) < 0)
 		error_msg_and_die(io_error, tarName, strerror(errno)); 
-
-	/* Set the umask for this process so it doesn't 
-	 * screw up permission setting for us later. */
-	umask(0);
 
 	/* Read the directory/files and iterate over them one at a time */
 	while (*argv != NULL) {

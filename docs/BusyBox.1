@@ -93,7 +93,7 @@
 .nr % 0
 .rr F
 .\}
-.TH BUSYBOX 1 "version 0.51" "10/Apr/2001" "BusyBox"
+.TH BUSYBOX 1 "version 0.52" "7/Jul/2001" "BusyBox"
 .UC
 .if n .hy 0
 .if n .na
@@ -232,23 +232,24 @@ command line.  For example, entering
 .Ve
 will also cause BusyBox to behave as \*(L'ls\*(R'. 
 .SH "COMMON OPTIONS"
-Most BusyBox commands support the \fB--help\fR option to provide a
+Most BusyBox commands support the \fB\-h\fR option to provide a
 terse runtime description of their behavior. 
 .SH "COMMANDS"
 Currently defined functions include:
 .PP
-ar, basename, busybox, cat, chgrp, chmod, chown, chroot, chvt, clear, cmp, cp,
-cut, date, dc, dd, deallocvt, df, dirname, dmesg, dos2unix, dpkg, dpkg-deb, du,
-dumpkmap, dutmp, echo, expr, false, fbset, fdflush, find, free, freeramdisk,
-fsck.minix, getopt, grep, gunzip, gzip, halt, head, hostid, hostname, id,
-ifconfig, init, insmod, kill, killall, klogd, length, ln, loadacm, loadfont,
-loadkmap, logger, logname, ls, lsmod, makedevs, md5sum, mkdir, mkfifo,
-mkfs.minix, mknod, mkswap, mktemp, more, mount, mt, mv, nc, nslookup, ping,
-pivot_root, poweroff, printf, ps, pwd, rdate, readlink, reboot, renice, reset,
-rm, rmdir, rmmod, route, rpmunpack, sed, setkeycodes, sh, sleep, sort, stty,
-swapoff, swapon, sync, syslogd, tail, tar, tee, telnet, test, tftp, touch, tr,
-true, tty, umount, uname, uniq, unix2dos, update, uptime, usleep, uudecode,
-uuencode, watchdog, wc, wget, which, whoami, xargs, yes, zcat, [
+adjtimex, ar, basename, busybox, cat, chgrp, chmod, chown, chroot, chvt, clear,
+cmp, cp, cpio, cut, date, dc, dd, deallocvt, df, dirname, dmesg, dos2unix, dpkg,
+dpkg-deb, du, dumpkmap, dutmp, echo, expr, false, fbset, fdflush, find, free,
+freeramdisk, fsck.minix, getopt, grep, gunzip, gzip, halt, head, hostid,
+hostname, id, ifconfig, init, insmod, kill, killall, klogd, length, ln,
+loadacm, loadfont, loadkmap, logger, logname, ls, lsmod, makedevs, md5sum,
+mkdir, mkfifo, mkfs.minix, mknod, mkswap, mktemp, more, mount, mt, mv, nc,
+nslookup, ping, pivot_root, poweroff, printf, ps, pwd, rdate, readlink, reboot,
+renice, reset, rm, rmdir, rmmod, route, rpm2cpio, rpmunpack, sed, setkeycodes,
+sh, sleep, sort, stty, swapoff, swapon, sync, syslogd, tail, tar, tee, telnet,
+test, tftp, touch, tr, true, tty, umount, uname, uniq, unix2dos, update, uptime,
+usleep, uudecode, uuencode, watchdog, wc, wget, which, whoami, xargs, yes, zcat,
+[
 .Ip "\fBadjtimex\fR" 4
 adjtimex [\fB\-q\fR] [\fB\-o\fR offset] [\fB\-f\fR frequency] [\fB\-p\fR timeconstant] [\fB\-t\fR tick]
 .Sp
@@ -267,19 +268,18 @@ Options:
 .Ve
 -------------------------------
 .Ip "\fBar\fR" 4
-ar \-[ovR]{ptx} archive filenames
+ar \-[ov][ptx] \s-1ARCHIVE\s0 \s-1FILES\s0
 .Sp
-Extract or list files from an ar archive.
+Extract or list \s-1FILES\s0 from an ar archive.
 .Sp
 Options:
 .Sp
-.Vb 6
+.Vb 5
 \&        -o              preserve original dates
 \&        -p              extract to stdout
 \&        -t              list
 \&        -x              extract
 \&        -v              verbosely list files processed
-\&        -R              recursive action
 .Ve
 -------------------------------
 .Ip "\fBbasename\fR" 4
@@ -356,14 +356,15 @@ Example:
 .Ve
 -------------------------------
 .Ip "\fBchown\fR" 4
-chown [\s-1OPTION\s0]...  \s-1OWNER\s0[<.|:>[\s-1GROUP\s0]] \s-1FILE\s0...
+chown [ \fB\-Rh\fR ]...  \s-1OWNER\s0[<.|:>[\s-1GROUP\s0]] \s-1FILE\s0...
 .Sp
 Change the owner and/or group of each \s-1FILE\s0 to \s-1OWNER\s0 and/or \s-1GROUP\s0.
 .Sp
 Options:
 .Sp
-.Vb 1
+.Vb 2
 \&        -R      Changes files and directories recursively.
+\&        -h      Do not dereference symbolic links.
 .Ve
 Example:
 .Sp
@@ -409,8 +410,10 @@ Clear screen.
 .Ip "\fBcmp\fR" 4
 cmp \s-1FILE1\s0 [\s-1FILE2\s0]
 .Sp
-Compare files.
-.Sp
+.Vb 2
+\&        -s      quiet mode - do not print
+\&Compare files.
+.Ve
 -------------------------------
 .Ip "\fBcp\fR" 4
 cp [\s-1OPTION\s0]... \s-1SOURCE\s0 \s-1DEST\s0
@@ -423,6 +426,20 @@ Copies \s-1SOURCE\s0 to \s-1DEST\s0, or multiple \fI\s-1SOURCE\s0\fR\|(s) to \s-
 \&        -p      Preserves file attributes if possible
 \&        -f      force (implied; ignored) - always set
 \&        -R      Copies directories recursively
+.Ve
+-------------------------------
+.Ip "\fBcpio\fR" 4
+cpio \-[dimtuv][F cpiofile]
+.Sp
+Extract or list files from a cpio archive
+Main operation mode:
+.Sp
+.Vb 5
+\&        d               make leading directories
+\&        i               extract
+\&        m               preserve mtime
+\&        t               list
+\&        u               unconditional overwrite         F               input from file 
 .Ve
 -------------------------------
 .Ip "\fBcut\fR" 4
@@ -474,7 +491,7 @@ dc expression ...
 .Sp
 This is a Tiny \s-1RPN\s0 calculator that understands the
 following operations: +, \-, /, *, and, or, not, eor.
-i.e. \*(L'dc 2 2 add\*(R' \-> 4, and \*(L'dc 8 8 \e* 2 2 + /\*(R' \-> 16
+i.e., \*(L'dc 2 2 add\*(R' \-> 4, and \*(L'dc 8 8 \e* 2 2 + /\*(R' \-> 16
 .Sp
 Example:
 .Sp
@@ -525,7 +542,7 @@ Deallocate unused virtual terminal /dev/ttyN
 .Sp
 -------------------------------
 .Ip "\fBdf\fR" 4
-df [\fB\-hmk\fR] [filesystem ...]
+df [\fB\-hmk\fR] [\s-1FILESYSTEM\s0 ...]
 .Sp
 Print the filesystem space used and space available.
 .Sp
@@ -576,9 +593,11 @@ Options:
 .Ve
 -------------------------------
 .Ip "\fBdos2unix\fR" 4
-dos2unix [option] [file]
+dos2unix [option] [\s-1FILE\s0]
 .Sp
-Converts a text file to/from dos format to unix format.
+Converts \s-1FILE\s0 from dos format to unix format.  When no option
+is given, the input is converted to the opposite output format.
+When no file is given, uses stdin for input and stdout for output.
 .Sp
 Options:
 .Sp
@@ -586,31 +605,27 @@ Options:
 \&        -u      output will be in UNIX format
 \&        -d      output will be in DOS format
 .Ve
-- when no option is given then input format will be automaticaly detected
-.Sp
-.Vb 2
-\&  and converted to the oposite format on output
-\&- when no file is given, then stdin is used as input and stdout as output
-.Ve
 -------------------------------
 .Ip "\fBdpkg\fR" 4
 dpkg [\fB\-i\fR|\fB\-r\fR|\-\fB\-unpack\fR|\-\fB\-configure\fR] my.deb
 .Sp
-\s-1WORK\s0 \s-1IN\s0 \s-1PROGRESS\s0, only usefull for debian-installer
+\s-1WORK\s0 \s-1IN\s0 \s-1PROGRESS\s0, only useful for debian-installer
 .Sp
 -------------------------------
 .Ip "\fBdpkg_deb\fR" 4
-dpkg_deb [\fB\-cexX\fR] file directory
+dpkg_deb [\fB\-cefItxX\fR] \s-1FILE\s0 [argument]
 .Sp
 Perform actions on debian packages (.debs)
 .Sp
 Options:
 .Sp
-.Vb 5
-\&        -c      List contents of filesystem tree (verbose)
-\&        -l      List contents of filesystem tree (.list format)
-\&        -e      Extract control files to directory
-\&        -x      Exctract packages filesystem tree to directory
+.Vb 7
+\&        -c      List contents of filesystem tree
+\&        -e      Extract control files to [argument] directory
+\&        -f      Display control field name starting with [argument]
+\&        -I      Display the control filenamed [argument]
+\&        -t      Extract filesystem tree to stdout in tar format
+\&        -x      Extract packages filesystem tree to directory
 \&        -X      Verbose extract
 .Ve
 Example:
@@ -665,7 +680,7 @@ Example:
 dutmp [\s-1FILE\s0]
 .Sp
 Dump utmp file format (pipe delimited) from \s-1FILE\s0
-or stdin to stdout.  (i.e. \*(L'dutmp /var/run/utmp')
+or stdin to stdout.  (i.e., \*(L'dutmp /var/run/utmp')
 .Sp
 Example:
 .Sp
@@ -689,30 +704,24 @@ Options:
 .Sp
 .Vb 3
 \&        -n      suppress trailing newline
-\&        -e      interpret backslash-escaped characters (i.e. \et=tab etc)
+\&        -e      interpret backslash-escaped characters (i.e., \et=tab)
 \&        -E      disable interpretation of backslash-escaped characters
 .Ve
 Example:
 .Sp
-.Vb 14
+.Vb 8
 \&        $ echo "Erik is cool"
 \&        Erik is cool
-\&        $  echo -e "Erik
-\&        is
-\&        cool"
+\&        $  echo -e "Erik\enis\encool"
 \&        Erik
 \&        is
 \&        cool
-\&        $ echo "Erik
-\&        is
-\&        cool"
-\&        Erik
-\&        is
-\&        cool
+\&        $ echo "Erik\enis\encool"
+\&        Erik\enis\encool
 .Ve
 -------------------------------
 .Ip "\fBenv\fR" 4
-env [\-] [\fB\-iu\fR] [name=value ...] [command]
+env [\fB\-iu\fR] [\-] [name=value]... [command]
 .Sp
 Prints the current environment or runs a program after setting
 up the specified environment.
@@ -808,9 +817,10 @@ the current directory; default \s-1EXPRESSION\s0 is \*(L'\fB\-print\fR\*(R'
 .Sp
 \s-1EXPRESSION\s0 may consist of:
 .Sp
-.Vb 2
+.Vb 3
 \&        -follow         Dereference symbolic links.
-\&        -name PATTERN   File name (leading directories removed) matches PATTERN.        -print          Print (default and assumed).
+\&        -name PATTERN   File name (leading directories removed) matches PATTERN.
+\&        -print          Print (default and assumed).
 .Ve
 .Vb 5
 \&        -type X         Filetype matches X (where X is one of: f,d,l,b,c,...)
@@ -910,7 +920,7 @@ Example:
 .Ve
 -------------------------------
 .Ip "\fBgrep\fR" 4
-grep [\fB\-ihHnqvs\fR] pattern [files...]
+grep [\fB\-ihHnqvs\fR] \s-1PATTERN\s0 [FILEs...]
 .Sp
 Search for \s-1PATTERN\s0 in each \s-1FILE\s0 or standard input.
 .Sp
@@ -971,11 +981,11 @@ Options:
 Example:
 .Sp
 .Vb 5
-\&        $ ls -la /tmp/BusyBox*
-\&        -rw-rw-r--    1 andersen andersen  1761280 Apr 14 17:47 /tmp/BusyBox-0.43.tar
-\&        $ gzip /tmp/BusyBox-0.43.tar
-\&        $ ls -la /tmp/BusyBox*
-\&        -rw-rw-r--    1 andersen andersen   554058 Apr 14 17:49 /tmp/BusyBox-0.43.tar.gz
+\&        $ ls -la /tmp/busybox*
+\&        -rw-rw-r--    1 andersen andersen  1761280 Apr 14 17:47 /tmp/busybox.tar
+\&        $ gzip /tmp/busybox.tar
+\&        $ ls -la /tmp/busybox*
+\&        -rw-rw-r--    1 andersen andersen   554058 Apr 14 17:49 /tmp/busybox.tar.gz
 .Ve
 -------------------------------
 .Ip "\fBhalt\fR" 4
@@ -1011,10 +1021,10 @@ Print out a unique 32-bit identifier for the machine.
 .Sp
 -------------------------------
 .Ip "\fBhostname\fR" 4
-hostname [\s-1OPTION\s0] {hostname | \fB\-F\fR file}
+hostname [\s-1OPTION\s0] {hostname | \fB\-F\fR \s-1FILE\s0}
 .Sp
 Get or set the hostname or \s-1DNS\s0 domain name. If a hostname is given
-(or a file with the \fB\-F\fR parameter), the host name will be set.
+(or \s-1FILE\s0 with the \fB\-F\fR parameter), the host name will be set.
 .Sp
 Options:
 .Sp
@@ -1028,7 +1038,7 @@ Example:
 .Sp
 .Vb 2
 \&        $ hostname
-\&        slag 
+\&        sage 
 .Ve
 -------------------------------
 .Ip "\fBid\fR" 4
@@ -1143,7 +1153,7 @@ If you choose to use an /etc/inittab file, the inittab entry format is as follow
 \&                        sysinit actions are completed before continuing.  Following the
 \&                        completion of all sysinit actions, all 'wait' actions are run.
 \&                        'wait' actions, like  'sysinit' actions, cause init to wait until
-\&                        the specified task completes.  'once' actions are asyncronous,
+\&                        the specified task completes.  'once' actions are asynchronous,
 \&                        therefore, init does not wait for them to complete.  'ctrlaltdel'
 \&                        actions are run when the system detects that someone on the system
 \&                       console has pressed the CTRL-ALT-DEL key combination.  Typically one
@@ -1284,7 +1294,7 @@ Prints out the length of the specified \s-1STRING\s0.
 Example:
 .Sp
 .Vb 2
-\&        $ length "Hello"
+\&        $ length Hello
 \&        5
 .Ve
 -------------------------------
@@ -1490,7 +1500,7 @@ Example:
 .Ip "\fBmkdir\fR" 4
 mkdir [\s-1OPTION\s0] \s-1DIRECTORY\s0...
 .Sp
-Create the \fI\s-1DIRECTORY\s0\fR\|(ies), if they do not already exist
+Create the \fI\s-1DIRECTORY\s0\fR\|(ies) if they do not already exist
 .Sp
 Options:
 .Sp
@@ -1578,7 +1588,7 @@ Options:
 mktemp [\fB\-q\fR] \s-1TEMPLATE\s0
 .Sp
 Creates a temporary file with its name based on \s-1TEMPLATE\s0.
-\s-1TEMPLATE\s0 is any name with six `Xs\*(R' (i.e. /tmp/temp.\s-1XXXXXX\s0).
+\s-1TEMPLATE\s0 is any name with six `Xs\*(R' (i.e., /tmp/temp.\s-1XXXXXX\s0).
 .Sp
 Example:
 .Sp
@@ -1601,7 +1611,7 @@ Example:
 .Ve
 -------------------------------
 .Ip "\fBmount\fR" 4
-mount [flags] device directory [\fB\-o\fR options,more-options]
+mount [flags] \s-1DEVICE\s0 \s-1NODE\s0 [\fB\-o\fR options,more-options]
 .Sp
 Mount a filesystem
 .Sp
@@ -1618,7 +1628,7 @@ Flags:
 .Ve
 Options for use with the \*(L"\fB\-o\fR\*(R" flag:
 .Sp
-.Vb 8
+.Vb 9
 \&        async/sync:     Writes are asynchronous / synchronous.
 \&        atime/noatime:  Enable / disable updates to inode access times.
 \&        dev/nodev:      Allow use of special device files / disallow them.
@@ -1627,9 +1637,10 @@ Options for use with the \*(L"\fB\-o\fR\*(R" flag:
 \&        suid/nosuid:    Allow set-user-id-root programs / disallow them.
 \&        remount:        Re-mount a mounted filesystem, changing its flags.
 \&        ro/rw:          Mount for read-only / read-write.
+\&        bind:           Use the linux 2.4.x "bind" feature.
 .Ve
 There are \s-1EVEN\s0 \s-1MORE\s0 flags that are specific to each filesystem.
-You'll have to see the written documentation for those.
+You'll have to see the written documentation for those filesystems.
 .Sp
 Example:
 .Sp
@@ -1686,9 +1697,10 @@ Example:
 .Ve
 -------------------------------
 .Ip "\fBnslookup\fR" 4
-nslookup [\s-1HOST\s0]
+nslookup [\s-1HOST\s0] [\s-1SERVER\s0]
 .Sp
 Queries the nameserver for the \s-1IP\s0 address of the given \s-1HOST\s0
+optionally using a specified \s-1DNS\s0 server
 .Sp
 Example:
 .Sp
@@ -1727,9 +1739,9 @@ Example:
 .Ve
 -------------------------------
 .Ip "\fBpivot_root\fR" 4
-pivot_root new_root put_old
+pivot_root \s-1NEW_ROOT\s0 \s-1PUT_OLD\s0
 .Sp
-Move the current root file system to put_old and make new_root
+Move the current root file system to \s-1PUT_OLD\s0 and make \s-1NEW_ROOT\s0
 the new root file system.
 .Sp
 -------------------------------
@@ -1747,9 +1759,8 @@ Where \s-1FORMAT\s0 controls the output exactly as in C printf.
 .Sp
 Example:
 .Sp
-.Vb 3
-\&        $ printf "Val=%d
-\&        " 5
+.Vb 2
+\&        $ printf "Val=%d\en" 5
 \&        Val=5
 .Ve
 -------------------------------
@@ -1834,9 +1845,8 @@ indicate that all following arguments are non-options.
 .Sp
 Options:
 .Sp
-.Vb 3
-\&        -i              always prompt before removing each destinations
-\&        -f              remove existing destinations, never prompt
+.Vb 2
+\&        -i              always prompt before removing each destination  -f              remove existing destinations, never prompt
 \&        -r or -R        remove the contents of directories recursively
 .Ve
 Example:
@@ -1878,6 +1888,12 @@ route [{add|del|flush}]
 Edit the kernel's routing tables
 .Sp
 -------------------------------
+.Ip "\fBrpm2cpio\fR" 4
+rpm2cpio package.rpm
+.Sp
+Outputs a cpio archive of the rpm file.
+.Sp
+-------------------------------
 .Ip "\fBrpmunpack\fR" 4
 rpmunpack < package.rpm | gunzip | cpio \fB\-idmuv\fR
 .Sp
@@ -1885,15 +1901,14 @@ Extracts an rpm archive.
 .Sp
 -------------------------------
 .Ip "\fBsed\fR" 4
-sed [\fB\-Vhnef\fR] pattern [files...]
+sed [\fB\-nef\fR] pattern [files...]
 .Sp
 Options:
 .Sp
-.Vb 4
+.Vb 3
 \&        -n              suppress automatic printing of pattern space
 \&        -e script       add the script to the commands to be executed
 \&        -f scriptfile   add the contents of script-file to the commands to be executed
-\&        -h              display this help message
 .Ve
 If no \fB\-e\fR or \fB\-f\fR is given, the first non-option argument is taken as the
 sed script to interpret. All remaining arguments are names of input
@@ -1950,19 +1965,21 @@ Example:
 .Ve
 -------------------------------
 .Ip "\fBsort\fR" 4
-sort [\fB\-n\fR] [\fB\-r\fR] [\s-1FILE\s0]...
+sort [\fB\-nru\fR] [\s-1FILE\s0]...
 .Sp
 Sorts lines of text in the specified files
 .Sp
+Options:
+.Sp
+.Vb 3
+\&        -u      suppress duplicate lines
+\&        -r      sort in reverse order
+\&        -n      sort numerics
+.Ve
 Example:
 .Sp
-.Vb 12
-\&        $ echo -e "e
-\&        f
-\&        b
-\&        d
-\&        c
-\&        a" | sort
+.Vb 7
+\&        $ echo -e "e\enf\enb\end\enc\ena" | sort
 \&        a
 \&        b
 \&        c
@@ -1972,7 +1989,7 @@ Example:
 .Ve
 -------------------------------
 .Ip "\fBstty\fR" 4
-stty [\fB\-a\fR|g] [\fB\-F\fR device] [\s-1SETTING\s0]...
+stty [\fB\-a\fR|g] [\fB\-F\fR \s-1DEVICE\s0] [\s-1SETTING\s0]...
 .Sp
 Without arguments, prints baud rate, line discipline,
 and deviations from stty sane.
@@ -1980,16 +1997,16 @@ and deviations from stty sane.
 Options:
 .Sp
 .Vb 4
-\&        -F device       open device instead of stdin
+\&        -F DEVICE       open device instead of stdin
 \&        -a              print all current settings in human-readable form
 \&        -g              print in stty-readable form
-\&        [SETTING]       see documentation
+\&        [SETTING]       see manpage
 .Ve
 -------------------------------
 .Ip "\fBswapoff\fR" 4
-swapoff [\s-1OPTION\s0] [device]
+swapoff [\s-1OPTION\s0] [\s-1DEVICE\s0]
 .Sp
-Stop swapping virtual memory pages on the given device.
+Stop swapping virtual memory pages on \s-1DEVICE\s0.
 .Sp
 Options:
 .Sp
@@ -1998,9 +2015,9 @@ Options:
 .Ve
 -------------------------------
 .Ip "\fBswapon\fR" 4
-swapon [\s-1OPTION\s0] [device]
+swapon [\s-1OPTION\s0] [\s-1DEVICE\s0]
 .Sp
-Start swapping virtual memory pages on the given device.
+Start swapping virtual memory pages on \s-1DEVICE\s0.
 .Sp
 Options:
 .Sp
@@ -2065,11 +2082,11 @@ Example:
 .Ve
 -------------------------------
 .Ip "\fBtar\fR" 4
-tar \-[cxtvO] [\-\fB\-exclude\fR File] [\fB\-X\fR File][\fB\-f\fR tarFile] [\fI\s-1FILE\s0\fR\|(s)] ...
+tar \-[cxtvO] [\-\fB\-exclude\fR \s-1FILE\s0] [\fB\-X\fR \s-1FILE\s0][\fB\-f\fR \s-1TARFILE\s0] [\fB\-C\fR \s-1DIR\s0] [\fI\s-1FILE\s0\fR\|(s)] ...
 .Sp
 Create, extract, or list files from a tar file.
 .Sp
-Main operation mode:
+Options:
 .Sp
 .Vb 3
 \&        c               create
@@ -2078,15 +2095,12 @@ Main operation mode:
 .Ve
 File selection:
 .Sp
-.Vb 4
-\&        f               name of tarfile or "-" for stdin
+.Vb 6
+\&        f               name of TARFILE or "-" for stdin
 \&        O               extract to stdout
 \&        exclude         file to exclude
 \&        X               file with names to exclude
-.Ve
-Informative output:
-.Sp
-.Vb 1
+\&        C               change to directory DIR before operation
 \&        v               verbosely list files processed
 .Ve
 Example:
@@ -2115,7 +2129,7 @@ Example:
 .Ve
 -------------------------------
 .Ip "\fBtelnet\fR" 4
-telnet host [port]
+telnet \s-1HOST\s0 [\s-1PORT\s0]
 .Sp
 Telnet is used to establish interactive communication with another
 computer over a network using the \s-1TELNET\s0 protocol.
@@ -2156,13 +2170,13 @@ Commands:
 \&        get     Get file from server SOURCE and store to local DEST.
 \&        put     Put local file SOURCE to server DEST.
 .Ve
-When nameing a server, use the syntax \*(L"server:file\*(R".
+When naming a server, use the syntax \*(L"server:file\*(R".
 .Sp
 -------------------------------
 .Ip "\fBtouch\fR" 4
-touch [\fB\-c\fR] file [file ...]
+touch [\fB\-c\fR] \s-1FILE\s0 [\s-1FILE\s0 ...]
 .Sp
-Update the last-modified date on the given file[s].
+Update the last-modified date on the given \s-1FILE\s0[s].
 .Sp
 Options:
 .Sp
@@ -2230,18 +2244,18 @@ Example:
 .Ve
 -------------------------------
 .Ip "\fBumount\fR" 4
-umount [flags] filesystem|directory
+umount [flags] \s-1FILESYSTEM\s0|\s-1DIRECTORY\s0
 .Sp
 Unmount file systems
 .Sp
 Flags:
 .Sp
 .Vb 5
-\&        -a:     Unmount all file systems in /etc/mtab
-\&        -n:     Don't erase /etc/mtab entries
-\&        -r:     Try to remount devices as read-only if mount is busy
-\&        -f:     Force filesystem umount (i.e. unreachable NFS server)
-\&        -l:     Do not free loop device (if a loop device has been used)
+\&        -a      Unmount all file systems in /etc/mtab
+\&        -n      Don't erase /etc/mtab entries
+\&        -r      Try to remount devices as read-only if mount is busy
+\&        -f      Force umount (i.e., unreachable NFS server)
+\&        -l      Do not free loop device (if a loop device has been used)
 .Ve
 Example:
 .Sp
@@ -2287,23 +2301,25 @@ Options:
 .Ve
 Example:
 .Sp
-.Vb 9
-\&        $ echo -e "a
-\&        a
-\&        b
-\&        c
-\&        c
-\&        a" | sort | uniq
+.Vb 4
+\&        $ echo -e "a\ena\enb\enc\enc\ena" | sort | uniq
 \&        a
 \&        b
 \&        c
 .Ve
 -------------------------------
 .Ip "\fBunix2dos\fR" 4
-unix2dos [option] [file]
+unix2dos [option] [\s-1FILE\s0]
 .Sp
-See \*(L'dos2unix \-\fB\-help\fR\*(R' for help!
+Converts \s-1FILE\s0 from unix format to dos format.  When no option
+is given, the input is converted to the opposite output format.
+When no file is given, uses stdin for input and stdout for output.
+Options:
 .Sp
+.Vb 2
+\&        -u      output will be in UNIX format
+\&        -d      output will be in DOS format
+.Ve
 -------------------------------
 .Ip "\fBupdate\fR" 4
 update [options]
@@ -2368,7 +2384,7 @@ Uuencode a file.
 Options:
 .Sp
 .Vb 1
-\&        -m      use base64 encoding as of RFC1521
+\&        -m      use base64 encoding per RFC1521
 .Ve
 Example:
 .Sp
@@ -2419,15 +2435,17 @@ Example:
 .Ve
 -------------------------------
 .Ip "\fBwget\fR" 4
-wget [\fB\-c\fR] [\fB\-O\fR file] url
+wget [\fB\-c\fR|\-\fB\-continue\fR] [\fB\-q\fR|\-\fB\-quiet\fR] [\fB\-O\fR|\-\fB\-output\fR\-document file]
+	[\-\fB\-header\fR \*(L'header: value'] [\fB\-P\fR \s-1DIR\s0] url
 .Sp
 wget retrieves files via \s-1HTTP\s0 or \s-1FTP\s0
 .Sp
 Options:
 .Sp
-.Vb 3
+.Vb 4
 \&        -c      continue retrieval of aborted transfers
 \&        -q      quiet mode - do not print
+\&        -P      Set directory prefix to DIR
 \&        -O      save to filename ('-' for stdout)
 .Ve
 -------------------------------
@@ -2499,17 +2517,18 @@ Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
 \&    Tons of new stuff, major rewrite of most of the
 \&    core apps, tons of new apps as noted in header files.
 .Ve
+John Beppu <beppu@lineo.com>
+.PP
+.Vb 2
+\&    du, head, nslookup, sort, tee, uniq (so Kraai could rewrite them ;-),
+\&    documentation
+.Ve
 Edward Betts <edward@debian.org>
 .PP
 .Vb 3
 \&    expr, hostid, logname, tty, wc, whoami, yes
 \& 
 \&=for html <br>
-.Ve
-John Beppu <beppu@lineo.com>
-.PP
-.Vb 1
-\&    du, head, nslookup, sort, tee, uniq
 .Ve
 Brian Candler <B.Candler@pobox.com>
 .PP
@@ -2527,10 +2546,20 @@ Dave Cinege <dcinege@psychosis.com>
 \&    more(v2), makedevs, dutmp, modularization, auto links file, 
 \&    various fixes, Linux Router Project maintenance
 .Ve
+Larry Doolittle <ldoolitt@recycle.lbl.gov>
+.PP
+.Vb 1
+\&    various fixes, shell rewrite
+.Ve
 Karl M. Hegbloom <karlheg@debian.org>
 .PP
 .Vb 1
 \&    cp_mv.c, the test suite, various fixes to utility.c, &c.
+.Ve
+Sterling Huxley <sterling@europa.com>
+.PP
+.Vb 1
+\&    vi (!!!)
 .Ve
 Daniel Jacobowitz <dan@debian.org>
 .PP
@@ -2638,6 +2667,8 @@ Enrique Zanardi <ezanardi@ull.es>
 .IX Item "\fBcmp\fR"
 
 .IX Item "\fBcp\fR"
+
+.IX Item "\fBcpio\fR"
 
 .IX Item "\fBcut\fR"
 
@@ -2794,6 +2825,8 @@ Enrique Zanardi <ezanardi@ull.es>
 .IX Item "\fBrmmod\fR"
 
 .IX Item "\fBroute\fR"
+
+.IX Item "\fBrpm2cpio\fR"
 
 .IX Item "\fBrpmunpack\fR"
 

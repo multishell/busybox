@@ -30,13 +30,12 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include "busybox.h"
-#define BB_DECLARE_EXTERN
-#define bb_need_write_error
-#include "messages.c"
 
-static const int ASCII = 0377;
+/* This must be a #define, since when DODEBUG and BUFFERS_GO_IN_BSS are
+ * enabled, we otherwise get a "storage size isn't constant error. */
+#define ASCII 0377
 
-/* some glabals shared across this file */
+/* some "globals" shared across this file */
 static char com_fl, del_fl, sq_fl;
 static short in_index, out_index;
 /* these last are pointers to static buffers declared in tr_main */
@@ -93,6 +92,10 @@ static void map(register unsigned char *string1, unsigned int string1_len,
 	}
 }
 
+/* supported constructs:
+ *   Ranges,  e.g.,  [0-9]  ==>  0123456789
+ *   Escapes, e.g.,  \a     ==>  Control-G
+ */
 static unsigned int expand(const char *arg, register unsigned char *buffer)
 {
 	unsigned char *buffer_start = buffer;
@@ -113,7 +116,7 @@ static unsigned int expand(const char *arg, register unsigned char *buffer)
 			ac = *arg++;
 			while (i <= ac)
 				*buffer++ = i++;
-			arg++;				/* Skip ']' */
+			arg++;				/* Skip the assumed ']' */
 		} else
 			*buffer++ = *arg++;
 	}

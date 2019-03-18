@@ -35,10 +35,6 @@
 #undef PROTOTYPES
 #include "applets.h"
 
-#define bb_need_full_version
-#define BB_DECLARE_EXTERN
-#include "messages.c"
-
 struct BB_applet *applet_using;
 
 /* The -1 arises because of the {0,NULL,0,-1} entry above. */
@@ -78,7 +74,7 @@ static int applet_name_compare(const void *x, const void *y)
 	return strcmp(name, applet->name);
 }
 
-extern size_t NUM_APPLETS;
+extern const size_t NUM_APPLETS;
 
 struct BB_applet *find_applet_by_name(const char *name)
 {
@@ -88,13 +84,22 @@ struct BB_applet *find_applet_by_name(const char *name)
 
 void run_applet_by_name(const char *name, int argc, char **argv)
 {
+	static int recurse_level = 0;
+
+	recurse_level++;
 	/* Do a binary search to find the applet entry given the name. */
 	if ((applet_using = find_applet_by_name(name)) != NULL) {
 		applet_name = applet_using->name;
-		if (argv[1] && strcmp(argv[1], "--help") == 0)
+		if (argv[1] && strcmp(argv[1], "--help") == 0) {
 			show_usage();
+		}
 		exit((*(applet_using->main)) (argc, argv));
 	}
+	/* Just in case they have renamed busybox - Check argv[1] */
+	if (recurse_level == 1) {
+		run_applet_by_name("busybox", argc, argv);
+	}
+	recurse_level = 0;
 }
 
 

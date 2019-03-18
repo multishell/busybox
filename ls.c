@@ -21,7 +21,7 @@
 /*
  * To achieve a small memory footprint, this version of 'ls' doesn't do any
  * file sorting, and only has the most essential command line switches
- * (i.e. the ones I couldn't live without :-) All features which involve
+ * (i.e., the ones I couldn't live without :-) All features which involve
  * linking in substantial chunks of libc can be disabled.
  *
  * Although I don't really want to add new features to this program to
@@ -543,16 +543,16 @@ static struct dnode **list_dir(char *path)
 	}
 	while ((entry = readdir(dir)) != NULL) {
 		/* are we going to list the file- it may be . or .. or a hidden file */
-		if ((strcmp(entry->d_name, ".")==0) && !(disp_opts & DISP_DOT)) continue;
-		if ((strcmp(entry->d_name, "..")==0) && !(disp_opts & DISP_DOT)) continue;
-		if ((entry->d_name[0] ==  '.') && !(disp_opts & DISP_HIDDEN)) continue;
+		if ((strcmp(entry->d_name, ".")==0) && !(disp_opts & DISP_DOT))
+			continue;
+		if ((strcmp(entry->d_name, "..")==0) && !(disp_opts & DISP_DOT))
+			continue;
+		if ((entry->d_name[0] ==  '.') && !(disp_opts & DISP_HIDDEN))
+			continue;
 		cur= (struct dnode *)xmalloc(sizeof(struct dnode));
-		cur->fullname = xmalloc(strlen(path)+1+strlen(entry->d_name)+1);
-		strcpy(cur->fullname, path);
-		if (cur->fullname[strlen(cur->fullname)-1] != '/')
-			strcat(cur->fullname, "/");
-		cur->name= cur->fullname + strlen(cur->fullname);
-		strcat(cur->fullname, entry->d_name);
+		cur->fullname = concat_path_file(path, entry->d_name);
+		cur->name = cur->fullname +
+				(strlen(cur->fullname) - strlen(entry->d_name));
 		if (my_stat(cur))
 			continue;
 		cur->next= dn;
@@ -577,7 +577,7 @@ static struct dnode **list_dir(char *path)
 /*----------------------------------------------------------------------*/
 static int list_single(struct dnode *dn)
 {
-	int i, len;
+	int i;
 	char scratch[BUFSIZ + 1];
 #ifdef BB_FEATURE_LS_TIMESTAMPS
 	char *filetime;
@@ -605,13 +605,13 @@ static int list_single(struct dnode *dn)
 	for (i=0; i<=31; i++) {
 		switch (list_fmt & (1<<i)) {
 			case LIST_INO:
-				printf("%7ld ", dn->dstat.st_ino);
+				printf("%7ld ", (long int)dn->dstat.st_ino);
 				column += 8;
 				break;
 			case LIST_BLOCKS:
 #ifdef BB_FEATURE_HUMAN_READABLE
-				fprintf(stdout, "%5s ", make_human_readable_str(dn->dstat.st_blocks>>1,
-							(ls_disp_hr==TRUE)? 0: 1));
+				fprintf(stdout, "%6s ", make_human_readable_str(dn->dstat.st_blocks>>1, 
+							KILOBYTE, (ls_disp_hr==TRUE)? 0: KILOBYTE));
 #else
 #if _FILE_OFFSET_BITS == 64
 				printf("%4lld ", dn->dstat.st_blocks>>1);
@@ -622,7 +622,7 @@ static int list_single(struct dnode *dn)
 				column += 5;
 				break;
 			case LIST_MODEBITS:
-				printf("%10s", (char *)mode_string(dn->dstat.st_mode));
+				printf("%-10s ", (char *)mode_string(dn->dstat.st_mode));
 				column += 10;
 				break;
 			case LIST_NLINKS:
@@ -634,7 +634,7 @@ static int list_single(struct dnode *dn)
 				my_getpwuid(scratch, dn->dstat.st_uid);
 				printf("%-8.8s ", scratch);
 				my_getgrgid(scratch, dn->dstat.st_gid);
-				printf("%-8.8s", scratch);
+				printf("%-8.8s ", scratch);
 				column += 17;
 				break;
 #endif
@@ -649,8 +649,7 @@ static int list_single(struct dnode *dn)
 				} else {
 #ifdef BB_FEATURE_HUMAN_READABLE
 					if (ls_disp_hr==TRUE) {
-						fprintf(stdout, "%9s ", make_human_readable_str(
-									dn->dstat.st_size>>10, 0));
+						fprintf(stdout, "%8s ", make_human_readable_str(dn->dstat.st_size, 1, 0));
 					} else 
 #endif	
 					{
@@ -688,16 +687,16 @@ static int list_single(struct dnode *dn)
 				break;
 			case LIST_SYMLINK:
 				if (S_ISLNK(dn->dstat.st_mode)) {
-					len= readlink(dn->fullname, scratch, (sizeof scratch)-1);
-					if (len > 0) {
-						scratch[len]= '\0';
-						printf(" -> %s", scratch);
+					char *lpath = xreadlink(dn->fullname);
+					if (lpath) {
+						printf(" -> %s", lpath);
 #ifdef BB_FEATURE_LS_FILETYPES
 						if (!stat(dn->fullname, &info)) {
 							append = append_char(info.st_mode);
 						}
 #endif
-						column += len+4;
+						column += strlen(lpath) + 4;
+						free(lpath);
 					}
 				}
 				break;

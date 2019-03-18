@@ -31,6 +31,8 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#define BB_BANNER "BusyBox v" BB_VER " (" BB_BT ")"
+
 #ifdef DMALLOC
 #include "dmalloc.h"
 #endif
@@ -64,14 +66,17 @@ extern const struct BB_applet applets[];
 #include "applets.h"
 #undef PROTOTYPES
 
-extern const char *applet_name;
-
 #ifdef BB_FEATURE_BUFFERS_GO_ON_STACK
 #define RESERVE_BB_BUFFER(buffer,len)           char buffer[len]
 #define RESERVE_BB_UBUFFER(buffer,len) unsigned char buffer[len]
 #else
+#ifdef BB_FEATURE_BUFFERS_GO_IN_BSS
+#define RESERVE_BB_BUFFER(buffer,len)  static          char buffer[len]
+#define RESERVE_BB_UBUFFER(buffer,len) static unsigned char buffer[len]
+#else
 #define RESERVE_BB_BUFFER(buffer,len)           char *buffer=xmalloc(len)
 #define RESERVE_BB_UBUFFER(buffer,len) unsigned char *buffer=xmalloc(len)
+#endif
 #endif
 
 

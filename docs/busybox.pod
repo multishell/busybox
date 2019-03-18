@@ -48,25 +48,26 @@ will also cause BusyBox to behave as 'ls'.
 
 =head1 COMMON OPTIONS
 
-Most BusyBox commands support the B<--help> option to provide a
+Most BusyBox commands support the B<-h> option to provide a
 terse runtime description of their behavior. 
 
 =head1 COMMANDS
 
 Currently defined functions include:
 
-ar, basename, busybox, cat, chgrp, chmod, chown, chroot, chvt, clear, cmp, cp,
-cut, date, dc, dd, deallocvt, df, dirname, dmesg, dos2unix, dpkg, dpkg-deb, du,
-dumpkmap, dutmp, echo, expr, false, fbset, fdflush, find, free, freeramdisk,
-fsck.minix, getopt, grep, gunzip, gzip, halt, head, hostid, hostname, id,
-ifconfig, init, insmod, kill, killall, klogd, length, ln, loadacm, loadfont,
-loadkmap, logger, logname, ls, lsmod, makedevs, md5sum, mkdir, mkfifo,
-mkfs.minix, mknod, mkswap, mktemp, more, mount, mt, mv, nc, nslookup, ping,
-pivot_root, poweroff, printf, ps, pwd, rdate, readlink, reboot, renice, reset,
-rm, rmdir, rmmod, route, rpmunpack, sed, setkeycodes, sh, sleep, sort, stty,
-swapoff, swapon, sync, syslogd, tail, tar, tee, telnet, test, tftp, touch, tr,
-true, tty, umount, uname, uniq, unix2dos, update, uptime, usleep, uudecode,
-uuencode, watchdog, wc, wget, which, whoami, xargs, yes, zcat, [
+adjtimex, ar, basename, busybox, cat, chgrp, chmod, chown, chroot, chvt, clear,
+cmp, cp, cpio, cut, date, dc, dd, deallocvt, df, dirname, dmesg, dos2unix, dpkg,
+dpkg-deb, du, dumpkmap, dutmp, echo, expr, false, fbset, fdflush, find, free,
+freeramdisk, fsck.minix, getopt, grep, gunzip, gzip, halt, head, hostid,
+hostname, id, ifconfig, init, insmod, kill, killall, klogd, length, ln,
+loadacm, loadfont, loadkmap, logger, logname, ls, lsmod, makedevs, md5sum,
+mkdir, mkfifo, mkfs.minix, mknod, mkswap, mktemp, more, mount, mt, mv, nc,
+nslookup, ping, pivot_root, poweroff, printf, ps, pwd, rdate, readlink, reboot,
+renice, reset, rm, rmdir, rmmod, route, rpm2cpio, rpmunpack, sed, setkeycodes,
+sh, sleep, sort, stty, swapoff, swapon, sync, syslogd, tail, tar, tee, telnet,
+test, tftp, touch, tr, true, tty, umount, uname, uniq, unix2dos, update, uptime,
+usleep, uudecode, uuencode, watchdog, wc, wget, which, whoami, xargs, yes, zcat,
+[
 
 =over 4
 
@@ -90,9 +91,9 @@ Options:
 
 =item B<ar>
 
-ar -[ovR]{ptx} archive filenames
+ar -[ov][ptx] ARCHIVE FILES
 
-Extract or list files from an ar archive.
+Extract or list FILES from an ar archive.
 
 Options:
 
@@ -101,7 +102,6 @@ Options:
 	-t		list
 	-x		extract
 	-v		verbosely list files processed
-	-R		recursive action
 
 -------------------------------
 
@@ -182,13 +182,14 @@ Example:
 
 =item B<chown>
 
-chown [OPTION]...  OWNER[<.|:>[GROUP]] FILE...
+chown [ B<-Rh> ]...  OWNER[<.|:>[GROUP]] FILE...
 
 Change the owner and/or group of each FILE to OWNER and/or GROUP.
 
 Options:
 
 	-R	Changes files and directories recursively.
+	-h	Do not dereference symbolic links.
 
 Example:
 
@@ -240,6 +241,7 @@ Clear screen.
 
 cmp FILE1 [FILE2]
 
+	-s	quiet mode - do not print
 Compare files.
 
 -------------------------------
@@ -255,6 +257,21 @@ Copies SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.
 	-p	Preserves file attributes if possible
 	-f	force (implied; ignored) - always set
 	-R	Copies directories recursively
+
+-------------------------------
+
+=item B<cpio>
+
+cpio -[dimtuv][F cpiofile]
+
+Extract or list files from a cpio archive
+Main operation mode:
+
+	d		make leading directories
+	i		extract
+	m		preserve mtime
+	t		list
+	u		unconditional overwrite		F		input from file	
 
 -------------------------------
 
@@ -308,7 +325,7 @@ dc expression ...
 
 This is a Tiny RPN calculator that understands the
 following operations: +, -, /, *, and, or, not, eor.
-i.e. 'dc 2 2 add' -> 4, and 'dc 8 8 \* 2 2 + /' -> 16
+i.e., 'dc 2 2 add' -> 4, and 'dc 8 8 \* 2 2 + /' -> 16
 
 Example:
 
@@ -362,7 +379,7 @@ Deallocate unused virtual terminal /dev/ttyN
 
 =item B<df>
 
-df [B<-hmk>] [filesystem ...]
+df [B<-hmk>] [FILESYSTEM ...]
 
 Print the filesystem space used and space available.
 
@@ -415,19 +432,16 @@ Options:
 
 =item B<dos2unix>
 
-dos2unix [option] [file]
+dos2unix [option] [FILE]
 
-Converts a text file to/from dos format to unix format.
+Converts FILE from dos format to unix format.  When no option
+is given, the input is converted to the opposite output format.
+When no file is given, uses stdin for input and stdout for output.
 
 Options:
 
 	-u	output will be in UNIX format
 	-d	output will be in DOS format
-
-- when no option is given then input format will be automaticaly detected
-
-  and converted to the oposite format on output
-- when no file is given, then stdin is used as input and stdout as output
 
 -------------------------------
 
@@ -435,22 +449,24 @@ Options:
 
 dpkg [B<-i>|B<-r>|-B<-unpack>|-B<-configure>] my.deb
 
-WORK IN PROGRESS, only usefull for debian-installer
+WORK IN PROGRESS, only useful for debian-installer
 
 -------------------------------
 
 =item B<dpkg_deb>
 
-dpkg_deb [B<-cexX>] file directory
+dpkg_deb [B<-cefItxX>] FILE [argument]
 
 Perform actions on debian packages (.debs)
 
 Options:
 
-	-c	List contents of filesystem tree (verbose)
-	-l	List contents of filesystem tree (.list format)
-	-e	Extract control files to directory
-	-x	Exctract packages filesystem tree to directory
+	-c	List contents of filesystem tree
+	-e	Extract control files to [argument] directory
+	-f	Display control field name starting with [argument]
+	-I	Display the control filenamed [argument]
+	-t	Extract filesystem tree to stdout in tar format
+	-x	Extract packages filesystem tree to directory
 	-X	Verbose extract
 
 Example:
@@ -507,7 +523,7 @@ Example:
 dutmp [FILE]
 
 Dump utmp file format (pipe delimited) from FILE
-or stdin to stdout.  (i.e. 'dutmp /var/run/utmp')
+or stdin to stdout.  (i.e., 'dutmp /var/run/utmp')
 
 Example:
 
@@ -531,31 +547,25 @@ Prints the specified ARGs to stdout
 Options:
 
 	-n	suppress trailing newline
-	-e	interpret backslash-escaped characters (i.e. \t=tab etc)
+	-e	interpret backslash-escaped characters (i.e., \t=tab)
 	-E	disable interpretation of backslash-escaped characters
 
 Example:
 
 	$ echo "Erik is cool"
 	Erik is cool
-	$  echo -e "Erik
-	is
-	cool"
+	$  echo -e "Erik\nis\ncool"
 	Erik
 	is
 	cool
-	$ echo "Erik
-	is
-	cool"
-	Erik
-	is
-	cool
+	$ echo "Erik\nis\ncool"
+	Erik\nis\ncool
 
 -------------------------------
 
 =item B<env>
 
-env [-] [B<-iu>] [name=value ...] [command]
+env [B<-iu>] [-] [name=value]... [command]
 
 Prints the current environment or runs a program after setting
 up the specified environment.
@@ -658,7 +668,8 @@ the current directory; default EXPRESSION is 'B<-print>'
 EXPRESSION may consist of:
 
 	-follow		Dereference symbolic links.
-	-name PATTERN	File name (leading directories removed) matches PATTERN.	-print		Print (default and assumed).
+	-name PATTERN	File name (leading directories removed) matches PATTERN.
+	-print		Print (default and assumed).
 
 	-type X		Filetype matches X (where X is one of: f,d,l,b,c,...)
 	-perm PERMS	Permissions match any of (+NNN); all of (-NNN);
@@ -761,7 +772,7 @@ Example:
 
 =item B<grep>
 
-grep [B<-ihHnqvs>] pattern [files...]
+grep [B<-ihHnqvs>] PATTERN [FILEs...]
 
 Search for PATTERN in each FILE or standard input.
 
@@ -820,11 +831,11 @@ Options:
 
 Example:
 
-	$ ls -la /tmp/BusyBox*
-	-rw-rw-r--    1 andersen andersen  1761280 Apr 14 17:47 /tmp/BusyBox-0.43.tar
-	$ gzip /tmp/BusyBox-0.43.tar
-	$ ls -la /tmp/BusyBox*
-	-rw-rw-r--    1 andersen andersen   554058 Apr 14 17:49 /tmp/BusyBox-0.43.tar.gz
+	$ ls -la /tmp/busybox*
+	-rw-rw-r--    1 andersen andersen  1761280 Apr 14 17:47 /tmp/busybox.tar
+	$ gzip /tmp/busybox.tar
+	$ ls -la /tmp/busybox*
+	-rw-rw-r--    1 andersen andersen   554058 Apr 14 17:49 /tmp/busybox.tar.gz
 
 -------------------------------
 
@@ -866,10 +877,10 @@ Print out a unique 32-bit identifier for the machine.
 
 =item B<hostname>
 
-hostname [OPTION] {hostname | B<-F> file}
+hostname [OPTION] {hostname | B<-F> FILE}
 
 Get or set the hostname or DNS domain name. If a hostname is given
-(or a file with the B<-F> parameter), the host name will be set.
+(or FILE with the B<-F> parameter), the host name will be set.
 
 Options:
 
@@ -881,7 +892,7 @@ Options:
 Example:
 
 	$ hostname
-	slag 
+	sage 
 
 -------------------------------
 
@@ -987,7 +998,7 @@ If you choose to use an /etc/inittab file, the inittab entry format is as follow
 			sysinit actions are completed before continuing.  Following the
 			completion of all sysinit actions, all 'wait' actions are run.
 			'wait' actions, like  'sysinit' actions, cause init to wait until
-			the specified task completes.  'once' actions are asyncronous,
+			the specified task completes.  'once' actions are asynchronous,
 			therefore, init does not wait for them to complete.  'ctrlaltdel'
 			actions are run when the system detects that someone on the system
                        console has pressed the CTRL-ALT-DEL key combination.  Typically one
@@ -1126,7 +1137,7 @@ Prints out the length of the specified STRING.
 
 Example:
 
-	$ length "Hello"
+	$ length Hello
 	5
 
 -------------------------------
@@ -1341,7 +1352,7 @@ Example:
 
 mkdir [OPTION] DIRECTORY...
 
-Create the DIRECTORY(ies), if they do not already exist
+Create the DIRECTORY(ies) if they do not already exist
 
 Options:
 
@@ -1431,7 +1442,7 @@ Options:
 mktemp [B<-q>] TEMPLATE
 
 Creates a temporary file with its name based on TEMPLATE.
-TEMPLATE is any name with six `Xs' (i.e. /tmp/temp.XXXXXX).
+TEMPLATE is any name with six `Xs' (i.e., /tmp/temp.XXXXXX).
 
 Example:
 
@@ -1456,7 +1467,7 @@ Example:
 
 =item B<mount>
 
-mount [flags] device directory [B<-o> options,more-options]
+mount [flags] DEVICE NODE [B<-o> options,more-options]
 
 Mount a filesystem
 
@@ -1480,9 +1491,10 @@ Options for use with the "B<-o>" flag:
 	suid/nosuid:	Allow set-user-id-root programs / disallow them.
 	remount:	Re-mount a mounted filesystem, changing its flags.
 	ro/rw:		Mount for read-only / read-write.
+	bind:		Use the linux 2.4.x "bind" feature.
 
 There are EVEN MORE flags that are specific to each filesystem.
-You'll have to see the written documentation for those.
+You'll have to see the written documentation for those filesystems.
 
 Example:
 
@@ -1544,9 +1556,10 @@ Example:
 
 =item B<nslookup>
 
-nslookup [HOST]
+nslookup [HOST] [SERVER]
 
 Queries the nameserver for the IP address of the given HOST
+optionally using a specified DNS server
 
 Example:
 
@@ -1586,9 +1599,9 @@ Example:
 
 =item B<pivot_root>
 
-pivot_root new_root put_old
+pivot_root NEW_ROOT PUT_OLD
 
-Move the current root file system to put_old and make new_root
+Move the current root file system to PUT_OLD and make NEW_ROOT
 the new root file system.
 
 -------------------------------
@@ -1610,8 +1623,7 @@ Where FORMAT controls the output exactly as in C printf.
 
 Example:
 
-	$ printf "Val=%d
-	" 5
+	$ printf "Val=%d\n" 5
 	Val=5
 
 -------------------------------
@@ -1709,8 +1721,7 @@ indicate that all following arguments are non-options.
 
 Options:
 
-	-i		always prompt before removing each destinations
-	-f		remove existing destinations, never prompt
+	-i		always prompt before removing each destination	-f		remove existing destinations, never prompt
 	-r or -R	remove the contents of directories recursively
 
 Example:
@@ -1755,6 +1766,14 @@ Edit the kernel's routing tables
 
 -------------------------------
 
+=item B<rpm2cpio>
+
+rpm2cpio package.rpm
+
+Outputs a cpio archive of the rpm file.
+
+-------------------------------
+
 =item B<rpmunpack>
 
 rpmunpack < package.rpm | gunzip | cpio B<-idmuv>
@@ -1765,14 +1784,13 @@ Extracts an rpm archive.
 
 =item B<sed>
 
-sed [B<-Vhnef>] pattern [files...]
+sed [B<-nef>] pattern [files...]
 
 Options:
 
 	-n		suppress automatic printing of pattern space
 	-e script	add the script to the commands to be executed
 	-f scriptfile	add the contents of script-file to the commands to be executed
-	-h		display this help message
 
 If no B<-e> or B<-f> is given, the first non-option argument is taken as the
 sed script to interpret. All remaining arguments are names of input
@@ -1834,18 +1852,19 @@ Example:
 
 =item B<sort>
 
-sort [B<-n>] [B<-r>] [FILE]...
+sort [B<-nru>] [FILE]...
 
 Sorts lines of text in the specified files
 
+Options:
+
+	-u	suppress duplicate lines
+	-r	sort in reverse order
+	-n	sort numerics
+
 Example:
 
-	$ echo -e "e
-	f
-	b
-	d
-	c
-	a" | sort
+	$ echo -e "e\nf\nb\nd\nc\na" | sort
 	a
 	b
 	c
@@ -1857,25 +1876,25 @@ Example:
 
 =item B<stty>
 
-stty [B<-a>|g] [B<-F> device] [SETTING]...
+stty [B<-a>|g] [B<-F> DEVICE] [SETTING]...
 
 Without arguments, prints baud rate, line discipline,
 and deviations from stty sane.
 
 Options:
 
-	-F device	open device instead of stdin
+	-F DEVICE	open device instead of stdin
 	-a		print all current settings in human-readable form
 	-g		print in stty-readable form
-	[SETTING]	see documentation
+	[SETTING]	see manpage
 
 -------------------------------
 
 =item B<swapoff>
 
-swapoff [OPTION] [device]
+swapoff [OPTION] [DEVICE]
 
-Stop swapping virtual memory pages on the given device.
+Stop swapping virtual memory pages on DEVICE.
 
 Options:
 
@@ -1885,9 +1904,9 @@ Options:
 
 =item B<swapon>
 
-swapon [OPTION] [device]
+swapon [OPTION] [DEVICE]
 
-Start swapping virtual memory pages on the given device.
+Start swapping virtual memory pages on DEVICE.
 
 Options:
 
@@ -1955,11 +1974,11 @@ Example:
 
 =item B<tar>
 
-tar -[cxtvO] [-B<-exclude> File] [B<-X> File][B<-f> tarFile] [FILE(s)] ...
+tar -[cxtvO] [-B<-exclude> FILE] [B<-X> FILE][B<-f> TARFILE] [B<-C> DIR] [FILE(s)] ...
 
 Create, extract, or list files from a tar file.
 
-Main operation mode:
+Options:
 
 	c		create
 	x		extract
@@ -1967,13 +1986,11 @@ Main operation mode:
 
 File selection:
 
-	f		name of tarfile or "-" for stdin
+	f		name of TARFILE or "-" for stdin
 	O		extract to stdout
 	exclude		file to exclude
 	X		file with names to exclude
-
-Informative output:
-
+	C		change to directory DIR before operation
 	v		verbosely list files processed
 
 Example:
@@ -2003,7 +2020,7 @@ Example:
 
 =item B<telnet>
 
-telnet host [port]
+telnet HOST [PORT]
 
 Telnet is used to establish interactive communication with another
 computer over a network using the TELNET protocol.
@@ -2046,15 +2063,15 @@ Commands:
 	get	Get file from server SOURCE and store to local DEST.
 	put	Put local file SOURCE to server DEST.
 
-When nameing a server, use the syntax "server:file".
+When naming a server, use the syntax "server:file".
 
 -------------------------------
 
 =item B<touch>
 
-touch [B<-c>] file [file ...]
+touch [B<-c>] FILE [FILE ...]
 
-Update the last-modified date on the given file[s].
+Update the last-modified date on the given FILE[s].
 
 Options:
 
@@ -2123,17 +2140,17 @@ Example:
 
 =item B<umount>
 
-umount [flags] filesystem|directory
+umount [flags] FILESYSTEM|DIRECTORY
 
 Unmount file systems
 
 Flags:
 
-	-a:	Unmount all file systems in /etc/mtab
-	-n:	Don't erase /etc/mtab entries
-	-r:	Try to remount devices as read-only if mount is busy
-	-f:	Force filesystem umount (i.e. unreachable NFS server)
-	-l:	Do not free loop device (if a loop device has been used)
+	-a	Unmount all file systems in /etc/mtab
+	-n	Don't erase /etc/mtab entries
+	-r	Try to remount devices as read-only if mount is busy
+	-f	Force umount (i.e., unreachable NFS server)
+	-l	Do not free loop device (if a loop device has been used)
 
 Example:
 
@@ -2179,12 +2196,7 @@ Options:
 
 Example:
 
-	$ echo -e "a
-	a
-	b
-	c
-	c
-	a" | sort | uniq
+	$ echo -e "a\na\nb\nc\nc\na" | sort | uniq
 	a
 	b
 	c
@@ -2193,9 +2205,15 @@ Example:
 
 =item B<unix2dos>
 
-unix2dos [option] [file]
+unix2dos [option] [FILE]
 
-See 'dos2unix -B<-help>' for help!
+Converts FILE from unix format to dos format.  When no option
+is given, the input is converted to the opposite output format.
+When no file is given, uses stdin for input and stdout for output.
+Options:
+
+	-u	output will be in UNIX format
+	-d	output will be in DOS format
 
 -------------------------------
 
@@ -2265,7 +2283,7 @@ Uuencode a file.
 
 Options:
 
-	-m	use base64 encoding as of RFC1521
+	-m	use base64 encoding per RFC1521
 
 Example:
 
@@ -2320,7 +2338,8 @@ Example:
 
 =item B<wget>
 
-wget [B<-c>] [B<-O> file] url
+wget [B<-c>|-B<-continue>] [B<-q>|-B<-quiet>] [B<-O>|-B<-output>-document file]
+	[-B<-header> 'header: value'] [B<-P> DIR] url
 
 wget retrieves files via HTTP or FTP
 
@@ -2328,6 +2347,7 @@ Options:
 
 	-c	continue retrieval of aborted transfers
 	-q	quiet mode - do not print
+	-P	Set directory prefix to DIR
 	-O	save to filename ('-' for stdout)
 
 -------------------------------
@@ -2421,16 +2441,17 @@ Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
 
 =for html <br>
 
+John Beppu <beppu@lineo.com>
+
+    du, head, nslookup, sort, tee, uniq (so Kraai could rewrite them ;-),
+    documentation
+
+=for html <br>
+
 Edward Betts <edward@debian.org>
 
     expr, hostid, logname, tty, wc, whoami, yes
  
-=for html <br>
-
-John Beppu <beppu@lineo.com>
-
-    du, head, nslookup, sort, tee, uniq
-
 =for html <br>
 
 Brian Candler <B.Candler@pobox.com>
@@ -2452,9 +2473,21 @@ Dave Cinege <dcinege@psychosis.com>
 
 =for html <br>
 
+Larry Doolittle <ldoolitt@recycle.lbl.gov>
+
+    various fixes, shell rewrite
+
+=for html <br>
+
 Karl M. Hegbloom <karlheg@debian.org>
 
     cp_mv.c, the test suite, various fixes to utility.c, &c.
+
+=for html <br>
+
+Sterling Huxley <sterling@europa.com>
+
+    vi (!!!)
 
 =for html <br>
 
@@ -2537,4 +2570,4 @@ Enrique Zanardi <ezanardi@ull.es>
 
 =cut
 
-# $Id: busybox.pod,v 1.100 2001/04/10 18:17:05 andersen Exp $
+# $Id: busybox_footer.pod,v 1.4 2001/04/17 17:09:34 beppu Exp $

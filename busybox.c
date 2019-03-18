@@ -5,11 +5,6 @@
 #include <errno.h>
 #include <stdlib.h>
 #include "busybox.h"
-
-#define bb_need_full_version
-#define BB_DECLARE_EXTERN
-#include "messages.c"
-
 #ifdef BB_LOCALE_SUPPORT
 #include <locale.h>
 #endif
@@ -42,21 +37,7 @@ typedef int (*__link_f)(const char *, const char *);
  */
 static char *busybox_fullpath()
 {
-	pid_t pid;
-	char path[256];
-	char proc[256];
-	int len;
-
-	pid = getpid();
-	sprintf(proc, "/proc/%d/exe", pid);
-	len = readlink(proc, path, 256);
-	if (len != -1) {
-		path[len] = 0;
-	} else {
-		perror_msg("%s", proc);
-		return NULL;
-	}
-	return strdup(path);
+	return xreadlink("/proc/self/exe");
 }
 
 /* create (sym)links for each applet */
@@ -93,17 +74,18 @@ int main(int argc, char **argv)
 			applet_name = s;
 	}
 
-#ifdef BB_SH
-	/* Add in a special case hack -- whenever **argv == '-'
-	 * (i.e. '-su' or '-sh') always invoke the shell */
+	/* Add in a special case hack for a leading hyphen */
 	if (**argv == '-' && *(*argv+1)!= '-') {
-		applet_name = "sh";
+		applet_name = (*argv+1);
 	}
-#endif
 
-#ifdef BB_LOCALE_SUPPORT
+#ifdef BB_LOCALE_SUPPORT 
+#ifdef BB_INIT
 	if(getpid()!=1)	/* Do not set locale for `init' */
+#endif
+	{
 		setlocale(LC_ALL, "");
+	}
 #endif
 
 	run_applet_by_name(applet_name, argc, argv);

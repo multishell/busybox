@@ -14,175 +14,112 @@
  *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  */
 
-/*
- *	Merge this applet into dpkg when dpkg becomes more stable
- */
-
-#include <stdio.h>
 #include <stdlib.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include <string.h>
-#include <stdlib.h>
-#include <signal.h>
+#include <getopt.h>
 #include "busybox.h"
-
-/* From gunzip.c */
-extern int gz_open(FILE *compressed_file, int *pid);
-extern void gz_close(int gunzip_pid);
-
-typedef struct ar_headers_s {
-	char *name;
-	size_t size;
-	uid_t uid;
-	gid_t gid;
-	mode_t mode;
-	time_t mtime;
-	off_t offset;
-	struct ar_headers_s *next;
-} ar_headers_t;
-
-extern ar_headers_t get_ar_headers(int srcFd);
-extern int tar_unzip_init(int tarFd);
-extern int readTarFile(int tarFd, int extractFlag, int listFlag, 
-	int tostdoutFlag, int verboseFlag, char** extractList, char** excludeList);
-
-static const int dpkg_deb_contents = 1;
-static const int dpkg_deb_control = 2;
-//	const int dpkg_deb_info = 4;
-static const int dpkg_deb_extract = 8;
-static const int dpkg_deb_verbose_extract = 16;
-static const int dpkg_deb_list = 32;
-
-extern int deb_extract(int optflags, const char *dir_name, const char *deb_filename)
-{
-	char **extract_list = NULL;
-	ar_headers_t *ar_headers = NULL;
-	char ar_filename[15];
-	int extract_flag = FALSE;
-	int list_flag = FALSE;
-	int verbose_flag = FALSE;
-	int extract_to_stdout = FALSE;
-	int srcFd = 0;
-	int status;
-	pid_t pid;
-	FILE *comp_file = NULL;
-
-	if (dpkg_deb_contents == (dpkg_deb_contents & optflags)) {
-		strcpy(ar_filename, "data.tar.gz");
-		verbose_flag = TRUE;
-		list_flag = TRUE;
-	}
-	if (dpkg_deb_list == (dpkg_deb_list & optflags)) {
-		strcpy(ar_filename, "data.tar.gz");
-		list_flag = TRUE;
-	}
-	if (dpkg_deb_control == (dpkg_deb_control & optflags)) {
-		strcpy(ar_filename, "control.tar.gz");	
-		extract_flag = TRUE;
-	}
-	if (dpkg_deb_extract == (dpkg_deb_extract & optflags)) {
-		strcpy(ar_filename, "data.tar.gz");
-		extract_flag = TRUE;
-	}
-	if (dpkg_deb_verbose_extract == (dpkg_deb_verbose_extract & optflags)) {
-		strcpy(ar_filename, "data.tar.gz");
-		extract_flag = TRUE;
-		list_flag = TRUE;
-	}
-
-	ar_headers = (ar_headers_t *) xmalloc(sizeof(ar_headers_t));	
-	srcFd = open(deb_filename, O_RDONLY);
-	
-	*ar_headers = get_ar_headers(srcFd);
-	if (ar_headers->next == NULL) {
-		error_msg_and_die("Couldnt find %s in %s", ar_filename, deb_filename);
-	}
-
-	while (ar_headers->next != NULL) {
-		if (strcmp(ar_headers->name, ar_filename) == 0) {
-			break;
-		}
-		ar_headers = ar_headers->next;
-	}
-	lseek(srcFd, ar_headers->offset, SEEK_SET);
-	/* Uncompress the file */
-	comp_file = fdopen(srcFd, "r");
-	if ((srcFd = gz_open(comp_file, &pid)) == EXIT_FAILURE) {
-	    error_msg_and_die("Couldnt unzip file");
-	}
-	if ( dir_name != NULL) { 
-		if (is_directory(dir_name, TRUE, NULL)==FALSE) {
-			mkdir(dir_name, 0755);
-		}
-		if (chdir(dir_name)==-1) {
-			error_msg_and_die("Cannot change to dir %s", dir_name);
-		}
-	}
-	status = readTarFile(srcFd, extract_flag, list_flag, 
-		extract_to_stdout, verbose_flag, NULL, extract_list);
-
-	/* we are deliberately terminating the child so we can safely ignore this */
-	signal(SIGTERM, SIG_IGN);
-	gz_close(pid);
-	close(srcFd);
-	fclose(comp_file);
-
-	return status;
-}
 
 extern int dpkg_deb_main(int argc, char **argv)
 {
-	char *target_dir = NULL;
+	char *prefix = NULL;
+	char *filename = NULL;
+	char *output_buffer = NULL;
 	int opt = 0;
-	int optflag = 0;	
+	int arg_type = 0;
+	int deb_extract_funct = extract_create_leading_dirs | extract_unconditional;	
 	
-	while ((opt = getopt(argc, argv, "cexXl")) != -1) {
+	const int arg_type_prefix = 1;
+	const int arg_type_field = 2;
+	const int arg_type_filename = 4;
+//	const int arg_type_un_ar_gz = 8;
+
+	while ((opt = getopt(argc, argv, "ceftXxI")) != -1) {
 		switch (opt) {
 			case 'c':
-				optflag |= dpkg_deb_contents;
+				deb_extract_funct |= extract_data_tar_gz;
+				deb_extract_funct |= extract_verbose_list;
 				break;
 			case 'e':
-				optflag |= dpkg_deb_control;
+				arg_type = arg_type_prefix;
+				deb_extract_funct |= extract_control_tar_gz;
+				deb_extract_funct |= extract_all_to_fs;
+				break;
+			case 'f':
+				arg_type = arg_type_field;
+				deb_extract_funct |= extract_control_tar_gz;
+				deb_extract_funct |= extract_one_to_buffer;
+				filename = xstrdup("./control");
+				break;
+			case 't': /* --fsys-tarfile, i just made up this short name */
+				/* Integrate the functionality needed with some code from ar.c */
+				error_msg_and_die("Option disabled");
+//				arg_type = arg_type_un_ar_gz;
 				break;
 			case 'X':
-				optflag |= dpkg_deb_verbose_extract;
-				break;
+				arg_type = arg_type_prefix;
+				deb_extract_funct |= extract_data_tar_gz;
+				deb_extract_funct |= extract_all_to_fs;
+				deb_extract_funct |= extract_list;
 			case 'x':
-				optflag |= dpkg_deb_extract;
+				arg_type = arg_type_prefix;
+				deb_extract_funct |= extract_data_tar_gz;
+				deb_extract_funct |= extract_all_to_fs;
 				break;
-			case 'l':
-				optflag |= dpkg_deb_list;
+			case 'I':
+				arg_type = arg_type_filename;
+				deb_extract_funct |= extract_control_tar_gz;
+				deb_extract_funct |= extract_one_to_buffer;
 				break;
-/*			case 'I':
-				optflag |= dpkg_deb_info;
-				break;
-*/
 			default:
 				show_usage();
 		}
 	}
 
-	if (((optind + 1 ) > argc) || (optflag == 0))  {
+	if (optind == argc)  {
 		show_usage();
 	}
-	if ((optflag & dpkg_deb_control) || (optflag & dpkg_deb_extract) || (optflag & dpkg_deb_verbose_extract)) {
-		if ( (optind + 1) == argc ) {
-			target_dir = (char *) xmalloc(7);
-			strcpy(target_dir, "DEBIAN");
+
+	/* Workout where to extract the files */
+	if (arg_type == arg_type_prefix) {
+		/* argument is a dir name */
+		if ((optind + 1) == argc ) {
+			prefix = xstrdup("./DEBIAN/");
 		} else {
-			target_dir = (char *) xmalloc(strlen(argv[optind + 1]));
-			strcpy(target_dir, argv[optind + 1]);
+			prefix = (char *) xmalloc(strlen(argv[optind + 1]) + 2);
+			strcpy(prefix, argv[optind + 1]);
+			/* Make sure the directory has a trailing '/' */
+			if (last_char_is(prefix, '/') == NULL) {
+				strcat(prefix, "/");
+			}
+		}
+		mkdir(prefix, 0777);
+	}
+
+	if (arg_type == arg_type_filename) {
+		if ((optind + 1) != argc) {
+			filename = xstrdup(argv[optind + 1]);
+		} else {
+			error_msg_and_die("-I currently requires a filename to be specified");
 		}
 	}
-	deb_extract(optflag, target_dir, argv[optind]);
-/*	else if (optflag & dpkg_deb_info) {
-		extract_flag = TRUE;
-		extract_to_stdout = TRUE;
-		strcpy(ar_filename, "control.tar.gz");
-		extract_list = argv+optind+1;
-		printf("list one is [%s]\n",extract_list[0]);
+
+	output_buffer = deb_extract(argv[optind], stdout, deb_extract_funct, prefix, filename);
+
+	if ((arg_type == arg_type_filename) && (output_buffer != NULL)) {
+		puts(output_buffer);
 	}
-*/
+	else if (arg_type == arg_type_field) {
+		char *field = NULL;
+		int field_start = 0;
+
+		while ((field = read_package_field(&output_buffer[field_start])) != NULL) {
+			field_start += (strlen(field) + 1);
+			if (strstr(field, argv[optind + 1]) == field) {
+				puts(field + strlen(argv[optind + 1]) + 2);
+			}
+			free(field);
+		}
+	}
+
 	return(EXIT_SUCCESS);
 }

@@ -76,16 +76,16 @@
 #undef  BB_FEATURE_COMMAND_USERNAME_COMPLETION
 #endif
 
-#if defined(BB_FEATURE_COMMAND_USERNAME_COMPLETION) || !defined(BB_FEATURE_SH_SIMPLE_PROMPT)
+#if defined(BB_FEATURE_COMMAND_USERNAME_COMPLETION) || defined(BB_FEATURE_SH_FANCY_PROMPT)
 #define BB_FEATURE_GETUSERNAME_AND_HOMEDIR
 #endif
 
 #ifdef BB_FEATURE_GETUSERNAME_AND_HOMEDIR
-#ifndef TEST
-#include "pwd_grp/pwd.h"
-#else
-#include <pwd.h>
-#endif							/* TEST */
+#       ifndef TEST
+#               include "pwd_grp/pwd.h"
+#       else
+#               include <pwd.h>
+#       endif  /* TEST */
 #endif							/* advanced FEATURES */
 
 
@@ -106,26 +106,12 @@ static struct history *his_front = NULL;
 static struct history *his_end = NULL;
 
 
-/* ED: sparc termios is broken: revert back to old termio handling. */
-
-#if #cpu(sparc)
-#      include <termio.h>
-#      define termios termio
-#      define setTermSettings(fd,argp) ioctl(fd,TCSETAF,argp)
-#      define getTermSettings(fd,argp) ioctl(fd,TCGETA,argp)
-#else
-#      include <termios.h>
-#      define setTermSettings(fd,argp) tcsetattr(fd,TCSANOW,argp)
-#      define getTermSettings(fd,argp) tcgetattr(fd, argp);
-#endif
+#include <termios.h>
+#define setTermSettings(fd,argp) tcsetattr(fd,TCSANOW,argp)
+#define getTermSettings(fd,argp) tcgetattr(fd, argp);
 
 /* Current termio and the previous termio before starting sh */
 static struct termios initial_settings, new_settings;
-
-
-#ifndef _POSIX_VDISABLE
-#define _POSIX_VDISABLE '\0'
-#endif
 
 
 static
@@ -151,7 +137,7 @@ static int cursor;		/* required global for signal handler */
 static int len;			/* --- "" - - "" - -"- --""-- --""--- */
 static char *command_ps;	/* --- "" - - "" - -"- --""-- --""--- */
 static
-#ifdef BB_FEATURE_SH_SIMPLE_PROMPT
+#ifndef BB_FEATURE_SH_FANCY_PROMPT
 	const
 #endif
 char *cmdedit_prompt;		/* --- "" - - "" - -"- --""-- --""--- */
@@ -166,7 +152,7 @@ static char *home_pwd_buf = "";
 static int my_euid;
 #endif
 
-#ifndef BB_FEATURE_SH_SIMPLE_PROMPT
+#ifdef BB_FEATURE_SH_FANCY_PROMPT
 static char *hostname_buf = "";
 static int num_ok_lines = 1;
 #endif
@@ -335,7 +321,7 @@ static void put_prompt(void)
 	cursor = 0;
 }
 
-#ifdef BB_FEATURE_SH_SIMPLE_PROMPT
+#ifndef BB_FEATURE_SH_FANCY_PROMPT
 static void parse_prompt(const char *prmt_ptr)
 {
 	cmdedit_prompt = prmt_ptr;
@@ -354,6 +340,10 @@ static void parse_prompt(const char *prmt_ptr)
 	char  buf[2];
 	char  c;
 	char *pbuf;
+
+	if (!pwd_buf) {
+		pwd_buf=(char *)unknown;
+	}
 
 	while (*prmt_ptr) {
 		pbuf    = buf;
@@ -452,7 +442,8 @@ static void parse_prompt(const char *prmt_ptr)
 		if (flg_not_length == ']')
 			sub_len++;
 	}
-	free(pwd_buf);
+	if(pwd_buf!=(char *)unknown)
+		free(pwd_buf);
 	cmdedit_prompt = prmt_mem_ptr;
 	cmdedit_prmt_len = prmt_len - sub_len;
 	put_prompt();
@@ -574,7 +565,6 @@ extern void cmdedit_init(void)
 		signal(SIGTERM, clean_up_and_die);
 		handlers_sets |= SET_TERM_HANDLERS;
 	}
-
 }
 
 #ifdef BB_FEATURE_COMMAND_TAB_COMPLETION
@@ -977,17 +967,14 @@ static int find_match(char *matchBuf, int *len_with_quotes)
 			 || (int_buf[i + 1] & ~QUOT) == '~')) {
 		i++;
 	}
-	if (i) {
-		collapse_pos(0, i);
-	}
 
 	/* set only match and destroy quotes */
 	j = 0;
-	for (i = 0; pos_buf[i] >= 0; i++) {
-		matchBuf[i] = matchBuf[pos_buf[i]];
+	for (c = 0; pos_buf[i] >= 0; i++) {
+		matchBuf[c++] = matchBuf[pos_buf[i]];
 		j = pos_buf[i] + 1;
 	}
-	matchBuf[i] = 0;
+	matchBuf[c] = 0;
 	/* old lenght matchBuf with quotes symbols */
 	*len_with_quotes = j ? j - pos_buf[0] : 0;
 
@@ -1041,9 +1028,30 @@ static void input_tab(int *lastWasTab)
 		 * in the current working directory that matches.  */
 		if (!matches)
 			matches =
-				exe_n_cwd_tab_completion(matchBuf, &num_matches,
-										 find_type);
-
+				exe_n_cwd_tab_completion(matchBuf,
+					&num_matches, find_type);
+		/* Remove duplicate found */
+		if(matches) {
+			int i, j;
+			/* bubble */
+			for(i=0; i<(num_matches-1); i++)
+				for(j=i+1; j<num_matches; j++)
+					if(matches[i]!=0 && matches[j]!=0 &&
+						strcmp(matches[i], matches[j])==0) {
+							free(matches[j]);
+							matches[j]=0;
+					}
+			j=num_matches;
+			num_matches = 0;
+			for(i=0; i<j; i++)
+				if(matches[i]) {
+					if(!strcmp(matches[i], "./"))
+						matches[i][1]=0;
+					else if(!strcmp(matches[i], "../"))
+						matches[i][2]=0;
+					matches[num_matches++]=matches[i];
+				}
+		}
 		/* Did we find exactly one match? */
 		if (!matches || num_matches > 1) {
 			char *tmp1;
@@ -1091,8 +1099,7 @@ static void input_tab(int *lastWasTab)
 			/* new len                         */
 			len = strlen(command_ps);
 			/* write out the matched command   */
-			input_end();
-			input_backward(cursor - recalc_pos);
+			redraw(cmdedit_y, len - recalc_pos);
 		}
 		if (tmp != matches[0])
 			free(tmp);
@@ -1170,8 +1177,6 @@ enum {
 extern void cmdedit_read_input(char *prompt, char command[BUFSIZ])
 {
 
-	int inputFd = fileno(stdin);
-
 	int break_out = 0;
 	int lastWasTab = FALSE;
 	unsigned char c = 0;
@@ -1182,23 +1187,28 @@ extern void cmdedit_read_input(char *prompt, char command[BUFSIZ])
 	len = 0;
 	command_ps = command;
 
-	if (new_settings.c_cc[VMIN] == 0) {	/* first call */
+	if (new_settings.c_cc[VERASE] == 0) {     /* first call */
 
-		getTermSettings(inputFd, (void *) &initial_settings);
+		getTermSettings(0, (void *) &initial_settings);
 		memcpy(&new_settings, &initial_settings, sizeof(struct termios));
-
+		new_settings.c_lflag &= ~ICANON;        /* unbuffered input */
+		/* Turn off echoing and CTRL-C, so we can trap it */
+		new_settings.c_lflag &= ~(ECHO | ECHONL | ISIG);
+#ifndef linux
+		/* Hmm, in linux c_cc[] not parsed if set ~ICANON */
 		new_settings.c_cc[VMIN] = 1;
 		new_settings.c_cc[VTIME] = 0;
 		/* Turn off CTRL-C, so we can trap it */
+#       ifndef _POSIX_VDISABLE
+#               define _POSIX_VDISABLE '\0'
+#       endif
 		new_settings.c_cc[VINTR] = _POSIX_VDISABLE;	
-		new_settings.c_lflag &= ~ICANON;	/* unbuffered input */
-		/* Turn off echoing */
-		new_settings.c_lflag &= ~(ECHO | ECHOCTL | ECHONL);	
+#endif
 	}
 
 	command[0] = 0;
 
-	setTermSettings(inputFd, (void *) &new_settings);
+	setTermSettings(0, (void *) &new_settings);
 	handlers_sets |= SET_RESET_TERM;
 
 	/* Now initialize things */
@@ -1210,8 +1220,9 @@ extern void cmdedit_read_input(char *prompt, char command[BUFSIZ])
 
 		fflush(stdout);			/* buffered out to fast */
 
-		if (read(inputFd, &c, 1) < 1)
-			return;
+		if (read(0, &c, 1) < 1)
+			/* if we can't read input then exit */
+			goto prepare_to_die;
 
 		switch (c) {
 		case '\n':
@@ -1243,6 +1254,7 @@ extern void cmdedit_read_input(char *prompt, char command[BUFSIZ])
 			/* Control-d -- Delete one character, or exit
 			 * if the len=0 and no chars to delete */
 			if (len == 0) {
+prepare_to_die:
 				printf("exit");
 				clean_up_and_die(0);
 			} else {
@@ -1295,11 +1307,11 @@ extern void cmdedit_read_input(char *prompt, char command[BUFSIZ])
 
 		case ESC:{
 			/* escape sequence follows */
-			if (read(inputFd, &c, 1) < 1)
+			if (read(0, &c, 1) < 1)
 				return;
 			/* different vt100 emulations */
 			if (c == '[' || c == 'O') {
-				if (read(inputFd, &c, 1) < 1)
+				if (read(0, &c, 1) < 1)
 					return;
 			}
 			switch (c) {
@@ -1364,7 +1376,7 @@ extern void cmdedit_read_input(char *prompt, char command[BUFSIZ])
 			}
 			if (c >= '1' && c <= '9')
 				do
-					if (read(inputFd, &c, 1) < 1)
+					if (read(0, &c, 1) < 1)
 						return;
 				while (c != '~');
 			break;
@@ -1374,7 +1386,7 @@ extern void cmdedit_read_input(char *prompt, char command[BUFSIZ])
 #ifdef BB_FEATURE_NONPRINTABLE_INVERSE_PUT
 			/* Control-V -- Add non-printable symbol */
 			if (c == 22) {
-				if (read(inputFd, &c, 1) < 1)
+				if (read(0, &c, 1) < 1)
 					return;
 				if (c == 0) {
 					beep();
@@ -1415,7 +1427,7 @@ extern void cmdedit_read_input(char *prompt, char command[BUFSIZ])
 			lastWasTab = FALSE;
 	}
 
-	setTermSettings(inputFd, (void *) &initial_settings);
+	setTermSettings(0, (void *) &initial_settings);
 	handlers_sets &= ~SET_RESET_TERM;
 
 	/* Handle command history log */
@@ -1461,7 +1473,7 @@ extern void cmdedit_read_input(char *prompt, char command[BUFSIZ])
 				history_counter++;
 			}
 		}
-#if !defined(BB_FEATURE_SH_SIMPLE_PROMPT)
+#if defined(BB_FEATURE_SH_FANCY_PROMPT)
 		num_ok_lines++;
 #endif
 	}
@@ -1470,7 +1482,7 @@ extern void cmdedit_read_input(char *prompt, char command[BUFSIZ])
 #if defined(BB_FEATURE_CLEAN_UP) && defined(BB_FEATURE_COMMAND_TAB_COMPLETION)
 	input_tab(0);				/* strong free */
 #endif
-#if !defined(BB_FEATURE_SH_SIMPLE_PROMPT)
+#if defined(BB_FEATURE_SH_FANCY_PROMPT)
 	free(cmdedit_prompt);
 #endif
 	return;
@@ -1509,7 +1521,7 @@ int main(int argc, char **argv)
 {
 	char buff[BUFSIZ];
 	char *prompt =
-#if !defined(BB_FEATURE_SH_SIMPLE_PROMPT)
+#if defined(BB_FEATURE_SH_FANCY_PROMPT)
 		"\\[\\033[32;1m\\]\\u@\\[\\x1b[33;1m\\]\\h:\
 \\[\\033[34;1m\\]\\w\\[\\033[35;1m\\] \
 \\!\\[\\e[36;1m\\]\\$ \\[\\E[0m\\]";

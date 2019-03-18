@@ -33,7 +33,7 @@
 
 void trim(char *s)
 {
-	int len=strlen(s);
+	int len = strlen(s);
 
 	/* trim trailing whitespace */
 	while ( len > 0 && isspace(s[len-1]))

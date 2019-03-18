@@ -29,11 +29,17 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include <netdb.h>
+
 #ifdef DMALLOC
 #include "dmalloc.h"
 #endif
 
 #include <features.h>
+
+#ifndef _BB_INTERNAL_H_
+#include "../busybox.h"
+#endif
 
 #if __GNU_LIBRARY__ < 5
 /* libc5 doesn't define socklen_t */
@@ -54,8 +60,8 @@ extern int daemon (int nochdir, int noclose);
 #define BUF_SIZE        8192
 #define EXPAND_ALLOC    1024
 
-static inline int is_decimal(ch) { return ((ch >= '0') && (ch <= '9')); }
-static inline int is_octal(ch)   { return ((ch >= '0') && (ch <= '7')); }
+static inline int is_decimal(int ch) { return ((ch >= '0') && (ch <= '9')); }
+static inline int is_octal(int ch)   { return ((ch >= '0') && (ch <= '7')); }
 
 /* Macros for min/max.  */
 #ifndef MIN
@@ -73,6 +79,9 @@ extern void error_msg(const char *s, ...) __attribute__ ((format (printf, 1, 2))
 extern void error_msg_and_die(const char *s, ...) __attribute__ ((noreturn, format (printf, 1, 2)));
 extern void perror_msg(const char *s, ...);
 extern void perror_msg_and_die(const char *s, ...) __attribute__ ((noreturn));
+extern void vherror_msg(const char *s, va_list p);
+extern void herror_msg(const char *s, ...);
+extern void herror_msg_and_die(const char *s, ...) __attribute__ ((noreturn));
 
 /* These two are used internally -- you shouldn't need to use them */
 extern void verror_msg(const char *s, va_list p);
@@ -80,22 +89,12 @@ extern void vperror_msg(const char *s, va_list p);
 
 const char *mode_string(int mode);
 const char *time_string(time_t timeVal);
-int is_directory(const char *name, const int followLinks, struct stat *statBuf);
+int is_directory(const char *name, int followLinks, struct stat *statBuf);
 int isDevice(const char *name);
 
-typedef struct ino_dev_hash_bucket_struct {
-  struct ino_dev_hash_bucket_struct *next;
-  ino_t ino;
-  dev_t dev;
-  char name[1];
-} ino_dev_hashtable_bucket_t;
-int is_in_ino_dev_hashtable(const struct stat *statbuf, char **name);
-void add_to_ino_dev_hashtable(const struct stat *statbuf, const char *name);
-void reset_ino_dev_hashtable(void);
-
-int copy_file(const char *srcName, const char *destName,
-		 int setModes, int followLinks, int forceFlag);
-int copy_file_chunk(int srcFd, int dstFd, off_t remaining);
+int remove_file(const char *path, int flags);
+int copy_file(const char *source, const char *dest, int flags);
+int copy_file_chunk(FILE *src_file, FILE *dst_file, unsigned long long chunksize);
 char *buildName(const char *dirName, const char *fileName);
 int makeString(int argc, const char **argv, char *buf, int bufLen);
 char *getChunk(int size);
@@ -109,7 +108,6 @@ int recursive_action(const char *fileName, int recurse, int followLinks, int dep
 	  int (*dirAction) (const char *fileName, struct stat* statbuf, void* userData),
 	  void* userData);
 
-extern int create_path (const char *name, int mode);
 extern int parse_mode( const char* s, mode_t* theMode);
 
 extern int get_kernel_revision(void);
@@ -119,16 +117,12 @@ extern struct mntent *find_mount_point(const char *name, const char *table);
 extern void write_mtab(char* blockDevice, char* directory, 
 	char* filesystemType, long flags, char* string_flags);
 extern void erase_mtab(const char * name);
-extern void mtab_read(void);
-extern char *mtab_first(void **iter);
-extern char *mtab_next(void **iter);
-extern char *mtab_getinfo(const char *match, const char which);
-extern int check_wildcard_match(const char* text, const char* pattern);
 extern long atoi_w_units (const char *cp);
 extern pid_t* find_pid_by_name( char* pidName);
-extern int find_real_root_device_name(char* name);
+extern char *find_real_root_device_name(const char* name);
 extern char *get_line_from_file(FILE *file);
 extern void print_file(FILE *file);
+extern int copyfd(int fd1, int fd2);
 extern int print_file_by_name(char *filename);
 extern char process_escape_sequence(const char **ptr);
 extern char *get_last_path_component(char *path);
@@ -195,6 +189,7 @@ struct sysinfo {
 	unsigned long totalswap;	/* Total swap space size */
 	unsigned long freeswap;		/* swap space still available */
 	unsigned short procs;		/* Number of current processes */
+	unsigned short pad;			/* Padding needed for m68k */
 	unsigned long totalhigh;	/* Total high memory size */
 	unsigned long freehigh;		/* Available high memory size */
 	unsigned int mem_unit;		/* Memory unit size in bytes */
@@ -202,17 +197,91 @@ struct sysinfo {
 };
 extern int sysinfo (struct sysinfo* info);
 
-const char *make_human_readable_str(unsigned long val, unsigned long not_hr);
 enum {
 	KILOBYTE = 1024,
 	MEGABYTE = (KILOBYTE*1024),
 	GIGABYTE = (MEGABYTE*1024)
 };
+const char *make_human_readable_str(unsigned long size, unsigned long block_size, unsigned long display_unit);
 
 int ask_confirmation(void);
 int klogctl(int type, char * b, int len);
 
 char *xgetcwd(char *cwd);
+char *xreadlink(const char *path);
 char *concat_path_file(const char *path, const char *filename);
+char *last_char_is(const char *s, int c);
+
+typedef struct file_headers_s {
+	char *name;
+	char *link_name;
+	off_t size;
+	uid_t uid;
+	gid_t gid;
+	mode_t mode;
+	time_t mtime;
+	dev_t device;
+} file_header_t;
+file_header_t *get_header_ar(FILE *in_file);
+file_header_t *get_header_cpio(FILE *src_stream);
+file_header_t *get_header_tar(FILE *tar_stream);
+
+enum extract_functions_e {
+	extract_verbose_list = 1,
+	extract_list = 2,
+	extract_one_to_buffer = 4,
+	extract_to_stdout = 8,
+	extract_all_to_fs = 16,
+	extract_preserve_date = 32,
+	extract_data_tar_gz = 64,
+	extract_control_tar_gz = 128,
+	extract_unzip_only = 256,
+	extract_unconditional = 512,
+	extract_create_leading_dirs = 1024
+};
+char *unarchive(FILE *src_stream, file_header_t *(*get_header)(FILE *),
+	const int extract_function, const char *prefix, char **extract_names);
+char *deb_extract(const char *package_filename, FILE *out_stream, const int extract_function,
+	const char *prefix, const char *filename);
+char *read_package_field(const char *package_buffer);
+char *fgets_str(FILE *file, const char *terminating_string);
+
+extern int unzip(FILE *l_in_file, FILE *l_out_file);
+extern void gz_close(int gunzip_pid);
+extern FILE *gz_open(FILE *compressed_file, int *pid);
+
+extern struct hostent *xgethostbyname(const char *name);
+
+char *dirname (const char *path);
+
+int make_directory (char *path, mode_t mode, int flags);
+
+#define CT_AUTO	0
+#define CT_UNIX2DOS	1
+#define CT_DOS2UNIX	2
+/* extern int convert(char *fn, int ConvType); */
+
+enum {
+	FILEUTILS_PRESERVE_STATUS = 1,
+	FILEUTILS_PRESERVE_SYMLINKS = 2,
+	FILEUTILS_RECUR = 4,
+	FILEUTILS_FORCE = 8,
+	FILEUTILS_INTERACTIVE = 16
+};
+
+extern const char *applet_name;
+extern const char * const full_version;
+extern const char * const name_too_long;
+extern const char * const omitting_directory;
+extern const char * const not_a_directory;
+extern const char * const memory_exhausted;
+extern const char * const invalid_date;
+extern const char * const invalid_option;
+extern const char * const io_error;
+extern const char * const dash_dash_help;
+extern const char * const write_error;
+extern const char * const too_few_args;
+extern const char * const name_longer_than_foo;
+extern const char * const unknown;
 
 #endif /* __LIBBB_H__ */

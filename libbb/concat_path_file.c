@@ -6,19 +6,21 @@
  *
 */
 
+#include <string.h>
 #include "libbb.h"
 
 extern char *concat_path_file(const char *path, const char *filename)
 {
 	char *outbuf;
-	int  l;
-	int  flg_slash = 1;
+	char *lc;
 
-	l = strlen(path);
-	if(l>0 && path[l-1] == '/')
-		flg_slash--;
-	l += strlen(filename);
-	outbuf = xmalloc(l+1+flg_slash);
-	sprintf(outbuf, (flg_slash ? "%s/%s" : "%s%s"), path, filename);
+	if (!path)
+	    path="";
+	lc = last_char_is(path, '/');
+	if (filename[0] == '/')
+		filename++;
+	outbuf = xmalloc(strlen(path)+strlen(filename)+1+(lc==NULL));
+	sprintf(outbuf, "%s%s%s", path, (lc==NULL)? "/" : "", filename);
+
 	return outbuf;
 }

@@ -1,6 +1,6 @@
 /* vi: set sw=4 ts=4: */
 /*
- * $Id: ping.c,v 1.40 2001/04/09 23:52:18 andersen Exp $
+ * $Id: ping.c,v 1.43 2001/05/21 20:30:51 andersen Exp $
  * Mini ping implementation for busybox
  *
  * Copyright (C) 1999 by Randolph Chung <tausq@debian.org>
@@ -174,7 +174,7 @@ static int in_cksum(unsigned short *buf, int sz)
 }
 
 /* simple version */
-#ifdef BB_FEATURE_SIMPLE_PING
+#ifndef BB_FEATURE_FANCY_PING
 static char *hostname = NULL;
 
 static void noresp(int ign)
@@ -200,10 +200,7 @@ static void ping(const char *host)
 	memset(&pingaddr, 0, sizeof(struct sockaddr_in));
 
 	pingaddr.sin_family = AF_INET;
-	if (!(h = gethostbyname(host))) {
-		error_msg("unknown host %s", host);
-		exit(1);
-	}
+	h = xgethostbyname(host);
 	memcpy(&pingaddr.sin_addr, h->h_addr, sizeof(pingaddr.sin_addr));
 	hostname = h->h_name;
 
@@ -254,7 +251,7 @@ extern int ping_main(int argc, char **argv)
 	return EXIT_SUCCESS;
 }
 
-#else /* ! BB_FEATURE_SIMPLE_PING */
+#else /* ! BB_FEATURE_FANCY_PING */
 /* full(er) version */
 static char *hostname = NULL;
 static struct sockaddr_in pingaddr;
@@ -446,15 +443,9 @@ static void ping(const char *host)
 	memset(&pingaddr, 0, sizeof(struct sockaddr_in));
 
 	pingaddr.sin_family = AF_INET;
-	if (!(h = gethostbyname(host))) {
-		error_msg("unknown host %s", host);
-		exit(1);
-	}
-
-	if (h->h_addrtype != AF_INET) {
-		error_msg("unknown address type; only AF_INET is currently supported.");
-		exit(1);
-	}
+	h = xgethostbyname(host);
+	if (h->h_addrtype != AF_INET)
+		error_msg_and_die("unknown address type; only AF_INET is currently supported.");
 
 	pingaddr.sin_family = AF_INET;	/* h->h_addrtype */
 	memcpy(&pingaddr.sin_addr, h->h_addr, sizeof(pingaddr.sin_addr));
@@ -543,7 +534,7 @@ extern int ping_main(int argc, char **argv)
 	ping(*argv);
 	return EXIT_SUCCESS;
 }
-#endif /* ! BB_FEATURE_SIMPLE_PING */
+#endif /* ! BB_FEATURE_FANCY_PING */
 
 /*
  * Copyright (c) 1989 The Regents of the University of California.

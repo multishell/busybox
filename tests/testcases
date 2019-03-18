@@ -17,10 +17,14 @@
 #
 #  - please try to keep applets alphabetized, it will make life easier
 #  - use the file tester.sh or testcases when you need to do a non-destructive
-#    test on a file (i.e. cat, md5sum)
+#    test on a file (i.e., cat, md5sum)
 #  - try to make the applet you're testing the first thing on the line (this
 #    not always possible)
 #  - (???) if you have to create a temporary file, call it TMPFILE
+#  - pipe symbols that represent real pipes need a space in front of them
+#     (so the test script can find them and add the "../busybox" after it).
+#  - pipe symbols that are not used for pipes need to be shell-escaped,
+#     with a double \.  See the expr test cases.
 
 
 # ar
@@ -30,6 +34,7 @@ basename `pwd`
 
 # cat
 cat tester.sh
+echo hello there | cat tester.sh -
 
 # chmod
 # chown
@@ -39,7 +44,6 @@ cat tester.sh
 # clear - can't be tested here
 # cmp
 # cp
-# mv
 
 # cut
 echo "1234" | cut -c1
@@ -60,11 +64,13 @@ date +%d/%m/%y
 # dc - needs an input file
 
 # dd
+# BUG: record count line goes to stdout instead of stderr
 dd if=/dev/urandom of=O bs=1k count=1 ; ls -l O ; rm O
 
 # deallocvt
 
 # df
+# XXX: minor formatting differences
 df
 df .
 df -k
@@ -86,6 +92,7 @@ dmesg -s 512
 # dpkg_deb
 
 # du
+# BUG: rounding behavior differs from GNU du
 du
 du -s
 du -l
@@ -102,36 +109,35 @@ echo -n "no newline"
 
 
 # expr
-# XXX: something's wrong with the way I'm doing these. Figure it out later.
-#expr 1 \| 1
-#expr 1 \| 0
-#expr 0 \| 1
-#expr 0 \| 0
-#
-#expr 1 \& 1
-#expr 1 \& 0
-#expr 0 \& 1
-#expr 0 \& 0
-#
-#expr 0 \< 1
-#expr 1 \< 0
-#
-#expr 1 \> 0
-#expr 0 \> 1
-#
-#expr 0 \<= 1
-#expr 1 \<= 0
-#expr 1 \<= 1
-#
-#expr 1 \>= 0
-#expr 0 \>= 1
-#expr 1 \>= 1
-#
-#expr 1 + 2
-#expr 2 - 1
-#expr 2 \* 3
-#expr 12 / 2
-#expr 12 % 5
+expr 1 \\| 1
+expr 1 \\| 0
+expr 0 \\| 1
+expr 0 \\| 0
+
+expr 1 \\& 1
+expr 1 \\& 0
+expr 0 \\& 1
+expr 0 \\& 0
+
+expr 0 \\< 1
+expr 1 \\< 0
+
+expr 1 \\> 0
+expr 0 \\> 1
+
+expr 0 \\<= 1
+expr 1 \\<= 0
+expr 1 \\<= 1
+
+expr 1 \\>= 0
+expr 0 \\>= 1
+expr 1 \\>= 1
+
+expr 1 + 2
+expr 2 - 1
+expr 2 \\* 3
+expr 12 / 2
+expr 12 % 5
 
 # somebody else can do all the string stuff
 
@@ -142,15 +148,30 @@ echo -n "no newline"
 find .
 
 # free
+# XXX: minor formatting differences
 free
 
 # freeramdisk
 # fsck.minix - won't test
 # getopt
+
 # grep
+grep -l strdup ../*.c
+grep -c strdup ../*.c
+grep -lc strdup ../*.c
+grep -cv strdup ../*.c
+grep -i null ../grep.c
+grep -e strdup -e regcomp -e atexit ../grep.c
+
 # gunzip
+
 # gzip
-# halt
+# XXX: compressed output differs from gzip-1.2.4, but decompresses fine
+echo testing 1 2 3 >tmpfile1; gzip tmpfile1; echo tmpfile*; md5sum tmpfile1.gz; rm tmpfile1.gz
+echo testing 1 2 3 | gzip >tmpfile1.gz; md5sum tmpfile1.gz; rm tmpfile1.gz
+
+
+# halt - won't test, dangerous
 
 # head
 head tester.sh
@@ -160,6 +181,7 @@ head -n 2 tester.sh
 hostid
 
 # hostname
+# XXX: minor formatting differences
 hostname
 hostname -s
 hostname -i
@@ -168,6 +190,7 @@ hostname -d
 #hostname -F
 
 # id
+# BUG: Busybox id doesn't print supplemental groups
 id
 id -u
 id -g
@@ -176,7 +199,8 @@ id -un
 
 
 # ifconfig
-#ifconfig
+# requires BB_FEATURE_IFCONFIG_STATUS
+ifconfig
 #ifconfig -a
 #ifconfig eth0
 #ifconfig lo
@@ -189,7 +213,7 @@ id -un
 # not going to do any more
 
 # length
-# ln
+# ln - see ln_tests.mk
 # loadacm
 # loadfont
 # loadkmap
@@ -197,6 +221,7 @@ id -un
 # logname
 
 # ls
+# XXX: minor formatting differences
 ls ../e*
 ls -l ../e*
 ls -s ../e*
@@ -229,10 +254,12 @@ mkfifo -m 0600 F ; ls -l F ; rm F
 # more - can't test: interactive
 
 # mount
+# BUG: proc line starts with /proc instead of proc
 mount
-# not going to test any more
+# not going to test mount with any args, can't be done safely or sanely
 
 # mt
+# mv - see mv_tests.mk
 # nc
 # nfsmount
 # nslookup
@@ -260,15 +287,37 @@ touch F ; rm F
 
 # rmdir
 # rmmod - won't test: dangerous
+
 # route
+# XXX: doesn't DNS resolve
+route
+
+# rpm2cpio
+
 # rpmunpack
-# sed - we can do some one-liners here; probably needs it's own input file
+
+# sed - we can do some one-liners here, some testing is a little
+# difficult to do in just this space (like a,i,c cmds).
+
+# test ^$ matching
+echo foo | sed -ne '/^$/p'
+echo -e "foo\\n\\nbar" | sed -ne '/^$/p'
+
+sed -e '/test$/d' testcases
+sed -e '/^echo/d' testcases
+sed -e '/test/s/dangerous/PELIGROSO/' testcases
+sed -ne '1,/getopt/p' ../pwd.c
+sed -e '/getopt/r ../pwd.c' ../sed.c
+
+
 # setkeycodes
 
 # sh - note that we cannot test the shell interactively here
 sh -c "echo a b c"
 sh -c ">"
 sh -c "a"
+sh sh.testcases
+
 
 # sleep - can't test: produces no output
 
@@ -297,10 +346,26 @@ echo "please tee me!" | tee A B C ; echo "tee me too!" | tee -a A B C ; cat A B 
 
 # test
 # tftp
+
 # touch
+touch tmpfile1; ls tmpfile1; rm -f tmpfile1
+touch -c tmpfile1; ls tmpfile1; rm -f tmpfile1
+
 # tr
+# BUG: Busybox tr range handling minix style [a-z] instead of GNU # style a-z
+echo "cbaab" | tr abc zyx
+echo "TESTING A B C" | tr [A-Z] [a-z]
+# not GNU compatible
+echo fdhrnzvfu bffvsentr | tr [a-z] [n-z][a-m]
+echo abc[] | tr a[b AXB
+echo testing | tr -d aeiou
+
+# true
 true ; echo $?
+
+# false
 false ; echo $?
+
 # tty
 # umount
 # uname
@@ -309,6 +374,7 @@ false ; echo $?
 # update
 
 # uptime
+# BUG: doesn't print number of users
 uptime
 
 # usleep
@@ -332,7 +398,9 @@ which ls
 whoami
 
 # xargs
+# XXX: Busygox xargs divides filenames with '\n' instead of ' '
 ls -1 ../e* | xargs
 ls -1 ../e* | xargs md5sum
 
 # yes - can't test: interactive (needs ^C)
+

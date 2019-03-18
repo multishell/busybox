@@ -43,9 +43,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include "busybox.h"
-#define bb_need_full_version
-#define BB_DECLARE_EXTERN
-#include "messages.c"
 #ifdef BB_SYSLOGD
 # include <sys/syslog.h>
 #endif
@@ -127,7 +124,8 @@ static const int RB_AUTOBOOT = 0x01234567;
 #define VT_LOG       "/dev/tty5"     /* Virtual console */
 #define SERIAL_CON0  "/dev/ttyS0"    /* Primary serial console */
 #define SERIAL_CON1  "/dev/ttyS1"    /* Serial console */
-#define SHELL        "-/bin/sh"	     /* Default shell */
+#define SHELL        "/bin/sh"	     /* Default shell */
+#define LOGIN_SHELL  "-" SHELL	     /* Default login shell */
 #define INITTAB      "/etc/inittab"  /* inittab file location */
 #ifndef INIT_SCRIPT
 #define INIT_SCRIPT  "/etc/init.d/rcS"   /* Default sysinit script. */
@@ -188,7 +186,11 @@ static char console[32]    = _PATH_CONSOLE;
 
 static void delete_initAction(initAction * action);
 
-
+static void loop_forever()
+{
+	while (1)
+		sleep (1);
+}
 
 /* Print a message to the specified device.
  * Device may be bitwise-or'd from LOG | CONSOLE */
@@ -278,7 +280,8 @@ static void set_term(int fd)
 
 	/* Make it be sane */
 	tty.c_cflag &= CBAUD|CBAUDEX|CSIZE|CSTOPB|PARENB|PARODD;
-	tty.c_cflag |= HUPCL|CLOCAL;
+	tty.c_cflag |= CREAD|HUPCL|CLOCAL;
+
 
 	/* input modes */
 	tty.c_iflag = ICRNL | IXON | IXOFF;
@@ -330,7 +333,7 @@ static void console_init()
 	}
 
 	if ((s = getenv("CONSOLE")) != NULL) {
-		snprintf(console, sizeof(console) - 1, "%s", s);
+		safe_strncpy(console, s, sizeof(console));
 	}
 #if #cpu(sparc)
 	/* sparc kernel supports console=tty[ab] parameter which is also 
@@ -338,9 +341,9 @@ static void console_init()
 	else if ((s = getenv("console")) != NULL) {
 		/* remap tty[ab] to /dev/ttyS[01] */
 		if (strcmp(s, "ttya") == 0)
-			snprintf(console, sizeof(console) - 1, "%s", SERIAL_CON0);
+			safe_strncpy(console, SERIAL_CON0, sizeof(console));
 		else if (strcmp(s, "ttyb") == 0)
-			snprintf(console, sizeof(console) - 1, "%s", SERIAL_CON1);
+			safe_strncpy(console, SERIAL_CON1, sizeof(console));
 	}
 #endif
 	else {
@@ -353,7 +356,7 @@ static void console_init()
 			snprintf(console, sizeof(console) - 1, "/dev/tty%d",
 					 vt.v_active);
 		} else {
-			snprintf(console, sizeof(console) - 1, "%s", _PATH_CONSOLE);
+			safe_strncpy(console, _PATH_CONSOLE, sizeof(console));
 			tried_devcons++;
 		}
 	}
@@ -362,20 +365,20 @@ static void console_init()
 		/* Can't open selected console -- try /dev/console */
 		if (!tried_devcons) {
 			tried_devcons++;
-			snprintf(console, sizeof(console) - 1, "%s", _PATH_CONSOLE);
+			safe_strncpy(console, _PATH_CONSOLE, sizeof(console));
 			continue;
 		}
 		/* Can't open selected console -- try vt1 */
 		if (!tried_vtprimary) {
 			tried_vtprimary++;
-			snprintf(console, sizeof(console) - 1, "%s", VT_PRIMARY);
+			safe_strncpy(console, VT_PRIMARY, sizeof(console));
 			continue;
 		}
 		break;
 	}
 	if (fd < 0) {
 		/* Perhaps we should panic here? */
-		snprintf(console, sizeof(console) - 1, "/dev/null");
+		safe_strncpy(console, "/dev/null", sizeof(console));
 	} else {
 		/* check for serial console and disable logging to tty5 & running a
 		   * shell to tty2-4 */
@@ -387,7 +390,7 @@ static void console_init()
 			/* Force the TERM setting to vt102 for serial console --
 			 * iff TERM is set to linux (the default) */
 			if (strcmp( termType, "TERM=linux" ) == 0)
-				snprintf(termType, sizeof(termType) - 1, "TERM=vt102");
+				safe_strncpy(termType, "TERM=vt102", sizeof(termType));
 			message(LOG | CONSOLE,
 					"serial console detected.  Disabling virtual terminals.\r\n");
 		}
@@ -433,7 +436,7 @@ static pid_t run(char *command, char *terminal, int get_enter)
 		termType,
 		"HOME=/",
 		"PATH=/usr/bin:/bin:/usr/sbin:/sbin",
-		"SHELL=/bin/sh",
+		"SHELL=" SHELL,
 		"USER=root",
 		NULL
 	};
@@ -613,8 +616,7 @@ static void check_memory()
   goodnight:
 	message(CONSOLE,
 			"Sorry, your computer does not have enough memory.\r\n");
-	while (1)
-		sleep(1);
+	loop_forever();
 }
 
 /* Run all commands to be run right before halt/reboot */
@@ -654,7 +656,7 @@ static void shutdown_system(void)
 	kill(-1, SIGKILL);
 	sleep(1);
 
-	/* run everything to be run at "ctrlaltdel" */
+	/* run everything to be run at "shutdown" */
 	run_actions(SHUTDOWN);
 
 	sync();
@@ -681,7 +683,8 @@ static void halt_signal(int sig)
 		init_reboot(RB_POWER_OFF);
 	else
 		init_reboot(RB_HALT_SYSTEM);
-	exit(0);
+
+	loop_forever();
 }
 
 static void reboot_signal(int sig)
@@ -694,7 +697,8 @@ static void reboot_signal(int sig)
 	sleep(2);
 
 	init_reboot(RB_AUTOBOOT);
-	exit(0);
+
+	loop_forever();
 }
 
 static void ctrlaltdel_signal(int sig)
@@ -722,8 +726,7 @@ static void new_initAction(initActionEnum action, char *process, char *cons)
 	newAction = calloc((size_t) (1), sizeof(initAction));
 	if (!newAction) {
 		message(LOG | CONSOLE, "Memory allocation failure\n");
-		while (1)
-			sleep(1);
+		loop_forever();
 	}
 	newAction->nextPtr = initActionList;
 	initActionList = newAction;
@@ -754,7 +757,7 @@ static void delete_initAction(initAction * action)
 
 /* NOTE that if BB_FEATURE_USE_INITTAB is NOT defined,
  * then parse_inittab() simply adds in some default
- * actions(i.e runs INIT_SCRIPT and then starts a pair 
+ * actions(i.e., runs INIT_SCRIPT and then starts a pair 
  * of "askfirst" shells).  If BB_FEATURE_USE_INITTAB 
  * _is_ defined, but /etc/inittab is missing, this 
  * results in the same set of default behaviors.
@@ -780,16 +783,16 @@ static void parse_inittab(void)
 		/* Umount all filesystems on halt/reboot */
 		new_initAction(SHUTDOWN, "/bin/umount -a -r", console);
 		/* Askfirst shell on tty1 */
-		new_initAction(ASKFIRST, SHELL, console);
+		new_initAction(ASKFIRST, LOGIN_SHELL, console);
 		/* Askfirst shell on tty2 */
 		if (secondConsole != NULL)
-			new_initAction(ASKFIRST, SHELL, secondConsole);
+			new_initAction(ASKFIRST, LOGIN_SHELL, secondConsole);
 		/* Askfirst shell on tty3 */
 		if (thirdConsole != NULL)
-			new_initAction(ASKFIRST, SHELL, thirdConsole);
+			new_initAction(ASKFIRST, LOGIN_SHELL, thirdConsole);
 		/* Askfirst shell on tty4 */
 		if (fourthConsole != NULL)
-			new_initAction(ASKFIRST, SHELL, fourthConsole);
+			new_initAction(ASKFIRST, LOGIN_SHELL, fourthConsole);
 		/* sysinit */
 		new_initAction(SYSINIT, INIT_SCRIPT, console);
 
@@ -942,19 +945,19 @@ extern int init_main(int argc, char **argv)
 					 !strcmp(argv[1], "-s") || !strcmp(argv[1], "1"))) {
 		/* Ask first then start a shell on tty2-4 */
 		if (secondConsole != NULL)
-			new_initAction(ASKFIRST, SHELL, secondConsole);
+			new_initAction(ASKFIRST, LOGIN_SHELL, secondConsole);
 		if (thirdConsole != NULL)
-			new_initAction(ASKFIRST, SHELL, thirdConsole);
+			new_initAction(ASKFIRST, LOGIN_SHELL, thirdConsole);
 		if (fourthConsole != NULL)
-			new_initAction(ASKFIRST, SHELL, fourthConsole);
+			new_initAction(ASKFIRST, LOGIN_SHELL, fourthConsole);
 		/* Start a shell on tty1 */
-		new_initAction(RESPAWN, SHELL, console);
+		new_initAction(RESPAWN, LOGIN_SHELL, console);
 	} else {
 		/* Not in single user mode -- see what inittab says */
 
 		/* NOTE that if BB_FEATURE_USE_INITTAB is NOT defined,
 		 * then parse_inittab() simply adds in some default
-		 * actions(i.e runs INIT_SCRIPT and then starts a pair 
+		 * actions(i.e., runs INIT_SCRIPT and then starts a pair 
 		 * of "askfirst" shells */
 		parse_inittab();
 	}
@@ -995,8 +998,7 @@ extern int init_main(int argc, char **argv)
 	if (initActionList == NULL) {
 		message(LOG | CONSOLE,
 				"No more tasks for init -- sleeping forever.\n");
-		while (1)
-			sleep(1);
+		loop_forever();
 	}
 
 	/* Now run the looping stuff for the rest of forever */

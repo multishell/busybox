@@ -53,17 +53,16 @@ extern int which_main(int argc, char **argv)
 		argv++;
 		found = 0;
 		for (i = 0; i < count; i++) {
-			char buf[strlen(path_n)+1+strlen(*argv)];
-			strcpy (buf, path_n);
-			strcat (buf, "/");
-			strcat (buf, *argv);
+			char *buf;
+			buf = concat_path_file(path_n, *argv);
 			if (stat (buf, &filestat) == 0
 			    && filestat.st_mode & S_IXUSR)
 			{
-				printf ("%s\n", buf);
+				puts(buf);
 				found = 1;
 				break;
 			}
+			free(buf);
 			path_n += (strlen(path_n) + 1);
 		}
 		if (!found)

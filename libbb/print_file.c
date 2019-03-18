@@ -26,12 +26,9 @@
 
 extern void print_file(FILE *file)
 {
-	int c;
-
-	while ((c = getc(file)) != EOF)
-		putc(c, stdout);
-	fclose(file);
 	fflush(stdout);
+	copyfd(fileno(file), fileno(stdout));
+	fclose(file);
 }
 
 extern int print_file_by_name(char *filename)

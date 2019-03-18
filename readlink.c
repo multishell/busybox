@@ -30,21 +30,19 @@
 int readlink_main(int argc, char **argv)
 {
 	char *buf = NULL;
-	int bufsize = 128, size = 128;
+
+	/* no options, no getopt */
 
 	if (argc != 2)
 		show_usage();
 
-	while (bufsize < size + 1) {
-		bufsize *= 2;
-		buf = xrealloc(buf, bufsize);
-		size = readlink(argv[1], buf, bufsize);
-		if (size == -1)
-			perror_msg_and_die("%s", argv[1]);
-	}
-
-	buf[size] = '\0';
+	buf = xreadlink(argv[1]);
+	if (!buf)
+		return EXIT_FAILURE;
 	puts(buf);
+#ifdef BB_FEATURE_CLEAN_UP
+	free(buf);
+#endif
 
 	return EXIT_SUCCESS;
 }

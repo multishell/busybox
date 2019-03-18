@@ -1,6 +1,7 @@
 /* vi: set sw=4 ts=4: */
 /*
  * Mini insmod implementation for busybox
+ * This version of insmod now supports x86, ARM, SH3/4, powerpc, and MIPS.
  *
  * Copyright (C) 1999,2000,2001 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>
@@ -68,6 +69,12 @@
 # define old_sys_init_module	init_module
 #endif
 
+#ifdef BB_FEATURE_INSMOD_LOADINKMEM
+#define LOADBITS 0	
+#else
+#define LOADBITS 1
+#endif
+
 #if defined(__powerpc__)
 #define BB_USE_PLT_ENTRIES
 #define BB_PLT_ENTRY_SIZE 16
@@ -123,7 +130,7 @@
 #ifndef MODUTILS_MODULE_H
 static const int MODUTILS_MODULE_H = 1;
 
-#ident "$Id: insmod.c,v 1.57 2001/04/05 07:33:10 andersen Exp $"
+#ident "$Id: insmod.c,v 1.67 2001/06/28 21:36:06 andersen Exp $"
 
 /* This file contains the structures used by the 2.0 and 2.1 kernels.
    We do not use the kernel headers directly because we do not wish
@@ -256,7 +263,18 @@ struct new_module
   unsigned tgt_long persist_end;
   unsigned tgt_long can_unload;
   unsigned tgt_long runsize;
+#ifdef BB_FEATURE_NEW_MODULE_INTERFACE
+  const char *kallsyms_start;     /* All symbols for kernel debugging */
+  const char *kallsyms_end;
+  const char *archdata_start;     /* arch specific data for module */
+  const char *archdata_end;
+  const char *kernel_data;        /* Reserved for kernel internal use */
+#endif
 };
+
+#define ARCHDATA_SEC_NAME "__archdata"
+#define KALLSYMS_SEC_NAME "__kallsyms"
+
 
 struct new_module_info
 {
@@ -329,7 +347,7 @@ int delete_module(const char *);
 #ifndef MODUTILS_OBJ_H
 static const int MODUTILS_OBJ_H = 1;
 
-#ident "$Id: insmod.c,v 1.57 2001/04/05 07:33:10 andersen Exp $"
+#ident "$Id: insmod.c,v 1.67 2001/06/28 21:36:06 andersen Exp $"
 
 /* The relocatable object is manipulated using elfin types.  */
 
@@ -354,6 +372,12 @@ static const int MODUTILS_OBJ_H = 1;
 
 #define ELFCLASSM	ELFCLASS32
 
+#if (defined(__mc68000__))					
+#define ELFDATAM	ELFDATA2MSB
+#endif
+
+
+
 #if defined(__sh__)
 
 #define MATCH_MACHINE(x) (x == EM_SH)
@@ -373,7 +397,7 @@ static const int MODUTILS_OBJ_H = 1;
 #define MATCH_MACHINE(x) (x == EM_PPC)
 #define SHT_RELM	SHT_RELA
 #define Elf32_RelM	Elf32_Rela
-#define ELFDATAM        ELFDATA2MSB
+#define ELFDATAM    ELFDATA2MSB
 
 #elif defined(__mips__)
 
@@ -410,6 +434,12 @@ static const int MODUTILS_OBJ_H = 1;
 #define SHT_RELM	SHT_REL
 #define Elf32_RelM	Elf32_Rel
 #define ELFDATAM	ELFDATA2LSB
+
+#elif defined(__mc68000__) 
+
+#define MATCH_MACHINE(x)	(x == EM_68K)
+#define SHT_RELM			SHT_RELA
+#define Elf32_RelM			Elf32_Rela
 
 #else
 #error Sorry, but insmod.c does not yet support this architecture...
@@ -557,7 +587,7 @@ unsigned long obj_load_size (struct obj_file *f);
 
 int obj_relocate (struct obj_file *f, ElfW(Addr) base);
 
-struct obj_file *obj_load(FILE *f);
+struct obj_file *obj_load(FILE *f, int loadprogbits);
 
 int obj_create_image (struct obj_file *f, char *image);
 
@@ -676,50 +706,35 @@ size_t nksyms;
 struct external_module *ext_modules;
 int n_ext_modules;
 int n_ext_modules_used;
-
-
 extern int delete_module(const char *);
 
+static char m_filename[FILENAME_MAX + 1];
+static char m_fullName[FILENAME_MAX + 1];
 
-/* This is kind of troublesome. See, we don't actually support
-   the m68k or the arm the same way we support i386 and (now)
-   sh. In doing my SH patch, I just assumed that whatever works
-   for i386 also works for m68k and arm since currently insmod.c
-   does nothing special for them. If this isn't true, the below
-   line is rather misleading IMHO, and someone should either
-   change it or add more proper architecture-dependent support
-   for these boys.
 
-   -- Bryan Rittmeyer <bryan@ixiacom.com>                    */
-
-static char m_filename[BUFSIZ + 1];
-static char m_fullName[BUFSIZ + 1];
 
 /*======================================================================*/
 
 
-static int findNamedModule(const char *fileName, struct stat *statbuf,
-						   void *userDate)
+static int check_module_name_match(const char *filename, struct stat *statbuf,
+						   void *userdata)
 {
-	char *fullName = (char *) userDate;
+	char *fullname = (char *) userdata;
 
-
-	if (fullName[0] == '\0')
+	if (fullname[0] == '\0')
 		return (FALSE);
 	else {
-		char *tmp = strrchr((char *) fileName, '/');
-
-		if (tmp == NULL)
-			tmp = (char *) fileName;
-		else
-			tmp++;
-		if (check_wildcard_match(tmp, fullName) == TRUE) {
+		char *tmp, *tmp1 = strdup(filename);
+		tmp = get_last_path_component(tmp1);
+		if (strcmp(tmp, fullname) == 0) {
+			free(tmp1);
 			/* Stop searching if we find a match */
-			memcpy(m_filename, fileName, strlen(fileName)+1);
-			return (FALSE);
+			safe_strncpy(m_filename, filename, sizeof(m_filename));
+			return (TRUE);
 		}
+		free(tmp1);
 	}
-	return (TRUE);
+	return (FALSE);
 }
 
 
@@ -798,6 +813,8 @@ arch_apply_relocation(struct obj_file *f,
 	case R_ARM_NONE:
 #elif defined(__i386__)
 	case R_386_NONE:
+#elif defined(__mc68000__) 
+	case R_68K_NONE:
 #elif defined(__powerpc__)
 	case R_PPC_NONE:
 #elif defined(__mips__)
@@ -811,6 +828,8 @@ arch_apply_relocation(struct obj_file *f,
 	case R_ARM_ABS32:
 #elif defined(__i386__)
 	case R_386_32:	
+#elif defined(__mc68000__) 
+	case R_68K_32:
 #elif defined(__powerpc__)
 	case R_PPC_ADDR32:
 #elif defined(__mips__)
@@ -818,6 +837,18 @@ arch_apply_relocation(struct obj_file *f,
 #endif
 		*loc += v;
 		break;
+#if defined(__mc68000__)
+    case R_68K_8:
+		if (v > 0xff)
+		ret = obj_reloc_overflow;
+		*(char *)loc = v;
+		break;
+    case R_68K_16:
+		if (v > 0xffff)
+		ret = obj_reloc_overflow;
+		*(short *)loc = v;
+		break;
+#endif /* __mc68000__   */
 
 #if defined(__powerpc__)
 	case R_PPC_ADDR16_HA:
@@ -923,6 +954,22 @@ arch_apply_relocation(struct obj_file *f,
 	case R_386_PC32:
 		*loc += v - dot;
 		break;
+#elif defined(__mc68000__)
+    case R_68K_PC8:
+		v -= dot;
+		if ((Elf32_Sword)v > 0x7f || (Elf32_Sword)v < -(Elf32_Sword)0x80)
+		ret = obj_reloc_overflow;
+		*(char *)loc = v;
+    break;
+		case R_68K_PC16:
+		v -= dot;
+		if ((Elf32_Sword)v > 0x7fff || (Elf32_Sword)v < -(Elf32_Sword)0x8000)
+		ret = obj_reloc_overflow;
+		*(short *)loc = v;
+		break;
+    case R_68K_PC32:
+		*(int *)loc = v - dot;
+		break;
 #elif defined(__powerpc__)
 	case R_PPC_REL32:
 		*loc = v - dot;
@@ -1002,6 +1049,11 @@ arch_apply_relocation(struct obj_file *f,
 	case R_386_JMP_SLOT:
 		*loc = v;
 		break;
+#elif defined(__mc68000__)
+	case R_68K_GLOB_DAT:
+	case R_68K_JMP_SLOT:
+		*loc = v;
+		break;
 #endif
 
 #if defined(__arm__)
@@ -1013,10 +1065,15 @@ arch_apply_relocation(struct obj_file *f,
         case R_386_RELATIVE:
 		*loc += f->baseaddr;
 		break;
+#elif defined(__mc68000__)
+    case R_68K_RELATIVE:
+    	*(int *)loc += f->baseaddr;
+    	break;
 #endif
 
 #if defined(BB_USE_GOT_ENTRIES)
 
+#if !defined(__68k__)
 #if defined(__sh__)
         case R_SH_GOTPC:
 #elif defined(__arm__)
@@ -1027,10 +1084,11 @@ arch_apply_relocation(struct obj_file *f,
 		assert(got != 0);
 #if defined(__sh__)
 		*loc += got - dot + rel->r_addend;;
-#elif defined(__i386__) || defined(__arm__)
+#elif defined(__i386__) || defined(__arm__) || defined(__m68k_)
 		*loc += got - dot;
 #endif
 		break;
+#endif // __68k__
 
 #if defined(__sh__)
 	case R_SH_GOT32:
@@ -1038,6 +1096,8 @@ arch_apply_relocation(struct obj_file *f,
 	case R_ARM_GOT32:
 #elif defined(__i386__)
 	case R_386_GOT32:
+#elif defined(__mc68000__)
+	case R_68K_GOT32:
 #endif
 		assert(isym != NULL);
         /* needs an entry in the .got: set it, once */
@@ -1048,22 +1108,26 @@ arch_apply_relocation(struct obj_file *f,
         /* make the reloc with_respect_to_.got */
 #if defined(__sh__)
 		*loc += isym->gotent.offset + rel->r_addend;
-#elif defined(__i386__) || defined(__arm__)
+#elif defined(__i386__) || defined(__arm__) || defined(__mc68000__)
 		*loc += isym->gotent.offset;
 #endif
 		break;
 
     /* address relative to the got */
+#if !defined(__mc68000__)
 #if defined(__sh__)
 	case R_SH_GOTOFF:
 #elif defined(__arm__)
 	case R_ARM_GOTOFF:
 #elif defined(__i386__)
 	case R_386_GOTOFF:
+#elif defined(__mc68000__)
+	case R_68K_GOTOFF:
 #endif
 		assert(got != 0);
 		*loc += v - got;
 		break;
+#endif // __mc68000__
 
 #endif /* BB_USE_GOT_ENTRIES */
 
@@ -1118,6 +1182,9 @@ int arch_create_got(struct obj_file *f)
 				break;
 #elif defined(__i386__)
 			case R_386_GOT32:
+				break;
+#elif defined(__mc68000__)
+			case R_68K_GOT32:
 				break;
 #endif
 
@@ -1393,8 +1460,13 @@ struct obj_symbol *obj_add_symbol(struct obj_file *f, const char *name,
 	f->symtab[hash] = sym;
 	sym->ksymidx = -1;
 
-	if (ELFW(ST_BIND) (info) == STB_LOCAL)
-		f->local_symtab[symidx] = sym;
+	if (ELFW(ST_BIND)(info) == STB_LOCAL && symidx != -1) {
+		if (symidx >= f->local_symtab_size)
+			error_msg("local symbol %s with index %ld exceeds local_symtab_size %ld",
+					name, (long) symidx, (long) f->local_symtab_size);
+		else
+			f->local_symtab[symidx] = sym;
+	}
 
   found:
 	sym->name = name;
@@ -1535,7 +1607,9 @@ struct obj_section *obj_create_alloced_section_first(struct obj_file *f,
 void *obj_extend_section(struct obj_section *sec, unsigned long more)
 {
 	unsigned long oldsize = sec->header.sh_size;
-	sec->contents = xrealloc(sec->contents, sec->header.sh_size += more);
+	if (more) { 
+		sec->contents = xrealloc(sec->contents, sec->header.sh_size += more);
+	}
 	return sec->contents + oldsize;
 }
 
@@ -1786,8 +1860,11 @@ static int old_get_kernel_symbols(const char *m_name)
 	int nks, nms, nmod, i;
 
 	nks = get_kernel_syms(NULL);
-	if (nks < 0) {
-		perror_msg("get_kernel_syms: %s", m_name);
+	if (nks <= 0) {
+		if (nks)
+			perror_msg("get_kernel_syms: %s", m_name);
+		else
+			error_msg("No kernel symbols");
 		return 0;
 	}
 
@@ -1807,7 +1884,6 @@ static int old_get_kernel_symbols(const char *m_name)
 
 	while (k->name[0] == '#' && k->name[1]) {
 		struct old_kernel_sym *k2;
-		struct new_module_symbol *s;
 
 		/* Find out how many symbols this module has.  */
 		for (k2 = k + 1; k2->name[0] != '#'; ++k2)
@@ -2277,7 +2353,7 @@ static int new_get_kernel_symbols(void)
 	module_names = xmalloc(bufsize = 256);
   retry_modules_load:
 	if (query_module(NULL, QM_MODULES, module_names, bufsize, &ret)) {
-		if (errno == ENOSPC) {
+		if (errno == ENOSPC && bufsize < ret) {
 			module_names = xrealloc(module_names, bufsize = ret);
 			goto retry_modules_load;
 		}
@@ -2338,7 +2414,7 @@ static int new_get_kernel_symbols(void)
 	syms = xmalloc(bufsize = 16 * 1024);
   retry_kern_sym_load:
 	if (query_module(NULL, QM_SYMBOLS, syms, bufsize, &ret)) {
-		if (errno == ENOSPC) {
+		if (errno == ENOSPC && bufsize < ret) {
 			syms = xrealloc(syms, bufsize = ret);
 			goto retry_kern_sym_load;
 		}
@@ -2471,6 +2547,9 @@ new_init_module(const char *m_name, struct obj_file *f,
 	tgt_long m_addr;
 
 	sec = obj_find_section(f, ".this");
+	if (!sec || !sec->contents) { 
+		perror_msg_and_die("corrupt module %s?",m_name);
+	}
 	module = (struct new_module *) sec->contents;
 	m_addr = sec->header.sh_addr;
 
@@ -2510,6 +2589,16 @@ new_init_module(const char *m_name, struct obj_file *f,
 		if (!module->runsize ||
 			module->runsize > sec->header.sh_addr - m_addr)
 				module->runsize = sec->header.sh_addr - m_addr;
+	}
+	sec = obj_find_section(f, ARCHDATA_SEC_NAME);
+	if (sec && sec->header.sh_size) {
+		module->archdata_start = (void*)sec->header.sh_addr;
+		module->archdata_end = module->archdata_start + sec->header.sh_size;
+	}
+	sec = obj_find_section(f, KALLSYMS_SEC_NAME);
+	if (sec && sec->header.sh_size) {
+		module->kallsyms_start = (void*)sec->header.sh_addr;
+		module->kallsyms_end = module->kallsyms_start + sec->header.sh_size;
 	}
 
 	if (!arch_init_module(f, module))
@@ -2891,7 +2980,7 @@ int obj_create_image(struct obj_file *f, char *image)
 
 /*======================================================================*/
 
-struct obj_file *obj_load(FILE * fp)
+struct obj_file *obj_load(FILE * fp, int loadprogbits)
 {
 	struct obj_file *f;
 	ElfW(Shdr) * section_headers;
@@ -2970,6 +3059,12 @@ struct obj_file *obj_load(FILE * fp)
 			break;
 
 		case SHT_PROGBITS:
+#if LOADBITS
+			if (!loadprogbits) {
+				sec->contents = NULL;
+				break;
+			}
+#endif			
 		case SHT_SYMTAB:
 		case SHT_STRTAB:
 		case SHT_RELM:
@@ -3022,6 +3117,12 @@ struct obj_file *obj_load(FILE * fp)
 	for (i = 0; i < shnum; ++i) {
 		struct obj_section *sec = f->sections[i];
 
+		/* .modinfo should be contents only but gcc has no attribute for that.
+		 * The kernel may have marked .modinfo as ALLOC, ignore this bit.
+		 */
+		if (strcmp(sec->name, ".modinfo") == 0)
+			sec->header.sh_flags &= ~SHF_ALLOC;
+
 		if (sec->header.sh_flags & SHF_ALLOC)
 			obj_insert_section_load_order(f, sec);
 
@@ -3045,22 +3146,20 @@ struct obj_file *obj_load(FILE * fp)
 
 				/* Allocate space for a table of local symbols.  */
 				j = f->local_symtab_size = sec->header.sh_info;
-				f->local_symtab = xmalloc(j *=
-										  sizeof(struct obj_symbol *));
-				memset(f->local_symtab, 0, j);
+				f->local_symtab = xcalloc(j, sizeof(struct obj_symbol *));
 
 				/* Insert all symbols into the hash table.  */
 				for (j = 1, ++sym; j < nsym; ++j, ++sym) {
 					const char *name;
 					if (sym->st_name)
 						name = strtab + sym->st_name;
-		else
+					else
 						name = f->sections[sym->st_shndx]->name;
 
 					obj_add_symbol(f, name, j, sym->st_info, sym->st_shndx,
 								   sym->st_value, sym->st_size);
-		}
-	}
+				}
+			}
 			break;
 
 		case SHT_RELM:
@@ -3071,11 +3170,48 @@ struct obj_file *obj_load(FILE * fp)
 				return NULL;
 			}
 			break;
+			/* XXX  Relocation code from modutils-2.3.19 is not here.
+			 * Why?  That's about 20 lines of code from obj/obj_load.c,
+			 * which gets done in a second pass through the sections.
+			 * This BusyBox insmod does similar work in obj_relocate(). */
 		}
 	}
 
 	return f;
 }
+
+#ifdef BB_FEATURE_INSMOD_LOADINKMEM
+/*
+ * load the unloaded sections directly into the memory allocated by
+ * kernel for the module
+ */
+
+int obj_load_progbits(FILE * fp, struct obj_file* f)
+{
+	char* imagebase = (char*) f->imagebase;
+	ElfW(Addr) base = f->baseaddr;
+	struct obj_section* sec;
+	
+	for (sec = f->load_order; sec; sec = sec->load_next) {
+
+		/* section already loaded? */
+		if (sec->contents != NULL)
+			continue;
+		
+		if (sec->header.sh_size == 0)
+			continue;
+
+		sec->contents = imagebase + (sec->header.sh_addr - base);
+		fseek(fp, sec->header.sh_offset, SEEK_SET);
+		if (fread(sec->contents, sec->header.sh_size, 1, fp) != 1) {
+			errorMsg("error reading ELF section data: %s\n", strerror(errno));
+			return 0;
+		}
+
+	}
+	return 1;
+}
+#endif
 
 static void hide_special_symbols(struct obj_file *f)
 {
@@ -3109,7 +3245,7 @@ extern int insmod_main( int argc, char **argv)
 	FILE *fp;
 	struct obj_file *f;
 	struct stat st;
-	char m_name[BUFSIZ + 1] = "\0";
+	char m_name[FILENAME_MAX + 1] = "\0";
 	int exit_status = EXIT_FAILURE;
 	int m_has_modinfo;
 #ifdef BB_FEATURE_INSMOD_VERSION_CHECKING
@@ -3136,7 +3272,7 @@ extern int insmod_main( int argc, char **argv)
 				flag_export = 0;
 				break;
 			case 'o':			/* name the output module */
-				strncpy(m_name, optarg, BUFSIZ);
+				strncpy(m_name, optarg, FILENAME_MAX);
 				break;
 			case 'L':			/* Stub warning */
 				/* This is needed for compatibility with modprobe.
@@ -3163,32 +3299,62 @@ extern int insmod_main( int argc, char **argv)
 
 	if (len > 2 && tmp[len - 2] == '.' && tmp[len - 1] == 'o')
 		len -= 2;
-	strncpy(m_fullName, tmp, len);
+	memcpy(m_fullName, tmp, len);
+	m_fullName[len]='\0';
 	if (*m_name == '\0') {
 		strcpy(m_name, m_fullName);
 	}
 	strcat(m_fullName, ".o");
 
-	/* Get a filedesc for the module */
+	/* Get a filedesc for the module.  Check we we have a complete path */
 	if (stat(argv[optind], &st) < 0 || !S_ISREG(st.st_mode) ||
 			(fp = fopen(argv[optind], "r")) == NULL) {
-		/* Hmpf.  Could not open it. Search through _PATH_MODULES to find a module named m_name */
-		if (recursive_action(_PATH_MODULES, TRUE, FALSE, FALSE,
-							findNamedModule, 0, m_fullName) == FALSE) 
+		struct utsname myuname;
+
+		/* Hmm.  Could not open it.  First search under /lib/modules/`uname -r`,
+		 * but do not error out yet if we fail to find it... */
+		if (uname(&myuname) == 0) {
+			char module_dir[FILENAME_MAX];
+			char real_module_dir[FILENAME_MAX];
+			snprintf (module_dir, sizeof(module_dir), "%s/%s", 
+					_PATH_MODULES, myuname.release);
+			/* Jump through hoops in case /lib/modules/`uname -r`
+			 * is a symlink.  We do not want recursive_action to
+			 * follow symlinks, but we do want to follow the
+			 * /lib/modules/`uname -r` dir, So resolve it ourselves
+			 * if it is a link... */
+			if (realpath (module_dir, real_module_dir) == NULL)
+				strcpy(real_module_dir, module_dir);
+			recursive_action(real_module_dir, TRUE, FALSE, FALSE,
+					check_module_name_match, 0, m_fullName);
+		}
+
+		/* Check if we have found anything yet */
+		if (m_filename[0] == '\0' || ((fp = fopen(m_filename, "r")) == NULL)) 
 		{
-			if (m_filename[0] == '\0'
-				|| ((fp = fopen(m_filename, "r")) == NULL)) 
+			char module_dir[FILENAME_MAX];
+			if (realpath (_PATH_MODULES, module_dir) == NULL)
+				strcpy(module_dir, _PATH_MODULES);
+			/* No module found under /lib/modules/`uname -r`, this
+			 * time cast the net a bit wider.  Search /lib/modules/ */
+			if (recursive_action(module_dir, TRUE, FALSE, FALSE,
+						check_module_name_match, 0, m_fullName) == FALSE) 
 			{
-				error_msg("No module named '%s' found in '%s'", m_fullName, _PATH_MODULES);
-				return EXIT_FAILURE;
-			}
-		} else
-			error_msg_and_die("No module named '%s' found in '%s'", m_fullName, _PATH_MODULES);
-	} else
-		memcpy(m_filename, argv[optind], strlen(argv[optind]));
+				if (m_filename[0] == '\0'
+						|| ((fp = fopen(m_filename, "r")) == NULL)) 
+				{
+					error_msg("%s: no module by that name found", m_fullName);
+					return EXIT_FAILURE;
+				}
+			} else
+				error_msg_and_die("%s: no module by that name found", m_fullName);
+		}
+	} else 
+		safe_strncpy(m_filename, argv[optind], sizeof(m_filename));
 
+	printf("Using %s\n", m_filename);
 
-	if ((f = obj_load(fp)) == NULL)
+	if ((f = obj_load(fp, LOADBITS)) == NULL)
 		perror_msg_and_die("Could not load the module");
 
 	if (get_modinfo_value(f, "kernel_version") == NULL)
@@ -3312,6 +3478,19 @@ extern int insmod_main( int argc, char **argv)
 		perror_msg("create_module: %s", m_name);
 		goto out;
 	}
+
+#if  !LOADBITS
+	/*
+	 * the PROGBITS section was not loaded by the obj_load
+	 * now we can load them directly into the kernel memory
+	 */
+	//	f->imagebase = (char*) m_addr;
+	f->imagebase = (ElfW(Addr)) m_addr;
+	if (!obj_load_progbits(fp, f)) {
+		delete_module(m_name);
+		goto out;
+	}
+#endif	
 
 	if (!obj_relocate(f, m_addr)) {
 		delete_module(m_name);
