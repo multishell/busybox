@@ -29,6 +29,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <termios.h>
+#include <paths.h>
 #include <sys/types.h>
 #include <sys/fcntl.h>
 #include <sys/wait.h>
@@ -40,8 +41,15 @@
 #include <linux/serial.h>	/* for serial_struct */
 #include <sys/vt.h>		/* for vt_stat */
 #include <sys/ioctl.h>
+#ifdef BB_SYSLOGD
+#include <sys/syslog.h>
+#endif
 
-#define DEV_CONSOLE      "/dev/console"	/* Logical system console */
+#if ! defined BB_FEATURE_USE_PROCFS
+#error Sorry, I depend on the /proc filesystem right now.
+#endif
+
+
 #define VT_PRIMARY      "/dev/tty1"	/* Primary virtual console */
 #define VT_SECONDARY    "/dev/tty2"	/* Virtual console */
 #define VT_LOG          "/dev/tty3"	/* Virtual console */
@@ -49,11 +57,10 @@
 #define SERIAL_CON1     "/dev/ttyS1"    /* Serial console */
 #define SHELL           "/bin/sh"	/* Default shell */
 #define INITSCRIPT      "/etc/init.d/rcS"	/* Initscript. */
-#define PATH_DEFAULT    "PATH=/usr/local/sbin:/sbin:/bin:/usr/sbin:/usr/bin"
 
 #define LOG             0x1
 #define CONSOLE         0x2
-static char *console = DEV_CONSOLE;
+static char *console = _PATH_CONSOLE;
 static char *second_console = VT_SECONDARY;
 static char *log = VT_LOG;
 static int kernel_version = 0;
@@ -83,8 +90,20 @@ int device_open(char *device, int mode)
 void message(int device, char *fmt, ...)
 {
     int fd;
-    static int log_fd=-1;
     va_list arguments;
+#ifdef BB_SYSLOGD
+
+    /* Log the message to syslogd */
+    if (device & LOG ) {
+	char msg[1024];
+	va_start(arguments, fmt);
+	vsnprintf(msg, sizeof(msg), fmt, arguments);
+	va_end(arguments);
+	syslog(LOG_DAEMON|LOG_NOTICE, msg);
+    }
+
+#else
+    static int log_fd=-1;
 
     /* Take full control of the log tty, and never close it.
      * It's mine, all mine!  Muhahahaha! */
@@ -102,15 +121,16 @@ void message(int device, char *fmt, ...)
 	    return;
 	}
     }
-
     if ( (device & LOG) && (log_fd >= 0) ) {
 	va_start(arguments, fmt);
 	vdprintf(log_fd, fmt, arguments);
 	va_end(arguments);
     }
+#endif
+
     if (device & CONSOLE) {
 	/* Always send console messages to /dev/console so people will see them. */
-	if ((fd = device_open(DEV_CONSOLE, O_WRONLY|O_NOCTTY|O_NDELAY)) >= 0) {
+	if ((fd = device_open(_PATH_CONSOLE, O_WRONLY|O_NOCTTY|O_NDELAY)) >= 0) {
 	    va_start(arguments, fmt);
 	    vdprintf(fd, fmt, arguments);
 	    va_end(arguments);
@@ -226,7 +246,7 @@ static void console_init()
 	    /* this is linux virtual tty */
 	    snprintf( the_console, sizeof the_console, "/dev/tty%d", vt.v_active );
 	} else {
-	    console = DEV_CONSOLE;
+	    console = _PATH_CONSOLE;
 	    tried_devcons++;
 	}
     }
@@ -235,7 +255,7 @@ static void console_init()
 	/* Can't open selected console -- try /dev/console */
 	if (!tried_devcons) {
 	    tried_devcons++;
-	    console = DEV_CONSOLE;
+	    console = _PATH_CONSOLE;
 	    continue;
 	}
 	/* Can't open selected console -- try vt1 */
@@ -405,6 +425,7 @@ static void halt_signal(int sig)
 	    "The system is halted. Press CTRL-ALT-DEL or turn off power\r\n");
     sync();
 #ifndef DEBUG_INIT
+    while (1) sleep(1);
     reboot(RB_HALT_SYSTEM);
     //reboot(RB_POWER_OFF);
 #endif
@@ -416,6 +437,7 @@ static void reboot_signal(int sig)
     shutdown_system();
     message(CONSOLE, "Please stand by while rebooting the system.\r\n");
     sync();
+    while (1) sleep(1);
 #ifndef DEBUG_INIT
     reboot(RB_AUTOBOOT);
 #endif
@@ -433,8 +455,9 @@ extern int init_main(int argc, char **argv)
     const char* const shell_command[] = { SHELL, "-" SHELL, 0};
     const char* const* tty0_command = shell_command;
     const char* const* tty1_command = shell_command;
-#ifdef BB_CONSOLE_CMD_IF_RC_SCRIPT_EXITS
-    const char* const rc_exit_command[] = BB_CONSOLE_CMD_IF_RC_SCRIPT_EXITS;
+#ifdef BB_INIT_CMD_IF_RC_SCRIPT_EXITS
+    const char* const rc_exit_command[] = { "BB_INIT_CMD_IF_RC_SCRIPT_EXITS", 
+					    "BB_INIT_CMD_IF_RC_SCRIPT_EXITS", 0 };
 #endif
 
 #ifdef DEBUG_INIT
@@ -485,7 +508,7 @@ extern int init_main(int argc, char **argv)
     setsid();
 
     /* Make sure PATH is set to something sane */
-    putenv(PATH_DEFAULT);
+    putenv(_PATH_STDPATH);
 
    
     /* Hello world */
@@ -536,7 +559,7 @@ extern int init_main(int argc, char **argv)
 	    if (run_rc == FALSE) {
 		pid1 = 0;
 	    }
-#ifdef BB_CONSOLE_CMD_IF_RC_SCRIPT_EXITS
+#ifdef BB_INIT_CMD_IF_RC_SCRIPT_EXITS
 	    else {
 		pid1 = 0;
 		run_rc=FALSE;
