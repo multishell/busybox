@@ -18,7 +18,7 @@
 #
 
 PROG      := busybox
-VERSION   := 0.60.0
+VERSION   := 0.60.1
 BUILDTIME := $(shell TZ=UTC date -u "+%Y.%m.%d-%H:%M%z")
 export VERSION
 
@@ -48,7 +48,7 @@ DODEBUG = false
 # will get fewer emails asking about how glibc NSS works).  Enabling this adds
 # just 1.4k to the binary size (which is a _lot_ less then glibc NSS costs).
 # Note that if you want hostname resolution to work with glibc, you still need
-# the libnss_* libraries.  Most people will want to leave this set to false.
+# the libnss_* libraries.  
 USE_SYSTEM_PWD_GRP = true
 
 # This enables compiling with dmalloc ( http://dmalloc.com/ )
@@ -85,8 +85,7 @@ AR = $(CROSS)ar
 STRIPTOOL = $(CROSS)strip
 
 # To compile vs uClibc, just use the compiler wrapper built by uClibc...
-# This make things very easy?  Everything should compile and work as
-# expected these days...
+# Everything should compile and work as expected these days...
 #CC = ../uClibc/extra/gcc-uClibc/i386-uclibc-gcc
 
 # To compile vs some other alternative libc, you may need to use/adjust
@@ -250,7 +249,8 @@ safe_read.c safe_strncpy.c syscalls.c syslog_msg_with_name.c time_string.c \
 trim.c unzip.c vdprintf.c verror_msg.c vperror_msg.c wfopen.c xfuncs.c \
 xgetcwd.c xreadlink.c xregcomp.c interface.c remove_file.c last_char_is.c \
 copyfd.c vherror_msg.c herror_msg.c herror_msg_and_die.c xgethostbyname.c \
-dirname.c make_directory.c create_icmp_socket.c u_signal_names.c arith.c
+dirname.c make_directory.c create_icmp_socket.c u_signal_names.c arith.c \
+simplify_path.c
 LIBBB_OBJS=$(patsubst %.c,$(LIBBB)/%.o, $(LIBBB_CSRC))
 ifeq ($(strip $(BB_SRC_DIR)),)
     LIBBB_CFLAGS += -I$(LIBBB)
