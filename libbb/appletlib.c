@@ -33,13 +33,9 @@ static const char usage_messages[] ALIGN1 = ""
 #define usage_messages 0
 #endif /* SHOW_USAGE */
 
-/* Define struct bb_applet applets[] */
-#include "applets.h"
 
-#if ENABLE_FEATURE_SH_STANDALONE
-/* -1 because last entry is NULL */
-const unsigned short NUM_APPLETS = ARRAY_SIZE(applets) - 1;
-#endif
+/* Include generated applet names, pointers to <apllet>_main, etc */
+#include "applet_tables.h"
 
 
 #if ENABLE_FEATURE_COMPRESS_USAGE
@@ -84,16 +80,14 @@ void bb_show_usage(void)
 		const char *format_string;
 		const char *p;
 		const char *usage_string = p = unpack_usage_messages();
-		const struct bb_applet *ap = find_applet_by_name(applet_name);
-		int i;
+		int ap = find_applet_by_name(applet_name);
 
-		if (!ap) /* never happens, paranoia */
+		if (ap < 0) /* never happens, paranoia */
 			xfunc_die();
 
-		i = ap - applets;
-		while (i) {
+		while (ap) {
 			while (*p++) continue;
-			i--;
+			ap--;
 		}
 
 		fprintf(stderr, "%s multi-call binary\n", bb_banner);
@@ -107,18 +101,20 @@ void bb_show_usage(void)
 }
 
 
-static int applet_name_compare(const void *name, const void *vapplet)
+/* NB: any char pointer will work as well, not necessarily applet_names */
+static int applet_name_compare(const void *name, const void *v)
 {
-	const struct bb_applet *applet = vapplet;
-
-	return strcmp(name, applet->name);
+	int i = (const char *)v - applet_names;
+	return strcmp(name, APPLET_NAME(i));
 }
-
-const struct bb_applet *find_applet_by_name(const char *name)
+int find_applet_by_name(const char *name)
 {
 	/* Do a binary search to find the applet entry given the name. */
-	return bsearch(name, applets, ARRAY_SIZE(applets)-1, sizeof(applets[0]),
-				applet_name_compare);
+	const char *p;
+	p = bsearch(name, applet_names, ARRAY_SIZE(applet_main), 1, applet_name_compare);
+	if (!p)
+		return -1;
+	return p - applet_names;
 }
 
 
@@ -166,7 +162,7 @@ USE_FEATURE_SUID(static uid_t ruid;)  /* real uid */
 
 /* applets[] is const, so we have to define this "override" structure */
 static struct BB_suid_config {
-	const struct bb_applet *m_applet;
+	int m_applet;
 	uid_t m_uid;
 	gid_t m_gid;
 	mode_t m_mode;
@@ -232,7 +228,7 @@ static void parse_config_file(void)
 {
 	struct BB_suid_config *sct_head;
 	struct BB_suid_config *sct;
-	const struct bb_applet *applet;
+	int applet_no;
 	FILE *f;
 	const char *errmsg;
 	char *s;
@@ -343,14 +339,14 @@ static void parse_config_file(void)
 			 * applet is currently built in and ignore it otherwise.
 			 * Note: this can hide config file bugs which only pop
 			 * up when the busybox configuration is changed. */
-			applet = find_applet_by_name(s);
-			if (applet) {
+			applet_no = find_applet_by_name(s);
+			if (applet_no >= 0) {
 				/* Note: We currently don't check for duplicates!
 				 * The last config line for each applet will be the
 				 * one used since we insert at the head of the list.
 				 * I suppose this could be considered a feature. */
 				sct = xmalloc(sizeof(struct BB_suid_config));
-				sct->m_applet = applet;
+				sct->m_applet = applet_no;
 				sct->m_mode = 0;
 				sct->m_next = sct_head;
 				sct_head = sct;
@@ -441,7 +437,7 @@ static inline void parse_config_file(void)
 
 
 #if ENABLE_FEATURE_SUID
-static void check_suid(const struct bb_applet *applet)
+static void check_suid(int applet_no)
 {
 	gid_t rgid;  /* real gid */
 
@@ -456,7 +452,7 @@ static void check_suid(const struct bb_applet *applet)
 		mode_t m;
 
 		for (sct = suid_config; sct; sct = sct->m_next) {
-			if (sct->m_applet == applet)
+			if (sct->m_applet == applet_no)
 				goto found;
 		}
 		goto check_need_suid;
@@ -504,12 +500,12 @@ static void check_suid(const struct bb_applet *applet)
 #endif
  check_need_suid:
 #endif
-	if (applet->need_suid == _BB_SUID_ALWAYS) {
+	if (APPLET_SUID(applet_no) == _BB_SUID_ALWAYS) {
 		/* Real uid is not 0. If euid isn't 0 too, suid bit
 		 * is most probably not set on our executable */
 		if (geteuid())
 			bb_error_msg_and_die("must be suid to work properly");
-	} else if (applet->need_suid == _BB_SUID_NEVER) {
+	} else if (APPLET_SUID(applet_no) == _BB_SUID_NEVER) {
 		xsetgid(rgid);  /* drop all privileges */
 		xsetuid(ruid);
 	}
@@ -536,18 +532,21 @@ static void install_links(const char *busybox, int use_symbolic_links)
 		usr_sbin
 	};
 
-	int (*lf)(const char *, const char *) = link;
+	int (*lf)(const char *, const char *);
 	char *fpc;
 	int i;
 	int rc;
 
+	lf = link;
 	if (use_symbolic_links)
 		lf = symlink;
 
-	for (i = 0; applets[i].name != NULL; i++) {
+	for (i = 0; i < ARRAY_SIZE(applet_main); i++) {
 		fpc = concat_path_file(
-				install_dir[applets[i].install_loc],
-				applets[i].name);
+				install_dir[APPLET_INSTALL_LOC(i)],
+				APPLET_NAME(i));
+		// debug: bb_error_msg("%slinking %s to busybox",
+		//		use_symbolic_links ? "sym" : "", fpc);
 		rc = lf(busybox, fpc);
 		if (rc != 0 && errno != EEXIST) {
 			bb_simple_perror_msg(fpc);
@@ -564,7 +563,7 @@ static int busybox_main(char **argv)
 {
 	if (!argv[1]) {
 		/* Called without arguments */
-		const struct bb_applet *a;
+		const char *a;
 		int col, output_width;
  help:
 		output_width = 80;
@@ -576,26 +575,28 @@ static int busybox_main(char **argv)
 		output_width -= sizeof("start-stop-daemon, ") + 8;
 
 		printf("%s multi-call binary\n", bb_banner); /* reuse const string... */
-		printf("Copyright (C) 1998-2006 Erik Andersen, Rob Landley, and others.\n"
-		       "Licensed under GPLv2. See source distribution for full notice.\n"
+		printf("Copyright (C) 1998-2007 Erik Andersen, Rob Landley, Denys Vlasenko\n"
+		       "and others. Licensed under GPLv2.\n"
+		       "See source distribution for full notice.\n"
 		       "\n"
 		       "Usage: busybox [function] [arguments]...\n"
-		       "   or: [function] [arguments]...\n"
+		       "   or: function [arguments]...\n"
 		       "\n"
 		       "\tBusyBox is a multi-call binary that combines many common Unix\n"
 		       "\tutilities into a single executable.  Most people will create a\n"
 		       "\tlink to busybox for each function they wish to use and BusyBox\n"
 		       "\twill act like whatever it was invoked as!\n"
-		       "\nCurrently defined functions:\n");
+		       "\n"
+		       "Currently defined functions:\n");
 		col = 0;
-		a = applets;
-		while (a->name) {
+		a = applet_names;
+		while (*a) {
 			if (col > output_width) {
 				puts(",");
 				col = 0;
 			}
-			col += printf("%s%s", (col ? ", " : "\t"), a->name);
-			a++;
+			col += printf("%s%s", (col ? ", " : "\t"), a);
+			a += strlen(a) + 1;
 		}
 		puts("\n");
 		return 0;
@@ -629,7 +630,7 @@ static int busybox_main(char **argv)
 	bb_error_msg_and_die("applet not found");
 }
 
-void run_appletstruct_and_exit(const struct bb_applet *applet, char **argv)
+void run_applet_no_and_exit(int applet_no, char **argv)
 {
 	int argc = 1;
 
@@ -640,19 +641,19 @@ void run_appletstruct_and_exit(const struct bb_applet *applet, char **argv)
 	optind = 1;
 	xfunc_error_retval = EXIT_FAILURE;
 
-	applet_name = applet->name;
+	applet_name = APPLET_NAME(applet_no);
 	if (argc == 2 && !strcmp(argv[1], "--help"))
 		bb_show_usage();
 	if (ENABLE_FEATURE_SUID)
-		check_suid(applet);
-	exit(applet->main(argc, argv));
+		check_suid(applet_no);
+	exit(applet_main[applet_no](argc, argv));
 }
 
 void run_applet_and_exit(const char *name, char **argv)
 {
-	const struct bb_applet *applet = find_applet_by_name(name);
-	if (applet)
-		run_appletstruct_and_exit(applet, argv);
+	int applet = find_applet_by_name(name);
+	if (applet >= 0)
+		run_applet_no_and_exit(applet, argv);
 	if (!strncmp(name, "busybox", 7))
 		exit(busybox_main(argv));
 }

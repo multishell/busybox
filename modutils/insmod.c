@@ -1951,7 +1951,8 @@ static unsigned long obj_elf_hash_n(const char *name, unsigned long n)
 	while (n > 0) {
 		ch = *name++;
 		h = (h << 4) + ch;
-		if ((g = (h & 0xf0000000)) != 0) {
+		g = (h & 0xf0000000);
+		if (g != 0) {
 			h ^= g >> 24;
 			h &= ~g;
 		}
@@ -4241,8 +4242,8 @@ static int insmod_ng_main(int argc, char **argv)
 
 	ret = syscall(__NR_init_module, map, len, options);
 	if (ret != 0) {
-		bb_perror_msg_and_die("cannot insert '%s': %s (%li)",
-				filename, moderror(errno), ret);
+		bb_error_msg_and_die("cannot insert '%s': %s",
+				filename, moderror(errno));
 	}
 
 	return 0;

@@ -25,7 +25,7 @@ int umount_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int umount_main(int argc, char **argv)
 {
 	int doForce;
-	char path[2*PATH_MAX];
+	char *const path = xmalloc(PATH_MAX + 2); /* to save stack */
 	struct mntent me;
 	FILE *fp;
 	char *fstype = 0;
@@ -62,7 +62,7 @@ int umount_main(int argc, char **argv)
 		if (opt & OPT_ALL)
 			bb_error_msg_and_die("cannot open %s", bb_path_mtab_file);
 	} else {
-		while (getmntent_r(fp, &me, path, sizeof(path))) {
+		while (getmntent_r(fp, &me, path, PATH_MAX)) {
 			/* Match fstype if passed */
 			if (fstype && match_fstype(&me, fstype))
 				continue;
@@ -155,6 +155,7 @@ int umount_main(int argc, char **argv)
 			free(mtl);
 			mtl = m;
 		}
+		free(path);
 	}
 
 	return status;

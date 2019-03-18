@@ -83,7 +83,7 @@
 
 extern char **environ; /* This is in <unistd.h>, but protected with __USE_GNU */
 
-#include "busybox.h" /* for struct bb_applet */
+#include "busybox.h" /* for APPLET_IS_NOFORK/NOEXEC */
 
 
 #if !BB_MMU
@@ -141,6 +141,40 @@ static const char *indenter(int i)
 }
 #define debug_printf_clean(...) fprintf(stderr, __VA_ARGS__)
 #define DEBUG_CLEAN 1
+#endif
+
+
+/*
+ * Leak hunting. Use hush_leaktool.sh for post-processing.
+ */
+#ifdef FOR_HUSH_LEAKTOOL
+void *xxmalloc(int lineno, size_t size)
+{
+	void *ptr = xmalloc((size + 0xff) & ~0xff);
+	fprintf(stderr, "line %d: malloc %p\n", lineno, ptr);
+	return ptr;
+}
+void *xxrealloc(int lineno, void *ptr, size_t size)
+{
+	ptr = xrealloc(ptr, (size + 0xff) & ~0xff);
+	fprintf(stderr, "line %d: realloc %p\n", lineno, ptr);
+	return ptr;
+}
+char *xxstrdup(int lineno, const char *str)
+{
+	char *ptr = xstrdup(str);
+	fprintf(stderr, "line %d: strdup %p\n", lineno, ptr);
+	return ptr;
+}
+void xxfree(void *ptr)
+{
+	fprintf(stderr, "free %p\n", ptr);
+	free(ptr);
+}
+#define xmalloc(s)     xxmalloc(__LINE__, s)
+#define xrealloc(p, s) xxrealloc(__LINE__, p, s)
+#define xstrdup(s)     xxstrdup(__LINE__, s)
+#define free(p)        xxfree(p)
 #endif
 
 
@@ -256,7 +290,6 @@ struct child_prog {
 	smallint subshell;          /* flag, non-zero if group must be forked */
 	smallint is_stopped;        /* is the program currently running? */
 	struct redir_struct *redirects; /* I/O redirections */
-	char **glob_result;         /* result of parameter globbing */
 	struct pipe *family;        /* pointer back to the child's parent pipe */
 	//sp counting seems to be broken... so commented out, grep for '//sp:'
 	//sp: int sp;               /* number of SPECIAL_VAR_SYMBOL */
@@ -456,27 +489,6 @@ static void syntax_lineno(int line)
 #endif
 
 /* Index of subroutines: */
-/*   function prototypes for builtins */
-static int builtin_cd(char **argv);
-static int builtin_eval(char **argv);
-static int builtin_exec(char **argv);
-static int builtin_exit(char **argv);
-static int builtin_export(char **argv);
-#if ENABLE_HUSH_JOB
-static int builtin_fg_bg(char **argv);
-static int builtin_jobs(char **argv);
-#endif
-#if ENABLE_HUSH_HELP
-static int builtin_help(char **argv);
-#endif
-static int builtin_pwd(char **argv);
-static int builtin_read(char **argv);
-static int builtin_set(char **argv);
-static int builtin_shift(char **argv);
-static int builtin_source(char **argv);
-static int builtin_umask(char **argv);
-static int builtin_unset(char **argv);
-//static int builtin_not_written(char **argv);
 /*   o_string manipulation: */
 static int b_check_space(o_string *o, int len);
 static int b_addchr(o_string *o, int ch);
@@ -600,6 +612,30 @@ static void free_strings(char **strings)
 }
 
 
+/* Function prototypes for builtins */
+static int builtin_cd(char **argv);
+static int builtin_echo(char **argv);
+static int builtin_eval(char **argv);
+static int builtin_exec(char **argv);
+static int builtin_exit(char **argv);
+static int builtin_export(char **argv);
+#if ENABLE_HUSH_JOB
+static int builtin_fg_bg(char **argv);
+static int builtin_jobs(char **argv);
+#endif
+#if ENABLE_HUSH_HELP
+static int builtin_help(char **argv);
+#endif
+static int builtin_pwd(char **argv);
+static int builtin_read(char **argv);
+static int builtin_test(char **argv);
+static int builtin_set(char **argv);
+static int builtin_shift(char **argv);
+static int builtin_source(char **argv);
+static int builtin_umask(char **argv);
+static int builtin_unset(char **argv);
+//static int builtin_not_written(char **argv);
+
 /* Table of built-in functions.  They can be forked or not, depending on
  * context: within pipes, they fork.  As simple commands, they do not.
  * When used in non-forking context, they can change global variables
@@ -617,13 +653,18 @@ struct built_in_command {
 #endif
 };
 
+/* For now, echo and test are unconditionally enabled.
+ * Maybe make it configurable? */
 static const struct built_in_command bltins[] = {
+	BLTIN("["     , builtin_test, "Test condition"),
+	BLTIN("[["    , builtin_test, "Test condition"),
 #if ENABLE_HUSH_JOB
 	BLTIN("bg"    , builtin_fg_bg, "Resume a job in the background"),
 #endif
 //	BLTIN("break" , builtin_not_written, "Exit for, while or until loop"),
 	BLTIN("cd"    , builtin_cd, "Change working directory"),
 //	BLTIN("continue", builtin_not_written, "Continue for, while or until loop"),
+	BLTIN("echo"  , builtin_echo, "Write strings to stdout"),
 	BLTIN("eval"  , builtin_eval, "Construct and run shell command"),
 	BLTIN("exec"  , builtin_exec, "Exec command, replacing this shell with the exec'd process"),
 	BLTIN("exit"  , builtin_exit, "Exit from shell"),
@@ -639,6 +680,7 @@ static const struct built_in_command bltins[] = {
 	BLTIN("set"   , builtin_set, "Set/unset shell local variables"),
 	BLTIN("shift" , builtin_shift, "Shift positional parameters"),
 //	BLTIN("trap"  , builtin_not_written, "Trap signals"),
+	BLTIN("test"  , builtin_test, "Test condition"),
 //	BLTIN("ulimit", builtin_not_written, "Controls resource limits"),
 	BLTIN("umask" , builtin_umask, "Sets file creation mask"),
 	BLTIN("unset" , builtin_unset, "Unset environment variable"),
@@ -789,6 +831,29 @@ static const char *set_cwd(void)
 	if (!cwd)
 		cwd = bb_msg_unknown;
 	return cwd;
+}
+
+
+/* built-in 'test' handler */
+static int builtin_test(char **argv)
+{
+	int argc = 0;
+	while (*argv) {
+		argc++;
+		argv++;
+	}
+	return test_main(argc, argv - argc);
+}
+
+/* built-in 'test' handler */
+static int builtin_echo(char **argv)
+{
+	int argc = 0;
+	while (*argv) {
+		argc++;
+		argv++;
+	}
+	return echo_main(argc, argv - argc);
 }
 
 /* built-in 'eval' handler */
@@ -1311,8 +1376,11 @@ static int setup_redirects(struct child_prog *prog, int squirrel[])
 			continue;
 		}
 		if (redir->dup == -1) {
+			char *p;
 			mode = redir_table[redir->type].mode;
-			openfd = open_or_warn(redir->glob_word[0], mode);
+			p = expand_string_to_string(redir->glob_word[0]);
+			openfd = open_or_warn(p, mode);
+			free(p);
 			if (openfd < 0) {
 			/* this could get lost if stderr has been redirected, but
 			   bash and ash both lose it as well (though zsh doesn't!) */
@@ -1396,12 +1464,12 @@ static void pseudo_exec_argv(char **argv)
 	/* Check if the command matches any busybox applets */
 #if ENABLE_FEATURE_SH_STANDALONE
 	if (strchr(argv[0], '/') == NULL) {
-		const struct bb_applet *a = find_applet_by_name(argv[0]);
-		if (a) {
-			if (a->noexec) {
+		int a = find_applet_by_name(argv[0]);
+		if (a >= 0) {
+			if (APPLET_IS_NOEXEC(a)) {
 				debug_printf_exec("running applet '%s'\n", argv[0]);
-// is it ok that run_appletstruct_and_exit() does exit(), not _exit()?
-				run_appletstruct_and_exit(a, argv);
+// is it ok that run_applet_no_and_exit() does exit(), not _exit()?
+				run_applet_no_and_exit(a, argv);
 			}
 			/* re-exec ourselves with the new arguments */
 			debug_printf_exec("re-execing applet '%s'\n", argv[0]);
@@ -1424,16 +1492,16 @@ static void pseudo_exec(struct child_prog *child)
 {
 // FIXME: buggy wrt NOMMU! Must not modify any global data
 // until it does exec/_exit, but currently it does.
-	int rcode;
-
 	if (child->argv) {
 		pseudo_exec_argv(child->argv);
 	}
 
 	if (child->group) {
 #if !BB_MMU
-		bb_error_msg_and_exit("nested lists are not supported on NOMMU");
+		bb_error_msg_and_die("nested lists are not supported on NOMMU");
 #else
+		int rcode;
+
 #if ENABLE_HUSH_INTERACTIVE
 		debug_printf_exec("pseudo_exec: setting interactive_fd=0\n");
 		interactive_fd = 0;    /* crucial!!!! */
@@ -1787,8 +1855,8 @@ static int run_pipe_real(struct pipe *pi)
 		}
 #if ENABLE_FEATURE_SH_STANDALONE
 		{
-			const struct bb_applet *a = find_applet_by_name(argv[i]);
-			if (a && a->nofork) {
+			int a = find_applet_by_name(argv[i]);
+			if (a >= 0 && APPLET_IS_NOFORK(a)) {
 				setup_redirects(child, squirrel);
 				save_nofork_data(&nofork_save);
 				argv_expanded = argv + i;
@@ -2198,8 +2266,8 @@ static int free_pipe(struct pipe *pi, int indent)
 			for (a = 0, p = child->argv; *p; a++, p++) {
 				debug_printf_clean("%s   argv[%d] = %s\n", indenter(indent), a, *p);
 			}
-			free_strings(child->glob_result);
-			child->glob_result = NULL;
+			free_strings(child->argv);
+			child->argv = NULL;
 		} else if (child->group) {
 			debug_printf_clean("%s   begin group (subshell:%d)\n", indenter(indent), child->subshell);
 			ret_code = free_pipe_list(child->group, indent+3);
@@ -2333,6 +2401,7 @@ static int xglob(o_string *dest, char ***pglob)
 			debug_printf("globhack returned %d\n", gr);
 			/* quote removal, or more accurately, backslash removal */
 			*pglob = globhack(dest->data, *pglob);
+			globfree(&globdata);
 			return 0;
 		}
 		if (gr != 0) { /* GLOB_ABORTED ? */
@@ -2340,7 +2409,6 @@ static int xglob(o_string *dest, char ***pglob)
 		}
 		if (globdata.gl_pathv && globdata.gl_pathv[0])
 			*pglob = add_strings_to_strings(1, *pglob, globdata.gl_pathv);
-		/* globprint(glob_target); */
 		globfree(&globdata);
 		return gr;
 	}
@@ -2400,7 +2468,7 @@ static void count_var_expansion_space(int *countp, int *lenp, char *arg)
 			break;
 		case '*':
 		case '@':
-			for (i = 1; i < global_argc; i++) {
+			for (i = 1; global_argv[i]; i++) {
 				len += strlen(global_argv[i]) + 1;
 				count++;
 				if (!(first_ch & 0x80))
@@ -2513,11 +2581,13 @@ static int expand_vars_to_list(char **list, int n, char **posp, char *arg, char 
 		case '*':
 		case '@':
 			i = 1;
+			if (!global_argv[i])
+				break;
 			if (!(first_ch & 0x80)) { /* unquoted $* or $@ */
-				while (i < global_argc) {
+				while (global_argv[i]) {
 					n = expand_on_ifs(list, n, &pos, global_argv[i]);
 					debug_printf_expand("expand_vars_to_list: argv %d (last %d)\n", i, global_argc-1);
-					if (global_argv[i++][0] && i < global_argc) {
+					if (global_argv[i++][0] && global_argv[i]) {
 						/* this argv[] is not empty and not last:
 						 * put terminating NUL, start new word */
 						*pos++ = '\0';
@@ -2529,7 +2599,7 @@ static int expand_vars_to_list(char **list, int n, char **posp, char *arg, char 
 				}
 			} else
 			/* If or_mask is nonzero, we handle assignment 'a=....$@.....'
-			 * and in this case should theat it like '$*' */
+			 * and in this case should treat it like '$*' - see 'else...' below */
 			if (first_ch == ('@'|0x80) && !or_mask) { /* quoted $@ */
 				while (1) {
 					strcpy(pos, global_argv[i]);
@@ -2546,7 +2616,7 @@ static int expand_vars_to_list(char **list, int n, char **posp, char *arg, char 
 				while (1) {
 					strcpy(pos, global_argv[i]);
 					pos += strlen(global_argv[i]);
-					if (++i >= global_argc)
+					if (!global_argv[++i])
 						break;
 					if (ifs[0])
 						*pos++ = ifs[0];
@@ -3001,6 +3071,7 @@ static int done_word(o_string *dest, struct p_context *ctx)
 
 	b_reset(dest);
 	if (ctx->pending_redirect) {
+		/* NB: don't free_strings(ctx->pending_redirect->glob_word) here */
 		if (ctx->pending_redirect->glob_word
 		 && ctx->pending_redirect->glob_word[0]
 		 && ctx->pending_redirect->glob_word[1]
@@ -3056,7 +3127,6 @@ static int done_command(struct p_context *ctx)
 	/*child->argv = NULL;*/
 	/*child->is_stopped = 0;*/
 	/*child->group = NULL;*/
-	/*child->glob_result = NULL;*/
 	child->family = pi;
 	//sp: /*child->sp = 0;*/
 	//pt: child->parse_type = ctx->parse_type;
@@ -3857,3 +3927,13 @@ int hush_main(int argc, char **argv)
 #endif
 	hush_exit(opt ? opt : last_return_code);
 }
+
+
+#if ENABLE_LASH
+int lash_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
+int lash_main(int argc, char **argv)
+{
+	//bb_error_msg("lash is deprecated, please use hush instead");
+	return hush_main(argc, argv);
+}
+#endif

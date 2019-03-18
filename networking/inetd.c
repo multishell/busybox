@@ -206,21 +206,6 @@ extern char **environ;
 # define INETD_SETPROCTITLE
 #endif
 
-typedef int8_t socktype_t;
-typedef int8_t family_t;
-struct BUG_too_small {
-	char BUG_socktype_t_too_small[(0
-			| SOCK_STREAM
-			| SOCK_DGRAM
-			| SOCK_RDM
-			| SOCK_SEQPACKET
-			| SOCK_RAW) <= 127 ? 1 : -1];
-	char BUG_family_t_too_small[(0
-			| AF_INET
-			| AF_INET6
-			| AF_UNIX) <= 127 ? 1 : -1];
-};
-
 typedef struct servtab_t {
 	/* The most frequently referenced one: */
 	int se_fd;                            /* open descriptor */
@@ -430,7 +415,8 @@ static void register_rpc(servtab_t *sep)
 	struct protoent *pp;
 	socklen_t size;
 
-	if ((pp = getprotobyname(sep->se_proto + 4)) == NULL) {
+	pp = getprotobyname(sep->se_proto + 4);
+	if (pp == NULL) {
 		bb_perror_msg("%s: getproto", sep->se_proto);
 		return;
 	}
@@ -569,9 +555,8 @@ static void setup(servtab_t *sep)
 static char *nextline(void)
 {
 	char *cp;
-	FILE *fd = fconfig;
 
-	if (fgets(line, LINE_SIZE, fd) == NULL)
+	if (fgets(line, LINE_SIZE, fconfig) == NULL)
 		return NULL;
 	cp = strchr(line, '\n');
 	if (cp)
@@ -585,7 +570,7 @@ static char *skip(char **cpp) /* int report; */
 	char *start;
 
 /* erp: */
-	if (*cpp == NULL) {
+	if (cp == NULL) {
 		/* if (report) */
 		/* bb_error_msg("syntax error in inetd config file"); */
 		return NULL;
@@ -595,9 +580,7 @@ static char *skip(char **cpp) /* int report; */
 	while (*cp == ' ' || *cp == '\t')
 		cp++;
 	if (*cp == '\0') {
-		int c;
-
-		c = getc(fconfig);
+		int c = getc(fconfig);
 		ungetc(c, fconfig);
 		if (c == ' ' || c == '\t') {
 			cp = nextline();
@@ -605,7 +588,6 @@ static char *skip(char **cpp) /* int report; */
 				goto again;
 		}
 		*cpp = NULL;
-		/* goto erp; */
 		return NULL;
 	}
 	start = cp;
@@ -613,8 +595,6 @@ static char *skip(char **cpp) /* int report; */
 		cp++;
 	if (*cp != '\0')
 		*cp++ = '\0';
-	/* if ((*cpp = cp) == NULL) */
-	/* goto erp; */
 
 	*cpp = cp;
 	return start;
@@ -622,7 +602,7 @@ static char *skip(char **cpp) /* int report; */
 
 static servtab_t *new_servtab(void)
 {
-	return xmalloc(sizeof(servtab_t));
+	return xzalloc(sizeof(servtab_t));
 }
 
 static servtab_t *dupconfig(servtab_t *sep)
@@ -631,7 +611,6 @@ static servtab_t *dupconfig(servtab_t *sep)
 	int argc;
 
 	newtab = new_servtab();
-	memset(newtab, 0, sizeof(servtab_t));
 	newtab->se_service = xstrdup(sep->se_service);
 	newtab->se_socktype = sep->se_socktype;
 	newtab->se_family = sep->se_family;
@@ -667,17 +646,14 @@ static servtab_t *getconfigent(void)
 
 	sep = new_servtab();
 
-	/* memset(sep, 0, sizeof *sep); */
  more:
-	/* freeconfig(sep); */
-
-	while ((cp = nextline()) && *cp == '#') /* skip comment line */;
+	while ((cp = nextline()) && *cp == '#')
+		continue; /* skip comment lines */
 	if (cp == NULL) {
-		/* free(sep); */
+		free(sep);
 		return NULL;
 	}
 
-	memset((char *) sep, 0, sizeof *sep);
 	arg = skip(&cp);
 	if (arg == NULL) {
 		/* A blank line. */
@@ -775,9 +751,7 @@ static servtab_t *getconfigent(void)
 		} else
 			sep->se_max = toomany;
 	}
-	sep->se_wait = strcmp(arg, "wait") == 0;
-	/* if ((arg = skip(&cp, 1)) == NULL) */
-	/* goto more; */
+	sep->se_wait = (strcmp(arg, "wait") == 0);
 	sep->se_user = xxstrdup(skip(&cp));
 	arg = strchr(sep->se_user, '.');
 	if (arg == NULL)
@@ -787,10 +761,10 @@ static servtab_t *getconfigent(void)
 		sep->se_group = xstrdup(arg);
 	}
 
-	arg = skip(&cp);
-	sep->se_server = xxstrdup(arg);
-	if (strcmp(sep->se_server, "internal") == 0) {
+	sep->se_server = xxstrdup(skip(&cp));
 #ifdef INETD_FEATURE_ENABLED
+	/* sep->se_bi = NULL; - done by new_servtab() */
+	if (strcmp(sep->se_server, "internal") == 0) {
 		const struct builtin *bi;
 
 		for (bi = builtins; bi->bi_service; bi++)
@@ -803,22 +777,14 @@ static servtab_t *getconfigent(void)
 		}
 		sep->se_bi = bi;
 		sep->se_wait = 0; /* = bi->bi_wait; - always 0 */
-#else
-		bb_perror_msg("internal service %s unknown", sep->se_service);
-		goto more;
-#endif
 	}
-#ifdef INETD_FEATURE_ENABLED
-		else
-		sep->se_bi = NULL;
 #endif
 	argc = 0;
-	for (arg = skip(&cp); cp; arg = skip(&cp)) {
-		if (argc < MAXARGV)
-			sep->se_argv[argc++] = xxstrdup(arg);
+	while ((arg = skip(&cp)) != NULL && argc < MAXARGV) {
+		sep->se_argv[argc++] = xxstrdup(arg);
 	}
-	while (argc <= MAXARGV)
-		sep->se_argv[argc++] = NULL;
+	/* while (argc <= MAXARGV) */
+	/*	sep->se_argv[argc++] = NULL; - done by new_servtab() */
 
 	/*
 	 * Now that we've processed the entire line, check if the hostname

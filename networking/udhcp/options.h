@@ -6,7 +6,7 @@
 #define TYPE_MASK	0x0F
 
 enum {
-	OPTION_IP=1,
+	OPTION_IP = 1,
 	OPTION_IP_PAIR,
 	OPTION_STRING,
 #if ENABLE_FEATURE_RFC3397
@@ -32,6 +32,7 @@ enum {
 #define CLIENT_PORT		68
 
 #define DHCP_MAGIC		0x63825363
+
 
 /* DHCP option codes (partial list) */
 #define DHCP_PADDING		0x00
@@ -67,7 +68,6 @@ enum {
 #define DHCP_VENDOR		0x3c
 #define DHCP_CLIENT_ID		0x3d
 #define DHCP_FQDN		0x51
-
 #define DHCP_END		0xFF
 
 
@@ -98,13 +98,13 @@ enum {
 #define OPT_DATA 2
 
 struct dhcp_option {
-	char name[12];
-	char flags;
+	uint8_t flags;
 	uint8_t code;
 };
 
 extern const struct dhcp_option dhcp_options[];
-extern const unsigned char option_lengths[];
+extern const char dhcp_option_strings[];
+extern const uint8_t dhcp_option_lengths[];
 
 uint8_t *get_option(struct dhcpMessage *packet, int code);
 int end_option(uint8_t *optionptr);

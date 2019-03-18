@@ -26,7 +26,6 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <string.h>
-/* #include <strings.h> - said to be obsolete */
 #include <sys/poll.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -40,6 +39,12 @@
 #include <time.h>
 #include <unistd.h>
 #include <utime.h>
+/* Try to pull in PATH_MAX */
+#include <limits.h>
+#include <sys/param.h>
+#ifndef PATH_MAX
+#define PATH_MAX 256
+#endif
 
 #if ENABLE_SELINUX
 #include <selinux/selinux.h>
@@ -62,14 +67,37 @@
 #include "shadow_.h"
 #endif
 
-/* Try to pull in PATH_MAX */
-#include <limits.h>
-#include <sys/param.h>
-#ifndef PATH_MAX
-#define PATH_MAX 256
+#if defined(__GLIBC__) && __GLIBC__ < 2
+int vdprintf(int d, const char *format, va_list ap);
 #endif
+/* klogctl is in libc's klog.h, but we cheat and not #include that */
+int klogctl(int type, char *b, int len);
+/* This is declared here rather than #including <libgen.h> in order to avoid
+ * confusing the two versions of basename.  See the dirname/basename man page
+ * for details. */
+char *dirname(char *path);
+/* Include our own copy of struct sysinfo to avoid binary compatibility
+ * problems with Linux 2.4, which changed things.  Grumble, grumble. */
+struct sysinfo {
+	long uptime;			/* Seconds since boot */
+	unsigned long loads[3];		/* 1, 5, and 15 minute load averages */
+	unsigned long totalram;		/* Total usable main memory size */
+	unsigned long freeram;		/* Available memory size */
+	unsigned long sharedram;	/* Amount of shared memory */
+	unsigned long bufferram;	/* Memory used by buffers */
+	unsigned long totalswap;	/* Total swap space size */
+	unsigned long freeswap;		/* swap space still available */
+	unsigned short procs;		/* Number of current processes */
+	unsigned short pad;			/* Padding needed for m68k */
+	unsigned long totalhigh;	/* Total high memory size */
+	unsigned long freehigh;		/* Available high memory size */
+	unsigned int mem_unit;		/* Memory unit size in bytes */
+	char _f[20 - 2*sizeof(long) - sizeof(int)]; /* Padding: libc5 uses this.. */
+};
+int sysinfo(struct sysinfo* info);
 
-/* Tested to work correctly (IIRC :]) */
+
+/* Tested to work correctly with all int types (IIRC :]) */
 #define MAXINT(T) (T)( \
 	((T)-1) > 0 \
 	? (T)-1 \
@@ -83,7 +111,7 @@
 	)
 
 /* Large file support */
-/* Note that CONFIG_LFS forces bbox to be built with all common ops
+/* Note that CONFIG_LFS=y forces bbox to be built with all common ops
  * (stat, lseek etc) mapped to "largefile" variants by libc.
  * Practically it means that open() automatically has O_LARGEFILE added
  * and all filesize/file_offset parameters and struct members are "large"
@@ -167,7 +195,6 @@
 #endif
 #endif
 
-
 #if defined(__GLIBC__)
 /* glibc uses __errno_location() to get a ptr to errno */
 /* We can just memorize it once - no multithreading in busybox :) */
@@ -175,33 +202,6 @@ extern int *const bb_errno;
 #undef errno
 #define errno (*bb_errno)
 #endif
-
-#if defined(__GLIBC__) && __GLIBC__ < 2
-int vdprintf(int d, const char *format, va_list ap);
-#endif
-// This is declared here rather than #including <libgen.h> in order to avoid
-// confusing the two versions of basename.  See the dirname/basename man page
-// for details.
-char *dirname(char *path);
-/* Include our own copy of struct sysinfo to avoid binary compatibility
- * problems with Linux 2.4, which changed things.  Grumble, grumble. */
-struct sysinfo {
-	long uptime;			/* Seconds since boot */
-	unsigned long loads[3];		/* 1, 5, and 15 minute load averages */
-	unsigned long totalram;		/* Total usable main memory size */
-	unsigned long freeram;		/* Available memory size */
-	unsigned long sharedram;	/* Amount of shared memory */
-	unsigned long bufferram;	/* Memory used by buffers */
-	unsigned long totalswap;	/* Total swap space size */
-	unsigned long freeswap;		/* swap space still available */
-	unsigned short procs;		/* Number of current processes */
-	unsigned short pad;			/* Padding needed for m68k */
-	unsigned long totalhigh;	/* Total high memory size */
-	unsigned long freehigh;		/* Available high memory size */
-	unsigned int mem_unit;		/* Memory unit size in bytes */
-	char _f[20-2*sizeof(long)-sizeof(int)];	/* Padding: libc5 uses this.. */
-};
-int sysinfo(struct sysinfo* info);
 
 unsigned long long monotonic_us(void);
 unsigned monotonic_sec(void);
@@ -263,6 +263,7 @@ char *xmalloc_readlink(const char *path);
 char *xmalloc_readlink_or_warn(const char *path);
 char *xrealloc_getcwd_or_warn(char *cwd);
 
+char *xmalloc_follow_symlinks(const char *path);
 
 //TODO: signal(sid, f) is the same? then why?
 extern void sig_catch(int,void (*)(int));
@@ -287,6 +288,30 @@ int open3_or_warn(const char *pathname, int flags, int mode);
 void xpipe(int filedes[2]);
 off_t xlseek(int fd, off_t offset, int whence);
 off_t fdlength(int fd);
+
+/* Useful for having small structure members/global variables */
+typedef int8_t socktype_t;
+typedef int8_t family_t;
+struct BUG_too_small {
+	char BUG_socktype_t_too_small[(0
+			| SOCK_STREAM
+			| SOCK_DGRAM
+			| SOCK_RDM
+			| SOCK_SEQPACKET
+			| SOCK_RAW
+			) <= 127 ? 1 : -1];
+	char BUG_family_t_too_small[(0
+			| AF_UNSPEC
+			| AF_INET
+			| AF_INET6
+			| AF_UNIX
+			| AF_PACKET
+			| AF_NETLINK
+			/* | AF_DECnet */
+			/* | AF_IPX */
+			) <= 127 ? 1 : -1];
+};
+
 
 int xsocket(int domain, int type, int protocol);
 void xbind(int sockfd, struct sockaddr *my_addr, socklen_t addrlen);
@@ -525,7 +550,6 @@ void clear_username_cache(void);
 enum { USERNAME_MAX_SIZE = 16 - sizeof(int) };
 
 
-struct bb_applet;
 int execable_file(const char *name);
 char *find_execable(const char *filename);
 int exists_execable(const char *filename);
@@ -537,7 +561,7 @@ int exists_execable(const char *filename);
 int bb_execvp(const char *file, char *const argv[]);
 #define BB_EXECVP(prog,cmd) bb_execvp(prog,cmd)
 #define BB_EXECLP(prog,cmd,...) \
-	execlp((find_applet_by_name(prog)) ? CONFIG_BUSYBOX_EXEC_PATH : prog, \
+	execlp((find_applet_by_name(prog) >= 0) ? CONFIG_BUSYBOX_EXEC_PATH : prog, \
 		cmd, __VA_ARGS__)
 #else
 #define BB_EXECVP(prog,cmd)     execvp(prog,cmd)
@@ -575,8 +599,8 @@ struct nofork_save_area {
 void save_nofork_data(struct nofork_save_area *save);
 void restore_nofork_data(struct nofork_save_area *save);
 /* Does NOT check that applet is NOFORK, just blindly runs it */
-int run_nofork_applet(const struct bb_applet *a, char **argv);
-int run_nofork_applet_prime(struct nofork_save_area *old, const struct bb_applet *a, char **argv);
+int run_nofork_applet(int applet_no, char **argv);
+int run_nofork_applet_prime(struct nofork_save_area *old, int applet_no, char **argv);
 
 /* Helpers for daemonization.
  *
@@ -623,6 +647,8 @@ enum {
 #endif
 void bb_daemonize_or_rexec(int flags, char **argv);
 void bb_sanitize_stdio(void);
+/* Clear dangerous stuff, set PATH */
+void sanitize_env_for_suid(void);
 
 
 extern const char *opt_complementary;
@@ -701,7 +727,7 @@ extern void bb_verror_msg(const char *s, va_list p, const char *strerr);
 
 /* applets which are useful from another applets */
 int bb_cat(char** argv);
-int bb_echo(char** argv);
+int echo_main(int argc, char** argv) MAIN_EXTERNALLY_VISIBLE;
 int test_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int kill_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 #if ENABLE_ROUTE
@@ -759,10 +785,10 @@ const struct hwtype *get_hwntype(int type);
 
 
 #ifndef BUILD_INDIVIDUAL
-extern const struct bb_applet *find_applet_by_name(const char *name);
+extern int find_applet_by_name(const char *name);
 /* Returns only if applet is not found. */
 extern void run_applet_and_exit(const char *name, char **argv);
-extern void run_appletstruct_and_exit(const struct bb_applet *a, char **argv) ATTRIBUTE_NORETURN;
+extern void run_applet_no_and_exit(int a, char **argv) ATTRIBUTE_NORETURN;
 #endif
 
 extern int match_fstype(const struct mntent *mt, const char *fstypes);
@@ -785,7 +811,6 @@ extern int set_loop(char **devname, const char *file, unsigned long long offset)
 //TODO: pass buf pointer or return allocated buf (avoid statics)?
 char *bb_askpass(int timeout, const char * prompt);
 int bb_ask_confirmation(void);
-int klogctl(int type, char * b, int len);
 
 extern int bb_parse_mode(const char* s, mode_t* theMode);
 

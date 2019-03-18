@@ -59,12 +59,12 @@ s     - suid type:
 # define APPLET_NOFORK(name,main,l,s,name2)  LINK l name
 
 #else
-  const struct bb_applet applets[] = { /*    name, main, location, need_suid */
-# define APPLET(name,l,s)                    { #name, name##_main USE_FEATURE_INSTALLER(,l) USE_FEATURE_SUID(,s) },
-# define APPLET_NOUSAGE(name,main,l,s)       { #name, main##_main USE_FEATURE_INSTALLER(,l) USE_FEATURE_SUID(,s) },
-# define APPLET_ODDNAME(name,main,l,s,name2) { #name, main##_main USE_FEATURE_INSTALLER(,l) USE_FEATURE_SUID(,s) },
-# define APPLET_NOEXEC(name,main,l,s,name2)  { #name, main##_main USE_FEATURE_INSTALLER(,l) USE_FEATURE_SUID(,s) USE_FEATURE_PREFER_APPLETS(,1) },
-# define APPLET_NOFORK(name,main,l,s,name2)  { #name, main##_main USE_FEATURE_INSTALLER(,l) USE_FEATURE_SUID(,s) USE_FEATURE_PREFER_APPLETS(,1 ,1) },
+  static struct bb_applet applets[] = { /*    name, main, location, need_suid */
+# define APPLET(name,l,s)                    { #name, #name, l, s },
+# define APPLET_NOUSAGE(name,main,l,s)       { #name, #main, l, s },
+# define APPLET_ODDNAME(name,main,l,s,name2) { #name, #main, l, s },
+# define APPLET_NOEXEC(name,main,l,s,name2)  { #name, #main, l, s, 1 },
+# define APPLET_NOFORK(name,main,l,s,name2)  { #name, #main, l, s, 1, 1 },
 #endif
 
 #if ENABLE_INSTALL_NO_USR
@@ -73,7 +73,7 @@ s     - suid type:
 #endif
 
 
-USE_TEST(APPLET_NOEXEC([, test, _BB_DIR_USR_BIN, _BB_SUID_NEVER, test))
+USE_TEST(APPLET_NOFORK([, test, _BB_DIR_USR_BIN, _BB_SUID_NEVER, test))
 USE_TEST(APPLET_NOUSAGE([[, test, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
 USE_ADDGROUP(APPLET(addgroup, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_ADDUSER(APPLET(adduser, _BB_DIR_BIN, _BB_SUID_NEVER))
@@ -111,7 +111,7 @@ USE_CPIO(APPLET(cpio, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_CROND(APPLET(crond, _BB_DIR_USR_SBIN, _BB_SUID_NEVER))
 USE_CRONTAB(APPLET(crontab, _BB_DIR_USR_BIN, _BB_SUID_ALWAYS))
 USE_CRYPTPW(APPLET(cryptpw, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
-USE_CTTYHACK(APPLET_NOUSAGE(cttyhack, cttyhack, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
+USE_CTTYHACK(APPLET_NOUSAGE(cttyhack, cttyhack, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_CUT(APPLET_NOEXEC(cut, cut, _BB_DIR_USR_BIN, _BB_SUID_NEVER, cut))
 USE_DATE(APPLET(date, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_DC(APPLET(dc, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
@@ -171,6 +171,7 @@ USE_GREP(APPLET(grep, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_GUNZIP(APPLET(gunzip, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_GZIP(APPLET(gzip, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_HALT(APPLET(halt, _BB_DIR_SBIN, _BB_SUID_NEVER))
+USE_HD(APPLET_ODDNAME(hd, hexdump, _BB_DIR_USR_BIN, _BB_SUID_NEVER, hd))
 USE_HDPARM(APPLET(hdparm, _BB_DIR_SBIN, _BB_SUID_NEVER))
 USE_HEAD(APPLET(head, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
 USE_HEXDUMP(APPLET_NOEXEC(hexdump, hexdump, _BB_DIR_USR_BIN, _BB_SUID_NEVER, hexdump))
@@ -299,6 +300,7 @@ USE_RX(APPLET(rx, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
 USE_SED(APPLET(sed, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_SELINUXENABLED(APPLET(selinuxenabled, _BB_DIR_USR_SBIN, _BB_SUID_NEVER))
 USE_SEQ(APPLET_NOFORK(seq, seq, _BB_DIR_USR_BIN, _BB_SUID_NEVER, seq))
+USE_SESTATUS(APPLET(sestatus, _BB_DIR_USR_SBIN, _BB_SUID_NEVER))
 USE_SETARCH(APPLET(setarch, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_SETCONSOLE(APPLET(setconsole, _BB_DIR_SBIN, _BB_SUID_NEVER))
 USE_SETENFORCE(APPLET(setenforce, _BB_DIR_USR_SBIN, _BB_SUID_NEVER))
@@ -310,7 +312,6 @@ USE_SETSID(APPLET(setsid, _BB_DIR_USR_BIN, _BB_SUID_NEVER))
 USE_SETUIDGID(APPLET_ODDNAME(setuidgid, chpst, _BB_DIR_USR_BIN, _BB_SUID_NEVER, setuidgid))
 USE_FEATURE_SH_IS_ASH(APPLET_NOUSAGE(sh, ash, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_FEATURE_SH_IS_HUSH(APPLET_NOUSAGE(sh, hush, _BB_DIR_BIN, _BB_SUID_NEVER))
-USE_FEATURE_SH_IS_LASH(APPLET_NOUSAGE(sh, lash, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_FEATURE_SH_IS_MSH(APPLET_NOUSAGE(sh, msh, _BB_DIR_BIN, _BB_SUID_NEVER))
 USE_SHA1SUM(APPLET_ODDNAME(sha1sum, md5_sha1_sum, _BB_DIR_USR_BIN, _BB_SUID_NEVER, sha1sum))
 USE_SLATTACH(APPLET(slattach, _BB_DIR_SBIN, _BB_SUID_NEVER))
@@ -384,7 +385,6 @@ USE_GUNZIP(APPLET_ODDNAME(zcat, gunzip, _BB_DIR_BIN, _BB_SUID_NEVER, zcat))
 USE_ZCIP(APPLET(zcip, _BB_DIR_SBIN, _BB_SUID_NEVER))
 
 #if !defined(PROTOTYPES) && !defined(NAME_MAIN_CNAME) && !defined(MAKE_USAGE)
-	{ NULL }
 };
 #endif
 

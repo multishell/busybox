@@ -11,7 +11,10 @@
 
 #if !defined CONFIG_SYSLOGD
 
+/* SYSLOG_NAMES defined to pull prioritynames[] and facilitynames[]
+ * from syslog.h. Grrrr - glibc puts those in _rwdata_! :( */
 #define SYSLOG_NAMES
+#define SYSLOG_NAMES_CONST /* uclibc is saner :) */
 #include <sys/syslog.h>
 
 #else
@@ -36,9 +39,9 @@
  *
  * Original copyright notice is retained at the end of this file.
  */
-static int decode(char *name, CODE * codetab)
+static int decode(char *name, const CODE *codetab)
 {
-	CODE *c;
+	const CODE *c;
 
 	if (isdigit(*name))
 		return atoi(name);

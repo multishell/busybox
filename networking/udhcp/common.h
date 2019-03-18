@@ -21,6 +21,8 @@ extern const uint8_t MAC_BCAST_ADDR[6]; /* six all-ones */
 #include <netinet/udp.h>
 #include <netinet/ip.h>
 
+#define DHCP_OPTIONS_BUFSIZE 308
+
 struct dhcpMessage {
 	uint8_t op;
 	uint8_t htype;
@@ -37,23 +39,31 @@ struct dhcpMessage {
 	uint8_t sname[64];
 	uint8_t file[128];
 	uint32_t cookie;
-	uint8_t options[308]; /* 312 - cookie */
-};
+	uint8_t options[DHCP_OPTIONS_BUFSIZE + CONFIG_UDHCPC_SLACK_FOR_BUGGY_SERVERS];
+} ATTRIBUTE_PACKED;
 
 struct udp_dhcp_packet {
 	struct iphdr ip;
 	struct udphdr udp;
 	struct dhcpMessage data;
+} ATTRIBUTE_PACKED;
+
+/* Let's see whether compiler understood us right */
+struct BUG_bad_sizeof_struct_udp_dhcp_packet {
+	char BUG_bad_sizeof_struct_udp_dhcp_packet
+		[(sizeof(struct udp_dhcp_packet) != 576 + CONFIG_UDHCPC_SLACK_FOR_BUGGY_SERVERS) ? -1 : 1];
 };
 
-void udhcp_init_header(struct dhcpMessage *packet, char type);
-int udhcp_get_packet(struct dhcpMessage *packet, int fd);
 uint16_t udhcp_checksum(void *addr, int count);
-int udhcp_raw_packet(struct dhcpMessage *payload,
+
+void udhcp_init_header(struct dhcpMessage *packet, char type);
+
+int udhcp_recv_packet(struct dhcpMessage *packet, int fd);
+int udhcp_send_raw_packet(struct dhcpMessage *payload,
 		uint32_t source_ip, int source_port,
 		uint32_t dest_ip, int dest_port,
 		const uint8_t *dest_arp, int ifindex);
-int udhcp_kernel_packet(struct dhcpMessage *payload,
+int udhcp_send_kernel_packet(struct dhcpMessage *payload,
 		uint32_t source_ip, int source_port,
 		uint32_t dest_ip, int dest_port);
 
@@ -69,14 +79,13 @@ void udhcp_run_script(struct dhcpMessage *packet, const char *name);
 #define end_option		udhcp_end_option
 #define add_option_string	udhcp_add_option_string
 #define add_simple_option	udhcp_add_simple_option
-#define option_lengths		udhcp_option_lengths
 /* from socket.h */
 #define listen_socket		udhcp_listen_socket
 #define read_interface		udhcp_read_interface
 
 void udhcp_sp_setup(void);
 int udhcp_sp_fd_set(fd_set *rfds, int extra_fd);
-int udhcp_sp_read(fd_set *rfds);
+int udhcp_sp_read(const fd_set *rfds);
 int raw_socket(int ifindex);
 int read_interface(const char *interface, int *ifindex, uint32_t *addr, uint8_t *arp);
 int listen_socket(/*uint32_t ip,*/ int port, const char *inf);

@@ -71,7 +71,7 @@ static int read_yn(const char *line, void *arg)
 
 
 /* find option 'code' in opt_list */
-struct option_set *find_option(struct option_set *opt_list, char code)
+struct option_set *find_option(struct option_set *opt_list, uint8_t code)
 {
 	while (opt_list && opt_list->data[OPT_CODE] < code)
 		opt_list = opt_list->next;
@@ -90,7 +90,7 @@ static void attach_option(struct option_set **opt_list,
 
 	existing = find_option(*opt_list, option->code);
 	if (!existing) {
-		DEBUG("Attaching option %s to list", option->name);
+		DEBUG("Attaching option %02x to list", option->code);
 
 #if ENABLE_FEATURE_RFC3397
 		if ((option->flags & TYPE_MASK) == OPTION_STR1035)
@@ -119,7 +119,7 @@ static void attach_option(struct option_set **opt_list,
 	}
 
 	/* add it to an existing option */
-	DEBUG("Attaching option %s to existing member of list", option->name);
+	DEBUG("Attaching option %02x to existing member of list", option->code);
 	if (option->flags & OPTION_LIST) {
 #if ENABLE_FEATURE_RFC3397
 		if ((option->flags & TYPE_MASK) == OPTION_STR1035)
@@ -154,31 +154,29 @@ static int read_opt(const char *const_line, void *arg)
 {
 	struct option_set **opt_list = arg;
 	char *opt, *val, *endptr;
-	const struct dhcp_option *option;
-	int retval = 0, length;
-	char buffer[8];
 	char *line;
+	const struct dhcp_option *option;
+	int retval, length, idx;
+	char buffer[8] __attribute__((aligned(4)));
 	uint16_t *result_u16 = (uint16_t *) buffer;
 	uint32_t *result_u32 = (uint32_t *) buffer;
 
 	/* Cheat, the only const line we'll actually get is "" */
 	line = (char *) const_line;
 	opt = strtok(line, " \t=");
-	if (!opt) return 0;
+	if (!opt)
+		return 0;
 
-	option = dhcp_options;
-	while (1) {
-		if (!option->code)
-			return 0;
-		if (!strcasecmp(option->name, opt))
-			break;
-		option++;
-	}
+	idx = index_in_strings(opt, dhcp_option_strings); /* NB: was strcasecmp! */
+	if (idx < 0)
+		return 0;
+	option = &dhcp_options[idx];
 
+	retval = 0;
 	do {
 		val = strtok(NULL, ", \t");
 		if (!val) break;
-		length = option_lengths[option->flags & TYPE_MASK];
+		length = dhcp_option_lengths[option->flags & TYPE_MASK];
 		retval = 0;
 		opt = buffer; /* new meaning for variable opt */
 		switch (option->flags & TYPE_MASK) {
@@ -343,8 +341,10 @@ int read_config(const char *file)
 		p = strchr(buffer, '#');
 		if (p) *p = '\0';
 
-		if (!(token = strtok(buffer, " \t"))) continue;
-		if (!(line = strtok(NULL, ""))) continue;
+		token = strtok(buffer, " \t");
+		if (!token) continue;
+		line = strtok(NULL, "");
+		if (!line) continue;
 
 		/* eat leading whitespace */
 		line = skip_whitespace(line);
