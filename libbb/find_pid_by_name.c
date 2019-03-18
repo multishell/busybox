@@ -77,7 +77,7 @@ static int comm_match(procps_status_t *p, const char *procName)
  *  Returns a list of all matching PIDs
  *  It is the caller's duty to free the returned pidlist.
  */
-pid_t* find_pid_by_name(const char *procName)
+pid_t* FAST_FUNC find_pid_by_name(const char *procName)
 {
 	pid_t* pidList;
 	int i = 0;
@@ -88,9 +88,9 @@ pid_t* find_pid_by_name(const char *procName)
 		if (comm_match(p, procName)
 		/* or we require argv0 to match (essential for matching reexeced /proc/self/exe)*/
 		 || (p->argv0 && strcmp(bb_basename(p->argv0), procName) == 0)
-		/* TODO: we can also try /proc/NUM/exe link, do we want that? */
+		/* TOOD: we can also try /proc/NUM/exe link, do we want that? */
 		) {
-			pidList = xrealloc(pidList, sizeof(*pidList) * (i+2));
+			pidList = xrealloc_vector(pidList, 2, i);
 			pidList[i++] = p->pid;
 		}
 	}
@@ -99,7 +99,7 @@ pid_t* find_pid_by_name(const char *procName)
 	return pidList;
 }
 
-pid_t* pidlist_reverse(pid_t *pidList)
+pid_t* FAST_FUNC pidlist_reverse(pid_t *pidList)
 {
 	int i = 0;
 	while (pidList[i])

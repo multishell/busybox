@@ -136,7 +136,7 @@ static void read_base64(FILE *src_stream, FILE *dst_stream)
 }
 
 int uudecode_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int uudecode_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int uudecode_main(int argc UNUSED_PARAM, char **argv)
 {
 	FILE *src_stream;
 	char *outname = NULL;
@@ -152,7 +152,7 @@ int uudecode_main(int argc ATTRIBUTE_UNUSED, char **argv)
 
 	/* Search for the start of the encoding */
 	while ((line = xmalloc_fgetline(src_stream)) != NULL) {
-		void (*decode_fn_ptr)(FILE * src, FILE * dst);
+		void (*decode_fn_ptr)(FILE *src, FILE *dst);
 		char *line_ptr;
 		FILE *dst_stream;
 		int mode;
@@ -179,7 +179,7 @@ int uudecode_main(int argc ATTRIBUTE_UNUSED, char **argv)
 		}
 		dst_stream = stdout;
 		if (NOT_LONE_DASH(outname)) {
-			dst_stream = xfopen(outname, "w");
+			dst_stream = xfopen_for_write(outname);
 			fchmod(fileno(dst_stream), mode & (S_IRWXU | S_IRWXG | S_IRWXO));
 		}
 		free(line);

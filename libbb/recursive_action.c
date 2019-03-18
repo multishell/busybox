@@ -22,10 +22,10 @@
  * is so stinking huge.
  */
 
-static int true_action(const char *fileName ATTRIBUTE_UNUSED,
-		struct stat *statbuf ATTRIBUTE_UNUSED,
-		void* userData ATTRIBUTE_UNUSED,
-		int depth ATTRIBUTE_UNUSED)
+static int FAST_FUNC true_action(const char *fileName UNUSED_PARAM,
+		struct stat *statbuf UNUSED_PARAM,
+		void* userData UNUSED_PARAM,
+		int depth UNUSED_PARAM)
 {
 	return TRUE;
 }
@@ -34,19 +34,29 @@ static int true_action(const char *fileName ATTRIBUTE_UNUSED,
  * recursive_action() return 0, but it doesn't stop directory traversal
  * (fileAction/dirAction will be called on each file).
  *
- * if !depthFirst, dirAction return value of 0 (FALSE) or 2 (SKIP)
- * prevents recursion into that directory, instead
- * recursive_action() returns 0 (if FALSE) or 1 (if SKIP).
+ * If !ACTION_RECURSE, dirAction is called on the directory and its
+ * return value is returned from recursive_action(). No recursion.
+ *
+ * If ACTION_RECURSE, recursive_action() is called on each directory.
+ * If any one of these calls returns 0, current recursive_action() returns 0.
+ *
+ * If ACTION_DEPTHFIRST, dirAction is called after recurse.
+ * If it returns 0, the warning is printed and recursive_action() returns 0.
+ *
+ * If !ACTION_DEPTHFIRST, dirAction is called before we recurse.
+ * Return value of 0 (FALSE) or 2 (SKIP) prevents recursion
+ * into that directory, instead recursive_action() returns 0 (if FALSE)
+ * or 1 (if SKIP)
  *
  * followLinks=0/1 differs mainly in handling of links to dirs.
  * 0: lstat(statbuf). Calls fileAction on link name even if points to dir.
  * 1: stat(statbuf). Calls dirAction and optionally recurse on link to dir.
  */
 
-int recursive_action(const char *fileName,
+int FAST_FUNC recursive_action(const char *fileName,
 		unsigned flags,
-		int (*fileAction)(const char *fileName, struct stat *statbuf, void* userData, int depth),
-		int (*dirAction)(const char *fileName, struct stat *statbuf, void* userData, int depth),
+		int FAST_FUNC (*fileAction)(const char *fileName, struct stat *statbuf, void* userData, int depth),
+		int FAST_FUNC (*dirAction)(const char *fileName, struct stat *statbuf, void* userData, int depth),
 		void* userData,
 		unsigned depth)
 {
@@ -59,7 +69,8 @@ int recursive_action(const char *fileName,
 	if (!dirAction) dirAction = true_action;
 
 	status = ACTION_FOLLOWLINKS; /* hijack a variable for bitmask... */
-	if (!depth) status = ACTION_FOLLOWLINKS | ACTION_FOLLOWLINKS_L0;
+	if (!depth)
+		status = ACTION_FOLLOWLINKS | ACTION_FOLLOWLINKS_L0;
 	status = ((flags & status) ? stat : lstat)(fileName, &statbuf);
 	if (status < 0) {
 #ifdef DEBUG_RECURS_ACTION
@@ -105,10 +116,20 @@ int recursive_action(const char *fileName,
 		nextFile = concat_subpath_file(fileName, next->d_name);
 		if (nextFile == NULL)
 			continue;
-		/* now descend into it (NB: ACTION_RECURSE is set in flags) */
-		if (!recursive_action(nextFile, flags, fileAction, dirAction, userData, depth+1))
+		/* process every file (NB: ACTION_RECURSE is set in flags) */
+		if (!recursive_action(nextFile, flags, fileAction, dirAction,
+						userData, depth + 1))
 			status = FALSE;
+//		s = recursive_action(nextFile, flags, fileAction, dirAction,
+//						userData, depth + 1);
 		free(nextFile);
+//#define RECURSE_RESULT_ABORT 3
+//		if (s == RECURSE_RESULT_ABORT) {
+//			closedir(dir);
+//			return s;
+//		}
+//		if (s == FALSE)
+//			status = FALSE;
 	}
 	closedir(dir);
 
@@ -117,11 +138,10 @@ int recursive_action(const char *fileName,
 			goto done_nak_warn;
 	}
 
-	if (!status)
-		return FALSE;
-	return TRUE;
+	return status;
 
  done_nak_warn:
-	bb_simple_perror_msg(fileName);
+	if (!(flags & ACTION_QUIET))
+		bb_simple_perror_msg(fileName);
 	return FALSE;
 }

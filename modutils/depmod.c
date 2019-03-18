@@ -47,8 +47,8 @@ static char* find_keyword(void *the_module, size_t len, const char * const word)
 	} while (1);
 	return ptr;
 }
-static int fileAction(const char *fname, struct stat *sb,
-					void ATTRIBUTE_UNUSED *data, int ATTRIBUTE_UNUSED depth)
+static int FAST_FUNC fileAction(const char *fname, struct stat *sb,
+					void UNUSED_PARAM *data, int UNUSED_PARAM depth)
 {
 	size_t len = sb->st_size;
 	void *the_module;
@@ -110,7 +110,7 @@ static int fileAction(const char *fname, struct stat *sb,
 }
 
 int depmod_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int depmod_main(int ATTRIBUTE_UNUSED argc, char **argv)
+int depmod_main(int argc UNUSED_PARAM, char **argv)
 {
 	int ret;
 	size_t moddir_base_len = 0; /* length of the "-b basedir" */
@@ -150,7 +150,7 @@ int depmod_main(int ATTRIBUTE_UNUSED argc, char **argv)
 
 	if (!(option_mask32 & ARG_n)) { /* --dry-run */
 		chp = concat_path_file(moddir, CONFIG_DEFAULT_DEPMOD_FILE);
-		filedes = xfopen(chp, "w");
+		filedes = xfopen_for_write(chp);
 		if (ENABLE_FEATURE_CLEAN_UP)
 			free(chp);
 	}

@@ -167,7 +167,7 @@ static int run_pipeline(struct pipeline *line)
 		if (!pid) {
 			run_applet_and_exit(cmd->argv[0],cmd->argc,cmd->argv);
 			execvp(cmd->argv[0],cmd->argv);
-			printf("No %s",cmd->argv[0]);
+			printf("No %s", cmd->argv[0]);
 			exit(EXIT_FAILURE);
 		} else waitpid(pid, &status, 0);
 	}
@@ -206,7 +206,7 @@ int bbsh_main(int argc, char **argv)
 
 	getopt32(argv, "c:", &command);
 
-	f = argv[optind] ? xfopen(argv[optind],"r") : NULL;
+	f = argv[optind] ? xfopen_for_read(argv[optind]) : NULL;
 	if (command) handle(command);
 	else {
 		unsigned cmdlen=0;

@@ -204,7 +204,7 @@ static void do_pidfile(void)
 	FILE *f;
 	unsigned pid;
 
-	f = fopen(pidfile, "r");
+	f = fopen_for_read(pidfile);
 	if (f) {
 		if (fscanf(f, "%u", &pid) == 1)
 			check(pid);
@@ -320,7 +320,7 @@ static const char start_stop_daemon_longopts[] ALIGN1 =
 #endif
 
 int start_stop_daemon_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int start_stop_daemon_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int start_stop_daemon_main(int argc UNUSED_PARAM, char **argv)
 {
 	unsigned opt;
 	char *signame;

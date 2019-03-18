@@ -13,11 +13,11 @@
 #include "libbb.h"
 
 /* do nothing signal handler */
-static void askpass_timeout(int ATTRIBUTE_UNUSED ignore)
+static void askpass_timeout(int UNUSED_PARAM ignore)
 {
 }
 
-char *bb_askpass(int timeout, const char *prompt)
+char* FAST_FUNC bb_askpass(int timeout, const char *prompt)
 {
 	/* Was static char[BIGNUM] */
 	enum { sizeof_passwd = 128 };

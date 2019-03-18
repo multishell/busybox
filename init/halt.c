@@ -16,7 +16,7 @@
 #endif
 
 int halt_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int halt_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int halt_main(int argc UNUSED_PARAM, char **argv)
 {
 	static const int magic[] = {
 #ifdef RB_HALT_SYSTEM
@@ -34,7 +34,7 @@ RB_AUTOBOOT
 	static const smallint signals[] = { SIGUSR1, SIGUSR2, SIGTERM };
 
 	int delay = 0;
-	int which, flags, rc = 1;
+	int which, flags, rc;
 #if ENABLE_FEATURE_WTMP
 	struct utmp utmp;
 	struct utsname uts;
@@ -66,12 +66,15 @@ RB_AUTOBOOT
 #endif /* !ENABLE_FEATURE_WTMP */
 
 	if (flags & 8) /* -w */
-		return 0;
+		return EXIT_SUCCESS;
 	if (!(flags & 2)) /* no -n */
 		sync();
 
 	/* Perform action. */
-	if (ENABLE_INIT && !(flags & 4)) {
+	rc = 1;
+	if (!(flags & 4)) { /* no -f */
+//TODO: I tend to think that signalling linuxrc is wrong
+// pity original author didn't comment on it...
 		if (ENABLE_FEATURE_INITRD) {
 			pid_t *pidlist = find_pid_by_name("linuxrc");
 			if (pidlist[0] > 0)

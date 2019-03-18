@@ -33,11 +33,7 @@
 #define SENDMAIL        "sendmail"
 #endif
 #ifndef SENDMAIL_ARGS
-#	if ENABLE_SENDMAIL
-#		define SENDMAIL_ARGS   "localhost", line->cl_MailTo
-#	else
-#		define SENDMAIL_ARGS   "-ti", "oem"
-#	endif
+#define SENDMAIL_ARGS   "-ti", "oem"
 #endif
 #ifndef CRONUPDATE
 #define CRONUPDATE      "cron.update"
@@ -163,7 +159,7 @@ static void crondlog(const char *ctl, ...)
 }
 
 int crond_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int crond_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int crond_main(int argc UNUSED_PARAM, char **argv)
 {
 	unsigned opt;
 
@@ -308,7 +304,7 @@ static const char MonAry[] ALIGN1 =
 	/* "Jan""Feb""Mar""Apr""May""Jun""Jul""Aug""Sep""Oct""Nov""Dec" */
 ;
 
-static char *ParseField(char *user, char *ary, int modvalue, int off,
+static void ParseField(char *user, char *ary, int modvalue, int off,
 				const char *names, char *ptr)
 /* 'names' is a pointer to a set of 3-char abbreviations */
 {
@@ -316,11 +312,11 @@ static char *ParseField(char *user, char *ary, int modvalue, int off,
 	int n1 = -1;
 	int n2 = -1;
 
-	if (base == NULL) {
-		return NULL;
-	}
+	// this can't happen due to config_read()
+	/*if (base == NULL)
+		return;*/
 
-	while (!isspace(*ptr)) {
+	while (1) {
 		int skip = 0;
 
 		/* Handle numeric digit or symbol or '*' */
@@ -356,8 +352,7 @@ static char *ParseField(char *user, char *ary, int modvalue, int off,
 
 		/* handle optional range '-' */
 		if (skip == 0) {
-			crondlog(WARN9 "user %s: parse error at %s", user, base);
-			return NULL;
+			goto err;
 		}
 		if (*ptr == '-' && n2 < 0) {
 			++ptr;
@@ -392,8 +387,7 @@ static char *ParseField(char *user, char *ary, int modvalue, int off,
 					s0 = skip;
 				}
 				if (--failsafe == 0) {
-					crondlog(WARN9 "user %s: parse error at %s", user, base);
-					return NULL;
+					goto err;
 				}
 			} while (n1 != n2);
 
@@ -406,9 +400,10 @@ static char *ParseField(char *user, char *ary, int modvalue, int off,
 		n2 = -1;
 	}
 
-	if (!isspace(*ptr)) {
+	if (*ptr) {
+ err:
 		crondlog(WARN9 "user %s: parse error at %s", user, base);
-		return NULL;
+		return;
 	}
 
 	if (DebugOpt && (LogLevel <= 5)) { /* like LVL5 */
@@ -418,7 +413,6 @@ static char *ParseField(char *user, char *ary, int modvalue, int off,
 			fprintf(stderr, "%d", (unsigned char)ary[i]);
 		fputc('\n', stderr);
 	}
-	return skip_whitespace(ptr);
 }
 
 static void FixDayDow(CronLine *line)
@@ -449,11 +443,10 @@ static void FixDayDow(CronLine *line)
 
 static void SynchronizeFile(const char *fileName)
 {
-	FILE *fi;
+	struct parser_t *parser;
 	struct stat sbuf;
-	int maxEntries;
 	int maxLines;
-	char buf[1024];
+	char *tokens[6];
 #if ENABLE_FEATURE_CROND_CALL_SENDMAIL
 	char *mailTo = NULL;
 #endif
@@ -462,57 +455,50 @@ static void SynchronizeFile(const char *fileName)
 		return;
 
 	DeleteFile(fileName);
-	fi = fopen(fileName, "r");
-	if (!fi)
+	parser = config_open(fileName);
+	if (!parser)
 		return;
 
-	maxEntries = MAXLINES;
-	if (strcmp(fileName, "root") == 0) {
-		maxEntries = 65535;
-	}
-	maxLines = maxEntries * 10;
+	maxLines = (strcmp(fileName, "root") == 0) ? 65535 : MAXLINES;
 
-	if (fstat(fileno(fi), &sbuf) == 0 && sbuf.st_uid == DaemonUid) {
+	if (fstat(fileno(parser->fp), &sbuf) == 0 && sbuf.st_uid == DaemonUid) {
 		CronFile *file = xzalloc(sizeof(CronFile));
 		CronLine **pline;
+		int n;
 
 		file->cf_User = xstrdup(fileName);
 		pline = &file->cf_LineBase;
 
-		while (fgets(buf, sizeof(buf), fi) != NULL && --maxLines) {
+		while (1) {
 			CronLine *line;
-			char *ptr;
 
-			trim(buf);
-			if (buf[0] == '\0' || buf[0] == '#') {
-				continue;
-			}
-			if (--maxEntries == 0) {
+			if (!--maxLines)
 				break;
-			}
-			if (DebugOpt) {
-				crondlog(LVL5 "user:%s entry:%s", fileName, buf);
-			}
+			n = config_read(parser, tokens, 6, 1, "# \t", PARSE_NORMAL | PARSE_KEEP_COPY);
+			if (!n)
+				break;
+
+			if (DebugOpt)
+				crondlog(LVL5 "user:%s entry:%s", fileName, parser->data);
+
 			/* check if line is setting MAILTO= */
-			if (0 == strncmp("MAILTO=", buf, 7)) {
+			if (0 == strncmp(tokens[0], "MAILTO=", 7)) {
 #if ENABLE_FEATURE_CROND_CALL_SENDMAIL
 				free(mailTo);
-				mailTo = (buf[7]) ? xstrdup(buf+7) : NULL;
+				mailTo = (tokens[0][7]) ? xstrdup(&tokens[0][7]) : NULL;
 #endif /* otherwise just ignore such lines */
 				continue;
 			}
-			*pline = line = xzalloc(sizeof(CronLine));
-			/* parse date ranges */
-			ptr = ParseField(file->cf_User, line->cl_Mins, 60, 0, NULL, buf);
-			ptr = ParseField(file->cf_User, line->cl_Hrs, 24, 0, NULL, ptr);
-			ptr = ParseField(file->cf_User, line->cl_Days, 32, 0, NULL, ptr);
-			ptr = ParseField(file->cf_User, line->cl_Mons, 12, -1, MonAry, ptr);
-			ptr = ParseField(file->cf_User, line->cl_Dow, 7, 0, DowAry, ptr);
-			/* check failure */
-			if (ptr == NULL) {
-				free(line);
+			/* check if a minimum of tokens is specified */
+			if (n < 6)
 				continue;
-			}
+			*pline = line = xzalloc(sizeof(*line));
+			/* parse date ranges */
+			ParseField(file->cf_User, line->cl_Mins, 60, 0, NULL, tokens[0]);
+			ParseField(file->cf_User, line->cl_Hrs, 24, 0, NULL, tokens[1]);
+			ParseField(file->cf_User, line->cl_Days, 32, 0, NULL, tokens[2]);
+			ParseField(file->cf_User, line->cl_Mons, 12, -1, MonAry, tokens[3]);
+			ParseField(file->cf_User, line->cl_Dow, 7, 0, DowAry, tokens[4]);
 			/*
 			 * fix days and dow - if one is not "*" and the other
 			 * is "*", the other is set to 0, and vise-versa
@@ -523,22 +509,23 @@ static void SynchronizeFile(const char *fileName)
 			line->cl_MailTo = xstrdup(mailTo);
 #endif
 			/* copy command */
-			line->cl_Shell = xstrdup(ptr);
+			line->cl_Shell = xstrdup(tokens[5]);
 			if (DebugOpt) {
-				crondlog(LVL5 " command:%s", ptr);
+				crondlog(LVL5 " command:%s", tokens[5]);
 			}
 			pline = &line->cl_Next;
+//bb_error_msg("M[%s]F[%s][%s][%s][%s][%s][%s]", mailTo, tokens[0], tokens[1], tokens[2], tokens[3], tokens[4], tokens[5]);
 		}
 		*pline = NULL;
 
 		file->cf_Next = FileBase;
 		FileBase = file;
 
-		if (maxLines == 0 || maxEntries == 0) {
+		if (maxLines == 0) {
 			crondlog(WARN9 "user %s: too many lines", fileName);
 		}
 	}
-	fclose(fi);
+	config_close(parser);
 }
 
 static void CheckUpdates(void)
@@ -546,7 +533,7 @@ static void CheckUpdates(void)
 	FILE *fi;
 	char buf[256];
 
-	fi = fopen(CRONUPDATE, "r");
+	fi = fopen_for_read(CRONUPDATE);
 	if (fi != NULL) {
 		unlink(CRONUPDATE);
 		while (fgets(buf, sizeof(buf), fi) != NULL) {
@@ -792,7 +779,7 @@ ForkJob(const char *user, CronLine *line, int mailFd,
 			xmove_fd(mailFd, mail_filename ? 1 : 0);
 			dup2(1, 2);
 		}
-		execl(prog, prog, cmd, arg, NULL);
+		execlp(prog, prog, cmd, arg, NULL);
 		crondlog(ERR20 "can't exec, user %s cmd %s %s %s", user, prog, cmd, arg);
 		if (mail_filename) {
 			fdprintf(1, "Exec failed: %s -c %s\n", prog, arg);
@@ -843,7 +830,7 @@ static void RunJob(const char *user, CronLine *line)
 
 		if (mailFd >= 0) {
 			line->cl_MailFlag = 1;
-			fdprintf(mailFd, "To: %s\nSubject: cron: %s\n\n", user,
+			fdprintf(mailFd, "To: %s\nSubject: cron: %s\n\n", line->cl_MailTo,
 				line->cl_Shell);
 			line->cl_MailPos = lseek(mailFd, 0, SEEK_CUR);
 		} else {

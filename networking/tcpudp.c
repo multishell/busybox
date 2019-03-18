@@ -144,7 +144,7 @@ static void connection_status(void)
 		bb_error_msg("status %u/%u", cnum, cmax);
 }
 
-static void sig_child_handler(int sig ATTRIBUTE_UNUSED)
+static void sig_child_handler(int sig UNUSED_PARAM)
 {
 	int wstat;
 	int pid;
@@ -162,7 +162,7 @@ static void sig_child_handler(int sig ATTRIBUTE_UNUSED)
 }
 
 int tcpudpsvd_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int tcpudpsvd_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int tcpudpsvd_main(int argc UNUSED_PARAM, char **argv)
 {
 	char *str_C, *str_t;
 	char *user;
@@ -216,8 +216,7 @@ int tcpudpsvd_main(int argc ATTRIBUTE_UNUSED, char **argv)
 	if (max_per_host > cmax)
 		max_per_host = cmax;
 	if (option_mask32 & OPT_u) {
-		if (!get_uidgid(&ugid, user, 1))
-			bb_error_msg_and_die("unknown user/group: %s", user);
+		xget_uidgid(&ugid, user);
 	}
 #ifdef SSLSVD
 	if (option_mask32 & OPT_U) ssluser = optarg;
@@ -245,9 +244,9 @@ int tcpudpsvd_main(int argc ATTRIBUTE_UNUSED, char **argv)
 	if (option_mask32 & OPT_u)
 		if (!uidgid_get(&sslugid, ssluser, 1)) {
 			if (errno) {
-				bb_perror_msg_and_die("fatal: cannot get user/group: %s", ssluser);
+				bb_perror_msg_and_die("can't get user/group: %s", ssluser);
 			}
-			bb_error_msg_and_die("unknown user/group '%s'", ssluser);
+			bb_error_msg_and_die("unknown user/group %s", ssluser);
 		}
 	if (!cert) cert = "./cert.pem";
 	if (!key) key = cert;

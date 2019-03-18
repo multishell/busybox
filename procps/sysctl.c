@@ -57,7 +57,7 @@ enum {
 };
 
 int sysctl_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int sysctl_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int sysctl_main(int argc UNUSED_PARAM, char **argv)
 {
 	int retval;
 	int opt;
@@ -88,56 +88,30 @@ int sysctl_main(int argc ATTRIBUTE_UNUSED, char **argv)
  * preload the sysctl's from a conf file
  * - we parse the file and then reform it (strip out whitespace)
  */
-#define PRELOAD_BUF 256
 
 static int sysctl_preload_file_and_exit(const char *filename)
 {
-	int lineno;
-	char oneline[PRELOAD_BUF];
-	char buffer[PRELOAD_BUF];
-	char *name, *value;
-	FILE *fp;
+	char *token[2];
+	parser_t *parser;
 
-	fp = xfopen(filename, "r");
-
-	lineno = 0;
-	while (fgets(oneline, sizeof(oneline) - 1, fp)) {
-		lineno++;
-		trim(oneline);
-		if (oneline[0] == '#' || oneline[0] == ';')
-			continue;
-		if (!oneline[0] || !oneline[1])
-			continue;
-
-		name = strtok(oneline, "=");
-		if (!name) {
-			bb_error_msg(WARN_BAD_LINE, filename, lineno);
-			continue;
+	parser = config_open(filename);
+	while (config_read(parser, token, 2, 2, "# \t=", PARSE_NORMAL)) { // TODO: ';' is comment char too
+//		if (!token[1]) {
+//			bb_error_msg(WARN_BAD_LINE, filename, parser->lineno);
+//		} else {
+		{
+#if 0
+			char *s = xasprintf("%s=%s", token[0], token[1]);
+			sysctl_write_setting(s);
+			free(s);
+#else // PLAY_WITH_FIRE for -4 bytes?
+			sprintf(parser->line, "%s=%s", token[0], token[1]); // must have room by definition
+			sysctl_write_setting(parser->line);
+#endif
 		}
-		trim(name);
-		if (!*name) {
-			bb_error_msg(WARN_BAD_LINE, filename, lineno);
-			continue;
-		}
-
-		value = strtok(NULL, "\n\r");
-		if (!value) {
-			bb_error_msg(WARN_BAD_LINE, filename, lineno);
-			continue;
-		}
-		while (*value == ' ' || *value == '\t')
-			value++;
-		if (!*value) {
-			bb_error_msg(WARN_BAD_LINE, filename, lineno);
-			continue;
-		}
-
-		/* safe because sizeof(oneline) == sizeof(buffer) */
-		sprintf(buffer, "%s=%s", name, value);
-		sysctl_write_setting(buffer);
 	}
 	if (ENABLE_FEATURE_CLEAN_UP)
-		fclose(fp);
+		config_close(parser);
 	return 0;
 } /* end sysctl_preload_file_and_exit() */
 
@@ -229,7 +203,7 @@ static int sysctl_read_setting(const char *name)
 	while ((cptr = strchr(outname, '/')) != NULL)
 		*cptr = '.';
 
-	fp = fopen(tmpname, "r");
+	fp = fopen_for_read(tmpname);
 	if (fp == NULL) {
 		switch (errno) {
 		case ENOENT:

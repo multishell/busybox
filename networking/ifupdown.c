@@ -249,6 +249,14 @@ static char *parse(const char *command, struct interface_defn_t *ifd)
 				varvalue = get_var(command, nextpercent - command, ifd);
 
 				if (varvalue) {
+#if ENABLE_FEATURE_IFUPDOWN_IP
+					/* "hwaddress <class> <address>":
+					 * unlike ifconfig, ip doesnt want <class>
+					 * (usually "ether" keyword). Skip it. */
+					if (strncmp(command, "hwaddress", 9) == 0) {
+						varvalue = skip_whitespace(skip_non_whitespace(varvalue));
+					}
+#endif
 					addstr(&result, varvalue, strlen(varvalue));
 				} else {
 #if ENABLE_FEATURE_IFUPDOWN_IP
@@ -448,7 +456,10 @@ static int static_down(struct interface_defn_t *ifd, execfn *exec)
 	result = execute("ip addr flush dev %iface%", ifd, exec);
 	result += execute("ip link set %iface% down", ifd, exec);
 #else
-	result = execute("[[route del default gw %gateway% %iface%]]", ifd, exec);
+	/* result = execute("[[route del default gw %gateway% %iface%]]", ifd, exec); */
+	/* Bringing the interface down deletes the routes in itself.
+	   Otherwise this fails if we reference 'gateway' when using this from dhcp_down */
+	result = 1;
 	result += execute("ifconfig %iface% down", ifd, exec);
 #endif
 	return ((result == 2) ? 2 : 0);
@@ -489,7 +500,11 @@ static int dhcp_up(struct interface_defn_t *ifd, execfn *exec)
 	unsigned i;
 #if ENABLE_FEATURE_IFUPDOWN_IP
 	/* ip doesn't up iface when it configures it (unlike ifconfig) */
-	if (!execute("ip link set %iface% up", ifd, exec))
+	if (!execute("ip link set[[ address %hwaddress%]] %iface% up", ifd, exec))
+		return 0;
+#else
+	/* needed if we have hwaddress on dhcp iface */
+	if (!execute("ifconfig %iface%[[ hw %hwaddress%]] up", ifd, exec))
 		return 0;
 #endif
 	for (i = 0; i < ARRAY_SIZE(ext_dhcp_clients); i++) {
@@ -504,7 +519,11 @@ static int dhcp_up(struct interface_defn_t *ifd, execfn *exec)
 {
 #if ENABLE_FEATURE_IFUPDOWN_IP
 	/* ip doesn't up iface when it configures it (unlike ifconfig) */
-	if (!execute("ip link set %iface% up", ifd, exec))
+	if (!execute("ip link set[[ address %hwaddress%]] %iface% up", ifd, exec))
+		return 0;
+#else
+	/* needed if we have hwaddress on dhcp iface */
+	if (!execute("ifconfig %iface%[[ hw %hwaddress%]] up", ifd, exec))
 		return 0;
 #endif
 	return execute("udhcpc -R -n -p /var/run/udhcpc.%iface%.pid "
@@ -512,8 +531,8 @@ static int dhcp_up(struct interface_defn_t *ifd, execfn *exec)
 			ifd, exec);
 }
 #else
-static int dhcp_up(struct interface_defn_t *ifd ATTRIBUTE_UNUSED,
-		execfn *exec ATTRIBUTE_UNUSED)
+static int dhcp_up(struct interface_defn_t *ifd UNUSED_PARAM,
+		execfn *exec UNUSED_PARAM)
 {
 	return 0; /* no dhcp support */
 }
@@ -522,29 +541,50 @@ static int dhcp_up(struct interface_defn_t *ifd ATTRIBUTE_UNUSED,
 #if ENABLE_FEATURE_IFUPDOWN_EXTERNAL_DHCP
 static int dhcp_down(struct interface_defn_t *ifd, execfn *exec)
 {
+	int result = 0;
 	unsigned i;
+
 	for (i = 0; i < ARRAY_SIZE(ext_dhcp_clients); i++) {
-		if (exists_execable(ext_dhcp_clients[i].name))
-			return execute(ext_dhcp_clients[i].stopcmd, ifd, exec);
+		if (exists_execable(ext_dhcp_clients[i].name)) {
+			result += execute(ext_dhcp_clients[i].stopcmd, ifd, exec);
+			if (result)
+				break;
+		}
 	}
-	bb_error_msg("no dhcp clients found, using static interface shutdown");
-	return static_down(ifd, exec);
+
+	if (!result)
+		bb_error_msg("warning: no dhcp clients found and stopped");
+
+	/* Sleep a bit, otherwise static_down tries to bring down interface too soon,
+	   and it may come back up because udhcpc is still shutting down */
+	usleep(100000);
+	result += static_down(ifd, exec);
+	return ((result == 3) ? 3 : 0);
 }
 #elif ENABLE_APP_UDHCPC
 static int dhcp_down(struct interface_defn_t *ifd, execfn *exec)
 {
-	return execute("kill "
+	int result;
+	result = execute("kill "
 	               "`cat /var/run/udhcpc.%iface%.pid` 2>/dev/null", ifd, exec);
+	/* Also bring the hardware interface down since
+	   killing the dhcp client alone doesn't do it.
+	   This enables consecutive ifup->ifdown->ifup */
+	/* Sleep a bit, otherwise static_down tries to bring down interface too soon,
+	   and it may come back up because udhcpc is still shutting down */
+	usleep(100000);
+	result += static_down(ifd, exec);
+	return ((result == 3) ? 3 : 0);
 }
 #else
-static int dhcp_down(struct interface_defn_t *ifd ATTRIBUTE_UNUSED,
-		execfn *exec ATTRIBUTE_UNUSED)
+static int dhcp_down(struct interface_defn_t *ifd UNUSED_PARAM,
+		execfn *exec UNUSED_PARAM)
 {
 	return 0; /* no dhcp support */
 }
 #endif
 
-static int manual_up_down(struct interface_defn_t *ifd ATTRIBUTE_UNUSED, execfn *exec ATTRIBUTE_UNUSED)
+static int manual_up_down(struct interface_defn_t *ifd UNUSED_PARAM, execfn *exec UNUSED_PARAM)
 {
 	return 1;
 }
@@ -675,7 +715,7 @@ static struct interfaces_file_t *read_interfaces(const char *filename)
 	 * the last character a backslash.
 	 *
 	 * Seen elsewhere in example config file:
-	 * A "#" character in the very first column makes the rest of the line
+	 * A first non-blank "#" character makes the rest of the line
 	 * be ignored. Blank lines are ignored. Lines may be indented freely.
 	 * A "\" character at the very end of the line indicates the next line
 	 * should be treated as a continuation of the current one.
@@ -692,7 +732,7 @@ static struct interfaces_file_t *read_interfaces(const char *filename)
 	enum { NONE, IFACE, MAPPING } currently_processing = NONE;
 
 	defn = xzalloc(sizeof(*defn));
-	f = xfopen(filename, "r");
+	f = xfopen_for_read(filename);
 
 	while ((buf = xmalloc_fgetline(f)) != NULL) {
 #if ENABLE_DESKTOP
@@ -711,7 +751,7 @@ static struct interfaces_file_t *read_interfaces(const char *filename)
 #endif
 		rest_of_line = buf;
 		first_word = next_word(&rest_of_line);
-		if (!first_word || *buf == '#') {
+		if (!first_word || *first_word == '#') {
 			free(buf);
 			continue; /* blank/comment line */
 		}
@@ -721,11 +761,7 @@ static struct interfaces_file_t *read_interfaces(const char *filename)
 			currmap = xzalloc(sizeof(*currmap));
 
 			while ((first_word = next_word(&rest_of_line)) != NULL) {
-				if (currmap->n_matches >= currmap->max_matches) {
-					currmap->max_matches = currmap->max_matches * 2 + 1;
-					currmap->match = xrealloc(currmap->match,
-						sizeof(*currmap->match) * currmap->max_matches);
-				}
+				currmap->match = xrealloc_vector(currmap->match, 4, currmap->n_matches);
 				currmap->match[currmap->n_matches++] = xstrdup(first_word);
 			}
 			/*currmap->max_mappings = 0; - done by xzalloc */
@@ -1094,7 +1130,7 @@ static llist_t *find_iface_state(llist_t *state_list, const char *iface)
 static llist_t *read_iface_state(void)
 {
 	llist_t *state_list = NULL;
-	FILE *state_fp = fopen(CONFIG_IFUPDOWN_IFSTATE_PATH, "r");
+	FILE *state_fp = fopen_for_read(CONFIG_IFUPDOWN_IFSTATE_PATH);
 
 	if (state_fp) {
 		char *start, *end_ptr;
@@ -1260,7 +1296,7 @@ int ifupdown_main(int argc, char **argv)
 			}
 
 			/* Actually write the new state */
-			state_fp = xfopen(CONFIG_IFUPDOWN_IFSTATE_PATH, "w");
+			state_fp = xfopen_for_write(CONFIG_IFUPDOWN_IFSTATE_PATH);
 			state = state_list;
 			while (state) {
 				if (state->data) {

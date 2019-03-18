@@ -382,9 +382,8 @@ static int search_for_provides(int needle, int start_at)
  */
 static void add_edge_to_node(common_node_t *node, edge_t *edge)
 {
-	node->num_of_edges++;
-	node->edge = xrealloc(node->edge, sizeof(edge_t) * (node->num_of_edges + 1));
-	node->edge[node->num_of_edges - 1] = edge;
+	node->edge = xrealloc_vector(node->edge, 2, node->num_of_edges);
+	node->edge[node->num_of_edges++] = edge;
 }
 
 /*
@@ -749,7 +748,7 @@ static void index_status_file(const char *filename)
 	status_node_t *status_node = NULL;
 	unsigned status_num;
 
-	status_file = xfopen(filename, "r");
+	status_file = xfopen_for_read(filename);
 	while ((control_buffer = xmalloc_fgetline_str(status_file, "\n\n")) != NULL) {
 		const unsigned package_num = fill_package_struct(control_buffer);
 		if (package_num != -1) {
@@ -791,8 +790,8 @@ static void write_buffer_no_status(FILE *new_status_file, const char *control_bu
 /* This could do with a cleanup */
 static void write_status_file(deb_file_t **deb_file)
 {
-	FILE *old_status_file = xfopen("/var/lib/dpkg/status", "r");
-	FILE *new_status_file = xfopen("/var/lib/dpkg/status.udeb", "w");
+	FILE *old_status_file = xfopen_for_read("/var/lib/dpkg/status");
+	FILE *new_status_file = xfopen_for_write("/var/lib/dpkg/status.udeb");
 	char *package_name;
 	char *status_from_file;
 	char *control_buffer = NULL;
@@ -972,7 +971,7 @@ static int check_deps(deb_file_t **deb_file, int deb_start /*, int dep_max_count
 	 * installed package for conflicts*/
 	while (deb_file[i] != NULL) {
 		const unsigned package_num = deb_file[i]->package;
-		conflicts = xrealloc(conflicts, sizeof(int) * (conflicts_num + 1));
+		conflicts = xrealloc_vector(conflicts, 2, conflicts_num);
 		conflicts[conflicts_num] = package_num;
 		conflicts_num++;
 		/* add provides to conflicts list */
@@ -989,7 +988,7 @@ static int check_deps(deb_file_t **deb_file, int deb_start /*, int dep_max_count
 					new_node->version = package_hashtable[package_num]->edge[j]->version;
 					package_hashtable[conflicts_package_num] = new_node;
 				}
-				conflicts = xrealloc(conflicts, sizeof(int) * (conflicts_num + 1));
+				conflicts = xrealloc_vector(conflicts, 2, conflicts_num);
 				conflicts[conflicts_num] = conflicts_package_num;
 				conflicts_num++;
 			}
@@ -1162,7 +1161,7 @@ static char **create_list(const char *filename)
 	int count;
 
 	/* don't use [xw]fopen here, handle error ourself */
-	list_stream = fopen(filename, "r");
+	list_stream = fopen_for_read(filename);
 	if (list_stream == NULL) {
 		return NULL;
 	}
@@ -1170,9 +1169,9 @@ static char **create_list(const char *filename)
 	file_list = NULL;
 	count = 0;
 	while ((line = xmalloc_fgetline(list_stream)) != NULL) {
-		file_list = xrealloc(file_list, sizeof(char *) * (count + 2));
+		file_list = xrealloc_vector(file_list, 2, count);
 		file_list[count++] = line;
-		file_list[count] = NULL;
+		/*file_list[count] = NULL; - xrealloc_vector did it */
 	}
 	fclose(list_stream);
 
@@ -1439,10 +1438,10 @@ static void init_archive_deb_control(archive_handle_t *ar_handle)
 	tar_handle->src_fd = ar_handle->src_fd;
 
 	/* We don't care about data.tar.* or debian-binary, just control.tar.* */
-#if ENABLE_FEATURE_DEB_TAR_GZ
+#if ENABLE_FEATURE_SEAMLESS_GZ
 	llist_add_to(&(ar_handle->accept), (char*)"control.tar.gz");
 #endif
-#if ENABLE_FEATURE_DEB_TAR_BZ2
+#if ENABLE_FEATURE_SEAMLESS_BZ2
 	llist_add_to(&(ar_handle->accept), (char*)"control.tar.bz2");
 #endif
 
@@ -1459,10 +1458,10 @@ static void init_archive_deb_data(archive_handle_t *ar_handle)
 	tar_handle->src_fd = ar_handle->src_fd;
 
 	/* We don't care about control.tar.* or debian-binary, just data.tar.* */
-#if ENABLE_FEATURE_DEB_TAR_GZ
+#if ENABLE_FEATURE_SEAMLESS_GZ
 	llist_add_to(&(ar_handle->accept), (char*)"data.tar.gz");
 #endif
-#if ENABLE_FEATURE_DEB_TAR_BZ2
+#if ENABLE_FEATURE_SEAMLESS_BZ2
 	llist_add_to(&(ar_handle->accept), (char*)"data.tar.bz2");
 #endif
 
@@ -1482,7 +1481,7 @@ static char *deb_extract_control_file_to_buffer(archive_handle_t *ar_handle, lli
 	return ar_handle->sub_archive->buffer;
 }
 
-static void data_extract_all_prefix(archive_handle_t *archive_handle)
+static void FAST_FUNC data_extract_all_prefix(archive_handle_t *archive_handle)
 {
 	char *name_ptr = archive_handle->file_header->name;
 
@@ -1532,7 +1531,7 @@ static void unpack_package(deb_file_t *deb_file)
 	archive_handle->sub_archive->filter = filter_accept_list;
 	archive_handle->sub_archive->action_data = data_extract_all_prefix;
 	archive_handle->sub_archive->buffer = info_prefix;
-	archive_handle->sub_archive->flags |= ARCHIVE_EXTRACT_UNCONDITIONAL;
+	archive_handle->sub_archive->ah_flags |= ARCHIVE_EXTRACT_UNCONDITIONAL;
 	unpack_ar_archive(archive_handle);
 
 	/* Run the preinst prior to extracting */
@@ -1543,12 +1542,12 @@ static void unpack_package(deb_file_t *deb_file)
 	init_archive_deb_data(archive_handle);
 	archive_handle->sub_archive->action_data = data_extract_all_prefix;
 	archive_handle->sub_archive->buffer = (char*)"/"; /* huh? */
-	archive_handle->sub_archive->flags |= ARCHIVE_EXTRACT_UNCONDITIONAL;
+	archive_handle->sub_archive->ah_flags |= ARCHIVE_EXTRACT_UNCONDITIONAL;
 	unpack_ar_archive(archive_handle);
 
 	/* Create the list file */
 	list_filename = xasprintf("/var/lib/dpkg/info/%s.%s", package_name, "list");
-	out_stream = xfopen(list_filename, "w");
+	out_stream = xfopen_for_write(list_filename);
 	while (archive_handle->sub_archive->passed) {
 		/* the leading . has been stripped by data_extract_all_prefix already */
 		fputs(archive_handle->sub_archive->passed->data, out_stream);
@@ -1583,7 +1582,7 @@ static void configure_package(deb_file_t *deb_file)
 }
 
 int dpkg_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int dpkg_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int dpkg_main(int argc UNUSED_PARAM, char **argv)
 {
 	deb_file_t **deb_file = NULL;
 	status_node_t *status_node;
@@ -1634,7 +1633,7 @@ int dpkg_main(int argc ATTRIBUTE_UNUSED, char **argv)
 	/* Read arguments and store relevant info in structs */
 	while (*argv) {
 		/* deb_count = nb_elem - 1 and we need nb_elem + 1 to allocate terminal node [NULL pointer] */
-		deb_file = xrealloc(deb_file, sizeof(deb_file[0]) * (deb_count + 2));
+		deb_file = xrealloc_vector(deb_file, 2, deb_count);
 		deb_file[deb_count] = xzalloc(sizeof(deb_file[0][0]));
 		if (opt & (OPT_install | OPT_unpack)) {
 			/* -i/-u: require filename */

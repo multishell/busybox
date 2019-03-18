@@ -13,6 +13,7 @@ lib-y += bb_basename.o
 lib-y += bb_do_delay.o
 lib-y += bb_pwd.o
 lib-y += bb_qsort.o
+lib-y += bb_strtod.o
 lib-y += bb_strtonum.o
 lib-y += change_identity.o
 lib-y += chomp.o
@@ -62,6 +63,7 @@ lib-y += mode_string.o
 lib-y += mtab_file.o
 lib-y += obscure.o
 lib-y += parse_mode.o
+lib-y += parse_config.o
 lib-y += perror_msg.o
 lib-y += perror_msg_and_die.o
 lib-y += perror_nomsg.o
@@ -109,6 +111,7 @@ lib-y += xfunc_die.o
 lib-y += xgetcwd.o
 lib-y += xgethostbyname.o
 lib-y += xreadlink.o
+lib-y += xrealloc_vector.o
 
 # conditionally compiled objects:
 lib-$(CONFIG_FEATURE_MOUNT_LOOP) += loop.o

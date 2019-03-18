@@ -122,7 +122,7 @@ static void die_if_nologin(void)
 	if (access("/etc/nologin", F_OK))
 		return;
 
-	fp = fopen("/etc/nologin", "r");
+	fp = fopen_for_read("/etc/nologin");
 	if (fp) {
 		while ((c = getc(fp)) != EOF)
 			bb_putchar((c=='\n') ? '\r' : c);
@@ -139,30 +139,17 @@ static ALWAYS_INLINE void die_if_nologin(void) {}
 #if ENABLE_FEATURE_SECURETTY && !ENABLE_PAM
 static int check_securetty(void)
 {
-	FILE *fp;
-	int i;
-	char buf[256];
-
-	fp = fopen("/etc/securetty", "r");
-	if (!fp) {
-		/* A missing securetty file is not an error. */
-		return 1;
+	char *buf = (char*)"/etc/securetty"; /* any non-NULL is ok */
+	parser_t *parser = config_open2("/etc/securetty", fopen_for_read);
+	while (config_read(parser, &buf, 1, 1, "# \t", PARSE_NORMAL)) {
+		if (strcmp(buf, short_tty) == 0)
+			break;
+		buf = NULL;
 	}
-	while (fgets(buf, sizeof(buf)-1, fp)) {
-		for (i = strlen(buf)-1; i >= 0; --i) {
-			if (!isspace(buf[i]))
-				break;
-		}
-		buf[++i] = '\0';
-		if (!buf[0] || (buf[0] == '#'))
-			continue;
-		if (strcmp(buf, short_tty) == 0) {
-			fclose(fp);
-			return 1;
-		}
-	}
-	fclose(fp);
-	return 0;
+	config_close(parser);
+	/* buf != NULL here if config file was not found, empty
+	 * or line was found which equals short_tty */
+	return buf != NULL;
 }
 #else
 static ALWAYS_INLINE int check_securetty(void) { return 1; }
@@ -206,7 +193,7 @@ static void motd(void)
 	}
 }
 
-static void alarm_handler(int sig ATTRIBUTE_UNUSED)
+static void alarm_handler(int sig UNUSED_PARAM)
 {
 	/* This is the escape hatch!  Poor serial line users and the like
 	 * arrive here when their connection is broken.
@@ -221,7 +208,7 @@ static void alarm_handler(int sig ATTRIBUTE_UNUSED)
 }
 
 int login_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int login_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int login_main(int argc UNUSED_PARAM, char **argv)
 {
 	enum {
 		LOGIN_OPT_f = (1<<0),

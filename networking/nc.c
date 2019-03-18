@@ -17,7 +17,7 @@
  * when compared to "standard" nc
  */
 
-static void timeout(int signum ATTRIBUTE_UNUSED)
+static void timeout(int signum UNUSED_PARAM)
 {
 	bb_error_msg_and_die("timed out");
 }
@@ -150,12 +150,9 @@ int nc_main(int argc, char **argv)
 			goto accept_again;
 		}
 		/* child (or main thread if no multiple -l) */
-		if (cfd) {
-			dup2(cfd, 0);
-			close(cfd);
-		}
-		dup2(0, 1);
-		dup2(0, 2);
+		xmove_fd(cfd, 0);
+		xdup2(0, 1);
+		xdup2(0, 2);
 		USE_NC_EXTRA(BB_EXECVP(execparam[0], execparam);)
 		/* Don't print stuff or it will go over the wire.... */
 		_exit(127);

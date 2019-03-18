@@ -499,7 +499,7 @@ static void chain_group(void);
 static var *evaluate(node *, var *);
 static rstream *next_input_file(void);
 static int fmt_num(char *, int, const char *, double, int);
-static int awk_exit(int) ATTRIBUTE_NORETURN;
+static int awk_exit(int) NORETURN;
 
 /* ---- error handling ---- */
 
@@ -521,7 +521,7 @@ static void zero_out_var(var * vp)
 	memset(vp, 0, sizeof(*vp));
 }
 
-static void syntax_error(const char *const message) ATTRIBUTE_NORETURN;
+static void syntax_error(const char *const message) NORETURN;
 static void syntax_error(const char *const message)
 {
 	bb_error_msg_and_die("%s:%i: %s", g_progname, g_lineno, message);
@@ -852,11 +852,11 @@ static var *nvalloc(int n)
 
 	if (!g_cb) {
 		size = (n <= MINNVBLOCK) ? MINNVBLOCK : n;
-		g_cb = xmalloc(sizeof(nvblock) + size * sizeof(var));
+		g_cb = xzalloc(sizeof(nvblock) + size * sizeof(var));
 		g_cb->size = size;
 		g_cb->pos = g_cb->nv;
 		g_cb->prev = pb;
-		g_cb->next = NULL;
+		/*g_cb->next = NULL; - xzalloc did it */
 		if (pb) pb->next = g_cb;
 	}
 
@@ -1473,8 +1473,10 @@ static regex_t *as_regex(node *op, regex_t *preg)
 /* gradually increasing buffer */
 static void qrealloc(char **b, int n, int *size)
 {
-	if (!*b || n >= *size)
-		*b = xrealloc(*b, *size = n + (n>>1) + 80);
+	if (!*b || n >= *size) {
+		*size = n + (n>>1) + 80;
+		*b = xrealloc(*b, *size);
+	}
 }
 
 /* resize field storage space */
@@ -2028,9 +2030,7 @@ static var *exec_builtin(node *op, var *res)
 		if (i < 0) i = 0;
 		n = (nargs > 2) ? getvar_i(av[2]) : l-i;
 		if (n < 0) n = 0;
-		s = xmalloc(n+1);
-		strncpy(s, as[0]+i, n);
-		s[n] = '\0';
+		s = xstrndup(as[0]+i, n);
 		setvar_p(res, s);
 		break;
 
@@ -2400,7 +2400,7 @@ static var *evaluate(node *op, var *res)
 						X.rsm->F = popen(L.s, "r");
 						X.rsm->is_pipe = TRUE;
 					} else {
-						X.rsm->F = fopen(L.s, "r");		/* not xfopen! */
+						X.rsm->F = fopen_for_read(L.s);		/* not xfopen! */
 					}
 				}
 			} else {

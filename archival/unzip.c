@@ -51,13 +51,13 @@ typedef union {
 		uint16_t method;                        /* 4-5 */
 		uint16_t modtime;                       /* 6-7 */
 		uint16_t moddate;                       /* 8-9 */
-		uint32_t crc32 ATTRIBUTE_PACKED;        /* 10-13 */
-		uint32_t cmpsize ATTRIBUTE_PACKED;      /* 14-17 */
-		uint32_t ucmpsize ATTRIBUTE_PACKED;     /* 18-21 */
+		uint32_t crc32 PACKED;        /* 10-13 */
+		uint32_t cmpsize PACKED;      /* 14-17 */
+		uint32_t ucmpsize PACKED;     /* 18-21 */
 		uint16_t filename_len;                  /* 22-23 */
 		uint16_t extra_len;                     /* 24-25 */
-	} formatted ATTRIBUTE_PACKED;
-} zip_header_t; /* ATTRIBUTE_PACKED - gcc 4.2.1 doesn't like it (spews warning) */
+	} formatted PACKED;
+} zip_header_t; /* PACKED - gcc 4.2.1 doesn't like it (spews warning) */
 
 /* Check the offset of the last element, not the length.  This leniency
  * allows for poor packing, whereby the overall struct may be too long,
@@ -258,16 +258,23 @@ int unzip_main(int argc, char **argv)
 
 		/* Check magic number */
 		xread(src_fd, &magic, 4);
+		/* Central directory? It's at the end, so exit */
 		if (magic == ZIP_CDS_MAGIC)
 			break;
 		if (magic != ZIP_FILEHEADER_MAGIC)
-			bb_error_msg_and_die("invalid zip magic %08X", magic);
+			bb_error_msg_and_die("invalid zip magic %08X", (int)magic);
 
 		/* Read the file header */
 		xread(src_fd, zip_header.raw, ZIP_HEADER_LEN);
 		FIX_ENDIANNESS(zip_header);
 		if ((zip_header.formatted.method != 0) && (zip_header.formatted.method != 8)) {
 			bb_error_msg_and_die("unsupported method %d", zip_header.formatted.method);
+		}
+		if (zip_header.formatted.flags & (0x0008|0x0001)) {
+			/* 0x0001 - encrypted */
+			/* 0x0008 - streaming. [u]cmpsize can be reliably gotten
+			 * only from Central Directory. See unzip_doc.txt */
+			bb_error_msg_and_die("zip flags 8 and 1 are not supported");
 		}
 
 		/* Read filename */
@@ -308,7 +315,7 @@ int unzip_main(int argc, char **argv)
 			} else if (last_char_is(dst_fn, '/')) { /* Extract directory */
 				if (stat(dst_fn, &stat_buf) == -1) {
 					if (errno != ENOENT) {
-						bb_perror_msg_and_die("cannot stat '%s'",dst_fn);
+						bb_perror_msg_and_die("cannot stat '%s'", dst_fn);
 					}
 					if (verbose) {
 						printf("   creating: %s\n", dst_fn);
@@ -325,10 +332,10 @@ int unzip_main(int argc, char **argv)
 				i = 'n';
 
 			} else {  /* Extract file */
- _check_file:
+ check_file:
 				if (stat(dst_fn, &stat_buf) == -1) { /* File does not exist */
 					if (errno != ENOENT) {
-						bb_perror_msg_and_die("cannot stat '%s'",dst_fn);
+						bb_perror_msg_and_die("cannot stat '%s'", dst_fn);
 					}
 					i = 'y';
 				} else { /* File already exists */
@@ -345,7 +352,7 @@ int unzip_main(int argc, char **argv)
 							i = key_buf[0];
 						}
 					} else { /* File is not regular file */
-						bb_error_msg_and_die("'%s' exists but is not regular file",dst_fn);
+						bb_error_msg_and_die("'%s' exists but is not regular file", dst_fn);
 					}
 				}
 			}
@@ -384,18 +391,19 @@ int unzip_main(int argc, char **argv)
 			free(dst_fn);
 			dst_fn = xstrdup(key_buf);
 			chomp(dst_fn);
-			goto _check_file;
+			goto check_file;
 
 		default:
 			printf("error: invalid response [%c]\n",(char)i);
-			goto _check_file;
+			goto check_file;
 		}
 
-		/* Data descriptor section */
-		if (zip_header.formatted.flags & 4) {
-			/* skip over duplicate crc, compressed size and uncompressed size */
-			unzip_skip(src_fd, 12);
-		}
+// Looks like bug (data descriptor cannot be identified this way)
+//		/* Data descriptor section */
+//		if (zip_header.formatted.flags & 4) {
+//			/* skip over duplicate crc, compressed size and uncompressed size */
+//			unzip_skip(src_fd, 12);
+//		}
 	}
 
 	if (listing && verbose) {

@@ -48,6 +48,10 @@ struct mod_list_t {	/* two-way list of modules to process */
 	struct mod_list_t * m_next;
 };
 
+struct include_conf_t {
+	struct dep_t *first;
+	struct dep_t *current;
+};
 
 static struct dep_t *depend;
 
@@ -242,21 +246,60 @@ static int is_conf_command(char *buffer, const char *command)
  * This function reads aliases and default module options from a configuration file
  * (/etc/modprobe.conf syntax). It supports includes (only files, no directories).
  */
-static void include_conf(struct dep_t **first, struct dep_t **current, char *buffer, int buflen, int fd)
+
+static int FAST_FUNC include_conf_file_act(const char *filename,
+					   struct stat *statbuf UNUSED_PARAM,
+					   void *userdata,
+					   int depth UNUSED_PARAM);
+
+static int FAST_FUNC include_conf_dir_act(const char *filename UNUSED_PARAM,
+					  struct stat *statbuf UNUSED_PARAM,
+					  void *userdata UNUSED_PARAM,
+					  int depth)
 {
+	if (depth > 1)
+		return SKIP;
+
+	return TRUE;
+}
+
+static int include_conf_recursive(struct include_conf_t *conf, const char *filename)
+{
+	return recursive_action(filename, ACTION_RECURSE,
+				include_conf_file_act,
+				include_conf_dir_act,
+				conf, 1);
+}
+
+static int FAST_FUNC include_conf_file_act(const char *filename,
+					   struct stat *statbuf UNUSED_PARAM,
+					   void *userdata,
+					   int depth UNUSED_PARAM)
+{
+	struct include_conf_t *conf = (struct include_conf_t *) userdata;
+	struct dep_t **first = &conf->first;
+	struct dep_t **current = &conf->current;
 	int continuation_line = 0;
+	FILE *f;
+
+	if (bb_basename(filename)[0] == '.')
+		return TRUE;
+
+	f = fopen_for_read(filename);
+	if (f == NULL)
+		return FALSE;
 
 	// alias parsing is not 100% correct (no correct handling of continuation lines within an alias)!
 
-	while (reads(fd, buffer, buflen)) {
+	while (fgets(line_buffer, sizeof(line_buffer), f)) {
 		int l;
 
-		*strchrnul(buffer, '#') = '\0';
+		*strchrnul(line_buffer, '#') = '\0';
 
-		l = strlen(buffer);
+		l = strlen(line_buffer);
 
-		while (l && isspace(buffer[l-1])) {
-			buffer[l-1] = '\0';
+		while (l && isspace(line_buffer[l-1])) {
+			line_buffer[l-1] = '\0';
 			l--;
 		}
 
@@ -268,10 +311,10 @@ static void include_conf(struct dep_t **first, struct dep_t **current, char *buf
 		if (continuation_line)
 			continue;
 
-		if (is_conf_command(buffer, "alias")) {
+		if (is_conf_command(line_buffer, "alias")) {
 			char *alias, *mod;
 
-			if (parse_tag_value(buffer + 6, &alias, &mod)) {
+			if (parse_tag_value(line_buffer + 6, &alias, &mod)) {
 				/* handle alias as a module dependent on the aliased module */
 				if (!*current) {
 					(*first) = (*current) = xzalloc(sizeof(struct dep_t));
@@ -292,11 +335,11 @@ static void include_conf(struct dep_t **first, struct dep_t **current, char *buf
 				}
 				/*(*current)->m_next = NULL; - done by xzalloc */
 			}
-		} else if (is_conf_command(buffer, "options")) {
+		} else if (is_conf_command(line_buffer, "options")) {
 			char *mod, *opt;
 
 			/* split the line in the module/alias name, and options */
-			if (parse_tag_value(buffer + 8, &mod, &opt)) {
+			if (parse_tag_value(line_buffer + 8, &mod, &opt)) {
 				struct dep_t *dt;
 
 				/* find the corresponding module */
@@ -315,22 +358,17 @@ static void include_conf(struct dep_t **first, struct dep_t **current, char *buf
 					}
 				}
 			}
-		} else if (is_conf_command(buffer, "include")) {
-			int fdi;
-			char *filename;
+		} else if (is_conf_command(line_buffer, "include")) {
+			char *includefile;
 
-			filename = skip_whitespace(buffer + 8);
-			fdi = open(filename, O_RDONLY);
-			if (fdi >= 0) {
-				include_conf(first, current, buffer, buflen, fdi);
-				close(fdi);
-			}
+			includefile = skip_whitespace(line_buffer + 8);
+			include_conf_recursive(conf, includefile);
 		} else if (ENABLE_FEATURE_MODPROBE_BLACKLIST &&
-				(is_conf_command(buffer, "blacklist"))) {
+				(is_conf_command(line_buffer, "blacklist"))) {
 			char *mod;
 			struct dep_t *dt;
 
-			mod = skip_whitespace(buffer + 10);
+			mod = skip_whitespace(line_buffer + 10);
 			for (dt = *first; dt; dt = dt->m_next) {
 				if (strcmp(dt->m_name, mod) == 0)
 					break;
@@ -338,7 +376,24 @@ static void include_conf(struct dep_t **first, struct dep_t **current, char *buf
 			if (dt)
 				dt->m_isblacklisted = 1;
 		}
-	} /* while (reads(...)) */
+	} /* while (fgets(...)) */
+
+	fclose(f);
+	return TRUE;
+}
+
+static int include_conf_file(struct include_conf_t *conf,
+			     const char *filename)
+{
+	return include_conf_file_act(filename, NULL, conf, 0);
+}
+
+static int include_conf_file2(struct include_conf_t *conf,
+			      const char *filename, const char *oldname)
+{
+	if (include_conf_file(conf, filename) == TRUE)
+		return TRUE;
+	return include_conf_file(conf, oldname);
 }
 
 /*
@@ -348,16 +403,14 @@ static void include_conf(struct dep_t **first, struct dep_t **current, char *buf
  */
 static struct dep_t *build_dep(void)
 {
-	int fd;
+	FILE *f;
 	struct utsname un;
-	struct dep_t *first = NULL;
-	struct dep_t *current = NULL;
+	struct include_conf_t conf = { NULL, NULL };
 	char *filename;
 	int continuation_line = 0;
 	int k_version;
 
-	if (uname(&un))
-		bb_error_msg_and_die("can't determine kernel version");
+	uname(&un); /* never fails */
 
 	k_version = 0;
 	if (un.release[0] == '2') {
@@ -365,20 +418,20 @@ static struct dep_t *build_dep(void)
 	}
 
 	filename = xasprintf(CONFIG_DEFAULT_MODULES_DIR"/%s/"CONFIG_DEFAULT_DEPMOD_FILE, un.release);
-	fd = open(filename, O_RDONLY);
+	f = fopen_for_read(filename);
 	if (ENABLE_FEATURE_CLEAN_UP)
 		free(filename);
-	if (fd < 0) {
+	if (f == NULL) {
 		/* Ok, that didn't work.  Fall back to looking in /lib/modules */
-		fd = open(CONFIG_DEFAULT_MODULES_DIR"/"CONFIG_DEFAULT_DEPMOD_FILE, O_RDONLY);
-		if (fd < 0) {
-			bb_error_msg_and_die("cannot parse " CONFIG_DEFAULT_DEPMOD_FILE);
+		f = fopen_for_read(CONFIG_DEFAULT_MODULES_DIR"/"CONFIG_DEFAULT_DEPMOD_FILE);
+		if (f == NULL) {
+			bb_error_msg_and_die("cannot parse "CONFIG_DEFAULT_DEPMOD_FILE);
 		}
 	}
 
-	while (reads(fd, line_buffer, sizeof(line_buffer))) {
+	while (fgets(line_buffer, sizeof(line_buffer), f)) {
 		int l = strlen(line_buffer);
-		char *p = 0;
+		char *p = NULL;
 
 		while (l > 0 && isspace(line_buffer[l-1])) {
 			line_buffer[l-1] = '\0';
@@ -421,14 +474,14 @@ static struct dep_t *build_dep(void)
 				mod = xstrndup(mods, dot - mods);
 
 				/* enqueue new module */
-				if (!current) {
-					first = current = xzalloc(sizeof(struct dep_t));
+				if (!conf.current) {
+					conf.first = conf.current = xzalloc(sizeof(struct dep_t));
 				} else {
-					current->m_next = xzalloc(sizeof(struct dep_t));
-					current = current->m_next;
+					conf.current->m_next = xzalloc(sizeof(struct dep_t));
+					conf.current = conf.current->m_next;
 				}
-				current->m_name = mod;
-				current->m_path = xstrdup(modpath);
+				conf.current->m_name = mod;
+				conf.current->m_path = xstrdup(modpath);
 				/*current->m_options = NULL; - xzalloc did it*/
 				/*current->m_isalias = 0;*/
 				/*current->m_depcnt = 0;*/
@@ -477,15 +530,13 @@ static struct dep_t *build_dep(void)
 					ext = 2;
 
 				/* Cope with blank lines */
-				if ((next-deps-ext+1) <= 0)
+				if ((next - deps - ext + 1) <= 0)
 					continue;
 				dep = xstrndup(deps, next - deps - ext + 1);
 
 				/* Add the new dependable module name */
-				current->m_depcnt++;
-				current->m_deparr = xrealloc(current->m_deparr,
-						sizeof(char *) * current->m_depcnt);
-				current->m_deparr[current->m_depcnt - 1] = dep;
+				conf.current->m_deparr = xrealloc_vector(conf.current->m_deparr, 2, conf.current->m_depcnt);
+				conf.current->m_deparr[conf.current->m_depcnt++] = dep;
 
 				p = next + 2;
 			} while (next < end);
@@ -493,8 +544,8 @@ static struct dep_t *build_dep(void)
 
 		/* is there other dependable module(s) ? */
 		continuation_line = (line_buffer[l-1] == '\\');
-	} /* while (reads(...)) */
-	close(fd);
+	} /* while (fgets(...)) */
+	fclose(f);
 
 	/*
 	 * First parse system-specific options and aliases
@@ -502,91 +553,78 @@ static struct dep_t *build_dep(void)
 	 * >=2.6: we only care about modprobe.conf
 	 * <=2.4: we care about modules.conf and conf.modules
 	 */
-	if (ENABLE_FEATURE_2_6_MODULES
-	 && (fd = open("/etc/modprobe.conf", O_RDONLY)) < 0)
-		if (ENABLE_FEATURE_2_4_MODULES
-		 && (fd = open("/etc/modules.conf", O_RDONLY)) < 0)
-			if (ENABLE_FEATURE_2_4_MODULES)
-				fd = open("/etc/conf.modules", O_RDONLY);
+	{
+		int r = FALSE;
 
-	if (fd >= 0) {
-		include_conf(&first, &current, line_buffer, sizeof(line_buffer), fd);
-		close(fd);
+		if (ENABLE_FEATURE_2_6_MODULES) {
+			if (include_conf_file(&conf, "/etc/modprobe.conf"))
+				r = TRUE;
+			if (include_conf_recursive(&conf, "/etc/modprobe.d"))
+				r = TRUE;
+		}
+		if (ENABLE_FEATURE_2_4_MODULES && !r)
+			include_conf_file2(&conf,
+					   "/etc/modules.conf",
+					   "/etc/conf.modules");
 	}
 
 	/* Only 2.6 has a modules.alias file */
 	if (ENABLE_FEATURE_2_6_MODULES) {
 		/* Parse kernel-declared module aliases */
 		filename = xasprintf(CONFIG_DEFAULT_MODULES_DIR"/%s/modules.alias", un.release);
-		fd = open(filename, O_RDONLY);
-		if (fd < 0) {
-			/* Ok, that didn't work.  Fall back to looking in /lib/modules */
-			fd = open(CONFIG_DEFAULT_MODULES_DIR"/modules.alias", O_RDONLY);
-		}
+		include_conf_file2(&conf,
+				   filename,
+				   CONFIG_DEFAULT_MODULES_DIR"/modules.alias");
 		if (ENABLE_FEATURE_CLEAN_UP)
 			free(filename);
-
-		if (fd >= 0) {
-			include_conf(&first, &current, line_buffer, sizeof(line_buffer), fd);
-			close(fd);
-		}
 
 		/* Parse kernel-declared symbol aliases */
 		filename = xasprintf(CONFIG_DEFAULT_MODULES_DIR"/%s/modules.symbols", un.release);
-		fd = open(filename, O_RDONLY);
-		if (fd < 0) {
-			/* Ok, that didn't work.  Fall back to looking in /lib/modules */
-			fd = open(CONFIG_DEFAULT_MODULES_DIR"/modules.symbols", O_RDONLY);
-		}
+		include_conf_file2(&conf,
+				   filename,
+				   CONFIG_DEFAULT_MODULES_DIR"/modules.symbols");
 		if (ENABLE_FEATURE_CLEAN_UP)
 			free(filename);
-
-		if (fd >= 0) {
-			include_conf(&first, &current, line_buffer, sizeof(line_buffer), fd);
-			close(fd);
-		}
 	}
 
-	return first;
+	return conf.first;
 }
 
 /* return 1 = loaded, 0 = not loaded, -1 = can't tell */
 static int already_loaded(const char *name)
 {
-	int fd, ret = 0;
+	FILE *f;
+	int ret;
 
-	fd = open("/proc/modules", O_RDONLY);
-	if (fd < 0)
+	f = fopen_for_read("/proc/modules");
+	if (f == NULL)
 		return -1;
 
-	while (reads(fd, line_buffer, sizeof(line_buffer))) {
-		char *p;
+	ret = 0;
+	while (fgets(line_buffer, sizeof(line_buffer), f)) {
+		char *p = line_buffer;
+		const char *n = name;
 
-		p = strchr(line_buffer, ' ');
-		if (p) {
-			const char *n;
-
-			// Truncate buffer at first space and check for matches, with
-			// the idiosyncrasy that _ and - are interchangeable because the
-			// 2.6 kernel does weird things.
-
-			*p = '\0';
-			for (p = line_buffer, n = name; ; p++, n++) {
-				if (*p != *n) {
-					if ((*p == '_' || *p == '-') && (*n == '_' || *n == '-'))
-						continue;
-					break;
-				}
-				// If we made it to the end, that's a match.
-				if (!*p) {
-					ret = 1;
+		while (1) {
+			char cn = *n;
+			char cp = *p;
+			if (cp == ' ' || cp == '\0') {
+				if (cn == '\0') {
+					ret = 1; /* match! */
 					goto done;
 				}
+				break; /* no match on this line, take next one */
 			}
+			if (cn == '-') cn = '_';
+			if (cp == '-') cp = '_';
+			if (cp != cn)
+				break; /* no match on this line, take next one */
+			n++;
+			p++;
 		}
 	}
  done:
-	close(fd);
+	fclose(f);
 	return ret;
 }
 
@@ -606,7 +644,7 @@ static int mod_process(const struct mod_list_t *list, int do_insert)
 		 * each time we allocate memory for argv.
 		 * But it is (quite) small amounts of memory that leak each
 		 * time a module is loaded,  and it is reclaimed when modprobe
-		 * exits anyway (even when standalone shell?).
+		 * exits anyway (even when standalone shell? Yes --vda).
 		 * This could become a problem when loading a module with LOTS of
 		 * dependencies, with LOTS of options for each dependencies, with
 		 * very little memory on the target... But in that case, the module
@@ -820,23 +858,20 @@ static void check_dep(char *mod, struct mod_list_t **head, struct mod_list_t **t
 	}
 }
 
-static int mod_insert(char *mod, int argc, char **argv)
+static int mod_insert(char **argv)
 {
 	struct mod_list_t *tail = NULL;
 	struct mod_list_t *head = NULL;
+	char *modname = *argv++;
 	int rc;
 
 	// get dep list for module mod
-	check_dep(mod, &head, &tail);
+	check_dep(modname, &head, &tail);
 
 	rc = 1;
 	if (head && tail) {
-		if (argc) {
-			int i;
-			// append module args
-			for (i = 0; i < argc; i++)
-				head->m_options = append_option(head->m_options, argv[i]);
-		}
+		while (*argv)
+			head->m_options = append_option(head->m_options, *argv++);
 
 		// process tail ---> head
 		rc = mod_process(tail, 1);
@@ -847,23 +882,23 @@ static int mod_insert(char *mod, int argc, char **argv)
 			 * for example; or cold-plugging at boot time). Thus we shouldn't
 			 * fail if the module was loaded, and not by us.
 			 */
-			if (already_loaded(mod))
+			if (already_loaded(modname))
 				rc = 0;
 		}
 	}
 	return rc;
 }
 
-static int mod_remove(char *mod)
+static int mod_remove(char *modname)
 {
-	int rc;
 	static const struct mod_list_t rm_a_dummy = { "-a", NULL, NULL, NULL, NULL };
 
+	int rc;
 	struct mod_list_t *head = NULL;
 	struct mod_list_t *tail = NULL;
 
-	if (mod)
-		check_dep(mod, &head, &tail);
+	if (modname)
+		check_dep(modname, &head, &tail);
 	else  // autoclean
 		head = tail = (struct mod_list_t*) &rm_a_dummy;
 
@@ -874,17 +909,19 @@ static int mod_remove(char *mod)
 }
 
 int modprobe_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int modprobe_main(int argc, char **argv)
+int modprobe_main(int argc UNUSED_PARAM, char **argv)
 {
 	int rc = EXIT_SUCCESS;
+	unsigned opt;
 	char *unused;
 
 	opt_complementary = "q-v:v-q";
-	getopt32(argv, MAIN_OPT_STR, &unused, &unused);
+	opt = getopt32(argv, MAIN_OPT_STR, &unused, &unused);
+	argv += optind;
 
-	if (option_mask32 & (DUMP_CONF_EXIT | LIST_ALL))
+	if (opt & (DUMP_CONF_EXIT | LIST_ALL))
 		return EXIT_SUCCESS;
-	if (option_mask32 & (RESTRICT_DIR | CONFIG_FILE))
+	if (opt & (RESTRICT_DIR | CONFIG_FILE))
 		bb_error_msg_and_die("-t and -C not supported");
 
 	depend = build_dep();
@@ -894,19 +931,19 @@ int modprobe_main(int argc, char **argv)
 
 	if (remove_opt) {
 		do {
-			/* argv[optind] can be NULL here */
-			if (mod_remove(argv[optind])) {
-				bb_error_msg("failed to %s module %s", "remove",
-						argv[optind]);
+			/* (*argv) can be NULL here */
+			if (mod_remove(*argv)) {
+				bb_perror_msg("failed to %s module %s", "remove",
+						*argv);
 				rc = EXIT_FAILURE;
 			}
-		} while (++optind < argc);
+		} while (*argv && *++argv);
 	} else {
-		if (optind >= argc)
+		if (!*argv)
 			bb_error_msg_and_die("no module or pattern provided");
 
-		if (mod_insert(argv[optind], argc - optind - 1, argv + optind + 1))
-			bb_error_msg_and_die("failed to %s module %s", "load", argv[optind]);
+		if (mod_insert(argv))
+			bb_perror_msg_and_die("failed to %s module %s", "load", *argv);
 	}
 
 	/* Here would be a good place to free up memory allocated during the dependencies build. */

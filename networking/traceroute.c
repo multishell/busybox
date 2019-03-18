@@ -273,7 +273,7 @@ typedef struct outdata {
 	unsigned char seq;             /* sequence number of this packet */
 	unsigned char ttl;             /* ttl packet left with */
 // UNUSED. Retaining to have the same packet size.
-	struct timeval tv_UNUSED ATTRIBUTE_PACKED; /* time packet left */
+	struct timeval tv_UNUSED PACKED; /* time packet left */
 } outdata_t;
 
 struct IFADDRLIST {
@@ -508,7 +508,7 @@ findsaddr(const struct sockaddr_in *to, struct sockaddr_in *from)
 	struct IFADDRLIST *al;
 	char buf[256], tdevice[256], device[256];
 
-	f = xfopen("/proc/net/route", "r");
+	f = xfopen_for_read("/proc/net/route");
 
 	/* Find the appropriate interface */
 	n = 0;
@@ -819,7 +819,7 @@ packet_ok(unsigned char *buf, int cc, struct sockaddr_in *from, int seq)
  * If the nflag has been supplied, give
  * numeric value, otherwise try for symbolic name.
  */
-static inline void
+static void
 print_inetname(struct sockaddr_in *from)
 {
 	const char *ina;
@@ -836,7 +836,7 @@ print_inetname(struct sockaddr_in *from)
 	}
 }
 
-static inline void
+static void
 print(unsigned char *buf, int cc, struct sockaddr_in *from)
 {
 	struct ip *ip;

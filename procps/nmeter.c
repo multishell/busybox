@@ -132,11 +132,10 @@ static void readfile_z(char *buf, int sz, const char* fname)
 
 	int fd = xopen(fname, O_RDONLY);
 	buf[0] = '\0';
-	if (fd >= 0) {
-		sz = read(fd, buf, sz-1);
-		if (sz > 0) buf[sz] = '\0';
-		close(fd);
-	}
+	sz = read(fd, buf, sz - 1);
+	if (sz > 0)
+		buf[sz] = '\0';
+	close(fd);
 }
 
 static const char* get_file(proc_file *pf)
@@ -153,7 +152,7 @@ static const char* get_file(proc_file *pf)
 	return pf->file;
 }
 
-static inline ullong read_after_slash(const char *p)
+static ullong read_after_slash(const char *p)
 {
 	p = strchr(p, '/');
 	if (!p) return 0;
@@ -228,7 +227,7 @@ static int rdval_loadavg(const char* p, ullong *vec, ...)
 //   3  1 hda1 0 0 0 0 <- ignore if only 4 fields
 static int rdval_diskstats(const char* p, ullong *vec)
 {
-	ullong rd = 0; // to avoid "warning: 'rd' might be used uninitialized"
+	ullong rd = rd; // for compiler
 	int indexline = 0;
 	vec[0] = 0;
 	vec[1] = 0;
@@ -275,26 +274,26 @@ typedef struct a { \
 S_STAT(s_stat)
 S_STAT_END(s_stat)
 
-static void collect_literal(s_stat *s ATTRIBUTE_UNUSED)
+static void collect_literal(s_stat *s UNUSED_PARAM)
 {
 }
 
 static s_stat* init_literal(void)
 {
-	s_stat *s = xmalloc(sizeof(s_stat));
+	s_stat *s = xzalloc(sizeof(*s));
 	s->collect = collect_literal;
 	return (s_stat*)s;
 }
 
 static s_stat* init_delay(const char *param)
 {
-	delta = bb_strtoi(param, NULL, 0) * 1000;
+	delta = strtoul(param, NULL, 0) * 1000; /* param can be "" */
 	deltanz = delta > 0 ? delta : 1;
 	need_seconds = (1000000%deltanz) != 0;
 	return NULL;
 }
 
-static s_stat* init_cr(const char *param ATTRIBUTE_UNUSED)
+static s_stat* init_cr(const char *param UNUSED_PARAM)
 {
 	final_str = "\r";
 	return (s_stat*)0;
@@ -369,13 +368,13 @@ static void collect_cpu(cpu_stat *s)
 static s_stat* init_cpu(const char *param)
 {
 	int sz;
-	cpu_stat *s = xmalloc(sizeof(cpu_stat));
+	cpu_stat *s = xzalloc(sizeof(*s));
 	s->collect = collect_cpu;
-	sz = strtol(param, NULL, 0);
+	sz = strtoul(param, NULL, 0); /* param can be "" */
 	if (sz < 10) sz = 10;
 	if (sz > 1000) sz = 1000;
-	s->bar = xmalloc(sz+1);
-	s->bar[sz] = '\0';
+	s->bar = xzalloc(sz+1);
+	/*s->bar[sz] = '\0'; - xzalloc did it */
 	s->bar_sz = sz;
 	return (s_stat*)s;
 }
@@ -404,13 +403,13 @@ static void collect_int(int_stat *s)
 
 static s_stat* init_int(const char *param)
 {
-	int_stat *s = xmalloc(sizeof(int_stat));
+	int_stat *s = xzalloc(sizeof(*s));
 	s->collect = collect_int;
-	if (param[0]=='\0') {
+	if (param[0] == '\0') {
 		s->no = 1;
 	} else {
-		int n = strtoul(param, NULL, 0);
-		s->no = n+2;
+		int n = xatoi_u(param);
+		s->no = n + 2;
 	}
 	return (s_stat*)s;
 }
@@ -436,9 +435,9 @@ static void collect_ctx(ctx_stat *s)
 	scale(data[0] - old);
 }
 
-static s_stat* init_ctx(const char *param ATTRIBUTE_UNUSED)
+static s_stat* init_ctx(const char *param UNUSED_PARAM)
 {
-	ctx_stat *s = xmalloc(sizeof(ctx_stat));
+	ctx_stat *s = xzalloc(sizeof(*s));
 	s->collect = collect_ctx;
 	return (s_stat*)s;
 }
@@ -478,9 +477,9 @@ static void collect_blk(blk_stat *s)
 	scale(data[1]*512);
 }
 
-static s_stat* init_blk(const char *param ATTRIBUTE_UNUSED)
+static s_stat* init_blk(const char *param UNUSED_PARAM)
 {
-	blk_stat *s = xmalloc(sizeof(blk_stat));
+	blk_stat *s = xzalloc(sizeof(*s));
 	s->collect = collect_blk;
 	s->lookfor = "page";
 	return (s_stat*)s;
@@ -491,7 +490,7 @@ S_STAT(fork_stat)
 	ullong old;
 S_STAT_END(fork_stat)
 
-static void collect_thread_nr(fork_stat *s ATTRIBUTE_UNUSED)
+static void collect_thread_nr(fork_stat *s UNUSED_PARAM)
 {
 	ullong data[1];
 
@@ -520,7 +519,7 @@ static void collect_fork(fork_stat *s)
 
 static s_stat* init_fork(const char *param)
 {
-	fork_stat *s = xmalloc(sizeof(fork_stat));
+	fork_stat *s = xzalloc(sizeof(*s));
 	if (*param == 'n') {
 		s->collect = collect_thread_nr;
 	} else {
@@ -560,16 +559,14 @@ static void collect_if(if_stat *s)
 
 static s_stat* init_if(const char *device)
 {
-	if_stat *s = xmalloc(sizeof(if_stat));
+	if_stat *s = xzalloc(sizeof(*s));
 
 	if (!device || !device[0])
 		bb_show_usage();
 	s->collect = collect_if;
 
 	s->device = device;
-	s->device_colon = xmalloc(strlen(device)+2);
-	strcpy(s->device_colon, device);
-	strcat(s->device_colon, ":");
+	s->device_colon = xasprintf("%s:", device);
 	return (s_stat*)s;
 }
 
@@ -650,7 +647,7 @@ static void collect_mem(mem_stat *s)
 
 static s_stat* init_mem(const char *param)
 {
-	mem_stat *s = xmalloc(sizeof(mem_stat));
+	mem_stat *s = xzalloc(sizeof(*s));
 	s->collect = collect_mem;
 	s->opt = param[0];
 	return (s_stat*)s;
@@ -660,7 +657,7 @@ static s_stat* init_mem(const char *param)
 S_STAT(swp_stat)
 S_STAT_END(swp_stat)
 
-static void collect_swp(swp_stat *s ATTRIBUTE_UNUSED)
+static void collect_swp(swp_stat *s UNUSED_PARAM)
 {
 	ullong s_total[1];
 	ullong s_free[1];
@@ -673,9 +670,9 @@ static void collect_swp(swp_stat *s ATTRIBUTE_UNUSED)
 	scale((s_total[0]-s_free[0]) << 10);
 }
 
-static s_stat* init_swp(const char *param ATTRIBUTE_UNUSED)
+static s_stat* init_swp(const char *param UNUSED_PARAM)
 {
-	swp_stat *s = xmalloc(sizeof(swp_stat));
+	swp_stat *s = xzalloc(sizeof(*s));
 	s->collect = collect_swp;
 	return (s_stat*)s;
 }
@@ -684,7 +681,7 @@ static s_stat* init_swp(const char *param ATTRIBUTE_UNUSED)
 S_STAT(fd_stat)
 S_STAT_END(fd_stat)
 
-static void collect_fd(fd_stat *s ATTRIBUTE_UNUSED)
+static void collect_fd(fd_stat *s UNUSED_PARAM)
 {
 	ullong data[2];
 
@@ -696,9 +693,9 @@ static void collect_fd(fd_stat *s ATTRIBUTE_UNUSED)
 	scale(data[0] - data[1]);
 }
 
-static s_stat* init_fd(const char *param ATTRIBUTE_UNUSED)
+static s_stat* init_fd(const char *param UNUSED_PARAM)
 {
-	fd_stat *s = xmalloc(sizeof(fd_stat));
+	fd_stat *s = xzalloc(sizeof(*s));
 	s->collect = collect_fd;
 	return (s_stat*)s;
 }
@@ -731,10 +728,10 @@ static void collect_time(time_stat *s)
 static s_stat* init_time(const char *param)
 {
 	int prec;
-	time_stat *s = xmalloc(sizeof(time_stat));
+	time_stat *s = xzalloc(sizeof(*s));
 
 	s->collect = collect_time;
-	prec = param[0]-'0';
+	prec = param[0] - '0';
 	if (prec < 0) prec = 0;
 	else if (prec > 6) prec = 6;
 	s->prec = prec;
@@ -789,8 +786,10 @@ int nmeter_main(int argc, char **argv)
 	if (argc != 2)
 		bb_show_usage();
 
-	if (open_read_close("version", buf, sizeof(buf)) > 0)
-		is26 = (strstr(buf, " 2.4.")==NULL);
+	if (open_read_close("version", buf, sizeof(buf)-1) > 0) {
+		buf[sizeof(buf)-1] = '\0';
+		is26 = (strstr(buf, " 2.4.") == NULL);
+	}
 
 	// Can use argv[1] directly, but this will mess up
 	// parameters as seen by e.g. ps. Making a copy...
@@ -803,7 +802,7 @@ int nmeter_main(int argc, char **argv)
 		if (!cur)
 			break;
 		if (cur[1] == '%') {	// %%
-			strcpy(cur, cur+1);
+			overlapping_strcpy(cur, cur + 1);
 			cur++;
 			goto again;
 		}
@@ -834,7 +833,7 @@ int nmeter_main(int argc, char **argv)
 		s = init_functions[p-options](param);
 		if (s) {
 			s->label = prev;
-			s->next = 0;
+			/*s->next = NULL; - all initXXX funcs use xzalloc */
 			if (!first)
 				first = s;
 			else
@@ -849,7 +848,7 @@ int nmeter_main(int argc, char **argv)
 	if (prev[0]) {
 		s = init_literal();
 		s->label = prev;
-		s->next = 0;
+		/*s->next = NULL; - all initXXX funcs use xzalloc */
 		if (!first)
 			first = s;
 		else

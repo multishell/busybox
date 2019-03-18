@@ -62,6 +62,10 @@
 #include <termios.h>
 #endif
 
+#ifndef PIPE_BUF
+#define PIPE_BUF 4096           /* amount of buffering in a pipe */
+#endif
+
 #if defined(__uClinux__)
 #error "Do not even bother, ash will not run on uClinux"
 #endif
@@ -109,27 +113,6 @@ static const char *const optletters_optnames[] = {
 #define optnames(n) (&optletters_optnames[(n)][1])
 
 enum { NOPTS = ARRAY_SIZE(optletters_optnames) };
-
-static char optlist[NOPTS] ALIGN1;
-
-#define eflag optlist[0]
-#define fflag optlist[1]
-#define Iflag optlist[2]
-#define iflag optlist[3]
-#define mflag optlist[4]
-#define nflag optlist[5]
-#define sflag optlist[6]
-#define xflag optlist[7]
-#define vflag optlist[8]
-#define Cflag optlist[9]
-#define aflag optlist[10]
-#define bflag optlist[11]
-#define uflag optlist[12]
-#define viflag optlist[13]
-#if DEBUG
-#define nolog optlist[14]
-#define debug optlist[15]
-#endif
 
 
 /* ============ Misc data */
@@ -183,10 +166,30 @@ struct globals_misc {
 #define EXEXIT 4        /* exit the shell */
 #define EXSIG 5         /* trapped signal in wait(1) */
 
-	/* trap handler commands */
 	smallint isloginsh;
-	char *trap[NSIG];
 	char nullstr[1];        /* zero length string */
+
+	char optlist[NOPTS];
+#define eflag optlist[0]
+#define fflag optlist[1]
+#define Iflag optlist[2]
+#define iflag optlist[3]
+#define mflag optlist[4]
+#define nflag optlist[5]
+#define sflag optlist[6]
+#define xflag optlist[7]
+#define vflag optlist[8]
+#define Cflag optlist[9]
+#define aflag optlist[10]
+#define bflag optlist[11]
+#define uflag optlist[12]
+#define viflag optlist[13]
+#if DEBUG
+#define nolog optlist[14]
+#define debug optlist[15]
+#endif
+
+	/* trap handler commands */
 	/*
 	 * Sigmode records the current value of the signal handlers for the various
 	 * modes.  A value of zero means that the current handler is not known.
@@ -200,27 +203,42 @@ struct globals_misc {
 #define S_RESET 5               /* temporary - to reset a hard ignored sig */
 
 	/* indicates specified signal received */
-	char gotsig[NSIG - 1];
+	char gotsig[NSIG - 1]; /* offset by 1: "signal" 0 is meaningless */
+	char *trap[NSIG];
+
+	/* Rarely referenced stuff */
+#if ENABLE_ASH_RANDOM_SUPPORT
+	/* Random number generators */
+	int32_t random_galois_LFSR; /* Galois LFSR (fast but weak). signed! */
+	uint32_t random_LCG;        /* LCG (fast but weak) */
+#endif
+	pid_t backgndpid;        /* pid of last background process */
+	smallint job_warning;    /* user was warned about stopped jobs (can be 2, 1 or 0). */
 };
 extern struct globals_misc *const ash_ptr_to_globals_misc;
 #define G_misc (*ash_ptr_to_globals_misc)
-#define rootpid   (G_misc.rootpid  )
-#define shlvl     (G_misc.shlvl    )
-#define minusc    (G_misc.minusc   )
-#define curdir    (G_misc.curdir   )
-#define physdir   (G_misc.physdir  )
-#define arg0      (G_misc.arg0     )
+#define rootpid     (G_misc.rootpid    )
+#define shlvl       (G_misc.shlvl      )
+#define minusc      (G_misc.minusc     )
+#define curdir      (G_misc.curdir     )
+#define physdir     (G_misc.physdir    )
+#define arg0        (G_misc.arg0       )
 #define exception_handler (G_misc.exception_handler)
 #define exception         (G_misc.exception        )
 #define suppressint       (G_misc.suppressint      )
 #define intpending        (G_misc.intpending       )
 //#define exsig             (G_misc.exsig            )
 #define pendingsig        (G_misc.pendingsig       )
-#define isloginsh (G_misc.isloginsh)
-#define trap      (G_misc.trap     )
-#define nullstr   (G_misc.nullstr  )
-#define sigmode   (G_misc.sigmode  )
-#define gotsig    (G_misc.gotsig   )
+#define isloginsh   (G_misc.isloginsh  )
+#define nullstr     (G_misc.nullstr    )
+#define optlist     (G_misc.optlist    )
+#define sigmode     (G_misc.sigmode    )
+#define gotsig      (G_misc.gotsig     )
+#define trap        (G_misc.trap       )
+#define random_galois_LFSR (G_misc.random_galois_LFSR)
+#define random_LCG         (G_misc.random_LCG        )
+#define backgndpid  (G_misc.backgndpid )
+#define job_warning (G_misc.job_warning)
 #define INIT_G_misc() do { \
 	(*(struct globals_misc**)&ash_ptr_to_globals_misc) = xzalloc(sizeof(G_misc)); \
 	barrier(); \
@@ -237,18 +255,17 @@ extern struct globals_misc *const ash_ptr_to_globals_misc;
  * much more efficient and portable.  (But hacking the kernel is so much
  * more fun than worrying about efficiency and portability. :-))
  */
-#define INT_OFF \
-	do { \
-		suppressint++; \
-		xbarrier(); \
-	} while (0)
+#define INT_OFF do { \
+	suppressint++; \
+	xbarrier(); \
+} while (0)
 
 /*
  * Called to raise an exception.  Since C doesn't include exceptions, we
  * just do a longjmp to the exception handler.  The type of exception is
  * stored in the global variable "exception".
  */
-static void raise_exception(int) ATTRIBUTE_NORETURN;
+static void raise_exception(int) NORETURN;
 static void
 raise_exception(int e)
 {
@@ -268,7 +285,7 @@ raise_exception(int e)
  * are held using the INT_OFF macro.  (The test for iflag is just
  * defensive programming.)
  */
-static void raise_interrupt(void) ATTRIBUTE_NORETURN;
+static void raise_interrupt(void) NORETURN;
 static void
 raise_interrupt(void)
 {
@@ -311,30 +328,27 @@ force_int_on(void)
 }
 #define FORCE_INT_ON force_int_on()
 #else
-#define INT_ON \
-	do { \
-		xbarrier(); \
-		if (--suppressint == 0 && intpending) \
-			raise_interrupt(); \
-	} while (0)
-#define FORCE_INT_ON \
-	do { \
-		xbarrier(); \
-		suppressint = 0; \
-		if (intpending) \
-			raise_interrupt(); \
-	} while (0)
+#define INT_ON do { \
+	xbarrier(); \
+	if (--suppressint == 0 && intpending) \
+		raise_interrupt(); \
+} while (0)
+#define FORCE_INT_ON do { \
+	xbarrier(); \
+	suppressint = 0; \
+	if (intpending) \
+		raise_interrupt(); \
+} while (0)
 #endif /* ASH_OPTIMIZE_FOR_SIZE */
 
 #define SAVE_INT(v) ((v) = suppressint)
 
-#define RESTORE_INT(v) \
-	do { \
-		xbarrier(); \
-		suppressint = (v); \
-		if (suppressint == 0 && intpending) \
-			raise_interrupt(); \
-	} while (0)
+#define RESTORE_INT(v) do { \
+	xbarrier(); \
+	suppressint = (v); \
+	if (suppressint == 0 && intpending) \
+		raise_interrupt(); \
+} while (0)
 
 /*
  * Ignore a signal. Only one usage site - in forkchild()
@@ -516,66 +530,66 @@ static const char dolatstr[] ALIGN1 = {
 union node;
 
 struct ncmd {
-	int type;
+	smallint type; /* Nxxxx */
 	union node *assign;
 	union node *args;
 	union node *redirect;
 };
 
 struct npipe {
-	int type;
-	int backgnd;
+	smallint type;
+	smallint pipe_backgnd;
 	struct nodelist *cmdlist;
 };
 
 struct nredir {
-	int type;
+	smallint type;
 	union node *n;
 	union node *redirect;
 };
 
 struct nbinary {
-	int type;
+	smallint type;
 	union node *ch1;
 	union node *ch2;
 };
 
 struct nif {
-	int type;
+	smallint type;
 	union node *test;
 	union node *ifpart;
 	union node *elsepart;
 };
 
 struct nfor {
-	int type;
+	smallint type;
 	union node *args;
 	union node *body;
 	char *var;
 };
 
 struct ncase {
-	int type;
+	smallint type;
 	union node *expr;
 	union node *cases;
 };
 
 struct nclist {
-	int type;
+	smallint type;
 	union node *next;
 	union node *pattern;
 	union node *body;
 };
 
 struct narg {
-	int type;
+	smallint type;
 	union node *next;
 	char *text;
 	struct nodelist *backquote;
 };
 
 struct nfile {
-	int type;
+	smallint type;
 	union node *next;
 	int fd;
 	union node *fname;
@@ -583,27 +597,27 @@ struct nfile {
 };
 
 struct ndup {
-	int type;
-	union node *next;
-	int fd;
+	smallint type;
+	union node *next; /* must match nfile's layout */
+	int fd; /* must match nfile's layout */
 	int dupfd;
 	union node *vname;
 };
 
 struct nhere {
-	int type;
+	smallint type;
 	union node *next;
 	int fd;
 	union node *doc;
 };
 
 struct nnot {
-	int type;
+	smallint type;
 	union node *com;
 };
 
 union node {
-	int type;
+	smallint type;
 	struct ncmd ncmd;
 	struct npipe npipe;
 	struct nredir nredir;
@@ -944,7 +958,7 @@ shtree(union node *n, int ind, char *pfx, FILE *fp)
 			if (lp->next)
 				fputs(" | ", fp);
 		}
-		if (n->npipe.backgnd)
+		if (n->npipe.pipe_backgnd)
 			fputs(" &", fp);
 		if (ind >= 0)
 			putc('\n', fp);
@@ -985,9 +999,7 @@ struct strlist {
 	char *text;
 };
 
-#if ENABLE_ASH_ALIAS
 struct alias;
-#endif
 
 struct strpush {
 	struct strpush *prev;   /* preceding string on stack */
@@ -1011,12 +1023,12 @@ struct parsefile {
 	struct strpush basestrpush; /* so pushing one is fast */
 };
 
-static struct parsefile basepf;         /* top level input file */
+static struct parsefile basepf;        /* top level input file */
 static struct parsefile *g_parsefile = &basepf;  /* current input file */
 static int startlinno;                 /* line # where last token started */
 static char *commandname;              /* currently executing command */
 static struct strlist *cmdenviron;     /* environment for builtin command */
-static int exitstatus;                 /* exit status of last command */
+static uint8_t exitstatus;             /* exit status of last command */
 
 
 /* ============ Message printing */
@@ -1040,7 +1052,7 @@ ash_vmsg(const char *msg, va_list ap)
  * is not NULL then error prints an error message using printf style
  * formatting.  It then raises the error exception.
  */
-static void ash_vmsg_and_raise(int, const char *, va_list) ATTRIBUTE_NORETURN;
+static void ash_vmsg_and_raise(int, const char *, va_list) NORETURN;
 static void
 ash_vmsg_and_raise(int cond, const char *msg, va_list ap)
 {
@@ -1060,7 +1072,7 @@ ash_vmsg_and_raise(int cond, const char *msg, va_list ap)
 	/* NOTREACHED */
 }
 
-static void ash_msg_and_raise_error(const char *, ...) ATTRIBUTE_NORETURN;
+static void ash_msg_and_raise_error(const char *, ...) NORETURN;
 static void
 ash_msg_and_raise_error(const char *msg, ...)
 {
@@ -1072,7 +1084,7 @@ ash_msg_and_raise_error(const char *msg, ...)
 	va_end(ap);
 }
 
-static void ash_msg_and_raise(int, const char *, ...) ATTRIBUTE_NORETURN;
+static void ash_msg_and_raise(int, const char *, ...) NORETURN;
 static void
 ash_msg_and_raise(int cond, const char *msg, ...)
 {
@@ -1452,21 +1464,19 @@ _STPUTC(int c, char *p)
 
 #define STARTSTACKSTR(p)        ((p) = stackblock())
 #define STPUTC(c, p)            ((p) = _STPUTC((c), (p)))
-#define CHECKSTRSPACE(n, p) \
-	do { \
-		char *q = (p); \
-		size_t l = (n); \
-		size_t m = sstrend - q; \
-		if (l > m) \
-			(p) = makestrspace(l, q); \
-	} while (0)
+#define CHECKSTRSPACE(n, p) do { \
+	char *q = (p); \
+	size_t l = (n); \
+	size_t m = sstrend - q; \
+	if (l > m) \
+		(p) = makestrspace(l, q); \
+} while (0)
 #define USTPUTC(c, p)           (*(p)++ = (c))
-#define STACKSTRNUL(p) \
-	do { \
-		if ((p) == sstrend) \
-			(p) = growstackstr(); \
-		*(p) = '\0'; \
-	} while (0)
+#define STACKSTRNUL(p) do { \
+	if ((p) == sstrend) \
+		(p) = growstackstr(); \
+	*(p) = '\0'; \
+} while (0)
 #define STUNPUTC(p)             (--(p))
 #define STTOPC(p)               ((p)[-1])
 #define STADJUST(amount, p)     ((p) += (amount))
@@ -1622,41 +1632,12 @@ nextopt(const char *optstring)
 }
 
 
-/* ============ Math support definitions */
-
-#if ENABLE_ASH_MATH_SUPPORT_64
-typedef int64_t arith_t;
-#define arith_t_type long long
-#else
-typedef long arith_t;
-#define arith_t_type long
-#endif
-
-#if ENABLE_ASH_MATH_SUPPORT
-static arith_t dash_arith(const char *);
-static arith_t arith(const char *expr, int *perrcode);
-#endif
-
-#if ENABLE_ASH_RANDOM_SUPPORT
-static unsigned long rseed;
-#ifndef DYNAMIC_VAR
-#define DYNAMIC_VAR
-#endif
-#endif
-
-
 /* ============ Shell variables */
 
 /*
  * The parsefile structure pointed to by the global variable parsefile
  * contains information about the current file being read.
  */
-struct redirtab {
-	struct redirtab *next;
-	int renamed[10];
-	int nullredirs;
-};
-
 struct shparam {
 	int nparam;             /* # of positional parameters (without $0) */
 #if ENABLE_ASH_GETOPTS
@@ -1673,12 +1654,12 @@ struct shparam {
 static void
 freeparam(volatile struct shparam *param)
 {
-	char **ap;
-
 	if (param->malloced) {
-		for (ap = param->p; *ap; ap++)
-			free(*ap);
-		free(param->p);
+		char **ap, **ap1;
+		ap = ap1 = param->p;
+		while (*ap)
+			free(*ap++);
+		free(ap1);
 	}
 }
 
@@ -1711,7 +1692,7 @@ struct localvar {
 #define VNOFUNC         0x40    /* don't call the callback function */
 #define VNOSET          0x80    /* do not set variable - just readonly test */
 #define VNOSAVE         0x100   /* when text is on the heap before setvareq */
-#ifdef DYNAMIC_VAR
+#if ENABLE_ASH_RANDOM_SUPPORT
 # define VDYNAMIC       0x200   /* dynamic variable */
 #else
 # define VDYNAMIC       0
@@ -1782,6 +1763,7 @@ static const struct {
 #endif
 };
 
+struct redirtab;
 
 struct globals_var {
 	struct shparam shellparam;      /* $@ current positional parameters */
@@ -1794,7 +1776,7 @@ struct globals_var {
 extern struct globals_var *const ash_ptr_to_globals_var;
 #define G_var (*ash_ptr_to_globals_var)
 #define shellparam    (G_var.shellparam   )
-#define redirlist     (G_var.redirlist    )
+//#define redirlist     (G_var.redirlist    )
 #define g_nullredirs  (G_var.g_nullredirs )
 #define preverrout_fd (G_var.preverrout_fd)
 #define vartab        (G_var.vartab       )
@@ -1983,7 +1965,7 @@ lookupvar(const char *name)
 
 	v = *findvar(hashvar(name), name);
 	if (v) {
-#ifdef DYNAMIC_VAR
+#if ENABLE_ASH_RANDOM_SUPPORT
 	/*
 	 * Dynamic variables are implemented roughly the same way they are
 	 * in bash. Namely, they're "special" so long as they aren't unset.
@@ -2144,7 +2126,7 @@ unsetvar(const char *s)
 		retval = 1;
 		if (flags & VREADONLY)
 			goto out;
-#ifdef DYNAMIC_VAR
+#if ENABLE_ASH_RANDOM_SUPPORT
 		vp->flags &= ~VDYNAMIC;
 #endif
 		if (flags & VUNSET)
@@ -2489,7 +2471,7 @@ docd(const char *dest, int flags)
 }
 
 static int
-cdcmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
+cdcmd(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
 	const char *dest;
 	const char *path;
@@ -2553,7 +2535,7 @@ cdcmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
 }
 
 static int
-pwdcmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
+pwdcmd(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
 	int flags;
 	const char *dir = curdir;
@@ -3155,7 +3137,7 @@ printalias(const struct alias *ap)
  * TODO - sort output
  */
 static int
-aliascmd(int argc ATTRIBUTE_UNUSED, char **argv)
+aliascmd(int argc UNUSED_PARAM, char **argv)
 {
 	char *n, *v;
 	int ret = 0;
@@ -3190,7 +3172,7 @@ aliascmd(int argc ATTRIBUTE_UNUSED, char **argv)
 }
 
 static int
-unaliascmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
+unaliascmd(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
 	int i;
 
@@ -3260,9 +3242,6 @@ struct job {
 	struct job *prev_job;   /* previous job */
 };
 
-static pid_t backgndpid;        /* pid of last background process */
-static smallint job_warning;    /* user was warned about stopped jobs (can be 2, 1 or 0). */
-
 static struct job *makejob(/*union node *,*/ int);
 #if !JOBS
 #define forkshell(job, node, mode) forkshell(job, mode)
@@ -3274,7 +3253,7 @@ static int waitforjob(struct job *);
 enum { doing_jobctl = 0 };
 #define setjobctl(on) do {} while (0)
 #else
-static smallint doing_jobctl;
+static smallint doing_jobctl; //references:8
 static void setjobctl(int);
 #endif
 
@@ -3373,17 +3352,17 @@ setsignal(int signo)
 
 #if JOBS
 /* pgrp of shell on invocation */
-static int initialpgrp;
-static int ttyfd = -1;
+static int initialpgrp; //references:2
+static int ttyfd = -1; //5
 #endif
 /* array of jobs */
-static struct job *jobtab;
+static struct job *jobtab; //5
 /* size of array */
-static unsigned njobs;
+static unsigned njobs; //4
 /* current job */
-static struct job *curjob;
+static struct job *curjob; //lots
 /* number of presumed living untracked jobs */
-static int jobless;
+static int jobless; //4
 
 static void
 set_curjob(struct job *jp, unsigned mode)
@@ -3554,7 +3533,7 @@ static void
 xtcsetpgrp(int fd, pid_t pgrp)
 {
 	if (tcsetpgrp(fd, pgrp))
-		ash_msg_and_raise_error("cannot set tty process group (%m)");
+		ash_msg_and_raise_error("can't set tty process group (%m)");
 }
 
 /*
@@ -3700,7 +3679,7 @@ restartjob(struct job *jp, int mode)
 }
 
 static int
-fg_bgcmd(int argc ATTRIBUTE_UNUSED, char **argv)
+fg_bgcmd(int argc UNUSED_PARAM, char **argv)
 {
 	struct job *jp;
 	FILE *out;
@@ -3987,7 +3966,7 @@ showjobs(FILE *out, int mode)
 }
 
 static int
-jobscmd(int argc ATTRIBUTE_UNUSED, char **argv)
+jobscmd(int argc UNUSED_PARAM, char **argv)
 {
 	int mode, m;
 
@@ -4040,7 +4019,7 @@ getstatus(struct job *job)
 }
 
 static int
-waitcmd(int argc ATTRIBUTE_UNUSED, char **argv)
+waitcmd(int argc UNUSED_PARAM, char **argv)
 {
 	struct job *job;
 	int retval;
@@ -4310,7 +4289,6 @@ cmdtxt(union node *n)
 	union node *np;
 	struct nodelist *lp;
 	const char *p;
-	char s[2];
 
 	if (!n)
 		return;
@@ -4442,14 +4420,11 @@ cmdtxt(union node *n)
 	case NFROMTO:
 		p = "<>";
  redir:
-		s[0] = n->nfile.fd + '0';
-		s[1] = '\0';
-		cmdputs(s);
+		cmdputs(utoa(n->nfile.fd));
 		cmdputs(p);
 		if (n->type == NTOFD || n->type == NFROMFD) {
-			s[0] = n->ndup.dupfd + '0';
-			p = s;
-			goto dotail2;
+			cmdputs(utoa(n->ndup.dupfd));
+			break;
 		}
 		n = n->nfile.fname;
 		goto donode;
@@ -4611,7 +4586,7 @@ forkshell(struct job *jp, union node *n, int mode)
 		TRACE(("Fork failed, errno=%d", errno));
 		if (jp)
 			freejob(jp);
-		ash_msg_and_raise_error("cannot fork");
+		ash_msg_and_raise_error("can't fork");
 	}
 	if (pid == 0)
 		forkchild(jp, /*n,*/ mode);
@@ -4700,11 +4675,6 @@ stoppedjobs(void)
 
 #define EMPTY -2                /* marks an unused slot in redirtab */
 #define CLOSED -3               /* marks a slot of previously-closed fd */
-#ifndef PIPE_BUF
-# define PIPESIZE 4096          /* amount of buffering in a pipe */
-#else
-# define PIPESIZE PIPE_BUF
-#endif
 
 /*
  * Open a file in noclobber mode.
@@ -4781,12 +4751,13 @@ openhere(union node *redir)
 		ash_msg_and_raise_error("pipe call failed");
 	if (redir->type == NHERE) {
 		len = strlen(redir->nhere.doc->narg.text);
-		if (len <= PIPESIZE) {
+		if (len <= PIPE_BUF) {
 			full_write(pip[1], redir->nhere.doc->narg.text, len);
 			goto out;
 		}
 	}
 	if (forkshell((struct job *)NULL, (union node *)NULL, FORK_NOJOB) == 0) {
+		/* child */
 		close(pip[0]);
 		signal(SIGINT, SIG_IGN);
 		signal(SIGQUIT, SIG_IGN);
@@ -4797,7 +4768,7 @@ openhere(union node *redir)
 		signal(SIGPIPE, SIG_DFL);
 		if (redir->type == NHERE)
 			full_write(pip[1], redir->nhere.doc->narg.text, len);
-		else
+		else /* NXHERE */
 			expandhere(redir->nhere.doc, pip[1]);
 		_exit(EXIT_SUCCESS);
 	}
@@ -4852,10 +4823,11 @@ openredirect(union node *redir)
 		abort();
 #endif
 		/* Fall through to eliminate warning. */
-	case NTOFD:
-	case NFROMFD:
-		f = -1;
-		break;
+/* Our single caller does this itself */
+//	case NTOFD:
+//	case NFROMFD:
+//		f = -1;
+//		break;
 	case NHERE:
 	case NXHERE:
 		f = openhere(redir);
@@ -4864,9 +4836,9 @@ openredirect(union node *redir)
 
 	return f;
  ecreate:
-	ash_msg_and_raise_error("cannot create %s: %s", fname, errmsg(errno, "nonexistent directory"));
+	ash_msg_and_raise_error("can't create %s: %s", fname, errmsg(errno, "nonexistent directory"));
  eopen:
-	ash_msg_and_raise_error("cannot open %s: %s", fname, errmsg(errno, "no such file"));
+	ash_msg_and_raise_error("can't open %s: %s", fname, errmsg(errno, "no such file"));
 }
 
 /*
@@ -4874,36 +4846,85 @@ openredirect(union node *redir)
  * if the source file descriptor is closed, EMPTY if there are no unused
  * file descriptors left.
  */
+/* 0x800..00: bit to set in "to" to request dup2 instead of fcntl(F_DUPFD).
+ * old code was doing close(to) prior to copyfd() to achieve the same */
+enum {
+	COPYFD_EXACT   = (int)~(INT_MAX),
+	COPYFD_RESTORE = (int)((unsigned)COPYFD_EXACT >> 1),
+};
 static int
 copyfd(int from, int to)
 {
 	int newfd;
 
-	newfd = fcntl(from, F_DUPFD, to);
+	if (to & COPYFD_EXACT) {
+		to &= ~COPYFD_EXACT;
+		/*if (from != to)*/
+			newfd = dup2(from, to);
+	} else {
+		newfd = fcntl(from, F_DUPFD, to);
+	}
 	if (newfd < 0) {
 		if (errno == EMFILE)
 			return EMPTY;
+		/* Happens when source fd is not open: try "echo >&99" */
 		ash_msg_and_raise_error("%d: %m", from);
 	}
 	return newfd;
 }
 
-static void
-dupredirect(union node *redir, int f)
+/* Struct def and variable are moved down to the first usage site */
+struct two_fd_t {
+	int orig, copy;
+};
+struct redirtab {
+	struct redirtab *next;
+	int nullredirs;
+	int pair_count;
+	struct two_fd_t two_fd[0];
+};
+#define redirlist (G_var.redirlist)
+
+static int need_to_remember(struct redirtab *rp, int fd)
 {
-	int fd = redir->nfile.fd;
+	int i;
 
-	if (redir->nfile.type == NTOFD || redir->nfile.type == NFROMFD) {
-		if (redir->ndup.dupfd >= 0) {   /* if not ">&-" */
-			copyfd(redir->ndup.dupfd, fd);
+	if (!rp) /* remembering was not requested */
+		return 0;
+
+	for (i = 0; i < rp->pair_count; i++) {
+		if (rp->two_fd[i].orig == fd) {
+			/* already remembered */
+			return 0;
 		}
-		return;
 	}
+	return 1;
+}
 
-	if (f != fd) {
-		copyfd(f, fd);
-		close(f);
+/* "hidden" fd is a fd used to read scripts, or a copy of such */
+static int is_hidden_fd(struct redirtab *rp, int fd)
+{
+	int i;
+	struct parsefile *pf;
+
+	if (fd == -1)
+		return 0;
+	pf = g_parsefile;
+	while (pf) {
+		if (fd == pf->fd) {
+			return 1;
+		}
+		pf = pf->prev;
 	}
+	if (!rp)
+		return 0;
+	fd |= COPYFD_RESTORE;
+	for (i = 0; i < rp->pair_count; i++) {
+		if (rp->two_fd[i].copy == fd) {
+			return 1;
+		}
+	}
+	return 0;
 }
 
 /*
@@ -4919,72 +4940,119 @@ dupredirect(union node *redir, int f)
 static void
 redirect(union node *redir, int flags)
 {
-	union node *n;
 	struct redirtab *sv;
+	int sv_pos;
 	int i;
 	int fd;
 	int newfd;
+	int copied_fd2 = -1;
 
 	g_nullredirs++;
 	if (!redir) {
 		return;
 	}
+
 	sv = NULL;
+	sv_pos = 0;
 	INT_OFF;
 	if (flags & REDIR_PUSH) {
-		sv = ckmalloc(sizeof(*sv));
+		union node *tmp = redir;
+		do {
+			sv_pos++;
+			tmp = tmp->nfile.next;
+		} while (tmp);
+		sv = ckmalloc(sizeof(*sv) + sv_pos * sizeof(sv->two_fd[0]));
 		sv->next = redirlist;
+		sv->pair_count = sv_pos;
 		redirlist = sv;
 		sv->nullredirs = g_nullredirs - 1;
-		for (i = 0; i < 10; i++)
-			sv->renamed[i] = EMPTY;
 		g_nullredirs = 0;
-	}
-	n = redir;
-	do {
-		fd = n->nfile.fd;
-		if ((n->nfile.type == NTOFD || n->nfile.type == NFROMFD)
-		 && n->ndup.dupfd == fd)
-			continue; /* redirect from/to same file descriptor */
-
-		newfd = openredirect(n);
-		if (fd == newfd) {
-			/* Descriptor wasn't open before redirect.
-			 * Mark it for close in the future */
-			if (sv && sv->renamed[fd] == EMPTY)
-				sv->renamed[fd] = CLOSED;
-			continue;
+		while (sv_pos > 0) {
+			sv_pos--;
+			sv->two_fd[sv_pos].orig = sv->two_fd[sv_pos].copy = EMPTY;
 		}
-		if (sv && sv->renamed[fd] == EMPTY) {
-			i = fcntl(fd, F_DUPFD, 10);
+	}
 
+	do {
+		fd = redir->nfile.fd;
+		if (redir->nfile.type == NTOFD || redir->nfile.type == NFROMFD) {
+			int right_fd = redir->ndup.dupfd;
+			/* redirect from/to same file descriptor? */
+			if (right_fd == fd)
+				continue;
+			/* echo >&10 and 10 is a fd opened to the sh script? */
+			if (is_hidden_fd(sv, right_fd)) {
+				errno = EBADF; /* as if it is closed */
+				ash_msg_and_raise_error("%d: %m", right_fd);
+			}
+			newfd = -1;
+		} else {
+			newfd = openredirect(redir); /* always >= 0 */
+			if (fd == newfd) {
+				/* Descriptor wasn't open before redirect.
+				 * Mark it for close in the future */
+				if (need_to_remember(sv, fd)) {
+					goto remember_to_close;
+				}
+				continue;
+			}
+		}
+		if (need_to_remember(sv, fd)) {
+			/* Copy old descriptor */
+			i = fcntl(fd, F_DUPFD, 10);
+/* You'd expect copy to be CLOEXECed. Currently these extra "saved" fds
+ * are closed in popredir() in the child, preventing them from leaking
+ * into child. (popredir() also cleans up the mess in case of failures)
+ */
 			if (i == -1) {
 				i = errno;
 				if (i != EBADF) {
-					close(newfd);
+					/* Strange error (e.g. "too many files" EMFILE?) */
+					if (newfd >= 0)
+						close(newfd);
 					errno = i;
 					ash_msg_and_raise_error("%d: %m", fd);
 					/* NOTREACHED */
 				}
-			} else {
-				sv->renamed[fd] = i;
-				close(fd);
+				/* EBADF: it is not open - good, remember to close it */
+ remember_to_close:
+				i = CLOSED;
+			} else { /* fd is open, save its copy */
+				/* "exec fd>&-" should not close fds
+				 * which point to script file(s).
+				 * Force them to be restored afterwards */
+				if (is_hidden_fd(sv, fd))
+					i |= COPYFD_RESTORE;
 			}
-		} else {
-			close(fd);
+			if (fd == 2)
+				copied_fd2 = i;
+			sv->two_fd[sv_pos].orig = fd;
+			sv->two_fd[sv_pos].copy = i;
+			sv_pos++;
 		}
-		dupredirect(n, newfd);
-	} while ((n = n->nfile.next));
+		if (newfd < 0) {
+			/* NTOFD/NFROMFD: copy redir->ndup.dupfd to fd */
+			if (redir->ndup.dupfd < 0) { /* "fd>&-" */
+				close(fd);
+			} else {
+				copyfd(redir->ndup.dupfd, fd | COPYFD_EXACT);
+			}
+		} else if (fd != newfd) { /* move newfd to fd */
+			copyfd(newfd, fd | COPYFD_EXACT);
+			close(newfd);
+		}
+	} while ((redir = redir->nfile.next) != NULL);
+
 	INT_ON;
-	if ((flags & REDIR_SAVEFD2) && sv && sv->renamed[2] >= 0)
-		preverrout_fd = sv->renamed[2];
+	if ((flags & REDIR_SAVEFD2) && copied_fd2 >= 0)
+		preverrout_fd = copied_fd2;
 }
 
 /*
  * Undo the effects of the last redirection.
  */
 static void
-popredir(int drop)
+popredir(int drop, int restore)
 {
 	struct redirtab *rp;
 	int i;
@@ -4993,18 +5061,21 @@ popredir(int drop)
 		return;
 	INT_OFF;
 	rp = redirlist;
-	for (i = 0; i < 10; i++) {
-		if (rp->renamed[i] == CLOSED) {
+	for (i = 0; i < rp->pair_count; i++) {
+		int fd = rp->two_fd[i].orig;
+		int copy = rp->two_fd[i].copy;
+		if (copy == CLOSED) {
 			if (!drop)
-				close(i);
+				close(fd);
 			continue;
 		}
-		if (rp->renamed[i] != EMPTY) {
-			if (!drop) {
-				close(i);
-				copyfd(rp->renamed[i], i);
+		if (copy != EMPTY) {
+			if (!drop || (restore && (copy & COPYFD_RESTORE))) {
+				copy &= ~COPYFD_RESTORE;
+				/*close(fd);*/
+				copyfd(copy, fd | COPYFD_EXACT);
 			}
-			close(rp->renamed[i]);
+			close(copy);
 		}
 	}
 	redirlist = rp->next;
@@ -5027,7 +5098,7 @@ clearredir(int drop)
 		g_nullredirs = 0;
 		if (!redirlist)
 			break;
-		popredir(drop);
+		popredir(drop, /*restore:*/ 0);
 	}
 }
 
@@ -5040,7 +5111,8 @@ redirectsafe(union node *redir, int flags)
 	struct jmploc jmploc;
 
 	SAVE_INT(saveint);
-	err = setjmp(jmploc.loc) * 2;
+	/* "echo 9>/dev/null; echo >&9; echo result: $?" - result should be 1, not 2! */
+	err = setjmp(jmploc.loc); // huh?? was = setjmp(jmploc.loc) * 2;
 	if (!err) {
 		exception_handler = &jmploc;
 		redirect(redir, flags);
@@ -5057,6 +5129,19 @@ redirectsafe(union node *redir, int flags)
  *
  * We have to deal with backquotes, shell variables, and file metacharacters.
  */
+
+#if ENABLE_ASH_MATH_SUPPORT_64
+typedef int64_t arith_t;
+#define arith_t_type long long
+#else
+typedef long arith_t;
+#define arith_t_type long
+#endif
+
+#if ENABLE_ASH_MATH_SUPPORT
+static arith_t dash_arith(const char *);
+static arith_t arith(const char *expr, int *perrcode);
+#endif
 
 /*
  * expandarg flags
@@ -5375,7 +5460,7 @@ struct backcmd {                /* result of evalbackcmd */
 };
 
 /* These forward decls are needed to use "eval" code for backticks handling: */
-static smalluint back_exitstatus; /* exit status of backquoted command */
+static uint8_t back_exitstatus; /* exit status of backquoted command */
 #define EV_EXIT 01              /* exit after evaluating tree */
 static void evaltree(union node *, int);
 
@@ -5406,8 +5491,8 @@ evalbackcmd(union node *n, struct backcmd *result)
 			FORCE_INT_ON;
 			close(pip[0]);
 			if (pip[1] != 1) {
-				close(1);
-				copyfd(pip[1], 1);
+				/*close(1);*/
+				copyfd(pip[1], 1 | COPYFD_EXACT);
 				close(pip[1]);
 			}
 			eflag = 0;
@@ -5698,7 +5783,7 @@ argstr(char *p, int flag, struct strlist *var_str_list)
 }
 
 static char *
-scanleft(char *startp, char *rmesc, char *rmescend ATTRIBUTE_UNUSED, char *str, int quotes,
+scanleft(char *startp, char *rmesc, char *rmescend UNUSED_PARAM, char *str, int quotes,
 	int zero)
 {
 // This commented out code was added by James Simmons <jsimmons@infradead.org>
@@ -5802,7 +5887,7 @@ scanright(char *startp, char *rmesc, char *rmescend, char *str, int quotes,
 	return 0;
 }
 
-static void varunset(const char *, const char *, const char *, int) ATTRIBUTE_NORETURN;
+static void varunset(const char *, const char *, const char *, int) NORETURN;
 static void
 varunset(const char *end, const char *var, const char *umsg, int varflags)
 {
@@ -6579,7 +6664,7 @@ expmeta(char *enddir, char *name)
 	if (*p == '.')
 		matchdot++;
 	while (!intpending && (dp = readdir(dirp)) != NULL) {
-		if (dp->d_name[0] == '.' && ! matchdot)
+		if (dp->d_name[0] == '.' && !matchdot)
 			continue;
 		if (pmatch(start, dp->d_name)) {
 			if (atend) {
@@ -6594,7 +6679,7 @@ expmeta(char *enddir, char *name)
 		}
 	}
 	closedir(dirp);
-	if (! atend)
+	if (!atend)
 		endname[-1] = '/';
 }
 
@@ -6923,7 +7008,7 @@ tryexec(USE_FEATURE_SH_STANDALONE(int applet_no,) char *cmd, char **argv, char *
  * Exec a program.  Never returns.  If you change this routine, you may
  * have to change the find_command routine as well.
  */
-static void shellexec(char **, const char *, int) ATTRIBUTE_NORETURN;
+static void shellexec(char **, const char *, int) NORETURN;
 static void
 shellexec(char **argv, const char *path, int idx)
 {
@@ -6935,7 +7020,7 @@ shellexec(char **argv, const char *path, int idx)
 	int applet_no = -1;
 #endif
 
-	clearredir(1);
+	clearredir(/*drop:*/ 1);
 	envp = listvars(VEXPORT, VUNSET, 0);
 	if (strchr(argv[0], '/') != NULL
 #if ENABLE_FEATURE_SH_STANDALONE
@@ -7100,7 +7185,7 @@ addcmdentry(char *name, struct cmdentry *entry)
 }
 
 static int
-hashcmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
+hashcmd(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
 	struct tblentry **pp;
 	struct tblentry *cmdp;
@@ -7402,7 +7487,7 @@ describe_command(char *command, int describe_command_verbose)
 }
 
 static int
-typecmd(int argc ATTRIBUTE_UNUSED, char **argv)
+typecmd(int argc UNUSED_PARAM, char **argv)
 {
 	int i = 1;
 	int err = 0;
@@ -7421,7 +7506,7 @@ typecmd(int argc ATTRIBUTE_UNUSED, char **argv)
 
 #if ENABLE_ASH_CMDCMD
 static int
-commandcmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
+commandcmd(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
 	int c;
 	enum {
@@ -7627,7 +7712,7 @@ copynode(union node *n)
 		break;
 	case NPIPE:
 		new->npipe.cmdlist = copynodelist(n->npipe.cmdlist);
-		new->npipe.backgnd = n->npipe.backgnd;
+		new->npipe.pipe_backgnd = n->npipe.pipe_backgnd;
 		break;
 	case NREDIR:
 	case NBACKGND:
@@ -7765,12 +7850,12 @@ dotrap(void)
 	pendingsig = 0;
 	xbarrier();
 
-	for (i = 0, q = gotsig; i < NSIG - 1; i++, q++) {
+	for (i = 1, q = gotsig; i < NSIG; i++, q++) {
 		if (!*q)
 			continue;
 		*q = '\0';
 
-		p = trap[i + 1];
+		p = trap[i];
 		if (!p)
 			continue;
 		skip = evalstring(p, SKIPEVAL);
@@ -7845,7 +7930,7 @@ evaltree(union node *n, int flags)
 			evaltree(n->nredir.n, flags & EV_TESTED);
 			status = exitstatus;
 		}
-		popredir(0);
+		popredir(/*drop:*/ 0, /*restore:*/ 0 /* not sure */);
 		goto setstatus;
 	case NCMD:
 		evalfn = evalcommand;
@@ -8066,7 +8151,7 @@ evalsubshell(union node *n, int flags)
 		/* never returns */
 	}
 	status = 0;
-	if (! backgnd)
+	if (!backgnd)
 		status = waitforjob(jp);
 	exitstatus = status;
 	INT_ON;
@@ -8140,7 +8225,7 @@ evalpipe(union node *n, int flags)
 				ash_msg_and_raise_error("pipe call failed");
 			}
 		}
-		if (forkshell(jp, lp->n, n->npipe.backgnd) == 0) {
+		if (forkshell(jp, lp->n, n->npipe.pipe_backgnd) == 0) {
 			INT_ON;
 			if (pip[1] >= 0) {
 				close(pip[0]);
@@ -8161,7 +8246,7 @@ evalpipe(union node *n, int flags)
 		prevfd = pip[0];
 		close(pip[1]);
 	}
-	if (n->npipe.backgnd == 0) {
+	if (n->npipe.pipe_backgnd == 0) {
 		exitstatus = waitforjob(jp);
 		TRACE(("evalpipe:  job done exit status %d\n", exitstatus));
 	}
@@ -8382,7 +8467,7 @@ mklocal(char *name)
  * The "local" command.
  */
 static int
-localcmd(int argc ATTRIBUTE_UNUSED, char **argv)
+localcmd(int argc UNUSED_PARAM, char **argv)
 {
 	char *name;
 
@@ -8394,19 +8479,19 @@ localcmd(int argc ATTRIBUTE_UNUSED, char **argv)
 }
 
 static int
-falsecmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
+falsecmd(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
 	return 1;
 }
 
 static int
-truecmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
+truecmd(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
 	return 0;
 }
 
 static int
-execcmd(int argc ATTRIBUTE_UNUSED, char **argv)
+execcmd(int argc UNUSED_PARAM, char **argv)
 {
 	if (argv[1]) {
 		iflag = 0;              /* exit on error */
@@ -8421,7 +8506,7 @@ execcmd(int argc ATTRIBUTE_UNUSED, char **argv)
  * The return command.
  */
 static int
-returncmd(int argc ATTRIBUTE_UNUSED, char **argv)
+returncmd(int argc UNUSED_PARAM, char **argv)
 {
 	/*
 	 * If called outside a function, do what ksh does;
@@ -8602,7 +8687,7 @@ isassignment(const char *p)
 	return *q == '=';
 }
 static int
-bltincmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
+bltincmd(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
 	/* Preserve exitstatus of a previous possible redirection
 	 * as POSIX mandates */
@@ -8626,11 +8711,11 @@ evalcommand(union node *cmd, int flags)
 	char *lastarg;
 	const char *path;
 	int spclbltin;
-	int cmd_is_exec;
 	int status;
 	char **nargv;
 	struct builtincmd *bcmd;
-	int pseudovarflag = 0;
+	smallint cmd_is_exec;
+	smallint pseudovarflag = 0;
 
 	/* First expand the arguments. */
 	TRACE(("evalcommand(0x%lx, %d) called\n", (long)cmd, flags));
@@ -8730,8 +8815,8 @@ evalcommand(union node *cmd, int flags)
 		for (;;) {
 			find_command(argv[0], &cmdentry, cmd_flag, path);
 			if (cmdentry.cmdtype == CMDUNKNOWN) {
-				status = 127;
 				flush_stderr();
+				status = 127;
 				goto bail;
 			}
 
@@ -8741,7 +8826,7 @@ evalcommand(union node *cmd, int flags)
 			if (spclbltin < 0)
 				spclbltin = IS_BUILTIN_SPECIAL(cmdentry.u.cmd);
 			if (cmdentry.u.cmd == EXECCMD)
-				cmd_is_exec++;
+				cmd_is_exec = 1;
 #if ENABLE_ASH_CMDCMD
 			if (cmdentry.u.cmd == COMMANDCMD) {
 				path = oldpath;
@@ -8836,13 +8921,14 @@ evalcommand(union node *cmd, int flags)
 	}
 
  out:
-	popredir(cmd_is_exec);
-	if (lastarg)
+	popredir(/*drop:*/ cmd_is_exec, /*restore:*/ cmd_is_exec);
+	if (lastarg) {
 		/* dsl: I think this is intended to be used to support
 		 * '_' in 'vi' command mode during line editing...
 		 * However I implemented that within libedit itself.
 		 */
 		setvar("_", lastarg, 0);
+	}
 	popstackmark(&smark);
 }
 
@@ -8915,7 +9001,7 @@ prehash(union node *n)
  * in the standard shell so we don't make it one here.
  */
 static int
-breakcmd(int argc ATTRIBUTE_UNUSED, char **argv)
+breakcmd(int argc UNUSED_PARAM, char **argv)
 {
 	int n = argv[1] ? number(argv[1]) : 1;
 
@@ -8989,7 +9075,7 @@ static int
 preadfd(void)
 {
 	int nr;
-	char *buf =  g_parsefile->buf;
+	char *buf = g_parsefile->buf;
 	parsenextc = buf;
 
 #if ENABLE_FEATURE_EDITING
@@ -9418,7 +9504,7 @@ chkmail(void)
 }
 
 static void
-changemail(const char *val ATTRIBUTE_UNUSED)
+changemail(const char *val UNUSED_PARAM)
 {
 	mail_var_path_changed = 1;
 }
@@ -9574,7 +9660,7 @@ options(int cmdline)
  * The shift builtin command.
  */
 static int
-shiftcmd(int argc ATTRIBUTE_UNUSED, char **argv)
+shiftcmd(int argc UNUSED_PARAM, char **argv)
 {
 	int n;
 	char **ap1, **ap2;
@@ -9583,7 +9669,7 @@ shiftcmd(int argc ATTRIBUTE_UNUSED, char **argv)
 	if (argv[1])
 		n = number(argv[1]);
 	if (n > shellparam.nparam)
-		n = shellparam.nparam;
+		n = 0; /* bash compat, was = shellparam.nparam; */
 	INT_OFF;
 	shellparam.nparam -= n;
 	for (ap1 = shellparam.p; --n >= 0; ap1++) {
@@ -9636,7 +9722,7 @@ showvars(const char *sep_prefix, int on, int off)
  * The set command builtin.
  */
 static int
-setcmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
+setcmd(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
 	int retval;
 
@@ -9656,22 +9742,37 @@ setcmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
 }
 
 #if ENABLE_ASH_RANDOM_SUPPORT
-/* Roughly copied from bash.. */
 static void
 change_random(const char *value)
 {
+	/* Galois LFSR parameter */
+	/* Taps at 32 31 29 1: */
+	enum { MASK = 0x8000000b };
+	/* Another example - taps at 32 31 30 10: */
+	/* MASK = 0x00400007 */
+
 	if (value == NULL) {
 		/* "get", generate */
-		char buf[16];
+		uint32_t t;
 
-		rseed = rseed * 1103515245 + 12345;
-		sprintf(buf, "%d", (unsigned int)((rseed & 32767)));
+		/* LCG has period of 2^32 and alternating lowest bit */
+		random_LCG = 1664525 * random_LCG + 1013904223;
+		/* Galois LFSR has period of 2^32-1 = 3 * 5 * 17 * 257 * 65537 */
+		t = (random_galois_LFSR << 1);
+		if (random_galois_LFSR < 0) /* if we just shifted 1 out of msb... */
+			t ^= MASK;
+		random_galois_LFSR = t;
+		/* Both are weak, combining them gives better randomness
+		 * and ~2^64 period. & 0x7fff is probably bash compat
+		 * for $RANDOM range. Combining with subtraction is
+		 * just for fun. + and ^ would work equally well. */
+		t = (t - random_LCG) & 0x7fff;
 		/* set without recursion */
-		setvar(vrandom.text, buf, VNOFUNC);
+		setvar(vrandom.text, utoa(t), VNOFUNC);
 		vrandom.flags &= ~VNOFUNC;
 	} else {
 		/* set/reset */
-		rseed = strtoul(value, (char **)NULL, 10);
+		random_galois_LFSR = random_LCG = strtoul(value, (char **)NULL, 10);
 	}
 }
 #endif
@@ -9823,7 +9924,7 @@ static struct heredoc *heredoc;
  */
 #define NEOF ((union node *)&tokpushback)
 
-static void raise_error_syntax(const char *) ATTRIBUTE_NORETURN;
+static void raise_error_syntax(const char *) NORETURN;
 static void
 raise_error_syntax(const char *msg)
 {
@@ -9836,7 +9937,7 @@ raise_error_syntax(const char *msg)
  * is the token that is expected, or -1 if more than one type of token can
  * occur at this point.
  */
-static void raise_error_unexpected_syntax(int) ATTRIBUTE_NORETURN;
+static void raise_error_unexpected_syntax(int) NORETURN;
 static void
 raise_error_unexpected_syntax(int token)
 {
@@ -9875,7 +9976,7 @@ list(int nlflag)
 		tok = readtoken();
 		if (tok == TBACKGND) {
 			if (n2->type == NPIPE) {
-				n2->npipe.backgnd = 1;
+				n2->npipe.pipe_backgnd = 1;
 			} else {
 				if (n2->type != NREDIR) {
 					n3 = stzalloc(sizeof(struct nredir));
@@ -9972,7 +10073,7 @@ pipeline(void)
 	if (readtoken() == TPIPE) {
 		pipenode = stzalloc(sizeof(struct npipe));
 		pipenode->type = NPIPE;
-		/*pipenode->npipe.backgnd = 0; - stzalloc did it */
+		/*pipenode->npipe.pipe_backgnd = 0; - stzalloc did it */
 		lp = stzalloc(sizeof(struct nodelist));
 		pipenode->npipe.cmdlist = lp;
 		lp->n = n1;
@@ -10012,12 +10113,15 @@ makename(void)
 static void
 fixredir(union node *n, const char *text, int err)
 {
+	int fd;
+
 	TRACE(("Fix redir %s %d\n", text, err));
 	if (!err)
 		n->ndup.vname = NULL;
 
-	if (isdigit(text[0]) && text[1] == '\0')
-		n->ndup.dupfd = text[0] - '0';
+	fd = bb_strtou(text, NULL, 10);
+	if (!errno && fd >= 0)
+		n->ndup.dupfd = fd;
 	else if (LONE_DASH(text))
 		n->ndup.dupfd = -1;
 	else {
@@ -10241,7 +10345,7 @@ parse_command(void)
 		break;
 	}
 	case TFOR:
-		if (readtoken() != TWORD || quoteflag || ! goodname(wordtext))
+		if (readtoken() != TWORD || quoteflag || !goodname(wordtext))
 			raise_error_syntax("Bad for loop variable");
 		n1 = stzalloc(sizeof(struct nfor));
 		n1->type = NFOR;
@@ -10639,7 +10743,7 @@ readtoken1(int firstc, int syntax, char *eofmark, int striptabs)
 
 			}
 			c = pgetc_macro();
-		} /* for(;;) */
+		} /* for (;;) */
 	}
  endword:
 #if ENABLE_ASH_MATH_SUPPORT
@@ -10657,14 +10761,18 @@ readtoken1(int firstc, int syntax, char *eofmark, int striptabs)
 	len = out - (char *)stackblock();
 	out = stackblock();
 	if (eofmark == NULL) {
-		if ((c == '>' || c == '<')
-		 && quotef == 0
-		 && len <= 2
-		 && (*out == '\0' || isdigit(*out))
-		) {
-			PARSEREDIR();
-			lasttoken = TREDIR;
-			return lasttoken;
+		if ((c == '>' || c == '<') && quotef == 0) {
+			int maxlen = 9 + 1; /* max 9 digit fd#: 999999999 */
+			char *np = out;
+			while (--maxlen && isdigit(*np))
+				np++;
+			if (*np == '\0') {
+				PARSEREDIR(); /* passed as params: out, c */
+				lasttoken = TREDIR;
+				return lasttoken;
+			}
+			/* else: non-number X seen, interpret it
+			 * as "NNNX>file" = "NNNX >file" */
 		}
 		pungetc();
 	}
@@ -10719,7 +10827,8 @@ checkend: {
  * first character of the redirection operator.
  */
 parseredir: {
-	char fd = *out;
+	/* out is already checked to be a valid number or "" */
+	int fd = (*out == '\0' ? -1 : atoi(out));
 	union node *np;
 
 	np = stzalloc(sizeof(struct nfile));
@@ -10771,8 +10880,8 @@ parseredir: {
 			break;
 		}
 	}
-	if (fd != '\0')
-		np->nfile.fd = fd - '0';
+	if (fd >= 0)
+		np->nfile.fd = fd;
 	redirnode = np;
 	goto parseredir_return;
 }
@@ -11440,7 +11549,7 @@ evalstring(char *s, int mask)
  * The eval command.
  */
 static int
-evalcmd(int argc ATTRIBUTE_UNUSED, char **argv)
+evalcmd(int argc UNUSED_PARAM, char **argv)
 {
 	char *p;
 	char *concat;
@@ -11589,7 +11698,7 @@ dotcmd(int argc, char **argv)
 }
 
 static int
-exitcmd(int argc ATTRIBUTE_UNUSED, char **argv)
+exitcmd(int argc UNUSED_PARAM, char **argv)
 {
 	if (stoppedjobs())
 		return 0;
@@ -11813,7 +11922,7 @@ find_command(char *name, struct cmdentry *entry, int act, const char *path)
  * The trap builtin.
  */
 static int
-trapcmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
+trapcmd(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
 	char *action;
 	char **ap;
@@ -11824,18 +11933,15 @@ trapcmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
 	if (!*ap) {
 		for (signo = 0; signo < NSIG; signo++) {
 			if (trap[signo] != NULL) {
-				const char *sn;
-
-				sn = get_signame(signo);
 				out1fmt("trap -- %s %s\n",
-					single_quote(trap[signo]), sn);
+						single_quote(trap[signo]),
+						get_signame(signo));
 			}
 		}
 		return 0;
 	}
-	if (!ap[1])
-		action = NULL;
-	else
+	action = NULL;
+	if (ap[1])
 		action = *ap++;
 	while (*ap) {
 		signo = get_signum(*ap);
@@ -11866,7 +11972,7 @@ trapcmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
  * Lists available builtins
  */
 static int
-helpcmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
+helpcmd(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
 	unsigned col;
 	unsigned i;
@@ -11902,7 +12008,7 @@ helpcmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
  * The export and readonly commands.
  */
 static int
-exportcmd(int argc ATTRIBUTE_UNUSED, char **argv)
+exportcmd(int argc UNUSED_PARAM, char **argv)
 {
 	struct var *vp;
 	char *name;
@@ -11953,7 +12059,7 @@ unsetfunc(const char *name)
  * with the same name.
  */
 static int
-unsetcmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
+unsetcmd(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
 	char **ap;
 	int i;
@@ -11991,7 +12097,7 @@ static const unsigned char timescmd_str[] ALIGN1 = {
 };
 
 static int
-timescmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
+timescmd(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
 	long clk_tck, s, t;
 	const unsigned char *p;
@@ -12043,7 +12149,7 @@ dash_arith(const char *s)
  *  Copyright (C) 2003 Vladimir Oleynik <dzo@simtreas.ru>
  */
 static int
-letcmd(int argc ATTRIBUTE_UNUSED, char **argv)
+letcmd(int argc UNUSED_PARAM, char **argv)
 {
 	arith_t i;
 
@@ -12085,7 +12191,7 @@ typedef enum __rlimit_resource rlim_t;
  *      -e              Use line editing (tty only)
  */
 static int
-readcmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
+readcmd(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
 	static const char *const arg_REPLY[] = { "REPLY", NULL };
 
@@ -12282,7 +12388,7 @@ readcmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
 }
 
 static int
-umaskcmd(int argc ATTRIBUTE_UNUSED, char **argv)
+umaskcmd(int argc UNUSED_PARAM, char **argv)
 {
 	static const char permuser[3] ALIGN1 = "ugo";
 	static const char permmode[3] ALIGN1 = "rwx";
@@ -12457,7 +12563,7 @@ printlim(enum limtype how, const struct rlimit *limit,
 }
 
 static int
-ulimitcmd(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
+ulimitcmd(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
 	int c;
 	rlim_t val = 0;
@@ -12868,7 +12974,7 @@ arith_apply(operator op, v_n_t *numstack, v_n_t **numstackptr)
 		--NUMPTR;
 		numptr_val = rez;
 		if (op == TOK_CONDITIONAL) {
-			if (! numptr_m1->contidional_second_val_initialized) {
+			if (!numptr_m1->contidional_second_val_initialized) {
 				/* protect $((expr1 ? expr2)) without ": expr" */
 				goto err;
 			}
@@ -13120,7 +13226,7 @@ arith(const char *expr, int *perrcode)
 			}
 			for (o = expr; *p && *o == *p; p++)
 				o++;
-			if (! *p) {
+			if (!*p) {
 				/* found */
 				expr = o - 1;
 				break;
@@ -13220,7 +13326,7 @@ arith(const char *expr, int *perrcode)
 /*
  * Called to exit the shell.
  */
-static void exitshell(void) ATTRIBUTE_NORETURN;
+static void exitshell(void) NORETURN;
 static void
 exitshell(void)
 {
@@ -13383,7 +13489,7 @@ reset(void)
 	tokpushback = 0;
 	checkkwd = 0;
 	/* from redir.c: */
-	clearredir(0);
+	clearredir(/*drop:*/ 0);
 }
 
 #if PROFILE
@@ -13399,7 +13505,7 @@ extern int etext();
  * is used to figure out how far we had gotten.
  */
 int ash_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int ash_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int ash_main(int argc UNUSED_PARAM, char **argv)
 {
 	char *shinit;
 	volatile int state;
@@ -13458,7 +13564,9 @@ int ash_main(int argc ATTRIBUTE_UNUSED, char **argv)
 	rootpid = getpid();
 
 #if ENABLE_ASH_RANDOM_SUPPORT
-	rseed = rootpid + time(NULL);
+	/* Can use monotonic_ns() for better randomness but for now it is
+	 * not used anywhere else in busybox... so avoid bloat */
+	random_galois_LFSR = random_LCG = rootpid + monotonic_us();
 #endif
 	init();
 	setstackmark(&smark);

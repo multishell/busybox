@@ -164,7 +164,7 @@ static int mult_lvl_cmp(void* a, void* b)
 
 static void get_jiffy_counts(void)
 {
-	FILE* fp = xfopen("stat", "r");
+	FILE* fp = xfopen_for_read("stat");
 	prev_jif = jif;
 	if (fscanf(fp, "cpu  %lld %lld %lld %lld %lld %lld %lld %lld",
 			&jif.usr,&jif.nic,&jif.sys,&jif.idle,
@@ -268,7 +268,7 @@ static unsigned long display_header(int scr_width)
 #endif
 
 	/* read memory info */
-	fp = xfopen("meminfo", "r");
+	fp = xfopen_for_read("meminfo");
 
 	/*
 	 * Old kernels (such as 2.4.x) had a nice summary of memory info that
@@ -519,7 +519,7 @@ static void reset_term(void)
 	}
 }
 
-static void sig_catcher(int sig ATTRIBUTE_UNUSED)
+static void sig_catcher(int sig UNUSED_PARAM)
 {
 	reset_term();
 	exit(EXIT_FAILURE);
@@ -617,7 +617,7 @@ static void display_topmem_header(int scr_width)
 	memset(&Z, 0, sizeof(Z));
 
 	/* read memory info */
-	fp = xfopen("meminfo", "r");
+	fp = xfopen_for_read("meminfo");
 	while (fgets(linebuf, sizeof(linebuf), fp)) {
 		char *p;
 
@@ -739,7 +739,7 @@ enum {
 };
 
 int top_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int top_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int top_main(int argc UNUSED_PARAM, char **argv)
 {
 	int count;
 	int iterations;
@@ -763,8 +763,7 @@ int top_main(int argc ATTRIBUTE_UNUSED, char **argv)
 
 	/* all args are options; -n NUM */
 	opt_complementary = "-:n+";
-	getopt32(argv, "d:n:b", &sinterval, &iterations);
-	if (option_mask32 & OPT_d) {
+	if (getopt32(argv, "d:n:b", &sinterval, &iterations) & OPT_d) {
 		/* Need to limit it to not overflow poll timeout */
 		interval = xatou16(sinterval); // -d
 	}
@@ -814,7 +813,7 @@ int top_main(int argc ATTRIBUTE_UNUSED, char **argv)
 			int n;
 			if (scan_mask == TOP_MASK) {
 				n = ntop;
-				top = xrealloc(top, (++ntop) * sizeof(*top));
+				top = xrealloc_vector(top, 6, ntop++);
 				top[n].pid = p->pid;
 				top[n].ppid = p->ppid;
 				top[n].vsz = p->vsz;
@@ -829,7 +828,8 @@ int top_main(int argc ATTRIBUTE_UNUSED, char **argv)
 				if (!(p->mapped_ro | p->mapped_rw))
 					continue; /* kernel threads are ignored */
 				n = ntop;
-				top = xrealloc(topmem, (++ntop) * sizeof(*topmem));
+				/* No bug here - top and topmem are the same */
+				top = xrealloc_vector(topmem, 6, ntop++);
 				strcpy(topmem[n].comm, p->comm);
 				topmem[n].pid      = p->pid;
 				topmem[n].vsz      = p->mapped_rw + p->mapped_ro;

@@ -15,17 +15,23 @@
  */
 
 /*
-   Usage and known bugs:
-   Terminal key codes are not extensive, and more will probably
-   need to be added. This version was created on Debian GNU/Linux 2.x.
-   Delete, Backspace, Home, End, and the arrow keys were tested
-   to work in an Xterm and console. Ctrl-A also works as Home.
-   Ctrl-E also works as End.
-
-   Small bugs (simple effect):
-   - not true viewing if terminal size (x*y symbols) less
-     size (prompt + editor's line + 2 symbols)
-   - not true viewing if length prompt less terminal width
+ * Usage and known bugs:
+ * Terminal key codes are not extensive, and more will probably
+ * need to be added. This version was created on Debian GNU/Linux 2.x.
+ * Delete, Backspace, Home, End, and the arrow keys were tested
+ * to work in an Xterm and console. Ctrl-A also works as Home.
+ * Ctrl-E also works as End.
+ *
+ * lineedit does not know that the terminal escape sequences do not
+ * take up space on the screen. The redisplay code assumes, unless
+ * told otherwise, that each character in the prompt is a printable
+ * character that takes up one character position on the screen.
+ * You need to tell lineedit that some sequences of characters
+ * in the prompt take up no screen space. Compatibly with readline,
+ * use the \[ escape to begin a sequence of non-printing characters,
+ * and the \] escape to signal the end of such a sequence. Example:
+ *
+ * PS1='\[\033[01;32m\]\u@\h\[\033[01;34m\] \w \$\[\033[00m\] '
  */
 
 #include "libbb.h"
@@ -339,7 +345,7 @@ static void input_delete(int save)
 	}
 #endif
 
-	strcpy(command_ps + j, command_ps + j + 1);
+	overlapping_strcpy(command_ps + j, command_ps + j + 1);
 	command_len--;
 	input_end();                    /* rewrite new line */
 	cmdedit_set_out_char(' ');      /* erase char */
@@ -394,11 +400,8 @@ static void free_tab_completion_data(void)
 
 static void add_match(char *matched)
 {
-	int nm = num_matches;
-	int nm1 = nm + 1;
-
-	matches = xrealloc(matches, nm1 * sizeof(char *));
-	matches[nm] = matched;
+	matches = xrealloc_vector(matches, 4, num_matches);
+	matches[num_matches] = matched;
 	num_matches++;
 }
 
@@ -953,33 +956,24 @@ static void input_tab(smallint *lastWasTab)
 
 #if MAX_HISTORY > 0
 
-static void save_command_ps_at_cur_history(void)
-{
-	if (command_ps[0] != '\0') {
-		int cur = state->cur_history;
-		free(state->history[cur]);
-		state->history[cur] = xstrdup(command_ps);
-	}
-}
-
 /* state->flags is already checked to be nonzero */
-static int get_previous_history(void)
+static void get_previous_history(void)
 {
-	if ((state->flags & DO_HISTORY) && state->cur_history) {
-		save_command_ps_at_cur_history();
-		state->cur_history--;
-		return 1;
+	if (command_ps[0] != '\0' || state->history[state->cur_history] == NULL) {
+		free(state->history[state->cur_history]);
+		state->history[state->cur_history] = xstrdup(command_ps);
 	}
-	beep();
-	return 0;
+	state->cur_history--;
 }
 
 static int get_next_history(void)
 {
 	if (state->flags & DO_HISTORY) {
-		if (state->cur_history < state->cnt_history) {
-			save_command_ps_at_cur_history(); /* save the current history line */
-			return ++state->cur_history;
+		int ch = state->cur_history;
+		if (ch < state->cnt_history) {
+			get_previous_history(); /* save the current history line */
+			state->cur_history = ch + 1;
+			return state->cur_history;
 		}
 	}
 	beep();
@@ -995,13 +989,12 @@ static void load_history(const char *fromfile)
 
 	/* NB: do not trash old history if file can't be opened */
 
-	fp = fopen(fromfile, "r");
+	fp = fopen_for_read(fromfile);
 	if (fp) {
 		/* clean up old history */
 		for (hi = state->cnt_history; hi > 0;) {
 			hi--;
 			free(state->history[hi]);
-			state->history[hi] = NULL;
 		}
 
 		for (hi = 0; hi < MAX_HISTORY;) {
@@ -1013,14 +1006,14 @@ static void load_history(const char *fromfile)
 			l = strlen(hl);
 			if (l >= MAX_LINELEN)
 				hl[MAX_LINELEN-1] = '\0';
-			if (l == 0) {
+			if (l == 0 || hl[0] == ' ') {
 				free(hl);
 				continue;
 			}
 			state->history[hi++] = hl;
 		}
 		fclose(fp);
-		state->cnt_history = hi;
+		state->cur_history = state->cnt_history = hi;
 	}
 }
 
@@ -1029,7 +1022,7 @@ static void save_history(const char *tofile)
 {
 	FILE *fp;
 
-	fp = fopen(tofile, "w");
+	fp = fopen_for_write(tofile);
 	if (fp) {
 		int i;
 
@@ -1050,27 +1043,19 @@ static void remember_in_history(const char *str)
 
 	if (!(state->flags & DO_HISTORY))
 		return;
-	if (str[0] == '\0')
-		return;
+
 	i = state->cnt_history;
-	/* Don't save dupes */
-	if (i && strcmp(state->history[i-1], str) == 0)
-		return;
-
-	free(state->history[MAX_HISTORY]); /* redundant, paranoia */
-	state->history[MAX_HISTORY] = NULL; /* redundant, paranoia */
-
-	/* If history[] is full, remove the oldest command */
-	/* we need to keep history[MAX_HISTORY] empty, hence >=, not > */
+	free(state->history[MAX_HISTORY]);
+	state->history[MAX_HISTORY] = NULL;
+	/* After max history, remove the oldest command */
 	if (i >= MAX_HISTORY) {
 		free(state->history[0]);
 		for (i = 0; i < MAX_HISTORY-1; i++)
 			state->history[i] = state->history[i+1];
-		/* i == MAX_HISTORY-1 */
 	}
-	/* i <= MAX_HISTORY-1 */
+// Maybe "if (!i || strcmp(history[i-1], command) != 0) ..."
+// (i.e. do not save dups?)
 	state->history[i++] = xstrdup(str);
-	/* i <= MAX_HISTORY */
 	state->cur_history = i;
 	state->cnt_history = i;
 #if ENABLE_FEATURE_EDITING_SAVEHISTORY
@@ -1370,8 +1355,9 @@ static void win_changed(int nsig)
  * 0  on ctrl-C (the line entered is still returned in 'command'),
  * >0 length of input string, including terminating '\n'
  */
-int read_line_input(const char *prompt, char *command, int maxsize, line_input_t *st)
+int FAST_FUNC read_line_input(const char *prompt, char *command, int maxsize, line_input_t *st)
 {
+	int len;
 #if ENABLE_FEATURE_TAB_COMPLETION
 	smallint lastWasTab = FALSE;
 #endif
@@ -1391,7 +1377,6 @@ int read_line_input(const char *prompt, char *command, int maxsize, line_input_t
 	 || !(initial_settings.c_lflag & ECHO)
 	) {
 		/* Happens when e.g. stty -echo was run before */
-		int len;
 		parse_and_put_prompt(prompt);
 		fflush(stdout);
 		if (fgets(command, maxsize, stdin) == NULL)
@@ -1412,7 +1397,6 @@ int read_line_input(const char *prompt, char *command, int maxsize, line_input_t
 	if ((state->flags & SAVE_HISTORY) && state->hist_file)
 		load_history(state->hist_file);
 #endif
-	state->cur_history = state->cnt_history;
 
 	/* prepare before init handlers */
 	cmdedit_y = 0;  /* quasireal y, not true if line > xt*yt */
@@ -1448,13 +1432,6 @@ int read_line_input(const char *prompt, char *command, int maxsize, line_input_t
 		}
 	}
 #endif
-
-#if 0
-	for (ic = 0; ic <= MAX_HISTORY; ic++)
-		bb_error_msg("history[%d]:'%s'", ic, state->history[ic]);
-	bb_error_msg("cur_history:%d cnt_history:%d", state->cur_history, state->cnt_history);
-#endif
-
 	/* Print out the command prompt */
 	parse_and_put_prompt(prompt);
 
@@ -1563,8 +1540,11 @@ int read_line_input(const char *prompt, char *command, int maxsize, line_input_t
 		vi_case(CTRL('P')|vbit:)
 		vi_case('k'|vbit:)
 			/* Control-p -- Get previous command from history */
-			if (get_previous_history())
+			if ((state->flags & DO_HISTORY) && state->cur_history > 0) {
+				get_previous_history();
 				goto rewrite_line;
+			}
+			beep();
 			break;
 #endif
 
@@ -1572,7 +1552,7 @@ int read_line_input(const char *prompt, char *command, int maxsize, line_input_t
 		vi_case(CTRL('U')|vbit:)
 			/* Control-U -- Clear line before cursor */
 			if (cursor) {
-				strcpy(command, command + cursor);
+				overlapping_strcpy(command, command + cursor);
 				command_len -= cursor;
 				redraw(cmdedit_y, command_len);
 			}
@@ -1753,8 +1733,10 @@ int read_line_input(const char *prompt, char *command, int maxsize, line_input_t
 #if MAX_HISTORY > 0
 			case 'A':
 				/* Up Arrow -- Get previous command from history */
-				if (get_previous_history())
+				if ((state->flags & DO_HISTORY) && state->cur_history > 0) {
+					get_previous_history();
 					goto rewrite_line;
+				}
 				beep();
 				break;
 			case 'B':
@@ -1764,7 +1746,7 @@ int read_line_input(const char *prompt, char *command, int maxsize, line_input_t
  rewrite_line:
 				/* Rewrite the line with the selected history item */
 				/* change command */
-				command_len = strlen(strcpy(command, state->history[state->cur_history] ? : ""));
+				command_len = strlen(strcpy(command, state->history[state->cur_history]));
 				/* redraw and go to eol (bol, in vi */
 				redraw(cmdedit_y, (state->flags & VI_MODE) ? 9999 : 0);
 				break;
@@ -1861,12 +1843,13 @@ int read_line_input(const char *prompt, char *command, int maxsize, line_input_t
 	signal(SIGWINCH, previous_SIGWINCH_handler);
 	fflush(stdout);
 
+	len = command_len;
 	DEINIT_S();
 
-	return command_len;
+	return len; /* can't return command_len, DEINIT_S() destroys it */
 }
 
-line_input_t *new_line_input_t(int flags)
+line_input_t* FAST_FUNC new_line_input_t(int flags)
 {
 	line_input_t *n = xzalloc(sizeof(*n));
 	n->flags = flags;
@@ -1876,7 +1859,7 @@ line_input_t *new_line_input_t(int flags)
 #else
 
 #undef read_line_input
-int read_line_input(const char* prompt, char* command, int maxsize)
+int FAST_FUNC read_line_input(const char* prompt, char* command, int maxsize)
 {
 	fputs(prompt, stdout);
 	fflush(stdout);

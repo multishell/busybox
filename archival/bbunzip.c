@@ -28,7 +28,7 @@ int open_to_or_warn(int to_fd, const char *filename, int flags, int mode)
 	return 0;
 }
 
-int bbunpack(char **argv,
+int FAST_FUNC bbunpack(char **argv,
 	char* (*make_new_name)(char *filename),
 	USE_DESKTOP(long long) int (*unpacker)(void)
 )
@@ -73,6 +73,12 @@ int bbunpack(char **argv,
 				bb_error_msg("%s: unknown suffix - ignored", filename);
 				goto err;
 			}
+
+			/* -f: overwrite existing output files */
+			if (option_mask32 & OPT_FORCE) {
+				unlink(new_name);
+			}
+
 			/* O_EXCL: "real" bunzip2 doesn't overwrite files */
 			/* GNU gunzip does not bail out, but goes to next file */
 			if (open_to_or_warn(STDOUT_FILENO, new_name, O_WRONLY | O_CREAT | O_EXCL,
@@ -155,11 +161,11 @@ char* make_new_name_bunzip2(char *filename)
 static
 USE_DESKTOP(long long) int unpack_bunzip2(void)
 {
-	return unpack_bz2_stream(STDIN_FILENO, STDOUT_FILENO);
+	return unpack_bz2_stream_prime(STDIN_FILENO, STDOUT_FILENO);
 }
 
 int bunzip2_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int bunzip2_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int bunzip2_main(int argc UNUSED_PARAM, char **argv)
 {
 	getopt32(argv, "cfvdt");
 	argv += optind;
@@ -212,8 +218,8 @@ char* make_new_name_gunzip(char *filename)
 
 	extension++;
 	if (strcmp(extension, "tgz" + 1) == 0
-#if ENABLE_FEATURE_GUNZIP_UNCOMPRESS
-	 || strcmp(extension, "Z") == 0
+#if ENABLE_FEATURE_SEAMLESS_Z
+	 || (extension[0] == 'Z' && extension[1] == '\0')
 #endif
 	) {
 		extension[-1] = '\0';
@@ -238,8 +244,8 @@ USE_DESKTOP(long long) int unpack_gunzip(void)
 		unsigned char magic2;
 
 		magic2 = xread_char(STDIN_FILENO);
-		if (ENABLE_FEATURE_GUNZIP_UNCOMPRESS && magic2 == 0x9d) {
-			status = uncompress(STDIN_FILENO, STDOUT_FILENO);
+		if (ENABLE_FEATURE_SEAMLESS_Z && magic2 == 0x9d) {
+			status = unpack_Z_stream(STDIN_FILENO, STDOUT_FILENO);
 		} else if (magic2 == 0x8b) {
 			status = unpack_gz_stream(STDIN_FILENO, STDOUT_FILENO);
 		} else {
@@ -271,7 +277,7 @@ USE_DESKTOP(long long) int unpack_gunzip(void)
  */
 
 int gunzip_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int gunzip_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int gunzip_main(int argc UNUSED_PARAM, char **argv)
 {
 	getopt32(argv, "cfvdtn");
 	argv += optind;
@@ -309,7 +315,7 @@ USE_DESKTOP(long long) int unpack_unlzma(void)
 }
 
 int unlzma_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int unlzma_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int unlzma_main(int argc UNUSED_PARAM, char **argv)
 {
 	getopt32(argv, "cf");
 	argv += optind;
@@ -345,13 +351,13 @@ USE_DESKTOP(long long) int unpack_uncompress(void)
 	if ((xread_char(STDIN_FILENO) != 0x1f) || (xread_char(STDIN_FILENO) != 0x9d)) {
 		bb_error_msg("invalid magic");
 	} else {
-		status = uncompress(STDIN_FILENO, STDOUT_FILENO);
+		status = unpack_Z_stream(STDIN_FILENO, STDOUT_FILENO);
 	}
 	return status;
 }
 
 int uncompress_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int uncompress_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int uncompress_main(int argc UNUSED_PARAM, char **argv)
 {
 	getopt32(argv, "cf");
 	argv += optind;

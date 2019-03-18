@@ -30,7 +30,7 @@ static void clear_cache(cache_t *cp)
 	cp->cache = NULL;
 	cp->size = 0;
 }
-void clear_username_cache(void)
+void FAST_FUNC clear_username_cache(void)
 {
 	clear_cache(&username);
 	clear_cache(&groupname);
@@ -46,13 +46,13 @@ static int get_cached(cache_t *cp, unsigned id)
 		if (cp->cache[i].id == id)
 			return i;
 	i = cp->size++;
-	cp->cache = xrealloc(cp->cache, cp->size * sizeof(*cp->cache));
+	cp->cache = xrealloc_vector(cp->cache, 2, i);
 	cp->cache[i++].id = id;
 	return -i;
 }
 #endif
 
-typedef char* ug_func(char *name, int bufsize, long uid);
+typedef char* FAST_FUNC ug_func(char *name, int bufsize, long uid);
 static char* get_cached(cache_t *cp, unsigned id, ug_func* fp)
 {
 	int i;
@@ -60,17 +60,17 @@ static char* get_cached(cache_t *cp, unsigned id, ug_func* fp)
 		if (cp->cache[i].id == id)
 			return cp->cache[i].name;
 	i = cp->size++;
-	cp->cache = xrealloc(cp->cache, cp->size * sizeof(*cp->cache));
+	cp->cache = xrealloc_vector(cp->cache, 2, i);
 	cp->cache[i].id = id;
 	/* Never fails. Generates numeric string if name isn't found */
 	fp(cp->cache[i].name, sizeof(cp->cache[i].name), id);
 	return cp->cache[i].name;
 }
-const char* get_cached_username(uid_t uid)
+const char* FAST_FUNC get_cached_username(uid_t uid)
 {
 	return get_cached(&username, uid, bb_getpwuid);
 }
-const char* get_cached_groupname(gid_t gid)
+const char* FAST_FUNC get_cached_groupname(gid_t gid)
 {
 	return get_cached(&groupname, gid, bb_getgrgid);
 }
@@ -93,7 +93,7 @@ static int read_to_buf(const char *filename, void *buf)
 	return ret;
 }
 
-static procps_status_t *alloc_procps_scan(void)
+static procps_status_t* FAST_FUNC alloc_procps_scan(void)
 {
 	unsigned n = getpagesize();
 	procps_status_t* sp = xzalloc(sizeof(procps_status_t));
@@ -107,7 +107,7 @@ static procps_status_t *alloc_procps_scan(void)
 	return sp;
 }
 
-void free_procps_scan(procps_status_t* sp)
+void FAST_FUNC free_procps_scan(procps_status_t* sp)
 {
 	closedir(sp->dir);
 	free(sp->argv0);
@@ -163,7 +163,7 @@ static char *skip_fields(char *str, int count)
 #endif
 
 void BUG_comm_size(void);
-procps_status_t *procps_scan(procps_status_t* sp, int flags)
+procps_status_t* FAST_FUNC procps_scan(procps_status_t* sp, int flags)
 {
 	struct dirent *entry;
 	char buf[PROCPS_BUFSIZE];
@@ -308,7 +308,7 @@ procps_status_t *procps_scan(procps_status_t* sp, int flags)
 			FILE *file;
 
 			strcpy(filename_tail, "/smaps");
-			file = fopen(filename, "r");
+			file = fopen_for_read(filename);
 			if (!file)
 				break;
 			while (fgets(buf, sizeof(buf), file)) {
@@ -401,7 +401,7 @@ procps_status_t *procps_scan(procps_status_t* sp, int flags)
 	return sp;
 }
 
-void read_cmdline(char *buf, int col, unsigned pid, const char *comm)
+void FAST_FUNC read_cmdline(char *buf, int col, unsigned pid, const char *comm)
 {
 	ssize_t sz;
 	char filename[sizeof("/proc//cmdline") + sizeof(int)*3];

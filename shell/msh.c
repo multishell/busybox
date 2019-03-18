@@ -45,7 +45,7 @@
 # define nonblock_safe_read(fd,buf,count) read(fd,buf,count)
 # define NOT_LONE_DASH(s) ((s)[0] != '-' || (s)[1])
 # define LONE_CHAR(s,c) ((s)[0] == (c) && !(s)[1])
-# define ATTRIBUTE_NORETURN __attribute__ ((__noreturn__))
+# define NORETURN __attribute__ ((__noreturn__))
 static int find_applet_by_name(const char *applet)
 {
 	return -1;
@@ -780,7 +780,7 @@ static void closeall(void)
 
 
 /* fail but return to process next command */
-static void fail(void) ATTRIBUTE_NORETURN;
+static void fail(void) NORETURN;
 static void fail(void)
 {
 	longjmp(failpt, 1);
@@ -788,7 +788,7 @@ static void fail(void)
 }
 
 /* abort shell (or fail in subshell) */
-static void leave(void) ATTRIBUTE_NORETURN;
+static void leave(void) NORETURN;
 static void leave(void)
 {
 	DBGPRINTF(("LEAVE: leave called!\n"));
@@ -1268,7 +1268,7 @@ static int newfile(char *s)
 		f = open(s, O_RDONLY);
 		if (f < 0) {
 			prs(s);
-			err(": cannot open");
+			err(": can't open");
 			return 1;
 		}
 	}
@@ -1450,7 +1450,7 @@ static void next(int f)
 	PUSHIO(afile, f, filechar);
 }
 
-static void onintr(int s ATTRIBUTE_UNUSED) /* ANSI C requires a parameter */
+static void onintr(int s UNUSED_PARAM) /* ANSI C requires a parameter */
 {
 	signal(SIGINT, onintr);
 	intr = 1;
@@ -1545,7 +1545,7 @@ static int gmatch(const char *s, const char *p)
  * shell: syntax (C version)
  */
 
-static void yyerror(const char *s) ATTRIBUTE_NORETURN;
+static void yyerror(const char *s) NORETURN;
 static void yyerror(const char *s)
 {
 	yynerrs = 1;
@@ -1558,7 +1558,7 @@ static void yyerror(const char *s)
 	fail();
 }
 
-static void zzerr(void) ATTRIBUTE_NORETURN;
+static void zzerr(void) NORETURN;
 static void zzerr(void)
 {
 	yyerror("syntax error");
@@ -2573,6 +2573,10 @@ static int execute(struct op *t, int *pin, int *pout, int no_fork)
 		while (setjmp(bc.brkpt))
 			if (isbreak)
 				goto broken;
+		/* Restore areanum value. It may be incremented by execute()
+		 * below, and then "continue" may jump back to setjmp above */
+		areanum = a + 1;
+		freearea(areanum + 1);
 		brkset(&bc);
 		for (t1 = t->left; i-- && *wp != NULL;) {
 			setval(vp, *wp++);
@@ -2586,6 +2590,10 @@ static int execute(struct op *t, int *pin, int *pout, int no_fork)
 		while (setjmp(bc.brkpt))
 			if (isbreak)
 				goto broken;
+		/* Restore areanum value. It may be incremented by execute()
+		 * below, and then "continue" may jump back to setjmp above */
+		areanum = a + 1;
+		freearea(areanum + 1);
 		brkset(&bc);
 		t1 = t->left;
 		while ((execute(t1, pin, pout, /* no_fork: */ 0) == 0) == (t->op_type == TWHILE))
@@ -2762,7 +2770,7 @@ static int forkexec(struct op *t, int *pin, int *pout, int no_fork, char **wp)
 		DBGPRINTF3(("FORKEXEC: calling vfork()...\n"));
 		newpid = vfork();
 		if (newpid == -1) {
-			DBGPRINTF(("FORKEXEC: ERROR, cannot vfork()!\n"));
+			DBGPRINTF(("FORKEXEC: ERROR, can't vfork()!\n"));
 			return -1;
 		}
 
@@ -2812,7 +2820,7 @@ static int forkexec(struct op *t, int *pin, int *pout, int no_fork, char **wp)
 	if (iopp) {
 		if (bltin && bltin != doexec) {
 			prs(bltin_name);
-			err(": cannot redirect shell command");
+			err(": can't redirect shell command");
 			if (forked)
 				_exit(-1);
 			return -1;
@@ -2832,7 +2840,7 @@ static int forkexec(struct op *t, int *pin, int *pout, int no_fork, char **wp)
 			/* Builtin in pipe: disallowed */
 			/* TODO: allow "exec"? */
 			prs(bltin_name);
-			err(": cannot run builtin as part of pipe");
+			err(": can't run builtin as part of pipe");
 			if (forked)
 				_exit(-1);
 			return -1;
@@ -2947,7 +2955,7 @@ static int iosetup(struct ioword *iop, int pipein, int pipeout)
 
 	if (u < 0) {
 		prs(cp);
-		prs(": cannot ");
+		prs(": can't ");
 		warn(msg);
 		return 1;
 	}
@@ -3102,7 +3110,7 @@ static const char *rexecve(char *c, char **v, char **envp)
 		return "not found";
 	}
 	exstat = 126; /* mimic bash */
-	return "cannot execute";
+	return "can't execute";
 }
 
 /*
@@ -3163,7 +3171,7 @@ static int run(struct ioarg *argp, int (*f) (struct ioarg *))
  * built-in commands: doX
  */
 
-static int dohelp(struct op *t ATTRIBUTE_UNUSED, char **args ATTRIBUTE_UNUSED)
+static int dohelp(struct op *t UNUSED_PARAM, char **args UNUSED_PARAM)
 {
 	int col;
 	const struct builtincmd *x;
@@ -3199,12 +3207,12 @@ static int dohelp(struct op *t ATTRIBUTE_UNUSED, char **args ATTRIBUTE_UNUSED)
 	return EXIT_SUCCESS;
 }
 
-static int dolabel(struct op *t ATTRIBUTE_UNUSED, char **args ATTRIBUTE_UNUSED)
+static int dolabel(struct op *t UNUSED_PARAM, char **args UNUSED_PARAM)
 {
 	return 0;
 }
 
-static int dochdir(struct op *t ATTRIBUTE_UNUSED, char **args)
+static int dochdir(struct op *t UNUSED_PARAM, char **args)
 {
 	const char *cp, *er;
 
@@ -3225,7 +3233,7 @@ static int dochdir(struct op *t ATTRIBUTE_UNUSED, char **args)
 	return 1;
 }
 
-static int doshift(struct op *t ATTRIBUTE_UNUSED, char **args)
+static int doshift(struct op *t UNUSED_PARAM, char **args)
 {
 	int n;
 
@@ -3244,7 +3252,7 @@ static int doshift(struct op *t ATTRIBUTE_UNUSED, char **args)
 /*
  * execute login and newgrp directly
  */
-static int dologin(struct op *t ATTRIBUTE_UNUSED, char **args)
+static int dologin(struct op *t UNUSED_PARAM, char **args)
 {
 	const char *cp;
 
@@ -3259,7 +3267,7 @@ static int dologin(struct op *t ATTRIBUTE_UNUSED, char **args)
 	return 1;
 }
 
-static int doumask(struct op *t ATTRIBUTE_UNUSED, char **args)
+static int doumask(struct op *t UNUSED_PARAM, char **args)
 {
 	int i;
 	char *cp;
@@ -3309,7 +3317,7 @@ static int doexec(struct op *t, char **args)
 	return 1;
 }
 
-static int dodot(struct op *t ATTRIBUTE_UNUSED, char **args)
+static int dodot(struct op *t UNUSED_PARAM, char **args)
 {
 	int i;
 	const char *sp;
@@ -3363,7 +3371,7 @@ static int dodot(struct op *t ATTRIBUTE_UNUSED, char **args)
 	return -1;
 }
 
-static int dowait(struct op *t ATTRIBUTE_UNUSED, char **args)
+static int dowait(struct op *t UNUSED_PARAM, char **args)
 {
 	int i;
 	char *cp;
@@ -3379,7 +3387,7 @@ static int dowait(struct op *t ATTRIBUTE_UNUSED, char **args)
 	return 0;
 }
 
-static int doread(struct op *t ATTRIBUTE_UNUSED, char **args)
+static int doread(struct op *t UNUSED_PARAM, char **args)
 {
 	char *cp, **wp;
 	int nb = 0;
@@ -3406,12 +3414,12 @@ static int doread(struct op *t ATTRIBUTE_UNUSED, char **args)
 	return nb <= 0;
 }
 
-static int doeval(struct op *t ATTRIBUTE_UNUSED, char **args)
+static int doeval(struct op *t UNUSED_PARAM, char **args)
 {
 	return RUN(awordlist, args + 1, wdchar);
 }
 
-static int dotrap(struct op *t ATTRIBUTE_UNUSED, char **args)
+static int dotrap(struct op *t UNUSED_PARAM, char **args)
 {
 	int n, i;
 	int resetsig;
@@ -3492,12 +3500,12 @@ static int getn(char *as)
 	return n * m;
 }
 
-static int dobreak(struct op *t ATTRIBUTE_UNUSED, char **args)
+static int dobreak(struct op *t UNUSED_PARAM, char **args)
 {
 	return brkcontin(args[1], 1);
 }
 
-static int docontinue(struct op *t ATTRIBUTE_UNUSED, char **args)
+static int docontinue(struct op *t UNUSED_PARAM, char **args)
 {
 	return brkcontin(args[1], 0);
 }
@@ -3525,7 +3533,7 @@ static int brkcontin(char *cp, int val)
 	/* NOTREACHED */
 }
 
-static int doexit(struct op *t ATTRIBUTE_UNUSED, char **args)
+static int doexit(struct op *t UNUSED_PARAM, char **args)
 {
 	char *cp;
 
@@ -3541,13 +3549,13 @@ static int doexit(struct op *t ATTRIBUTE_UNUSED, char **args)
 	return 0;
 }
 
-static int doexport(struct op *t ATTRIBUTE_UNUSED, char **args)
+static int doexport(struct op *t UNUSED_PARAM, char **args)
 {
 	rdexp(args + 1, export, EXPORT);
 	return 0;
 }
 
-static int doreadonly(struct op *t ATTRIBUTE_UNUSED, char **args)
+static int doreadonly(struct op *t UNUSED_PARAM, char **args)
 {
 	rdexp(args + 1, ronly, RONLY);
 	return 0;
@@ -3583,7 +3591,7 @@ static void badid(char *s)
 	err(": bad identifier");
 }
 
-static int doset(struct op *t ATTRIBUTE_UNUSED, char **args)
+static int doset(struct op *t UNUSED_PARAM, char **args)
 {
 	struct var *vp;
 	char *cp;
@@ -3658,7 +3666,7 @@ static void times_fmt(char *buf, clock_t val, unsigned clk_tck)
 #endif
 }
 
-static int dotimes(struct op *t ATTRIBUTE_UNUSED, char **args ATTRIBUTE_UNUSED)
+static int dotimes(struct op *t UNUSED_PARAM, char **args UNUSED_PARAM)
 {
 	struct tms buf;
 	unsigned clk_tck = sysconf(_SC_CLK_TCK);
@@ -3988,7 +3996,7 @@ static int dollar(int quoted)
 		switch (c) {
 		case '=':
 			if (isdigit(*s)) {
-				err("cannot use ${...=...} with $n");
+				err("can't use ${...=...} with $n");
 				gflg = 1;
 				break;
 			}

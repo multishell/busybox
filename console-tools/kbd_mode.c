@@ -2,7 +2,7 @@
 /*
  * Mini kbd_mode implementation for busybox
  *
- * Copyright (C) 2007 Loic Grenie <loic.grenie@gmail.com>
+ * Copyright (C) 2007 Loïc Grenié <loic.grenie@gmail.com>
  *   written using Andries Brouwer <aeb@cwi.nl>'s kbd_mode from
  *   console-utils v0.2.3, licensed under GNU GPLv2
  *
@@ -14,22 +14,20 @@
 #include <linux/kd.h>
 
 int kbd_mode_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int kbd_mode_main(int ATTRIBUTE_UNUSED argc, char **argv)
+int kbd_mode_main(int argc UNUSED_PARAM, char **argv)
 {
 	int fd;
 	unsigned opt;
 	enum {
-		SCANCODE = (1<<0),
-		ASCII	 = (1<<1),
-		MEDIUMRAW= (1<<2),
-		UNICODE	 = (1<<3)
+		SCANCODE  = (1 << 0),
+		ASCII	  = (1 << 1),
+		MEDIUMRAW = (1 << 2),
+		UNICODE	  = (1 << 3)
 	};
 	static const char KD_xxx[] ALIGN1 = "saku";
 	opt = getopt32(argv, KD_xxx);
-	fd = get_console_fd();
-/*	if (fd < 0)
-		return EXIT_FAILURE;
-*/
+	fd = get_console_fd_or_die();
+
 	if (!opt) { /* print current setting */
 		const char *mode = "unknown";
 		int m;

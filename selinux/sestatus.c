@@ -47,31 +47,14 @@ static void display_boolean(void)
 
 static void read_config(char **pc, int npc, char **fc, int nfc)
 {
-	char buf[256];
-	FILE *fp;
+	char *buf;
+	parser_t *parser;
 	int pc_ofs = 0, fc_ofs = 0, section = -1;
 
 	pc[0] = fc[0] = NULL;
 
-	fp = fopen("/etc/sestatus.conf", "rb");
-	if (fp == NULL)
-		return;
-
-	while (fgets(buf, sizeof(buf), fp) != NULL) {
-		int i, c;
-
-		/* kills comments */
-		for (i = 0; (c = buf[i]) != '\0'; i++) {
-			if (c == '#') {
-				buf[i] = '\0';
-				break;
-			}
-		}
-		trim(buf);
-
-		if (buf[0] == '\0')
-			continue;
-
+	parser = config_open("/etc/sestatus.conf");
+	while (config_read(parser, &buf, 1, 1, "# \t", PARSE_NORMAL)) {
 		if (strcmp(buf, "[process]") == 0) {
 			section = 1;
 		} else if (strcmp(buf, "[files]") == 0) {
@@ -86,7 +69,7 @@ static void read_config(char **pc, int npc, char **fc, int nfc)
 			}
 		}
 	}
-	fclose(fp);
+	config_close(parser);
 }
 
 static void display_verbose(void)
@@ -159,7 +142,7 @@ static void display_verbose(void)
 }
 
 int sestatus_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int sestatus_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int sestatus_main(int argc UNUSED_PARAM, char **argv)
 {
 	unsigned opts;
 	const char *pol_path;

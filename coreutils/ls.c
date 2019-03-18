@@ -825,7 +825,7 @@ static const char ls_color_opt[] ALIGN1 =
 
 
 int ls_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int ls_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int ls_main(int argc UNUSED_PARAM, char **argv)
 {
 	struct dnode **dnd;
 	struct dnode **dnf;
@@ -837,7 +837,8 @@ int ls_main(int argc ATTRIBUTE_UNUSED, char **argv)
 	int dnfiles;
 	int dndirs;
 	int i;
-	USE_FEATURE_LS_COLOR(char *color_opt;)
+	/* need to initialize since --color has _an optional_ argument */
+	USE_FEATURE_LS_COLOR(const char *color_opt = "always";)
 
 	INIT_G();
 
@@ -888,15 +889,15 @@ int ls_main(int argc ATTRIBUTE_UNUSED, char **argv)
 	if (ENABLE_FEATURE_LS_COLOR_IS_DEFAULT && isatty(STDOUT_FILENO)) {
 		char *p = getenv("LS_COLORS");
 		/* LS_COLORS is unset, or (not empty && not "none") ? */
-		if (!p || (p[0] && strcmp(p, "none")))
+		if (!p || (p[0] && strcmp(p, "none") != 0))
 			show_color = 1;
 	}
 	if (opt & (1 << i)) {  /* next flag after short options */
-		if (!color_opt || !strcmp("always", color_opt))
+		if (strcmp("always", color_opt) == 0)
 			show_color = 1;
-		else if (color_opt && !strcmp("never", color_opt))
+		else if (strcmp("never", color_opt) == 0)
 			show_color = 0;
-		else if (color_opt && !strcmp("auto", color_opt) && isatty(STDOUT_FILENO))
+		else if (strcmp("auto", color_opt) == 0 && isatty(STDOUT_FILENO))
 			show_color = 1;
 	}
 #endif

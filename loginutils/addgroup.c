@@ -72,7 +72,7 @@ static void new_group(char *group, gid_t gid)
 #if ENABLE_FEATURE_ADDUSER_TO_GROUP
 static void add_user_to_group(char **args,
 		const char *path,
-		FILE *(*fopen_func)(const char *fileName, const char *mode))
+		FILE* FAST_FUNC (*fopen_func)(const char *fileName, const char *mode))
 {
 	char *line;
 	int len = strlen(args[1]);
@@ -123,7 +123,7 @@ static void add_user_to_group(char **args,
  * will add an existing user to an existing group.
  */
 int addgroup_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int addgroup_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int addgroup_main(int argc UNUSED_PARAM, char **argv)
 {
 	char *group;
 	gid_t gid = 0;

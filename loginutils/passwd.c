@@ -27,7 +27,7 @@ static char* new_password(const struct passwd *pw, uid_t myuid, int algo)
 			goto err_ret;
 		encrypted = pw_encrypt(orig, pw->pw_passwd, 1); /* returns malloced str */
 		if (strcmp(encrypted, pw->pw_passwd) != 0) {
-			syslog(LOG_WARNING, "incorrect password for '%s'",
+			syslog(LOG_WARNING, "incorrect password for %s",
 				pw->pw_name);
 			bb_do_delay(FAIL_DELAY);
 			puts("Incorrect password");
@@ -71,7 +71,7 @@ static char* new_password(const struct passwd *pw, uid_t myuid, int algo)
 }
 
 int passwd_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int passwd_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int passwd_main(int argc UNUSED_PARAM, char **argv)
 {
 	enum {
 		OPT_algo = 0x1, /* -a - password algorithm */
@@ -119,7 +119,8 @@ int passwd_main(int argc ATTRIBUTE_UNUSED, char **argv)
 	name = argv[0] ? argv[0] : myname;
 
 	pw = getpwnam(name);
-	if (!pw) bb_error_msg_and_die("unknown user %s", name);
+	if (!pw)
+		bb_error_msg_and_die("unknown user %s", name);
 	if (myuid && pw->pw_uid != myuid) {
 		/* LOGMODE_BOTH */
 		bb_error_msg_and_die("%s can't change password for %s", myname, name);

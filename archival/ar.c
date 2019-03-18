@@ -16,7 +16,7 @@
 #include "libbb.h"
 #include "unarchive.h"
 
-static void header_verbose_list_ar(const file_header_t *file_header)
+static void FAST_FUNC header_verbose_list_ar(const file_header_t *file_header)
 {
 	const char *mode = bb_mode_string(file_header->mode);
 	char *mtime;
@@ -45,7 +45,6 @@ int ar_main(int argc, char **argv)
 
 	archive_handle_t *archive_handle;
 	unsigned opt;
-	char magic[8];
 
 	archive_handle = init_handle();
 
@@ -63,7 +62,7 @@ int ar_main(int argc, char **argv)
 		archive_handle->action_data = data_extract_all;
 	}
 	if (opt & AR_OPT_PRESERVE_DATE) {
-		archive_handle->flags |= ARCHIVE_PRESERVE_DATE;
+		archive_handle->ah_flags |= ARCHIVE_PRESERVE_DATE;
 	}
 	if (opt & AR_OPT_VERBOSE) {
 		archive_handle->action_header = header_verbose_list_ar;
@@ -82,14 +81,7 @@ int ar_main(int argc, char **argv)
 		llist_add_to(&(archive_handle->accept), argv[optind++]);
 	}
 
-	xread(archive_handle->src_fd, magic, 7);
-	if (strncmp(magic, "!<arch>", 7) != 0) {
-		bb_error_msg_and_die("invalid ar magic");
-	}
-	archive_handle->offset += 7;
-
-	while (get_header_ar(archive_handle) == EXIT_SUCCESS)
-		continue;
+	unpack_ar_archive(archive_handle);
 
 	return EXIT_SUCCESS;
 }

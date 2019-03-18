@@ -73,7 +73,8 @@ static const char *unpack_usage_messages(void)
 
 	i = start_bunzip(&bd,
 			/* src_fd: */ -1,
-			/* inbuf:  */ (void *)packed_usage,
+//FIXME: can avoid storing these 2 bytes!
+			/* inbuf:  */ (void *)packed_usage + 2,
 			/* len:    */ sizeof(packed_usage));
 	/* read_bunzip can longjmp to start_bunzip, and ultimately
 	 * end up here with i != 0 on read data errors! Not trivial */
@@ -101,7 +102,7 @@ static void full_write2_str(const char *str)
 	full_write(STDERR_FILENO, str, strlen(str));
 }
 
-void bb_show_usage(void)
+void FAST_FUNC bb_show_usage(void)
 {
 	if (ENABLE_SHOW_USAGE) {
 #ifdef SINGLE_APPLET_STR
@@ -153,7 +154,7 @@ static int applet_name_compare(const void *name, const void *v)
 	return strcmp(name, APPLET_NAME(i));
 }
 #endif
-int find_applet_by_name(const char *name)
+int FAST_FUNC find_applet_by_name(const char *name)
 {
 #if NUM_APPLETS > 8
 	/* Do a binary search to find the applet entry given the name. */
@@ -196,8 +197,12 @@ void lbb_prepare(const char *applet
 #if ENABLE_FEATURE_INDIVIDUAL
 	/* Redundant for busybox (run_applet_and_exit covers that case)
 	 * but needed for "individual applet" mode */
-	if (argv[1] && strcmp(argv[1], "--help") == 0)
-		bb_show_usage();
+	if (argv[1] && !argv[2] && strcmp(argv[1], "--help") == 0) {
+		/* Special case. POSIX says "test --help"
+		 * should be no different from e.g. "test --foo".  */
+		if (!ENABLE_TEST || strcmp(applet_name, "test") != 0)
+			bb_show_usage();
+	}
 #endif
 }
 
@@ -312,7 +317,7 @@ static void parse_config_file(void)
 	 || !S_ISREG(st.st_mode)                /* Not a regular file? */
 	 || (st.st_uid != 0)                    /* Not owned by root? */
 	 || (st.st_mode & (S_IWGRP | S_IWOTH))  /* Writable by non-root? */
-	 || !(f = fopen(config_file, "r"))      /* Cannot open? */
+	 || !(f = fopen_for_read(config_file))      /* Cannot open? */
 	) {
 		return;
 	}
@@ -704,7 +709,7 @@ static int busybox_main(char **argv)
 	xfunc_die();
 }
 
-void run_applet_no_and_exit(int applet_no, char **argv)
+void FAST_FUNC run_applet_no_and_exit(int applet_no, char **argv)
 {
 	int argc = 1;
 
@@ -715,14 +720,19 @@ void run_applet_no_and_exit(int applet_no, char **argv)
 	xfunc_error_retval = EXIT_FAILURE;
 
 	applet_name = APPLET_NAME(applet_no);
-	if (argc == 2 && !strcmp(argv[1], "--help"))
-		bb_show_usage();
+	if (argc == 2 && strcmp(argv[1], "--help") == 0) {
+		/* Special case. POSIX says "test --help"
+		 * should be no different from e.g. "test --foo".  */
+//TODO: just compare applet_no with APPLET_NO_test
+		if (!ENABLE_TEST || strcmp(applet_name, "test") != 0)
+			bb_show_usage();
+	}
 	if (ENABLE_FEATURE_SUID)
 		check_suid(applet_no);
 	exit(applet_main[applet_no](argc, argv));
 }
 
-void run_applet_and_exit(const char *name, char **argv)
+void FAST_FUNC run_applet_and_exit(const char *name, char **argv)
 {
 	int applet = find_applet_by_name(name);
 	if (applet >= 0)
@@ -738,7 +748,7 @@ void run_applet_and_exit(const char *name, char **argv)
 #if ENABLE_BUILD_LIBBUSYBOX
 int lbb_main(char **argv)
 #else
-int main(int argc ATTRIBUTE_UNUSED, char **argv)
+int main(int argc UNUSED_PARAM, char **argv)
 #endif
 {
 #if defined(SINGLE_APPLET_MAIN)

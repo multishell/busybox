@@ -7,7 +7,7 @@
 #include "libbb.h"
 #include "unarchive.h"
 
-char get_header_ar(archive_handle_t *archive_handle)
+char FAST_FUNC get_header_ar(archive_handle_t *archive_handle)
 {
 	int err;
 	file_header_t *typed = archive_handle->file_header;
@@ -108,12 +108,13 @@ char get_header_ar(archive_handle_t *archive_handle)
 
 	if (archive_handle->filter(archive_handle) == EXIT_SUCCESS) {
 		archive_handle->action_header(typed);
+#if ENABLE_DPKG || ENABLE_DPKG_DEB
 		if (archive_handle->sub_archive) {
 			while (archive_handle->action_data_subarchive(archive_handle->sub_archive) == EXIT_SUCCESS)
-				/* repeat */;
-		} else {
+				continue;
+		} else
+#endif
 			archive_handle->action_data(archive_handle);
-		}
 	} else {
 		data_skip(archive_handle);
 	}

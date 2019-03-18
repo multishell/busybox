@@ -181,7 +181,7 @@ sun_autoconfigure_scsi(void)
 		id[0] & 0xff,
 		(id[0]>>8) & 0xff
 	);
-	pfd = fopen("/proc/scsi/scsi", "r");
+	pfd = fopen_for_read("/proc/scsi/scsi");
 	if (!pfd) {
 		return NULL;
 	}
@@ -722,9 +722,6 @@ sun_write_table(void)
 	while (ush < (unsigned short *)(&sunlabel->csum))
 		csum ^= *ush++;
 	sunlabel->csum = csum;
-	if (lseek(dev_fd, 0, SEEK_SET) < 0)
-		fdisk_fatal(unable_to_seek);
-	if (write(dev_fd, sunlabel, SECTOR_SIZE) != SECTOR_SIZE)
-		fdisk_fatal(unable_to_write);
+	write_sector(0, sunlabel);
 }
 #endif /* SUN_LABEL */

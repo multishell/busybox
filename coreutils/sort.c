@@ -276,7 +276,7 @@ static unsigned str2u(char **str)
 #endif
 
 int sort_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int sort_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int sort_main(int argc UNUSED_PARAM, char **argv)
 {
 	FILE *fp, *outfile = stdout;
 	char *line, **lines = NULL;
@@ -293,7 +293,7 @@ int sort_main(int argc ATTRIBUTE_UNUSED, char **argv)
 			"k::"; /* -k takes list */
 	getopt32(argv, OPT_STR, &str_ignored, &str_ignored, &str_o, &lst_k, &str_t);
 #if ENABLE_FEATURE_SORT_BIG
-	if (option_mask32 & FLAG_o) outfile = xfopen(str_o, "w");
+	if (option_mask32 & FLAG_o) outfile = xfopen_for_write(str_o);
 	if (option_mask32 & FLAG_t) {
 		if (!str_t[0] || str_t[1])
 			bb_error_msg_and_die("bad -t parameter");
@@ -360,8 +360,7 @@ int sort_main(int argc ATTRIBUTE_UNUSED, char **argv)
 		for (;;) {
 			line = GET_LINE(fp);
 			if (!line) break;
-			if (!(linecount & 63))
-				lines = xrealloc(lines, sizeof(char *) * (linecount + 64));
+			lines = xrealloc_vector(lines, 6, linecount);
 			lines[linecount++] = line;
 		}
 		fclose_if_not_stdin(fp);

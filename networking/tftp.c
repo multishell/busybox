@@ -225,7 +225,7 @@ static int tftp_protocol(
 		if (user_opt) {
 			struct passwd *pw = getpwnam(user_opt);
 			if (!pw)
-				bb_error_msg_and_die("unknown user '%s'", user_opt);
+				bb_error_msg_and_die("unknown user %s", user_opt);
 			change_identity(pw); /* initgroups, setgid, setuid */
 		}
 	}
@@ -555,7 +555,7 @@ static int tftp_protocol(
 #if ENABLE_TFTP
 
 int tftp_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int tftp_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int tftp_main(int argc UNUSED_PARAM, char **argv)
 {
 	len_and_sockaddr *peer_lsa;
 	const char *local_file = NULL;
@@ -640,7 +640,7 @@ static len_and_sockaddr *get_sock_lsa(int s)
 }
 
 int tftpd_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int tftpd_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int tftpd_main(int argc UNUSED_PARAM, char **argv)
 {
 	len_and_sockaddr *our_lsa;
 	len_and_sockaddr *peer_lsa;

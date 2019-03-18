@@ -476,7 +476,7 @@ static void set_flags(char *flagstr, int flags)
 }
 
 /* also used in netstat */
-void bb_displayroutes(int noresolve, int netstatfmt)
+void FAST_FUNC bb_displayroutes(int noresolve, int netstatfmt)
 {
 	char devname[64], flags[16], *sdest, *sgw;
 	unsigned long d, g, m;
@@ -484,7 +484,7 @@ void bb_displayroutes(int noresolve, int netstatfmt)
 	struct sockaddr_in s_addr;
 	struct in_addr mask;
 
-	FILE *fp = xfopen("/proc/net/route", "r");
+	FILE *fp = xfopen_for_read("/proc/net/route");
 
 	printf("Kernel IP routing table\n"
 	       "Destination     Gateway         Genmask         Flags %s Iface\n",
@@ -552,7 +552,7 @@ static void INET6_displayroutes(void)
 	int iflags, metric, refcnt, use, prefix_len, slen;
 	struct sockaddr_in6 snaddr6;
 
-	FILE *fp = xfopen("/proc/net/ipv6_route", "r");
+	FILE *fp = xfopen_for_read("/proc/net/ipv6_route");
 
 	printf("Kernel IPv6 routing table\n%-44s%-40s"
 			  "Flags Metric Ref    Use Iface\n",
@@ -561,8 +561,8 @@ static void INET6_displayroutes(void)
 	while (1) {
 		int r;
 		r = fscanf(fp, "%32s%x%*s%x%32s%x%x%x%x%s\n",
-				   addr6x+14, &prefix_len, &slen, addr6x+40+7,
-				   &metric, &use, &refcnt, &iflags, iface);
+				addr6x+14, &prefix_len, &slen, addr6x+40+7,
+				&metric, &use, &refcnt, &iflags, iface);
 		if (r != 9) {
 			if ((r < 0) && feof(fp)) { /* EOF with no (nonspace) chars read. */
 				break;
@@ -641,7 +641,7 @@ static const char tbl_verb[] ALIGN1 =
 ;
 
 int route_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int route_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int route_main(int argc UNUSED_PARAM, char **argv)
 {
 	unsigned opt;
 	int what;

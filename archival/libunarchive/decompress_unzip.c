@@ -244,7 +244,7 @@ static void huft_free_all(STATE_PARAM_ONLY)
 	inflate_codes_td = NULL;
 }
 
-static void abort_unzip(STATE_PARAM_ONLY) ATTRIBUTE_NORETURN;
+static void abort_unzip(STATE_PARAM_ONLY) NORETURN;
 static void abort_unzip(STATE_PARAM_ONLY)
 {
 	huft_free_all(PASS_STATE_ONLY);
@@ -1033,7 +1033,7 @@ inflate_unzip_internal(STATE_PARAM int in, int out)
 
 /* For unzip */
 
-USE_DESKTOP(long long) int
+USE_DESKTOP(long long) int FAST_FUNC
 inflate_unzip(inflate_unzip_result *res, off_t compr_size, int in, int out)
 {
 	USE_DESKTOP(long long) int n;
@@ -1176,7 +1176,7 @@ static int check_header_gzip(STATE_PARAM_ONLY)
 	return 1;
 }
 
-USE_DESKTOP(long long) int
+USE_DESKTOP(long long) int FAST_FUNC
 unpack_gz_stream(int in, int out)
 {
 	uint32_t v32;

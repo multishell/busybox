@@ -135,20 +135,24 @@ static unsigned int expand(const char *arg, char *buffer)
 			/* "[xyz...", i=x, arg points to y */
 			if (ENABLE_FEATURE_TR_EQUIV && i == '=') { /* [=CHAR=] */
 				*buffer++ = *arg; /* copy CHAR */
+				if (!*arg || arg[1] != '=' || arg[2] != ']')
+					bb_show_usage();
 				arg += 3;	/* skip CHAR=] */
 				continue;
 			}
-			if (*arg != '-') { /* not [x-...] - copy verbatim */
+			if (i == '\0' || *arg != '-') { /* not [x-...] - copy verbatim */
 				*buffer++ = '[';
 				arg--; /* points to x */
 				continue; /* copy all, including eventual ']' */
 			}
-			/* [x-y...] */
-			arg++;
+			/* [x-z] */
+			arg++; /* skip - */
+			if (arg[0] == '\0' || arg[1] != ']')
+				bb_show_usage();
 			ac = *arg++;
 			while (i <= ac)
 				*buffer++ = i++;
-			arg++;	/* skip the assumed ']' */
+			arg++;	/* skip ] */
 			continue;
 		}
 		*buffer++ = *arg++;
@@ -174,7 +178,7 @@ static int complement(char *buffer, int buffer_len)
 }
 
 int tr_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int tr_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int tr_main(int argc UNUSED_PARAM, char **argv)
 {
 	int output_length = 0, input_length;
 	int i;

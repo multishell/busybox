@@ -28,7 +28,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "libbb.h"
 
 /* Always sets uid and gid */
-int get_uidgid(struct bb_uidgid_t *u, const char *ug, int numeric_ok)
+int FAST_FUNC get_uidgid(struct bb_uidgid_t *u, const char *ug, int numeric_ok)
 {
 	struct passwd *pwd;
 	struct group *gr;
@@ -76,6 +76,11 @@ int get_uidgid(struct bb_uidgid_t *u, const char *ug, int numeric_ok)
 	}
 	return 1;
 }
+void FAST_FUNC xget_uidgid(struct bb_uidgid_t *u, const char *ug)
+{
+	if (!get_uidgid(u, ug, 1))
+		bb_error_msg_and_die("unknown user/group %s", ug);
+}
 
 /* chown-like:
  * "user" sets uid only,
@@ -84,7 +89,7 @@ int get_uidgid(struct bb_uidgid_t *u, const char *ug, int numeric_ok)
  * "user:group" sets uid and gid
  * ('unset' uid or gid is actually set to -1)
  */
-void parse_chown_usergroup_or_die(struct bb_uidgid_t *u, char *user_group)
+void FAST_FUNC parse_chown_usergroup_or_die(struct bb_uidgid_t *u, char *user_group)
 {
 	char *group;
 
@@ -106,8 +111,7 @@ void parse_chown_usergroup_or_die(struct bb_uidgid_t *u, char *user_group)
 	} else {
 		if (!group[1]) /* "user:" */
 			*group = '\0';
-		if (!get_uidgid(u, user_group, 1))
-			bb_error_msg_and_die("unknown user/group %s", user_group);
+		xget_uidgid(u, user_group);
 	}
 }
 

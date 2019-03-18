@@ -99,7 +99,7 @@ enum {
 #define FLAG_R               (option_mask32 & OPT_R)
 
 
-static void qprintf(const char *fmt ATTRIBUTE_UNUSED, ...)
+static void qprintf(const char *fmt UNUSED_PARAM, ...)
 {
 	/* quiet, do nothing */
 }
@@ -391,11 +391,11 @@ static int restore(const char *file)
  * This function is called by recursive_action on each file during
  * the directory traversal.
  */
-static int apply_spec(
+static int FAST_FUNC apply_spec(
 		const char *file,
 		struct stat *sb,
-		void *userData ATTRIBUTE_UNUSED,
-		int depth ATTRIBUTE_UNUSED)
+		void *userData UNUSED_PARAM,
+		int depth UNUSED_PARAM)
 {
 	if (!follow_mounts) {
 		/* setfiles does not process across different mount points */
@@ -554,7 +554,7 @@ int setfiles_main(int argc, char **argv)
 	if ((applet_name[0] == 's') && (flags & OPT_c)) {
 		FILE *policystream;
 
-		policystream = xfopen(policyfile, "r");
+		policystream = xfopen_for_read(policyfile);
 		if (sepol_set_policydb_from_file(policystream) < 0) {
 			bb_error_msg_and_die("sepol_set_policydb_from_file on %s", policyfile);
 		}
@@ -575,7 +575,7 @@ int setfiles_main(int argc, char **argv)
 	if (flags & OPT_o) {
 		outfile = stdout;
 		if (NOT_LONE_CHAR(out_filename, '-')) {
-			outfile = xfopen(out_filename, "w");
+			outfile = xfopen_for_write(out_filename);
 		}
 	}
 	if (applet_name[0] == 'r') { /* restorecon */
@@ -620,7 +620,7 @@ int setfiles_main(int argc, char **argv)
 		FILE *f = stdin;
 
 		if (NOT_LONE_CHAR(input_filename, '-'))
-			f = xfopen(input_filename, "r");
+			f = xfopen_for_read(input_filename);
 		while ((len = getline(&buf, &buf_len, f)) > 0) {
 			buf[len - 1] = '\0';
 			errors |= process_one(buf);

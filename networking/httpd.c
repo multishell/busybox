@@ -37,6 +37,7 @@
  *
  * httpd.conf has the following format:
  *
+ * H:/serverroot     # define the server root. It will override -h
  * A:172.20.         # Allow address from 172.20.0.0/16
  * A:10.0.0.0/25     # Allow any address from 10.0.0.0-10.0.0.127
  * A:10.0.0.0/255.255.255.128  # Allow any address that previous set
@@ -338,7 +339,7 @@ enum {
 	SEND_BODY        = (1 << 1),
 	SEND_HEADERS_AND_BODY = SEND_HEADERS + SEND_BODY,
 };
-static void send_file_and_exit(const char *url, int what) ATTRIBUTE_NORETURN;
+static void send_file_and_exit(const char *url, int what) NORETURN;
 
 static void free_llist(has_next_ptr **pptr)
 {
@@ -517,7 +518,7 @@ static void parse_conf(const char *path, int flag)
 		sprintf((char *)filename, "%s/%s", path, httpd_conf);
 	}
 
-	while ((f = fopen(filename, "r")) == NULL) {
+	while ((f = fopen_for_read(filename)) == NULL) {
 		if (flag == SUBDIR_PARSE || flag == FIND_FROM_HTTPD_ROOT) {
 			/* config file not found, no changes to config */
 			return;
@@ -684,6 +685,13 @@ static void parse_conf(const char *path, int flag)
 #endif
 		if (*p0 == 'I') {
 			index_page = xstrdup(after_colon);
+			continue;
+		}
+
+		/* Do not allow jumping around using H in subdir's configs */
+		if (flag == FIRST_PARSE && *p0 == 'H') {
+			home_httpd = xstrdup(after_colon);
+			xchdir(home_httpd);
 			continue;
 		}
 
@@ -919,7 +927,7 @@ static int openServer(void)
 /*
  * Log the connection closure and exit.
  */
-static void log_and_exit(void) ATTRIBUTE_NORETURN;
+static void log_and_exit(void) NORETURN;
 static void log_and_exit(void)
 {
 	/* Paranoia. IE said to be buggy. It may send some extra data
@@ -1050,7 +1058,7 @@ static void send_headers(int responseNum)
 	}
 }
 
-static void send_headers_and_exit(int responseNum) ATTRIBUTE_NORETURN;
+static void send_headers_and_exit(int responseNum) NORETURN;
 static void send_headers_and_exit(int responseNum)
 {
 	send_headers(responseNum);
@@ -1094,7 +1102,7 @@ static int get_line(void)
 #if ENABLE_FEATURE_HTTPD_CGI || ENABLE_FEATURE_HTTPD_PROXY
 
 /* gcc 4.2.1 fares better with NOINLINE */
-static NOINLINE void cgi_io_loop_and_exit(int fromCgi_rd, int toCgi_wr, int post_len) ATTRIBUTE_NORETURN;
+static NOINLINE void cgi_io_loop_and_exit(int fromCgi_rd, int toCgi_wr, int post_len) NORETURN;
 static NOINLINE void cgi_io_loop_and_exit(int fromCgi_rd, int toCgi_wr, int post_len)
 {
 	enum { FROM_CGI = 1, TO_CGI = 2 }; /* indexes in pfd[] */
@@ -1292,7 +1300,7 @@ static void send_cgi_and_exit(
 		const char *request,
 		int post_len,
 		const char *cookie,
-		const char *content_type) ATTRIBUTE_NORETURN;
+		const char *content_type) NORETURN;
 static void send_cgi_and_exit(
 		const char *url,
 		const char *request,
@@ -1560,7 +1568,7 @@ static void send_file_and_exit(const char *url, int what)
 	f = open(url, O_RDONLY);
 	if (f < 0) {
 		if (DEBUG)
-			bb_perror_msg("cannot open '%s'", url);
+			bb_perror_msg("can't open '%s'", url);
 		/* Error pages are sent by using send_file_and_exit(SEND_BODY).
 		 * IOW: it is unsafe to call send_headers_and_exit
 		 * if what is SEND_BODY! Can recurse! */
@@ -1752,8 +1760,8 @@ static Htaccess_Proxy *find_proxy_entry(const char *url)
 /*
  * Handle timeouts
  */
-static void exit_on_signal(int sig) ATTRIBUTE_NORETURN;
-static void exit_on_signal(int sig ATTRIBUTE_UNUSED)
+static void exit_on_signal(int sig) NORETURN;
+static void exit_on_signal(int sig UNUSED_PARAM)
 {
 	send_headers_and_exit(HTTP_REQUEST_TIMEOUT);
 }
@@ -1761,7 +1769,7 @@ static void exit_on_signal(int sig ATTRIBUTE_UNUSED)
 /*
  * Handle an incoming http request and exit.
  */
-static void handle_incoming_and_exit(const len_and_sockaddr *fromAddr) ATTRIBUTE_NORETURN;
+static void handle_incoming_and_exit(const len_and_sockaddr *fromAddr) NORETURN;
 static void handle_incoming_and_exit(const len_and_sockaddr *fromAddr)
 {
 	static const char request_GET[] ALIGN1 = "GET";
@@ -2151,7 +2159,7 @@ static void handle_incoming_and_exit(const len_and_sockaddr *fromAddr)
  * Never returns.
  */
 #if BB_MMU
-static void mini_httpd(int server_socket) ATTRIBUTE_NORETURN;
+static void mini_httpd(int server_socket) NORETURN;
 static void mini_httpd(int server_socket)
 {
 	/* NB: it's best to not use xfuncs in this loop before fork().
@@ -2190,7 +2198,7 @@ static void mini_httpd(int server_socket)
 	/* never reached */
 }
 #else
-static void mini_httpd_nommu(int server_socket, int argc, char **argv) ATTRIBUTE_NORETURN;
+static void mini_httpd_nommu(int server_socket, int argc, char **argv) NORETURN;
 static void mini_httpd_nommu(int server_socket, int argc, char **argv)
 {
 	char *argv_copy[argc + 2];
@@ -2241,7 +2249,7 @@ static void mini_httpd_nommu(int server_socket, int argc, char **argv)
  * Process a HTTP connection on stdin/out.
  * Never returns.
  */
-static void mini_httpd_inetd(void) ATTRIBUTE_NORETURN;
+static void mini_httpd_inetd(void) NORETURN;
 static void mini_httpd_inetd(void)
 {
 	len_and_sockaddr fromAddr;
@@ -2256,8 +2264,7 @@ static void mini_httpd_inetd(void)
 #if ENABLE_FEATURE_HTTPD_RELOAD_CONFIG_SIGHUP
 static void sighup_handler(int sig)
 {
-	parse_conf(default_path_httpd_conf, sig == SIGHUP ? SIGNALED_PARSE : FIRST_PARSE);
-
+	parse_conf(default_path_httpd_conf, sig ? SIGNALED_PARSE : FIRST_PARSE);
 	signal_SA_RESTART_empty_mask(SIGHUP, sighup_handler);
 }
 #endif
@@ -2289,7 +2296,7 @@ enum {
 
 
 int httpd_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int httpd_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int httpd_main(int argc UNUSED_PARAM, char **argv)
 {
 	int server_socket = server_socket; /* for gcc */
 	unsigned opt;
@@ -2344,9 +2351,7 @@ int httpd_main(int argc ATTRIBUTE_UNUSED, char **argv)
 #endif
 #if ENABLE_FEATURE_HTTPD_SETUID
 	if (opt & OPT_SETUID) {
-		if (!get_uidgid(&ugid, s_ugid, 1))
-			bb_error_msg_and_die("unknown user[:group] "
-						"name '%s'", s_ugid);
+		xget_uidgid(&ugid, s_ugid);
 	}
 #endif
 
@@ -2392,10 +2397,14 @@ int httpd_main(int argc ATTRIBUTE_UNUSED, char **argv)
 #endif
 
 #if ENABLE_FEATURE_HTTPD_RELOAD_CONFIG_SIGHUP
-	if (!(opt & OPT_INETD))
+	if (!(opt & OPT_INETD)) {
+		/* runs parse_conf() inside */
 		sighup_handler(0);
+	} else
 #endif
-	parse_conf(default_path_httpd_conf, FIRST_PARSE);
+	{
+		parse_conf(default_path_httpd_conf, FIRST_PARSE);
+	}
 
 	xfunc_error_retval = 0;
 	if (opt & OPT_INETD)

@@ -364,7 +364,7 @@ print_long_double(size_t n_bytes, const char *block, const char *fmt_string)
 
 static void
 print_named_ascii(size_t n_bytes, const char *block,
-		const char *unused_fmt_string ATTRIBUTE_UNUSED)
+		const char *unused_fmt_string UNUSED_PARAM)
 {
 	/* Names for some non-printing characters.  */
 	static const char charname[33][3] ALIGN1 = {
@@ -404,7 +404,7 @@ print_named_ascii(size_t n_bytes, const char *block,
 
 static void
 print_ascii(size_t n_bytes, const char *block,
-		const char *unused_fmt_string ATTRIBUTE_UNUSED)
+		const char *unused_fmt_string UNUSED_PARAM)
 {
 	// buf[N] pos:  01234 56789
 	char buf[12] = "   x\0 0xx\0";
@@ -735,9 +735,9 @@ decode_format_string(const char *s)
 
 		assert(s != next);
 		s = next;
+		spec = xrealloc_vector(spec, 4, n_specs);
+		memcpy(&spec[n_specs], &tspec, sizeof(spec[0]));
 		n_specs++;
-		spec = xrealloc(spec, n_specs * sizeof(*spec));
-		memcpy(&spec[n_specs-1], &tspec, sizeof *spec);
 	}
 }
 
@@ -814,7 +814,7 @@ skip(off_t n_skip)
 typedef void FN_format_address(off_t address, char c);
 
 static void
-format_address_none(off_t address ATTRIBUTE_UNUSED, char c ATTRIBUTE_UNUSED)
+format_address_none(off_t address UNUSED_PARAM, char c UNUSED_PARAM)
 {
 }
 

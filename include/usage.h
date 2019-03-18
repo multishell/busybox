@@ -365,27 +365,26 @@
        "-r--r--r--    1 root     root            0 Apr 12 18:25 /tmp/foo\n"
 
 #define chpst_trivial_usage \
-       "[-vP012] [-u user[:group]] [-U user[:group]] [-e dir] " \
-       "[-/ dir] [-n nice] [-m bytes] [-d bytes] [-o files] " \
-       "[-p processes] [-f bytes] [-c bytes] prog args"
+       "[-vP012] [-u USER[:GRP]] [-U USER[:GRP]] [-e DIR]\n" \
+       "	[-/ DIR] [-n NICE] [-m BYTES] [-d BYTES] [-o N]\n" \
+       "	[-p N] [-f BYTES] [-c BYTES] PROG ARGS"
 #define chpst_full_usage "\n\n" \
-       "Change the process state and run specified program\n" \
+       "Change the process state and run PROG\n" \
      "\nOptions:" \
      "\n	-u USER[:GRP]	Set uid and gid" \
      "\n	-U USER[:GRP]	Set $UID and $GID in environment" \
      "\n	-e DIR		Set environment variables as specified by files" \
      "\n			in DIR: file=1st_line_of_file" \
      "\n	-/ DIR		Chroot to DIR" \
-     "\n	-n INC		Add INC to nice value" \
-     "\n	-m BYTES	Limit data segment, stack segment, locked physical pages," \
-     "\n			and total of all segment per process to BYTES each" \
+     "\n	-n NICE		Add NICE to nice value" \
+     "\n	-m BYTES	Same as -d BYTES -s BYTES -l BYTES" \
      "\n	-d BYTES	Limit data segment" \
-     "\n	-o N		Limit the number of open file descriptors per process to N" \
-     "\n	-p N		Limit number of processes per uid to N" \
-     "\n	-f BYTES	Limit output file size to BYTES" \
-     "\n	-c BYTES	Limit core file size to BYTES" \
+     "\n	-o N		Limit number of open files per process" \
+     "\n	-p N		Limit number of processes per uid" \
+     "\n	-f BYTES	Limit output file sizes" \
+     "\n	-c BYTES	Limit core file size" \
      "\n	-v		Verbose" \
-     "\n	-P		Run prog in a new process group" \
+     "\n	-P		Create new process group" \
      "\n	-0		Close standard input" \
      "\n	-1		Close standard output" \
      "\n	-2		Close standard error" \
@@ -394,41 +393,37 @@
        "account prog args"
 #define setuidgid_full_usage "\n\n" \
        "Set uid and gid to account's uid and gid, removing all supplementary\n" \
-       "groups, then run prog"
+       "groups and run PROG"
 #define envuidgid_trivial_usage \
        "account prog args"
 #define envuidgid_full_usage "\n\n" \
-       "Set $UID to account's uid and $GID to account's gid, then run prog"
+       "Set $UID to account's uid and $GID to account's gid and run PROG"
 #define envdir_trivial_usage \
        "dir prog args"
 #define envdir_full_usage "\n\n" \
        "Set various environment variables as specified by files\n" \
-       "in the directory dir, then run prog"
+       "in the directory dir and run PROG"
 #define softlimit_trivial_usage \
-       "[-a allbytes] [-c corebytes] [-d databytes] [-f filebytes] " \
-       "[-l lockbytes] [-m membytes] [-o openfiles] [-p processes] " \
-       "[-r residentbytes] [-s stackbytes] [-t cpusecs] prog args"
+       "[-a BYTES] [-m BYTES] [-d BYTES] [-s BYTES] [-l BYTES]\n" \
+       "	[-f BYTES] [-c BYTES] [-r BYTES] [-o N] [-p N] [-t N]\n" \
+       "	PROG ARGS"
 #define softlimit_full_usage "\n\n" \
-       "Set soft resource limits, then run prog\n" \
+       "Set soft resource limits, then run PROG\n" \
      "\nOptions:" \
-     "\n	-m n	Same as -d n -s n -l n -a n" \
-     "\n	-d n	Limit the data segment per process to n bytes" \
-     "\n	-s n	Limit the stack segment per process to n bytes" \
-     "\n	-l n	Limit the locked physical pages per process to n bytes" \
-     "\n	-a n	Limit the total of all segments per process to n bytes" \
-     "\n	-o n	Limit the number of open file descriptors per process to n" \
-     "\n	-p n	Limit the number of processes per uid to n" \
+     "\n	-a BYTES	Limit total size of all segments" \
+     "\n	-m BYTES	Same as -d BYTES -s BYTES -l BYTES -a BYTES" \
+     "\n	-d BYTES	Limit data segment" \
+     "\n	-s BYTES	Limit stack segment" \
+     "\n	-l BYTES	Limit locked memory size" \
+     "\n	-o N		Limit number of open files per process" \
+     "\n	-p N		Limit number of processes per uid" \
      "\nOptions controlling file sizes:" \
-     "\n	-f n	Limit output file sizes to n bytes" \
-     "\n	-c n	Limit core file sizes to n bytes" \
+     "\n	-f BYTES	Limit output file sizes" \
+     "\n	-c BYTES	Limit core file size" \
      "\nEfficiency opts:" \
-     "\n	-r n	Limit the resident set size to n bytes. This limit is not" \
-     "\n		enforced unless physical memory is full" \
-     "\n	-t n	Limit the CPU time to n seconds. This limit is not enforced" \
-     "\n		except that the process receives a SIGXCPU signal after n seconds" \
-     "\n" \
-     "\nSome options may have no effect on some operating systems" \
-     "\nn may be =, indicating that soft limit should be set equal to hard limit" \
+     "\n	-r BYTES	Limit resident set size" \
+     "\n	-t N		Limit CPU time, process receives" \
+     "\n			a SIGXCPU after N seconds" \
 
 #define chroot_trivial_usage \
        "NEWROOT [COMMAND...]"
@@ -1088,17 +1083,16 @@
      "\n	-S SECTORS" \
 
 #define fetchmail_trivial_usage \
-       "[-w timeout] [-U user] -P password [-X] [-t] [-z] server[:port] maildir [prog]"
+       "[-w timeout] [-H [user:pass@]server[:port]] [-S] [-t] [-z] maildir [prog]"
 #define fetchmail_full_usage "\n\n" \
-       "Fetch content of remote mailbox to local Maildir.\n" \
+       "Fetch content of remote mailbox to local maildir\n" \
      "\nOptions:" \
-     "\n	-w timeout	Set timeout on network operations" \
-     "\n	-U username	Authenticate with specified username/password" \
-     "\n	-P password" \
-     "\n	-X		Use openssl connection helper for secured servers" \
+     "\n	-w timeout	Network timeout" \
+     "\n	-H [user:pass@]server[:port] Server" \
+     "\n	-S		Use openssl connection helper for secure servers" \
      "\n	-t		Get only headers" \
      "\n	-z		Delete messages on server" \
-     "\n	prog		Run prog <message_file> on message delivery" \
+     "\n	prog		Run 'prog <message_file>' on message delivery" \
 
 #define findfs_trivial_usage \
        "LABEL=label or UUID=uuid"
@@ -1220,7 +1214,7 @@
      "\n	-r	Perform interactive repairs" \
      "\n	-a	Perform automatic repairs" \
      "\n	-v	Verbose" \
-     "\n	-s	Output super-block information" \
+     "\n	-s	Output superblock information" \
      "\n	-m	Show \"mode not cleared\" warnings" \
      "\n	-f	Force file system check" \
 
@@ -2195,8 +2189,13 @@
 #define lpd_trivial_usage \
        "SPOOLDIR [HELPER [ARGS...]]"
 #define lpd_full_usage "\n\n" \
-       "Example:" \
-     "\n	tcpsvd -E 0 515 softlimit -m 999999 lpd /var/spool ./print"
+       "SPOOLDIR must contain (symlinks to) device nodes or directories" \
+     "\nwith names matching print queue names. In the first case, jobs are" \
+     "\nsent directly to the device. Otherwise each job is stored in queue" \
+     "\ndirectory and HELPER program is called. Name of file to print" \
+     "\nis passed in $DATAFILE variable." \
+     "\nExample:" \
+     "\n	tcpsvd -E 0 515 softlimit -m 999999 lpd /var/spool ./print" \
 
 #define lpq_trivial_usage \
        "[-P queue[@host[:port]]] [-U USERNAME] [-d JOBID...] [-fs]"
@@ -2299,18 +2298,19 @@
 #define makedevs_trivial_usage \
        "NAME TYPE MAJOR MINOR FIRST LAST [s]"
 #define makedevs_full_usage "\n\n" \
-       "Create a range of block or character special files\n\n" \
-       "TYPEs include:\n" \
-       "	b	Make a block device\n" \
-       "	c or u	Make a character device\n" \
-       "	p	Make a named pipe. MAJOR and MINOR are ignored\n" \
-       "\n" \
-       "FIRST specifies the number appended to NAME to create the first device.\n" \
-       "LAST specifies the number of the last item that should be created\n" \
-       "If 's' is the last argument, the base device is created as well.\n\n" \
-       "For example:\n" \
-       "	makedevs /dev/ttyS c 4 66 2 63   ->  ttyS2-ttyS63\n" \
-       "	makedevs /dev/hda b 3 0 0 8 s    ->  hda,hda1-hda8"
+       "Create a range of block or character special files" \
+     "\n" \
+     "\nTYPE is:" \
+     "\n	b	Block device" \
+     "\n	c	Character device" \
+     "\n	f	FIFO, MAJOR and MINOR are ignored" \
+     "\n" \
+     "\nFIRST..LAST specify numbers appended to NAME." \
+     "\nIf 's' is the last argument, the base device is created as well." \
+     "\n" \
+     "\nExamples:" \
+     "\n	makedevs /dev/ttyS c 4 66 2 63   ->  ttyS2-ttyS63" \
+     "\n	makedevs /dev/hda b 3 0 0 8 s    ->  hda,hda1-hda8"
 #define makedevs_example_usage \
        "# makedevs /dev/ttyS c 4 66 2 63\n" \
        "[creates ttyS2-ttyS63]\n" \
@@ -2326,10 +2326,10 @@
        "Device table entries take the form of:\n" \
        "<type> <mode> <uid> <gid> <major> <minor> <start> <inc> <count>\n" \
        "Where name is the file name, type can be one of:\n" \
-       "	f	A regular file\n" \
+       "	f	Regular file\n" \
        "	d	Directory\n" \
-       "	c	Character special device file\n" \
-       "	b	Block special device file\n" \
+       "	c	Character device\n" \
+       "	b	Block device\n" \
        "	p	Fifo (named pipe)\n" \
        "uid is the user id for the target file, gid is the group id for the\n" \
        "target file. The rest of the entries (major, minor, etc) apply to\n" \
@@ -2661,6 +2661,7 @@
        "	[a]sync		Writes are asynchronous / synchronous\n" \
        "	[no]atime	Disable / enable updates to inode access times\n" \
        "	[no]diratime	Disable / enable atime updates to directories\n" \
+       "	[no]relatime	Disable / enable atime updates relative to modification time\n" \
        "	[no]dev		Allow use of special device files / disallow them\n" \
        "	[no]exec	Allow use of executable files / disallow them\n" \
        "	[no]suid	Allow set-user-id-root programs / disallow them\n" \
@@ -2816,7 +2817,7 @@
 #endif
 
 #define netstat_trivial_usage \
-       "[-laentuwxr"USE_FEATURE_NETSTAT_WIDE("W")"]"
+       "[-laentuwxr"USE_FEATURE_NETSTAT_WIDE("W")USE_FEATURE_NETSTAT_PRG("p")"]"
 #define netstat_full_usage "\n\n" \
        "Display networking information\n" \
      "\nOptions:" \
@@ -2831,6 +2832,9 @@
      "\n	-r	Display routing table" \
 	USE_FEATURE_NETSTAT_WIDE( \
      "\n	-W	Display with no column truncation" \
+	) \
+	USE_FEATURE_NETSTAT_PRG( \
+     "\n	-p	Display PID/Program name for sockets" \
 	)
 
 #define nice_trivial_usage \
@@ -2903,6 +2907,11 @@
 
 #define openvt_example_usage \
        "openvt 2 /bin/ash\n"
+
+#define parse_trivial_usage \
+       "[-n maxtokens] [-m mintokens] [-d delims] [-f flags] file ..."
+#define parse_full_usage "\n\n" \
+       "[-n maxtokens] [-m mintokens] [-d delims] [-f flags] file ..."
 
 #define passwd_trivial_usage \
        "[OPTION] [name]"
@@ -3122,7 +3131,7 @@
        "  742 andersen andersen S [bash]\n" \
        "  743 andersen andersen S -bash\n" \
        "  745 root     root     S [getty]\n" \
-       " 2990 andersen andersen R ps\n"
+       " 2990 andersen andersen R ps\n" \
 
 #define pscan_trivial_usage \
        "[-cb] [-p MIN_PORT] [-P MAX_PORT] [-t TIMEOUT] [-T MIN_RTT] HOST"
@@ -3158,6 +3167,14 @@
      "\nOptions:" \
      "\n	-s	Set the system date and time (default)" \
      "\n	-p	Print the date and time" \
+
+#define rdev_trivial_usage \
+       ""
+#define rdev_full_usage "\n\n" \
+       "Print the device node associated with the filesystem mounted at '/'"
+#define rdev_example_usage \
+       "$ rdev\n" \
+       "/dev/mtdblock9 /\n"
 
 #define readahead_trivial_usage \
        "[FILE]..."
@@ -3425,29 +3442,31 @@
 #define selinuxenabled_full_usage ""
 
 #define sendmail_trivial_usage \
-       "[-w timeout] [-U user] [-P password] [-X]\n" \
-       "-t to [-t to]... [-n] [-s subject] [-c charset] server[:port] from [body] [attachment ...]"
+       "[-w timeout] [-H [user:pass@]server[:port]] [-S]\n" \
+       "[-c charset] [-N type] [-i] [-s subject] [-a attach]... [-t] [-f sender] [rcpt]..."
 #define sendmail_full_usage "\n\n" \
-       "Send an email.\n" \
+       "Send an email\n" \
      "\nOptions:" \
-     "\n	-w timeout	Set timeout on network operations" \
-     "\n	-U username	Authenticate with specified username/password" \
-     "\n	-P password" \
-     "\n	-t address	Recipient(s). May be repeated" \
-     "\n	-X		Use openssl connection helper for secured servers" \
-     "\n	-n		Request delivery notification to sender" \
+     "\n	-w timeout	Network timeout" \
+     "\n	-H [user:pass@]server[:port] Server" \
+     "\n	-S		Use openssl connection helper for secure servers" \
+     "\n	-c charset	Assume charset for body and subject (utf-8)" \
+     "\n	-N type		Request delivery notification. Type is ignored" \
+     "\n	-i		Ignore single dots in mail body. Implied" \
      "\n	-s subject	Subject" \
-     "\n	-c charset	Assumed charset for body and subject [utf-8]" \
+     "\n	-a file		File to attach. May be multiple" \
+     "\n	-t		Read recipients and subject from body" \
+     "\n	-f sender	Sender" \
 
 #define seq_trivial_usage \
        "[first [increment]] last"
 #define seq_full_usage "\n\n" \
        "Print numbers from FIRST to LAST, in steps of INCREMENT.\n" \
-       "FIRST, INCREMENT default to 1" \
-       "\n\nArguments:\n" \
-       "	LAST\n" \
-       "	FIRST LAST\n" \
-       "	FIRST INCREMENT LAST"
+       "FIRST, INCREMENT default to 1\n" \
+     "\nArguments:" \
+     "\n	LAST" \
+     "\n	FIRST LAST" \
+     "\n	FIRST INCREMENT LAST" \
 
 #define sestatus_trivial_usage \
        "[-vb]"
@@ -3489,6 +3508,15 @@
      "\n	-v	Show changes in file labels, if type or role are changing" \
      "\n	-vv	Show changes in file labels, if type, role, or user are changing" \
      "\n	-W	Display warnings about entries that had no matching files" \
+
+#define setfont_trivial_usage \
+       "[-m mapfile] font"
+#define setfont_full_usage "\n\n" \
+       "Load a console font\n" \
+     "\nOptions:" \
+     "\n	-m mapfile	Load console screen map from mapfile"
+#define setfont_example_usage \
+       "$ setfont -m koi8-r /etc/i18n/fontname\n"
 
 #define setkeycodes_trivial_usage \
        "SCANCODE KEYCODE..."
@@ -3547,6 +3575,15 @@
      "\n	-s	Don't output anything, status code shows success" \
      "\n	-w	Warn about improperly formatted SHA1 checksum lines" \
 	)
+
+#define showkey_trivial_usage \
+       "[-a | -k | -s]"
+#define showkey_full_usage "\n\n" \
+       "Show keys pressed\n" \
+     "\nOptions:" \
+     "\n	-a	Display decimal/octal/hex values of the keys" \
+     "\n	-k	Display interpreted keycodes (default)" \
+     "\n	-s	Display raw scan-codes" \
 
 #define slattach_trivial_usage \
        "[-cehmLF] [-s speed] [-p protocol] DEVICEs"
@@ -3640,8 +3677,8 @@
        "[OPTIONS] [-S|-K] ... [-- arguments...]"
 #define start_stop_daemon_full_usage "\n\n" \
        "Search for matching processes, and then\n" \
-       "-S: start a process unless a matching process is found.\n" \
        "-K: stop all matching processes.\n" \
+       "-S: start a process unless a matching process is found.\n" \
 	USE_GETOPT_LONG( \
      "\nProcess matching:" \
      "\n	-u,--user USERNAME|UID	Match only this user's processes" \
@@ -3757,7 +3794,7 @@
        " %S	Fundamental block size (for block counts)\n" \
        " %t	Type in hex\n" \
        " %T	Type in human readable form" \
-	)
+	) \
 
 #define strings_trivial_usage \
        "[-afo] [-n length] [file...]"
@@ -3814,9 +3851,9 @@
        "up: if service isn't running, start it. If service stops, restart it\n" \
        "once: like 'up', but if service stops, don't restart it\n" \
        "down: send TERM and CONT signals. If ./run exits, start ./finish\n" \
-       "    if it exists. After it stops, do not restart service\n" \
+       "	if it exists. After it stops, do not restart service\n" \
        "exit: send TERM and CONT signals to service and log service. If they exit,\n" \
-       "    runsv exits too\n" \
+       "	runsv exits too\n" \
        "pause, cont, hup, alarm, interrupt, quit, 1, 2, term, kill: send\n" \
        "STOP, CONT, HUP, ALRM, INT, QUIT, USR1, USR2, TERM, KILL signal to service" \
 
@@ -3923,19 +3960,19 @@
      "\n	-q		Never output headers giving file names" \
      "\n	-s SEC		Wait SEC seconds between reads with -f" \
      "\n	-v		Always output headers giving file names" \
-     "\n\n" \
-       "If the first character of N (bytes or lines) is a '+', output begins with\n" \
-       "the Nth item from the start of each file, otherwise, print the last N items\n" \
-       "in the file. N bytes may be suffixed by k (x1024), b (x512), or m (1024^2)." ) \
+     "\n" \
+     "\nIf the first character of N (bytes or lines) is a '+', output begins with" \
+     "\nthe Nth item from the start of each file, otherwise, print the last N items" \
+     "\nin the file. N bytes may be suffixed by k (x1024), b (x512), or m (1024^2)." ) \
 
 #define tail_example_usage \
        "$ tail -n 1 /etc/resolv.conf\n" \
        "nameserver 10.0.0.1\n"
 
 #define tar_trivial_usage \
-       "-[" USE_FEATURE_TAR_CREATE("c") USE_FEATURE_TAR_GZIP("z") \
-	USE_FEATURE_TAR_BZIP2("j") USE_FEATURE_TAR_LZMA("a") \
-	USE_FEATURE_TAR_COMPRESS("Z") "xtvO] " \
+       "-[" USE_FEATURE_TAR_CREATE("c") USE_FEATURE_SEAMLESS_GZ("z") \
+	USE_FEATURE_SEAMLESS_BZ2("j") USE_FEATURE_SEAMLESS_LZMA("a") \
+	USE_FEATURE_SEAMLESS_Z("Z") "xtvO] " \
 	USE_FEATURE_TAR_FROM("[-X FILE] ") \
        "[-f TARFILE] [-C DIR] [FILE(s)]..."
 #define tar_full_usage "\n\n" \
@@ -3946,16 +3983,16 @@
      "\n	x	Extract" \
      "\n	t	List" \
      "\nArchive format selection:" \
-	USE_FEATURE_TAR_GZIP( \
+	USE_FEATURE_SEAMLESS_GZ( \
      "\n	z	Filter the archive through gzip" \
 	) \
-	USE_FEATURE_TAR_BZIP2( \
+	USE_FEATURE_SEAMLESS_BZ2( \
      "\n	j	Filter the archive through bzip2" \
 	) \
-	USE_FEATURE_TAR_LZMA( \
+	USE_FEATURE_SEAMLESS_LZMA( \
      "\n	a	Filter the archive through lzma" \
 	) \
-	USE_FEATURE_TAR_COMPRESS( \
+	USE_FEATURE_SEAMLESS_Z( \
      "\n	Z	Filter the archive through compress" \
 	) \
      "\nFile selection:" \
@@ -4009,8 +4046,8 @@
 #define telnet_full_usage "\n\n" \
        "Connect to telnet server\n" \
      "\nOptions:" \
-     "\n	-a	Attempt an automatic login with USER variable" \
-     "\n	-l USER	Attempt an automatic login with USER argument" \
+     "\n	-a	Automatic login with $USER variable" \
+     "\n	-l USER	Automatic login as USER" \
 
 #else
 #define telnet_trivial_usage \
@@ -4036,12 +4073,13 @@
      "\n	-i		Run as inetd subservice" \
 	)
 
+/* "test --help" does not print help (POSIX compat), only "[ --help" does.
+ * We display "<applet> EXPRESSION ]" here (not "<applet> EXPRESSION") */
 #define test_trivial_usage \
-       "EXPRESSION\n" \
-       "  or   [ EXPRESSION ]"
+       "EXPRESSION ]"
 #define test_full_usage "\n\n" \
-       "Check file types and compares values returning an exit code\n" \
-       "determined by the value of EXPRESSION"
+       "Check file types, compare values etc. Return a 0/1 exit code\n" \
+       "depending on logical value of EXPRESSION"
 #define test_example_usage \
        "$ test 1 -eq 2\n" \
        "$ echo $?\n" \
@@ -4556,13 +4594,16 @@
        "Execute COMMAND on every item given by standard input\n" \
      "\nOptions:" \
 	USE_FEATURE_XARGS_SUPPORT_CONFIRMATION( \
-     "\n	-p	Prompt the user about whether to run each command") \
-     "\n	-r	Do not run command for empty read lines" \
-	USE_FEATURE_XARGS_SUPPORT_TERMOPT( \
-     "\n	-x	Exit if the size is exceeded") \
+     "\n	-p	Ask user whether to run each command") \
+     "\n	-r	Do not run command if input is empty" \
 	USE_FEATURE_XARGS_SUPPORT_ZERO_TERM( \
-     "\n	-0	Input filenames are terminated by a null character") \
-     "\n	-t	Print the command line on stderr before executing it" \
+     "\n	-0	Input is separated by NUL characters") \
+     "\n	-t	Print the command on stderr before execution" \
+     "\n	-e[STR]	STR stops input processing (default _)" \
+     "\n	-n N	Pass no more than N args to COMMAND" \
+     "\n	-s N	Pass command line of no more than N bytes" \
+	USE_FEATURE_XARGS_SUPPORT_TERMOPT( \
+     "\n	-x	Exit if size is exceeded") \
 
 #define xargs_example_usage \
        "$ ls | xargs gzip\n" \

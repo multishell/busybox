@@ -24,8 +24,8 @@ enum { MAX_WIDTH = 2*1024 };
 
 
 #if ENABLE_SELINUX
-#define SELINIX_O_PREFIX "label,"
-#define DEFAULT_O_STR    (SELINIX_O_PREFIX "pid,user" USE_FEATURE_PS_TIME(",time") ",args")
+#define SELINUX_O_PREFIX "label,"
+#define DEFAULT_O_STR    (SELINUX_O_PREFIX "pid,user" USE_FEATURE_PS_TIME(",time") ",args")
 #else
 #define DEFAULT_O_STR    ("pid,user" USE_FEATURE_PS_TIME(",time") ",args")
 #endif
@@ -303,9 +303,8 @@ static const ps_out_t out_spec[] = {
 
 static ps_out_t* new_out_t(void)
 {
-	int i = out_cnt++;
-	out = xrealloc(out, out_cnt * sizeof(*out));
-	return &out[i];
+	out = xrealloc_vector(out, 2, out_cnt);
+	return &out[out_cnt++];
 }
 
 static const ps_out_t* find_out_spec(const char *name)
@@ -422,7 +421,7 @@ static void format_process(const procps_status_t *ps)
 }
 
 int ps_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int ps_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int ps_main(int argc UNUSED_PARAM, char **argv)
 {
 	procps_status_t *p;
 	llist_t* opt_o = NULL;
@@ -450,7 +449,7 @@ int ps_main(int argc ATTRIBUTE_UNUSED, char **argv)
 #if ENABLE_SELINUX
 		if (!(opt & 1) || !is_selinux_enabled()) {
 			/* no -Z or no SELinux: do not show LABEL */
-			strcpy(default_o, DEFAULT_O_STR + sizeof(SELINIX_O_PREFIX)-1);
+			strcpy(default_o, DEFAULT_O_STR + sizeof(SELINUX_O_PREFIX)-1);
 		} else
 #endif
 		{
@@ -483,7 +482,7 @@ int ps_main(int argc ATTRIBUTE_UNUSED, char **argv)
 
 
 int ps_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int ps_main(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
+int ps_main(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
 	procps_status_t *p = NULL;
 	int len;

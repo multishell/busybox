@@ -31,7 +31,7 @@ rm -rf cpio.testdir cpio.testdir2 2>/dev/null
 # testing "test name" "command" "expected result" "file input" "stdin"
 
 testing "cpio extracts zero-sized hardlinks" \
-"echo -ne '$hexdump' | bzcat | cpio -i; echo \$?;
+"$ECHO -ne '$hexdump' | bzcat | cpio -i; echo \$?;
 ls -ln cpio.testdir | $FILTER_LS" \
 "\
 1 blocks
@@ -44,7 +44,7 @@ ls -ln cpio.testdir | $FILTER_LS" \
 # Currently fails. Numerous: "1 blocks" versus "1 block",
 # "1 block" must go to stderr, does not list cpio.testdir/x and cpio.testdir/y
 testing "cpio lists hardlinks" \
-"echo -ne '$hexdump' | bzcat | cpio -t 2>&1; echo \$?" \
+"$ECHO -ne '$hexdump' | bzcat | cpio -t 2>&1; echo \$?" \
 "\
 1 block
 cpio.testdir

@@ -20,21 +20,22 @@
 # define USE_FEATURE_FDISK_BLKSIZE(a)
 #endif
 
-#define DEFAULT_SECTOR_SIZE     512
-#define MAX_SECTOR_SIZE 2048
-#define SECTOR_SIZE     512     /* still used in osf/sgi/sun code */
-#define MAXIMUM_PARTS   60
+#define DEFAULT_SECTOR_SIZE      512
+#define DEFAULT_SECTOR_SIZE_STR "512"
+#define MAX_SECTOR_SIZE         2048
+#define SECTOR_SIZE              512 /* still used in osf/sgi/sun code */
+#define MAXIMUM_PARTS             60
 
-#define ACTIVE_FLAG     0x80
+#define ACTIVE_FLAG             0x80
 
-#define EXTENDED        0x05
-#define WIN98_EXTENDED  0x0f
-#define LINUX_PARTITION 0x81
-#define LINUX_SWAP      0x82
-#define LINUX_NATIVE    0x83
-#define LINUX_EXTENDED  0x85
-#define LINUX_LVM       0x8e
-#define LINUX_RAID      0xfd
+#define EXTENDED                0x05
+#define WIN98_EXTENDED          0x0f
+#define LINUX_PARTITION         0x81
+#define LINUX_SWAP              0x82
+#define LINUX_NATIVE            0x83
+#define LINUX_EXTENDED          0x85
+#define LINUX_LVM               0x8e
+#define LINUX_RAID              0xfd
 
 
 enum {
@@ -74,20 +75,17 @@ struct partition {
 	unsigned char head;             /* starting head */
 	unsigned char sector;           /* starting sector */
 	unsigned char cyl;              /* starting cylinder */
-	unsigned char sys_ind;          /* What partition type */
+	unsigned char sys_ind;          /* what partition type */
 	unsigned char end_head;         /* end head */
 	unsigned char end_sector;       /* end sector */
 	unsigned char end_cyl;          /* end cylinder */
 	unsigned char start4[4];        /* starting sector counting from 0 */
 	unsigned char size4[4];         /* nr of sectors in partition */
-} ATTRIBUTE_PACKED;
+} PACKED;
 
-static const char unable_to_open[] ALIGN1 = "cannot open %s";
-static const char unable_to_read[] ALIGN1 = "cannot read from %s";
-static const char unable_to_seek[] ALIGN1 = "cannot seek on %s";
-static const char unable_to_write[] ALIGN1 = "cannot write to %s";
-static const char ioctl_error[] ALIGN1 = "BLKGETSIZE ioctl failed on %s";
-static void fdisk_fatal(const char *why) ATTRIBUTE_NORETURN;
+static const char unable_to_open[] ALIGN1 = "can't open %s";
+static const char unable_to_read[] ALIGN1 = "can't read from %s";
+static const char unable_to_seek[] ALIGN1 = "can't seek on %s";
 
 enum label_type {
 	LABEL_DOS, LABEL_SUN, LABEL_SGI, LABEL_AIX, LABEL_OSF
@@ -290,11 +288,24 @@ struct globals {
 	unsigned user_set_sector_size;
 	unsigned sector_offset; // = 1;
 	unsigned g_heads, g_sectors, g_cylinders;
-	enum label_type current_label_type;
+	smallint /* enum label_type */ current_label_type;
 	smallint display_in_cyl_units; // = 1;
 #if ENABLE_FEATURE_OSF_LABEL
 	smallint possibly_osf_label;
 #endif
+
+	smallint listing;               /* no aborts for fdisk -l */
+	smallint dos_compatible_flag; // = 1;
+#if ENABLE_FEATURE_FDISK_WRITABLE
+	//int dos_changed;
+	smallint nowarn;                /* no warnings for fdisk -l/-s */
+#endif
+	int ext_index;                  /* the prime extended partition */
+	unsigned user_cylinders, user_heads, user_sectors;
+	unsigned pt_heads, pt_sectors;
+	unsigned kern_heads, kern_sectors;
+	ullong extended_offset;         /* offset of link pointers */
+	ullong total_number_of_sectors;
 
 	jmp_buf listingbuf;
 	char line_buffer[80];
@@ -306,7 +317,7 @@ struct globals {
 	struct pte ptes[MAXIMUM_PARTS];
 };
 #define G (*ptr_to_globals)
-#define line_ptr        (G.line_ptr)
+#define line_ptr             (G.line_ptr            )
 #define disk_device          (G.disk_device         )
 #define g_partitions         (G.g_partitions        )
 #define units_per_sector     (G.units_per_sector    )
@@ -319,11 +330,24 @@ struct globals {
 #define current_label_type   (G.current_label_type  )
 #define display_in_cyl_units (G.display_in_cyl_units)
 #define possibly_osf_label   (G.possibly_osf_label  )
-#define listingbuf      (G.listingbuf)
-#define line_buffer     (G.line_buffer)
+#define listing                 (G.listing                )
+#define dos_compatible_flag     (G.dos_compatible_flag    )
+#define nowarn                  (G.nowarn                 )
+#define ext_index               (G.ext_index              )
+#define user_cylinders          (G.user_cylinders         )
+#define user_heads              (G.user_heads             )
+#define user_sectors            (G.user_sectors           )
+#define pt_heads                (G.pt_heads               )
+#define pt_sectors              (G.pt_sectors             )
+#define kern_heads              (G.kern_heads             )
+#define kern_sectors            (G.kern_sectors           )
+#define extended_offset         (G.extended_offset        )
+#define total_number_of_sectors (G.total_number_of_sectors)
+#define listingbuf      (G.listingbuf     )
+#define line_buffer     (G.line_buffer    )
 #define partname_buffer (G.partname_buffer)
-#define MBRbuffer       (G.MBRbuffer)
-#define ptes            (G.ptes)
+#define MBRbuffer       (G.MBRbuffer      )
+#define ptes            (G.ptes           )
 #define INIT_G() do { \
 	SET_PTR_TO_GLOBALS(xzalloc(sizeof(G))); \
 	sector_size = DEFAULT_SECTOR_SIZE; \
@@ -331,6 +355,7 @@ struct globals {
 	g_partitions = 4; \
 	display_in_cyl_units = 1; \
 	units_per_sector = 1; \
+	dos_compatible_flag = 1; \
 } while (0)
 
 
@@ -341,7 +366,7 @@ static ullong bb_BLKGETSIZE_sectors(int fd)
 	unsigned long longsectors;
 
 	if (ioctl(fd, BLKGETSIZE64, &v64) == 0) {
-		/* got bytes, convert to 512 byte sectors */
+		/* Got bytes, convert to 512 byte sectors */
 		return (v64 >> 9);
 	}
 	/* Needs temp of type long */
@@ -386,7 +411,7 @@ close_dev_fd(void)
 }
 
 #if ENABLE_FEATURE_FDISK_WRITABLE
-/* read line; return 0 or first printable char */
+/* Read line; return 0 or first printable char */
 static int
 read_line(const char *prompt)
 {
@@ -407,7 +432,7 @@ read_line(const char *prompt)
 #endif
 
 /*
- * return partition name - uses static storage
+ * Return partition name - uses static storage
  */
 static const char *
 partname(const char *dev, int pno, int lth)
@@ -492,7 +517,8 @@ write_part_table_flag(char *b)
 static char
 read_nonempty(const char *mesg)
 {
-	while (!read_line(mesg)) /* repeat */;
+	while (!read_line(mesg))
+		continue;
 	return *line_ptr;
 }
 
@@ -525,6 +551,41 @@ read_hex(const char *const *sys)
 	}
 }
 #endif /* FEATURE_FDISK_WRITABLE */
+
+static void fdisk_fatal(const char *why)
+{
+	if (listing) {
+		close_dev_fd();
+		longjmp(listingbuf, 1);
+	}
+	bb_error_msg_and_die(why, disk_device);
+}
+
+static void
+seek_sector(ullong secno)
+{
+	secno *= sector_size;
+#if ENABLE_FDISK_SUPPORT_LARGE_DISKS
+	if (lseek64(dev_fd, (off64_t)secno, SEEK_SET) == (off64_t) -1)
+		fdisk_fatal(unable_to_seek);
+#else
+	if (secno > MAXINT(off_t)
+	 || lseek(dev_fd, (off_t)secno, SEEK_SET) == (off_t) -1
+	) {
+		fdisk_fatal(unable_to_seek);
+	}
+#endif
+}
+
+#if ENABLE_FEATURE_FDISK_WRITABLE
+static void
+write_sector(ullong secno, const void *buf)
+{
+	seek_sector(secno);
+	xwrite(dev_fd, buf, sector_size);
+}
+#endif
+
 
 #include "fdisk_aix.c"
 
@@ -614,6 +675,7 @@ STATIC_SUN void verify_sun(void);
 STATIC_SUN void sun_write_table(void);
 #include "fdisk_sun.c"
 
+
 #if ENABLE_FEATURE_FDISK_WRITABLE
 /* start_sect and nr_sects are stored little endian on all machines */
 /* moreover, they are not aligned correctly */
@@ -661,64 +723,15 @@ get_nr_sects(const struct partition *p)
 	return read4_little_endian(p->size4);
 }
 
-static int ext_index;                   /* the prime extended partition */
-static smallint listing;                /* no aborts for fdisk -l */
-static smallint dos_compatible_flag = 1;
-#if ENABLE_FEATURE_FDISK_WRITABLE
-//static int dos_changed;
-static smallint nowarn;                 /* no warnings for fdisk -l/-s */
-#endif
-
-static unsigned user_cylinders, user_heads, user_sectors;
-static unsigned pt_heads, pt_sectors;
-static unsigned kern_heads, kern_sectors;
-
-static ullong extended_offset;            /* offset of link pointers */
-static ullong total_number_of_sectors;
-
-static void fdisk_fatal(const char *why)
-{
-	if (listing) {
-		close_dev_fd();
-		longjmp(listingbuf, 1);
-	}
-	bb_error_msg_and_die(why, disk_device);
-}
-
-static void
-seek_sector(ullong secno)
-{
-	secno *= sector_size;
-#if ENABLE_FDISK_SUPPORT_LARGE_DISKS
-	if (lseek64(dev_fd, (off64_t)secno, SEEK_SET) == (off64_t) -1)
-		fdisk_fatal(unable_to_seek);
-#else
-	if (secno > MAXINT(off_t)
-	 || lseek(dev_fd, (off_t)secno, SEEK_SET) == (off_t) -1
-	) {
-		fdisk_fatal(unable_to_seek);
-	}
-#endif
-}
-
-#if ENABLE_FEATURE_FDISK_WRITABLE
-static void
-write_sector(ullong secno, char *buf)
-{
-	seek_sector(secno);
-	if (write(dev_fd, buf, sector_size) != sector_size)
-		fdisk_fatal(unable_to_write);
-}
-#endif
-
 /* Allocate a buffer and read a partition table sector */
 static void
 read_pte(struct pte *pe, ullong offset)
 {
 	pe->offset = offset;
-	pe->sectorbuffer = xmalloc(sector_size);
+	pe->sectorbuffer = xzalloc(sector_size);
 	seek_sector(offset);
-	if (read(dev_fd, pe->sectorbuffer, sector_size) != sector_size)
+	/* xread would make us abort - bad for fdisk -l */
+	if (full_read(dev_fd, pe->sectorbuffer, sector_size) != sector_size)
 		fdisk_fatal(unable_to_read);
 #if ENABLE_FEATURE_FDISK_WRITABLE
 	pe->changed = 0;
@@ -926,7 +939,8 @@ list_types(const char *const *sys)
 	unsigned done, next, size;
 	int i;
 
-	for (size = 0; sys[size]; size++) /* */;
+	for (size = 0; sys[size]; size++)
+		continue;
 
 	done = 0;
 	for (i = COLS-1; i >= 0; i--) {
@@ -1167,8 +1181,9 @@ get_sectorsize(void)
 		if (ioctl(dev_fd, BLKSSZGET, &arg) == 0)
 			sector_size = arg;
 		if (sector_size != DEFAULT_SECTOR_SIZE)
-			printf("Note: sector size is %d (not %d)\n",
-				   sector_size, DEFAULT_SECTOR_SIZE);
+			printf("Note: sector size is %d "
+				"(not " DEFAULT_SECTOR_SIZE_STR ")\n",
+				sector_size);
 	}
 }
 
@@ -1302,7 +1317,7 @@ static int get_boot(void)
 		printf("'%s' is opened for read only\n", disk_device);
 	}
 	xmove_fd(fd, dev_fd);
-	if (512 != read(dev_fd, MBRbuffer, 512)) {
+	if (512 != full_read(dev_fd, MBRbuffer, 512)) {
 		if (what == TRY_ONLY) {
 			close_dev_fd();
 			return 1;
@@ -1313,7 +1328,7 @@ static int get_boot(void)
 	fd = open(disk_device, O_RDONLY);
 	if (fd < 0)
 		return 1;
-	if (512 != read(fd, MBRbuffer, 512)) {
+	if (512 != full_read(fd, MBRbuffer, 512)) {
 		close(fd);
 		return 1;
 	}
@@ -1807,7 +1822,7 @@ check_consistency(const struct partition *p, int partition)
 		printf("Partition %d has different physical/logical "
 			"beginnings (non-Linux?):\n", partition + 1);
 		printf("     phys=(%d, %d, %d) ", pbc, pbh, pbs);
-		printf("logical=(%d, %d, %d)\n",lbc, lbh, lbs);
+		printf("logical=(%d, %d, %d)\n", lbc, lbh, lbs);
 	}
 
 /* Same physical / logical ending? */
@@ -2669,7 +2684,7 @@ is_ide_cdrom_or_tape(const char *device)
 		return 0;
 
 	snprintf(buf, sizeof(buf), "/proc/ide/%s/media", device+5);
-	procf = fopen(buf, "r");
+	procf = fopen_for_read(buf);
 	if (procf != NULL && fgets(buf, sizeof(buf), procf))
 		is_ide = (!strncmp(buf, "cdrom", 5) ||
 			  !strncmp(buf, "tape", 4));

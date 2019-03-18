@@ -141,7 +141,7 @@ char* make_new_name_bzip2(char *filename)
 }
 
 int bzip2_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int bzip2_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int bzip2_main(int argc UNUSED_PARAM, char **argv)
 {
 	unsigned opt;
 
@@ -162,11 +162,11 @@ int bzip2_main(int argc ATTRIBUTE_UNUSED, char **argv)
 
 	opt_complementary = "s2"; /* -s means -2 (compatibility) */
 	/* Must match bbunzip's constants OPT_STDOUT, OPT_FORCE! */
-	opt = getopt32(argv, "cfv" USE_BUNZIP2("d") "123456789qzs" );
+	opt = getopt32(argv, "cfv" USE_BUNZIP2("dt") "123456789qzs");
 #if ENABLE_BUNZIP2 /* bunzip2_main may not be visible... */
-	if (opt & 0x8) // -d
+	if (opt & 0x18) // -d and/or -t
 		return bunzip2_main(argc, argv);
-	opt >>= 4;
+	opt >>= 5;
 #else
 	opt >>= 3;
 #endif

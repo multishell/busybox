@@ -374,7 +374,7 @@ static void run_command(char *const *cmd, resource_t *resp)
 	resp->elapsed_ms = monotonic_us() / 1000;
 	pid = vfork();		/* Run CMD as child process.  */
 	if (pid < 0)
-		bb_error_msg_and_die("cannot fork");
+		bb_perror_msg_and_die("fork");
 	if (pid == 0) {	/* If child.  */
 		/* Don't cast execvp arguments; that causes errors on some systems,
 		   versus merely warnings if the cast is left off.  */
@@ -396,12 +396,13 @@ static void run_command(char *const *cmd, resource_t *resp)
 }
 
 int time_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int time_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int time_main(int argc UNUSED_PARAM, char **argv)
 {
 	resource_t res;
 	const char *output_format = default_format;
 	int opt;
 
+	opt_complementary = "-1"; /* at least one arg */
 	/* "+": stop on first non-option */
 	opt = getopt32(argv, "+vp");
 	argv += optind;

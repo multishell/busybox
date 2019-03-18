@@ -1059,6 +1059,7 @@ static unsigned diffreg(char *file1, char *file2, int flags)
 
 	member = (int *) nfile[1];
 	equiv(sfile[0], slen[0], sfile[1], slen[1], member);
+//TODO: xrealloc_vector?
 	member = xrealloc(member, (slen[1] + 2) * sizeof(int));
 
 	class = (int *) nfile[0];
@@ -1163,13 +1164,12 @@ static void do_diff(char *dir1, char *path1, char *dir2, char *path2)
 
 #if ENABLE_FEATURE_DIFF_DIR
 /* This function adds a filename to dl, the directory listing. */
-static int add_to_dirlist(const char *filename,
-		struct stat *sb ATTRIBUTE_UNUSED,
+static int FAST_FUNC add_to_dirlist(const char *filename,
+		struct stat *sb UNUSED_PARAM,
 		void *userdata,
-		int depth ATTRIBUTE_UNUSED)
+		int depth UNUSED_PARAM)
 {
-	/* +2: with space for eventual trailing NULL */
-	dl = xrealloc(dl, (dl_count+2) * sizeof(dl[0]));
+	dl = xrealloc_vector(dl, 5, dl_count);
 	dl[dl_count] = xstrdup(filename + (int)(ptrdiff_t)userdata);
 	dl_count++;
 	return TRUE;
@@ -1271,7 +1271,7 @@ static void diffdir(char *p1, char *p2)
 
 
 int diff_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int diff_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int diff_main(int argc UNUSED_PARAM, char **argv)
 {
 	int gotstdin = 0;
 	char *f1, *f2;

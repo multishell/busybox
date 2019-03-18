@@ -47,7 +47,7 @@
 /* 16.12.2006, Sampo Kellomaki (sampo@iki.fi)
  * dietlibc-0.30 does not have implementation of getmntent_r() */
 static struct mntent *getmntent_r(FILE* stream, struct mntent* result,
-		char* buffer ATTRIBUTE_UNUSED, int bufsize ATTRIBUTE_UNUSED)
+		char* buffer UNUSED_PARAM, int bufsize UNUSED_PARAM)
 {
 	struct mntent* ment = getmntent(stream);
 	return memcpy(result, ment, sizeof(*ment));
@@ -135,6 +135,10 @@ static const int32_t mount_options[] = {
 		/* "noatime"     */ MS_NOATIME,
 		/* "diratime"    */ ~MS_NODIRATIME,
 		/* "nodiratime"  */ MS_NODIRATIME,
+		/* "mand"        */ MS_MANDLOCK,
+		/* "nomand"      */ ~MS_MANDLOCK,
+		/* "relatime"    */ MS_RELATIME,
+		/* "norelatime"  */ ~MS_RELATIME,
 		/* "loud"        */ ~MS_SILENT,
 
 		// action flags
@@ -185,6 +189,10 @@ static const char mount_option_str[] =
 		"noatime" "\0"
 		"diratime" "\0"
 		"nodiratime" "\0"
+		"mand" "\0"
+		"nomand" "\0"
+		"relatime" "\0"
+		"norelatime" "\0"
 		"loud" "\0"
 
 		// action flags
@@ -328,7 +336,7 @@ static long parse_mount_options(char *options, char **unrecognized)
 		if (unrecognized && i == ARRAY_SIZE(mount_options)) {
 			// Add it to strflags, to pass on to kernel
 			i = *unrecognized ? strlen(*unrecognized) : 0;
-			*unrecognized = xrealloc(*unrecognized, i+strlen(options)+2);
+			*unrecognized = xrealloc(*unrecognized, i + strlen(options) + 2);
 
 			// Comma separated if it's not the first one
 			if (i) (*unrecognized)[i++] = ',';
@@ -359,7 +367,7 @@ static llist_t *get_block_backed_filesystems(void)
 	FILE *f;
 
 	for (i = 0; i < 2; i++) {
-		f = fopen(filesystems[i], "r");
+		f = fopen_for_read(filesystems[i]);
 		if (!f) continue;
 
 		while ((buf = xmalloc_fgetline(f)) != NULL) {
@@ -697,7 +705,8 @@ enum {
 	NFS_MOUNT_TCP = 0x0040,		/* 2 */
 	NFS_MOUNT_VER3 = 0x0080,	/* 3 */
 	NFS_MOUNT_KERBEROS = 0x0100,	/* 3 */
-	NFS_MOUNT_NONLM = 0x0200	/* 3 */
+	NFS_MOUNT_NONLM = 0x0200,	/* 3 */
+	NFS_MOUNT_NORDIRPLUS = 0x4000
 };
 
 
@@ -892,18 +901,16 @@ get_mountport(struct pmap *pm_mnt,
 #if BB_MMU
 static int daemonize(void)
 {
-	int fd;
 	int pid = fork();
 	if (pid < 0) /* error */
 		return -errno;
 	if (pid > 0) /* parent */
 		return 0;
 	/* child */
-	fd = xopen(bb_dev_null, O_RDWR);
-	dup2(fd, 0);
-	dup2(fd, 1);
-	dup2(fd, 2);
-	while (fd > 2) close(fd--);
+	close(0);
+	xopen(bb_dev_null, O_RDWR);
+	xdup2(0, 1);
+	xdup2(0, 2);
 	setsid();
 	openlog(applet_name, LOG_PID, LOG_DAEMON);
 	logmode = LOGMODE_SYSLOG;
@@ -914,7 +921,7 @@ static inline int daemonize(void) { return -ENOSYS; }
 #endif
 
 // TODO
-static inline int we_saw_this_host_before(const char *hostname ATTRIBUTE_UNUSED)
+static inline int we_saw_this_host_before(const char *hostname UNUSED_PARAM)
 {
 	return 0;
 }
@@ -955,23 +962,25 @@ static int nfsmount(struct mntent *mp, long vfsflags, char *filteropts)
 	int mountport;
 	int proto;
 #if BB_MMU
-	int bg = 0;
+	smallint bg = 0;
 #else
 	enum { bg = 0 };
 #endif
-	int soft;
-	int intr;
-	int posix;
-	int nocto;
-	int noac;
-	int nolock;
 	int retry;
-	int tcp;
 	int mountprog;
 	int mountvers;
 	int nfsprog;
 	int nfsvers;
 	int retval;
+	/* these all are one-bit really. 4.3.1 likes this combination: */
+	smallint tcp;
+	smallint soft;
+	int intr;
+	int posix;
+	int nocto;
+	int noac;
+	int nordirplus;
+	int nolock;
 
 	find_kernel_nfs_mount_version();
 
@@ -1032,12 +1041,12 @@ static int nfsmount(struct mntent *mp, long vfsflags, char *filteropts)
 	 * let the kernel decide.
 	 * timeo is filled in after we know whether it'll be TCP or UDP. */
 	memset(&data, 0, sizeof(data));
-	data.retrans	= 3;
-	data.acregmin	= 3;
-	data.acregmax	= 60;
-	data.acdirmin	= 30;
-	data.acdirmax	= 60;
-	data.namlen	= NAME_MAX;
+	data.retrans  = 3;
+	data.acregmin = 3;
+	data.acregmax = 60;
+	data.acdirmin = 30;
+	data.acdirmax = 60;
+	data.namlen   = NAME_MAX;
 
 	soft = 0;
 	intr = 0;
@@ -1045,6 +1054,7 @@ static int nfsmount(struct mntent *mp, long vfsflags, char *filteropts)
 	nocto = 0;
 	nolock = 0;
 	noac = 0;
+	nordirplus = 0;
 	retry = 10000;		/* 10000 minutes ~ 1 week */
 	tcp = 0;
 
@@ -1179,7 +1189,8 @@ static int nfsmount(struct mntent *mp, long vfsflags, char *filteropts)
 				"ac\0"
 				"tcp\0"
 				"udp\0"
-				"lock\0";
+				"lock\0"
+				"rdirplus\0";
 			int val = 1;
 			if (!strncmp(opt, "no", 2)) {
 				val = 0;
@@ -1226,6 +1237,9 @@ static int nfsmount(struct mntent *mp, long vfsflags, char *filteropts)
 				else
 					bb_error_msg("warning: option nolock is not supported");
 				break;
+			case 11: //rdirplus
+				nordirplus = !val;
+				break;
 			default:
 				bb_error_msg("unknown nfs mount option: %s%s", val ? "" : "no", opt);
 				goto fail;
@@ -1238,7 +1252,8 @@ static int nfsmount(struct mntent *mp, long vfsflags, char *filteropts)
 		| (intr ? NFS_MOUNT_INTR : 0)
 		| (posix ? NFS_MOUNT_POSIX : 0)
 		| (nocto ? NFS_MOUNT_NOCTO : 0)
-		| (noac ? NFS_MOUNT_NOAC : 0);
+		| (noac ? NFS_MOUNT_NOAC : 0)
+		| (nordirplus ? NFS_MOUNT_NORDIRPLUS : 0);
 	if (nfs_mount_version >= 2)
 		data.flags |= (tcp ? NFS_MOUNT_TCP : 0);
 	if (nfs_mount_version >= 3)
@@ -1321,6 +1336,7 @@ static int nfsmount(struct mntent *mp, long vfsflags, char *filteropts)
 		retry_timeout.tv_usec = 0;
 		total_timeout.tv_sec = 20;
 		total_timeout.tv_usec = 0;
+//FIXME: use monotonic()?
 		timeout = time(NULL) + 60 * retry;
 		prevt = 0;
 		t = 30;
@@ -1507,7 +1523,7 @@ static int nfsmount(struct mntent *mp, long vfsflags, char *filteropts)
 			if (!daemonized) {
 				daemonized = daemonize();
 				if (daemonized <= 0) { /* parent or error */
-	// FIXME: parent doesn't close fsock - ??!
+// FIXME: parent doesn't close fsock - ??!
 					retval = -daemonized;
 					goto ret;
 				}
@@ -1733,7 +1749,7 @@ static int singlemount(struct mntent *mp, int ignore_busy)
 static const char must_be_root[] ALIGN1 = "you must be root";
 
 int mount_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int mount_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int mount_main(int argc UNUSED_PARAM, char **argv)
 {
 	char *cmdopts = xstrdup("");
 	char *fstype = NULL;

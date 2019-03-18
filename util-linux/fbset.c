@@ -171,6 +171,14 @@ enum {
 #endif
 
 #if ENABLE_FEATURE_FBSET_READMODE
+static void ss(uint32_t *x, uint32_t flag, char *buf, const char *what)
+{
+	if (strstr(buf, what))
+		*x &= ~flag;
+	else
+		*x |= flag;
+}
+
 static int readmode(struct fb_var_screeninfo *base, const char *fn,
 					const char *mode)
 {
@@ -178,9 +186,8 @@ static int readmode(struct fb_var_screeninfo *base, const char *fn,
 	char buf[256];
 	char *p = buf;
 
-	f = xfopen(fn, "r");
-	while (!feof(f)) {
-		fgets(buf, sizeof(buf), f);
+	f = xfopen_for_read(fn);
+	while (fgets(buf, sizeof(buf), f)) {
 		p = strstr(buf, "mode ");
 		if (!p && !(p = strstr(buf, "mode\t")))
 			continue;
@@ -189,13 +196,13 @@ static int readmode(struct fb_var_screeninfo *base, const char *fn,
 			continue;
 		p += strlen(mode);
 		if (!isspace(*p) && (*p != 0) && (*p != '"')
-				&& (*p != '\r') && (*p != '\n'))
+		 && (*p != '\r') && (*p != '\n')
+		) {
 			continue;	/* almost, but not quite */
+		}
 
-		while (!feof(f)) {
-			fgets(buf, sizeof(buf), f);
-			p = strstr(buf, "geometry ");
-			if (p) {
+		while (fgets(buf, sizeof(buf), f)) {
+			if ((p = strstr(buf, "geometry "))) {
 				p += 9;
 				/* FIXME: catastrophic on arches with 64bit ints */
 				sscanf(p, "%d %d %d %d %d",
@@ -211,46 +218,22 @@ static int readmode(struct fb_var_screeninfo *base, const char *fn,
 					&(base->hsync_len), &(base->vsync_len));
 			} else if ((p = strstr(buf, "laced "))) {
 				//p += 6;
-				if (strstr(buf, "false")) {
-					base->vmode &= ~FB_VMODE_INTERLACED;
-				} else {
-					base->vmode |= FB_VMODE_INTERLACED;
-				}
+				ss(&base->vmode, FB_VMODE_INTERLACED, buf, "false");
 			} else if ((p = strstr(buf, "double "))) {
 				//p += 7;
-				if (strstr(buf, "false")) {
-					base->vmode &= ~FB_VMODE_DOUBLE;
-				} else {
-					base->vmode |= FB_VMODE_DOUBLE;
-				}
+				ss(&base->vmode, FB_VMODE_DOUBLE, buf, "false");
 			} else if ((p = strstr(buf, "vsync "))) {
 				//p += 6;
-				if (strstr(buf, "low")) {
-					base->sync &= ~FB_SYNC_VERT_HIGH_ACT;
-				} else {
-					base->sync |= FB_SYNC_VERT_HIGH_ACT;
-				}
+				ss(&base->sync, FB_SYNC_VERT_HIGH_ACT, buf, "low");
 			} else if ((p = strstr(buf, "hsync "))) {
 				//p += 6;
-				if (strstr(buf, "low")) {
-					base->sync &= ~FB_SYNC_HOR_HIGH_ACT;
-				} else {
-					base->sync |= FB_SYNC_HOR_HIGH_ACT;
-				}
+				ss(&base->sync, FB_SYNC_HOR_HIGH_ACT, buf, "low");
 			} else if ((p = strstr(buf, "csync "))) {
 				//p += 6;
-				if (strstr(buf, "low")) {
-					base->sync &= ~FB_SYNC_COMP_HIGH_ACT;
-				} else {
-					base->sync |= FB_SYNC_COMP_HIGH_ACT;
-				}
+				ss(&base->sync, FB_SYNC_COMP_HIGH_ACT, buf, "low");
 			} else if ((p = strstr(buf, "extsync "))) {
 				//p += 8;
-				if (strstr(buf, "false")) {
-					base->sync &= ~FB_SYNC_EXT;
-				} else {
-					base->sync |= FB_SYNC_EXT;
-				}
+				ss(&base->sync, FB_SYNC_EXT, buf, "false");
 			}
 
 			if (strstr(buf, "endmode"))
@@ -261,22 +244,22 @@ static int readmode(struct fb_var_screeninfo *base, const char *fn,
 }
 #endif
 
-static inline void setmode(struct fb_var_screeninfo *base,
+static void setmode(struct fb_var_screeninfo *base,
 					struct fb_var_screeninfo *set)
 {
-	if ((int) set->xres > 0)
+	if ((int32_t) set->xres > 0)
 		base->xres = set->xres;
-	if ((int) set->yres > 0)
+	if ((int32_t) set->yres > 0)
 		base->yres = set->yres;
-	if ((int) set->xres_virtual > 0)
+	if ((int32_t) set->xres_virtual > 0)
 		base->xres_virtual = set->xres_virtual;
-	if ((int) set->yres_virtual > 0)
+	if ((int32_t) set->yres_virtual > 0)
 		base->yres_virtual = set->yres_virtual;
-	if ((int) set->bits_per_pixel > 0)
+	if ((int32_t) set->bits_per_pixel > 0)
 		base->bits_per_pixel = set->bits_per_pixel;
 }
 
-static inline void showmode(struct fb_var_screeninfo *v)
+static void showmode(struct fb_var_screeninfo *v)
 {
 	double drate = 0, hrate = 0, vrate = 0;
 
@@ -306,12 +289,8 @@ static inline void showmode(struct fb_var_screeninfo *v)
 			v->blue.length, v->blue.offset, v->transp.length, v->transp.offset);
 }
 
-#ifdef STANDALONE
-int main(int argc, char **argv)
-#else
 int fbset_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int fbset_main(int argc, char **argv)
-#endif
 {
 	struct fb_var_screeninfo var, varset;
 	int fh, i;

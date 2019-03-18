@@ -28,7 +28,7 @@ static void check_tainted(void)
 	FILE *f;
 
 	tainted = 0;
-	f = fopen(TAINT_FILENAME, "r");
+	f = fopen_for_read(TAINT_FILENAME);
 	if (f) {
 		fscanf(f, "%d", &tainted);
 		fclose(f);
@@ -75,7 +75,7 @@ enum {
 };
 
 int lsmod_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int lsmod_main(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
+int lsmod_main(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
 	struct module_info info;
 	char *module_names, *mn, *deps, *dn;
@@ -143,9 +143,9 @@ int lsmod_main(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
 #else /* CONFIG_FEATURE_QUERY_MODULE_INTERFACE */
 
 int lsmod_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int lsmod_main(int argc ATTRIBUTE_UNUSED, char **argv ATTRIBUTE_UNUSED)
+int lsmod_main(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
-	FILE *file = xfopen("/proc/modules", "r");
+	FILE *file = xfopen_for_read("/proc/modules");
 
 	printf("Module                  Size  Used by");
 	check_tainted();

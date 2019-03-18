@@ -459,7 +459,7 @@ static void read_config_file(char *path, int optional, unsigned long *event_mask
 			free(p);
 			return;
 		}
-		fp = fopen(path, "r");
+		fp = fopen_for_read(path);
 		if (fp != NULL) {
 			while (fgets(buf, STRING_LENGTH, fp) != NULL) {
 				/*  Skip whitespace  */
@@ -741,7 +741,7 @@ static void action_permissions(const struct devfsd_notify_struct *info,
 }   /*  End Function action_permissions  */
 
 static void action_modload(const struct devfsd_notify_struct *info,
-			    const struct config_entry_struct *entry ATTRIBUTE_UNUSED)
+			    const struct config_entry_struct *entry UNUSED_PARAM)
 /*  [SUMMARY] Load a module.
     <info> The devfs change.
     <entry> The config file entry.
@@ -1091,7 +1091,7 @@ static int get_uid_gid(int flag, const char *string)
 		msg = "group";
 
 	if (ENABLE_DEVFSD_VERBOSE)
-		msg_logger(LOG_ERR,"unknown %s: %s, defaulting to %cid=0",  msg, string, msg[0]);
+		msg_logger(LOG_ERR, "unknown %s: %s, defaulting to %cid=0",  msg, string, msg[0]);
 	return 0;
 }/*  End Function get_uid_gid  */
 
@@ -1732,7 +1732,7 @@ static const char *expand_variable(char *buffer, unsigned int length,
 				--open_braces;
 				break;
 			case '\0':
-				info_logger(LOG_INFO,"\"}\" not found in: %s", input);
+				info_logger(LOG_INFO, "\"}\" not found in: %s", input);
 				return NULL;
 			default:
 				break;

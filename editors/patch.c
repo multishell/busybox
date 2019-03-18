@@ -50,7 +50,7 @@ static char *extract_filename(char *line, int patch_level, const char *pat)
 
 	if (strncmp(line, pat, 4) == 0) {
 		/* Terminate string at end of source filename */
-		line[strcspn(line,"\t\n\r")] = '\0';
+		line[strcspn(line, "\t\n\r")] = '\0';
 
 		/* Skip over (patch_level) number of leading directories */
 		while (patch_level--) {
@@ -66,7 +66,7 @@ static char *extract_filename(char *line, int patch_level, const char *pat)
 }
 
 int patch_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int patch_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int patch_main(int argc UNUSED_PARAM, char **argv)
 {
 	struct stat saved_stat;
 	char *patch_line;
@@ -131,9 +131,9 @@ int patch_main(int argc ATTRIBUTE_UNUSED, char **argv)
 		} else {
 			backup_filename = xasprintf("%s.orig", new_filename);
 			xrename(new_filename, backup_filename);
-			src_stream = xfopen(backup_filename, "r");
+			src_stream = xfopen_for_read(backup_filename);
 		}
-		dst_stream = xfopen(new_filename, "w");
+		dst_stream = xfopen_for_write(new_filename);
 		fchmod(fileno(dst_stream), saved_stat.st_mode);
 
 		printf("patching file %s\n", new_filename);

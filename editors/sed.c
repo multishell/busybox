@@ -23,7 +23,7 @@
   resulting sed_cmd_t structures are appended to a linked list
   (G.sed_cmd_head/G.sed_cmd_tail).
 
-  add_input_file() adds a FILE * to the list of input files.  We need to
+  add_input_file() adds a FILE* to the list of input files.  We need to
   know all input sources ahead of time to find the last line for the $ match.
 
   process_files() does actual sedding, reading data lines from each input FILE *
@@ -438,7 +438,7 @@ static const char *parse_cmd_args(sed_cmd_t *sed_cmd, const char *cmdstr)
 			bb_error_msg_and_die("command only uses one address");
 		cmdstr += parse_file_cmd(/*sed_cmd,*/ cmdstr, &sed_cmd->string);
 		if (sed_cmd->cmd == 'w') {
-			sed_cmd->sw_file = xfopen(sed_cmd->string, "w");
+			sed_cmd->sw_file = xfopen_for_write(sed_cmd->string);
 			sed_cmd->sw_last_char = '\n';
 		}
 	/* handle branch commands */
@@ -732,8 +732,7 @@ static void flush_append(void)
 
 static void add_input_file(FILE *file)
 {
-	G.input_file_list = xrealloc(G.input_file_list,
-			(G.input_file_count + 1) * sizeof(FILE *));
+	G.input_file_list = xrealloc_vector(G.input_file_list, 2, G.input_file_count);
 	G.input_file_list[G.input_file_count++] = file;
 }
 
@@ -1026,7 +1025,7 @@ static void process_files(void)
 			{
 				FILE *rfile;
 
-				rfile = fopen(sed_cmd->string, "r");
+				rfile = fopen_for_read(sed_cmd->string);
 				if (rfile) {
 					char *line;
 
@@ -1220,7 +1219,7 @@ static void add_cmd_block(char *cmdstr)
 				slashes++;
 			/* Odd number of preceding slashes - newline is escaped */
 			if (slashes & 1) {
-				strcpy(eol-1, eol);
+				overlapping_strcpy(eol - 1, eol);
 				eol = strchr(eol, '\n');
 				goto next;
 			}
@@ -1233,7 +1232,7 @@ static void add_cmd_block(char *cmdstr)
 }
 
 int sed_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int sed_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int sed_main(int argc UNUSED_PARAM, char **argv)
 {
 	enum {
 		OPT_in_place = 1 << 0,
@@ -1272,7 +1271,7 @@ int sed_main(int argc ATTRIBUTE_UNUSED, char **argv)
 	while (opt_f) { // -f
 		char *line;
 		FILE *cmdfile;
-		cmdfile = xfopen(llist_pop(&opt_f), "r");
+		cmdfile = xfopen_for_read(llist_pop(&opt_f));
 		while ((line = xmalloc_fgetline(cmdfile)) != NULL) {
 			add_cmd(line);
 			free(line);

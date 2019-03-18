@@ -791,9 +791,9 @@ static char *m_fullName;
 /*======================================================================*/
 
 
-static int check_module_name_match(const char *filename,
-		struct stat *statbuf ATTRIBUTE_UNUSED,
-		void *userdata, int depth ATTRIBUTE_UNUSED)
+static int FAST_FUNC check_module_name_match(const char *filename,
+		struct stat *statbuf UNUSED_PARAM,
+		void *userdata, int depth UNUSED_PARAM)
 {
 	char *fullname = (char *) userdata;
 	char *tmp;
@@ -2202,7 +2202,7 @@ static struct obj_section *obj_create_alloced_section(struct obj_file *f,
 	int newidx = f->header.e_shnum++;
 	struct obj_section *sec;
 
-	f->sections = xrealloc(f->sections, (newidx + 1) * sizeof(sec));
+	f->sections = xrealloc_vector(f->sections, 2, newidx);
 	f->sections[newidx] = sec = arch_new_section();
 
 	sec->header.sh_type = SHT_PROGBITS;
@@ -2251,7 +2251,8 @@ static void *obj_extend_section(struct obj_section *sec, unsigned long more)
 {
 	unsigned long oldsize = sec->header.sh_size;
 	if (more) {
-		sec->contents = xrealloc(sec->contents, sec->header.sh_size += more);
+		sec->header.sh_size += more;
+		sec->contents = xrealloc(sec->contents, sec->header.sh_size);
 	}
 	return sec->contents + oldsize;
 }
@@ -2737,7 +2738,8 @@ static void new_get_kernel_symbols(void)
  retry_kern_sym_load:
 	if (query_module(NULL, QM_SYMBOLS, syms, bufsize, &ret)) {
 		if (errno == ENOSPC && bufsize < ret) {
-			syms = xrealloc(syms, bufsize = ret);
+			bufsize = ret;
+			syms = xrealloc(syms, bufsize);
 			goto retry_kern_sym_load;
 		}
 		bb_perror_msg_and_die("kernel: QM_SYMBOLS");
@@ -2894,7 +2896,7 @@ new_init_module(const char *m_name, struct obj_file *f, unsigned long m_size)
 
 	sec = obj_find_section(f, ".this");
 	if (!sec || !sec->contents) {
-		bb_perror_msg_and_die("corrupt module %s?",m_name);
+		bb_perror_msg_and_die("corrupt module %s?", m_name);
 	}
 	module = (struct new_module *) sec->contents;
 	m_addr = sec->header.sh_addr;
@@ -3081,7 +3083,7 @@ static void obj_allocate_commons(struct obj_file *f)
 		if (i == f->header.e_shnum) {
 			struct obj_section *sec;
 
-			f->sections = xrealloc(f->sections, (i + 1) * sizeof(sec));
+			f->sections = xrealloc_vector(f->sections, 2, i);
 			f->sections[i] = sec = arch_new_section();
 			f->header.e_shnum = i + 1;
 
@@ -3307,7 +3309,7 @@ static int obj_create_image(struct obj_file *f, char *image)
 
 /*======================================================================*/
 
-static struct obj_file *obj_load(FILE * fp, int loadprogbits ATTRIBUTE_UNUSED)
+static struct obj_file *obj_load(FILE *fp, int loadprogbits UNUSED_PARAM)
 {
 	struct obj_file *f;
 	ElfW(Shdr) * section_headers;
@@ -3513,7 +3515,7 @@ static struct obj_file *obj_load(FILE * fp, int loadprogbits ATTRIBUTE_UNUSED)
  * kernel for the module
  */
 
-static int obj_load_progbits(FILE * fp, struct obj_file* f, char* imagebase)
+static int obj_load_progbits(FILE *fp, struct obj_file *f, char *imagebase)
 {
 	ElfW(Addr) base = f->baseaddr;
 	struct obj_section* sec;
@@ -3846,7 +3848,7 @@ static void print_load_map(struct obj_file *f)
 				a);
 	}
 #if ENABLE_FEATURE_INSMOD_LOAD_MAP_FULL
-	/* Quick reference which section indicies are loaded.  */
+	/* Quick reference which section indices are loaded.  */
 
 	i = f->header.e_shnum;
 	loaded = alloca(sizeof(int) * i);
@@ -3990,7 +3992,7 @@ int insmod_main(int argc, char **argv)
 
 	/* Get a filedesc for the module.  Check that we have a complete path */
 	if (stat(arg1, &st) < 0 || !S_ISREG(st.st_mode)
-	 || (fp = fopen(arg1, "r")) == NULL
+	 || (fp = fopen_for_read(arg1)) == NULL
 	) {
 		/* Hmm.  Could not open it.  First search under /lib/modules/`uname -r`,
 		 * but do not error out yet if we fail to find it... */
@@ -4014,7 +4016,7 @@ int insmod_main(int argc, char **argv)
 		}
 
 		/* Check if we have found anything yet */
-		if (!m_filename || ((fp = fopen(m_filename, "r")) == NULL)) {
+		if (!m_filename || ((fp = fopen_for_read(m_filename)) == NULL)) {
 			int r;
 			char *module_dir;
 
@@ -4031,7 +4033,7 @@ int insmod_main(int argc, char **argv)
 				bb_error_msg_and_die("%s: module not found", m_fullName);
 			free(module_dir);
 			if (m_filename == NULL
-			 || ((fp = fopen(m_filename, "r")) == NULL)
+			 || ((fp = fopen_for_read(m_filename)) == NULL)
 			) {
 				bb_error_msg_and_die("%s: module not found", m_fullName);
 			}
@@ -4212,9 +4214,9 @@ static const char *moderror(int err)
 
 #if !ENABLE_FEATURE_2_4_MODULES
 int insmod_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int insmod_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int insmod_main(int argc UNUSED_PARAM, char **argv)
 #else
-static int insmod_ng_main(int argc ATTRIBUTE_UNUSED, char **argv)
+static int insmod_ng_main(int argc UNUSED_PARAM, char **argv)
 #endif
 {
 	size_t len;

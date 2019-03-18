@@ -620,7 +620,7 @@ static void update_utmp(const char *line, char *fakehost)
 #endif /* CONFIG_FEATURE_UTMP */
 
 int getty_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int getty_main(int argc ATTRIBUTE_UNUSED, char **argv)
+int getty_main(int argc UNUSED_PARAM, char **argv)
 {
 	int n;
 	char *fakehost = NULL;          /* Fake hostname for ut_host */
@@ -668,7 +668,7 @@ int getty_main(int argc ATTRIBUTE_UNUSED, char **argv)
 	logmode = LOGMODE_BOTH;
 
 #ifdef DEBUGGING
-	dbf = xfopen(DEBUGTERM, "w");
+	dbf = xfopen_for_write(DEBUGTERM);
 	for (n = 1; argv[n]; n++) {
 		debug(argv[n]);
 		debug("\n");

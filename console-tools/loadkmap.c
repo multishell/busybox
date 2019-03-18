@@ -26,7 +26,7 @@ struct kbentry {
 #define MAX_NR_KEYMAPS  256
 
 int loadkmap_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int loadkmap_main(int ATTRIBUTE_UNUSED argc, char **argv ATTRIBUTE_UNUSED)
+int loadkmap_main(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
 	struct kbentry ke;
 	int i, j, fd;
@@ -35,7 +35,7 @@ int loadkmap_main(int ATTRIBUTE_UNUSED argc, char **argv ATTRIBUTE_UNUSED)
 
 /*  bb_warn_ignoring_args(argc>=2);*/
 
-	fd = xopen(CURRENT_VC, O_RDWR);
+	fd = get_console_fd_or_die();
 
 	xread(STDIN_FILENO, flags, 7);
 	if (strncmp(flags, BINARY_KEYMAP_MAGIC, 7))

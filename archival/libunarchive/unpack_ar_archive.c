@@ -6,7 +6,7 @@
 #include "libbb.h"
 #include "unarchive.h"
 
-void unpack_ar_archive(archive_handle_t *ar_archive)
+void FAST_FUNC unpack_ar_archive(archive_handle_t *ar_archive)
 {
 	char magic[7];
 
@@ -16,5 +16,6 @@ void unpack_ar_archive(archive_handle_t *ar_archive)
 	}
 	ar_archive->offset += 7;
 
-	while (get_header_ar(ar_archive) == EXIT_SUCCESS);
+	while (get_header_ar(ar_archive) == EXIT_SUCCESS)
+		continue;
 }

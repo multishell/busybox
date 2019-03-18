@@ -74,9 +74,9 @@ typedef struct {
 #endif
 } action;
 #define ACTS(name, arg...) typedef struct { action a; arg; } action_##name;
-#define ACTF(name)         static int func_##name(const char *fileName ATTRIBUTE_UNUSED, \
-                                                  struct stat *statbuf ATTRIBUTE_UNUSED, \
-                                                  action_##name* ap ATTRIBUTE_UNUSED)
+#define ACTF(name)         static int func_##name(const char *fileName UNUSED_PARAM, \
+                                                  struct stat *statbuf UNUSED_PARAM, \
+                                                  action_##name* ap UNUSED_PARAM)
                          ACTS(print)
                          ACTS(name,  const char *pattern; bool iname;)
 USE_FEATURE_FIND_PATH(   ACTS(path,  const char *pattern;))
@@ -374,10 +374,10 @@ ACTF(context)
 #endif
 
 
-static int fileAction(const char *fileName,
+static int FAST_FUNC fileAction(const char *fileName,
 		struct stat *statbuf,
-		void *userData SKIP_FEATURE_FIND_MAXDEPTH(ATTRIBUTE_UNUSED),
-		int depth SKIP_FEATURE_FIND_MAXDEPTH(ATTRIBUTE_UNUSED))
+		void *userData SKIP_FEATURE_FIND_MAXDEPTH(UNUSED_PARAM),
+		int depth SKIP_FEATURE_FIND_MAXDEPTH(UNUSED_PARAM))
 {
 	int i;
 #if ENABLE_FEATURE_FIND_MAXDEPTH

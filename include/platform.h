@@ -48,27 +48,27 @@
 # define __const const
 #endif
 
-#define ATTRIBUTE_UNUSED __attribute__ ((__unused__))
-#define ATTRIBUTE_NORETURN __attribute__ ((__noreturn__))
-#define ATTRIBUTE_PACKED __attribute__ ((__packed__))
-#define ATTRIBUTE_ALIGNED(m) __attribute__ ((__aligned__(m)))
+#define UNUSED_PARAM __attribute__ ((__unused__))
+#define NORETURN __attribute__ ((__noreturn__))
+#define PACKED __attribute__ ((__packed__))
+#define ALIGNED(m) __attribute__ ((__aligned__(m)))
 /* __NO_INLINE__: some gcc's do not honor inlining! :( */
 #if __GNUC_PREREQ(3,0) && !defined(__NO_INLINE__)
 # define ALWAYS_INLINE __attribute__ ((always_inline)) inline
 /* I've seen a toolchain where I needed __noinline__ instead of noinline */
 # define NOINLINE      __attribute__((__noinline__))
 # if !ENABLE_WERROR
-#  define ATTRIBUTE_DEPRECATED __attribute__ ((__deprecated__))
-#  define ATTRIBUTE_UNUSED_RESULT __attribute__ ((warn_unused_result))
+#  define DEPRECATED __attribute__ ((__deprecated__))
+#  define UNUSED_PARAM_RESULT __attribute__ ((warn_unused_result))
 # else
-#  define ATTRIBUTE_DEPRECATED /* n/a */
-#  define ATTRIBUTE_UNUSED_RESULT /* n/a */
+#  define DEPRECATED /* n/a */
+#  define UNUSED_PARAM_RESULT /* n/a */
 # endif
 #else
 # define ALWAYS_INLINE inline /* n/a */
 # define NOINLINE /* n/a */
-# define ATTRIBUTE_DEPRECATED /* n/a */
-# define ATTRIBUTE_UNUSED_RESULT /* n/a */
+# define DEPRECATED /* n/a */
+# define UNUSED_PARAM_RESULT /* n/a */
 #endif
 
 /* -fwhole-program makes all symbols local. The attribute externally_visible
@@ -95,6 +95,19 @@
 # if !defined va_copy && defined __va_copy
 #  define va_copy(d,s) __va_copy((d),(s))
 # endif
+#endif
+
+/* FAST_FUNC is a qualifier which (possibly) makes function call faster
+ * and/or smaller by using modified ABI. It is usually only needed
+ * on non-static, busybox internal functions. Recent versions of gcc
+ * optimize statics automatically. FAST_FUNC on static is required
+ * only if you need to match a function pointer's type */
+#if __GNUC_PREREQ(3,0) && defined(i386) /* || defined(__x86_64__)? */
+/* stdcall makes callee to pop arguments from stack, not caller */
+# define FAST_FUNC __attribute__((regparm(3),stdcall))
+/* #elif ... - add your favorite arch today! */
+#else
+# define FAST_FUNC
 #endif
 
 /* ---- Endian Detection ------------------------------------ */
@@ -138,8 +151,9 @@
 /* ---- Unaligned access ------------------------------------ */
 
 /* parameter is supposed to be an uint32_t* ptr */
-#if defined(i386) || defined(__x86_64__) /* + other arches? */
+#if defined(i386) || defined(__x86_64__)
 #define get_unaligned_u32p(u32p) (*(u32p))
+/* #elif ... - add your favorite arch today! */
 #else
 /* performs reasonably well (gcc usually inlines memcpy here) */
 #define get_unaligned_u32p(u32p) ({ uint32_t __t; memcpy(&__t, (u32p), 4); __t; })
@@ -336,7 +350,9 @@ static ALWAYS_INLINE char* strchrnul(const char *s, char c)
 #ifndef MS_SHARED
 #define MS_SHARED      (1<<20)
 #endif
-
+#ifndef MS_RELATIME
+#define MS_RELATIME   (1 << 21)
+#endif
 
 #if !defined(BLKSSZGET)
 #define BLKSSZGET _IO(0x12, 104)

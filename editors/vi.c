@@ -147,10 +147,10 @@ struct globals {
 #endif
 
 	smallint editing;        // >0 while we are editing a file
-	                         // [code audit says "can be 0, 1 or 2 only"]
+	                         // [code audit says "can be 0 or 1 only"]
 	smallint cmd_mode;       // 0=command  1=insert 2=replace
 	int file_modified;       // buffer contents changed (counter, not flag!)
-	int last_file_modified;  // = -1;
+	int last_file_modified; // = -1;
 	int fn_start;            // index of first cmd line file name
 	int save_argc;           // how many file names on cmd line
 	int cmdcnt;              // repetition count
@@ -623,7 +623,7 @@ static void edit_file(char *fn)
 		// These are commands that change text[].
 		// Remember the input for the "." command
 		if (!adding2q && ioq_start == NULL
-		 && c != '\0' && strchr(modifying_cmds, c)
+		 && strchr(modifying_cmds, c)
 		) {
 			start_new_cmd_q(c);
 		}
@@ -645,8 +645,8 @@ static void edit_file(char *fn)
 	}
 	//-------------------------------------------------------------------
 
-	place_cursor(rows - 1, 0, FALSE); // go to bottom of screen
-	clear_to_eol(); // erase to end of line
+	place_cursor(rows, 0, FALSE);	// go to bottom of screen
+	clear_to_eol();		// Erase to end of line
 	cookmode();
 #undef cur_line
 }
@@ -2009,9 +2009,9 @@ static void start_new_cmd_q(char c)
 {
 	// get buffer for new cmd
 	// if there is a current cmd count put it in the buffer first
-	if (cmdcnt > 0) {
+	if (cmdcnt > 0)
 		lmc_len = sprintf(last_modifying_cmd, "%d%c", cmdcnt, c);
-	} else { // just save char c onto queue
+	else { // just save char c onto queue
 		last_modifying_cmd[0] = c;
 		lmc_len = 1;
 	}
@@ -2141,7 +2141,7 @@ static void cookmode(void)
 
 //----- Come here when we get a window resize signal ---------
 #if ENABLE_FEATURE_VI_USE_SIGNALS
-static void winch_sig(int sig ATTRIBUTE_UNUSED)
+static void winch_sig(int sig UNUSED_PARAM)
 {
 	// FIXME: do it in main loop!!!
 	signal(SIGWINCH, winch_sig);
@@ -2155,7 +2155,7 @@ static void winch_sig(int sig ATTRIBUTE_UNUSED)
 }
 
 //----- Come here when we get a continue signal -------------------
-static void cont_sig(int sig ATTRIBUTE_UNUSED)
+static void cont_sig(int sig UNUSED_PARAM)
 {
 	rawmode();			// terminal to "raw"
 	last_status_cksum = 0;	// force status update
@@ -2167,7 +2167,7 @@ static void cont_sig(int sig ATTRIBUTE_UNUSED)
 }
 
 //----- Come here when we get a Suspend signal -------------------
-static void suspend_sig(int sig ATTRIBUTE_UNUSED)
+static void suspend_sig(int sig UNUSED_PARAM)
 {
 	place_cursor(rows - 1, 0, FALSE);	// go to bottom of screen
 	clear_to_eol();		// Erase to end of line
@@ -2247,20 +2247,18 @@ static char readit(void)	// read (maybe cursor) key from stdin
 
 	fflush(stdout);
 	n = chars_to_parse;
-	// get input from User - are there already input chars in Q?
+	// get input from User- are there already input chars in Q?
 	if (n <= 0) {
 		// the Q is empty, wait for a typed char
- again:
 		n = safe_read(STDIN_FILENO, readbuffer, sizeof(readbuffer));
-		if (n <= 0) {
-			place_cursor(rows - 1, 0, FALSE); // go to bottom of screen
-			clear_to_eol(); // erase to end of line
-			cookmode(); // terminal to "cooked"
-			bb_error_msg_and_die("can't read user input");
+		if (n < 0) {
+			if (errno == EBADF || errno == EFAULT || errno == EINVAL
+			 || errno == EIO)
+				editing = 0; // want to exit
+			errno = 0;
 		}
-		/* elsewhere we can get very confused by NULs */
-		if (readbuffer[0] == '\0')
-			goto again;
+		if (n <= 0)
+			return 0;       // error
 		if (readbuffer[0] == 27) {
 			// This is an ESC char. Is this Esc sequence?
 			// Could be bare Esc key. See if there are any
@@ -2494,6 +2492,14 @@ static int file_write(char *fn, char *first, char *last)
 static void place_cursor(int row, int col, int optimize)
 {
 	char cm1[sizeof(CMrc) + sizeof(int)*3 * 2];
+#if ENABLE_FEATURE_VI_OPTIMIZE_CURSOR
+	enum {
+		SZ_UP = sizeof(CMup),
+		SZ_DN = sizeof(CMdown),
+		SEQ_SIZE = SZ_UP > SZ_DN ? SZ_UP : SZ_DN,
+	};
+	char cm2[SEQ_SIZE * 5 + 32]; // bigger than worst case size
+#endif
 	char *cm;
 
 	if (row < 0) row = 0;
@@ -2507,12 +2513,6 @@ static void place_cursor(int row, int col, int optimize)
 
 #if ENABLE_FEATURE_VI_OPTIMIZE_CURSOR
 	if (optimize && col < 16) {
-		enum {
-			SZ_UP = sizeof(CMup),
-			SZ_DN = sizeof(CMdown),
-			SEQ_SIZE = SZ_UP > SZ_DN ? SZ_UP : SZ_DN,
-		};
-		char cm2[SEQ_SIZE * 5 + 32]; // bigger than worst case size
 		char *screenp;
 		int Rrow = last_row;
 		int diff = Rrow - row;

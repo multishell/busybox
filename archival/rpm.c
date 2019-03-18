@@ -190,7 +190,7 @@ static void extract_cpio_gz(int fd)
 	archive_handle_t *archive_handle;
 	unsigned char magic[2];
 #if BB_MMU
-	USE_DESKTOP(long long) int (*xformer)(int src_fd, int dst_fd);
+	USE_DESKTOP(long long) int FAST_FUNC (*xformer)(int src_fd, int dst_fd);
 	enum { xformer_prog = 0 };
 #else
 	enum { xformer = 0 };
@@ -202,10 +202,11 @@ static void extract_cpio_gz(int fd)
 	archive_handle->seek = seek_by_read;
 	//archive_handle->action_header = header_list;
 	archive_handle->action_data = data_extract_all;
-	archive_handle->flags |= ARCHIVE_PRESERVE_DATE;
-	archive_handle->flags |= ARCHIVE_CREATE_LEADING_DIRS;
+	archive_handle->ah_flags = ARCHIVE_PRESERVE_DATE | ARCHIVE_CREATE_LEADING_DIRS;
 	archive_handle->src_fd = fd;
-	archive_handle->offset = 0;
+	/*archive_handle->offset = 0; - init_handle() did it */
+
+// TODO: open_zipped does the same
 
 	xread(archive_handle->src_fd, &magic, 2);
 #if BB_MMU
@@ -213,21 +214,19 @@ static void extract_cpio_gz(int fd)
 #else
 	xformer_prog = "gunzip";
 #endif
-	if ((magic[0] != 0x1f) || (magic[1] != 0x8b)) {
-		if (ENABLE_FEATURE_RPM_BZ2
-		 && (magic[0] == 0x42) && (magic[1] == 0x5a)) {
-#if BB_MMU
-			xformer = unpack_bz2_stream;
-#else
-			xformer_prog = "bunzip2";
-#endif
-	/* We can do better, need modifying unpack_bz2_stream to not require
-	 * first 2 bytes. Not very hard to do... I mean, TODO :) */
-			xlseek(archive_handle->src_fd, -2, SEEK_CUR);
-		} else
+	if (magic[0] != 0x1f || magic[1] != 0x8b) {
+		if (!ENABLE_FEATURE_SEAMLESS_BZ2
+		 || magic[0] != 'B' || magic[1] != 'Z'
+		) {
 			bb_error_msg_and_die("no gzip"
-				USE_FEATURE_RPM_BZ2("/bzip")
+				USE_FEATURE_SEAMLESS_BZ2("/bzip2")
 				" magic");
+		}
+#if BB_MMU
+		xformer = unpack_bz2_stream;
+#else
+		xformer_prog = "bunzip2";
+#endif
 	} else {
 #if !BB_MMU
 		/* NOMMU version of open_transformer execs an external unzipper that should
@@ -237,7 +236,7 @@ static void extract_cpio_gz(int fd)
 	}
 
 	xchdir("/"); /* Install RPM's to root */
-	archive_handle->src_fd = open_transformer(archive_handle->src_fd, xformer, xformer_prog);
+	open_transformer(archive_handle->src_fd, xformer, xformer_prog);
 	archive_handle->offset = 0;
 	while (get_header_cpio(archive_handle) == EXIT_SUCCESS)
 		continue;
@@ -280,12 +279,12 @@ static rpm_index **rpm_gettags(int fd, int *num_tags)
 			tmpindex->type = ntohl(tmpindex->type);
 			tmpindex->count = ntohl(tmpindex->count);
 			tmpindex->offset = storepos + ntohl(tmpindex->offset);
-			if (pass==0)
+			if (pass == 0)
 				tmpindex->tag -= 743;
 		}
 		xlseek(fd, header.size, SEEK_CUR); /* Seek past store */
 		/* Skip padding to 8 byte boundary after reading signature headers */
-		if (pass==0)
+		if (pass == 0)
 			xlseek(fd, (8 - (xlseek(fd,0,SEEK_CUR) % 8)) % 8, SEEK_CUR);
 	}
 	tags = xrealloc(tags, tagindex * sizeof(struct rpmtag *)); /* realloc tags to save space */

@@ -238,14 +238,13 @@ static struct option *add_long_options(struct option *long_options, char *option
 				if (tlen == 0)
 					bb_error_msg_and_die("empty long option specified");
 			}
-			long_options = xrealloc(long_options,
-					sizeof(long_options[0]) * (long_nr+2));
+			long_options = xrealloc_vector(long_options, 4, long_nr);
 			long_options[long_nr].has_arg = arg_opt;
-			long_options[long_nr].flag = NULL;
+			/*long_options[long_nr].flag = NULL; - xrealloc_vector did it */
 			long_options[long_nr].val = LONG_OPT;
 			long_options[long_nr].name = xstrdup(tokptr);
 			long_nr++;
-			memset(&long_options[long_nr], 0, sizeof(long_options[0]));
+			/*memset(&long_options[long_nr], 0, sizeof(long_options[0])); - xrealloc_vector did it */
 		}
 		tokptr = strtok(NULL, ", \t\n");
 	}
@@ -255,9 +254,9 @@ static struct option *add_long_options(struct option *long_options, char *option
 
 static void set_shell(const char *new_shell)
 {
-	if (!strcmp(new_shell,"bash") || !strcmp(new_shell,"sh"))
+	if (!strcmp(new_shell, "bash") || !strcmp(new_shell, "sh"))
 		return;
-	if (!strcmp(new_shell,"tcsh") || !strcmp(new_shell,"csh"))
+	if (!strcmp(new_shell, "tcsh") || !strcmp(new_shell, "csh"))
 		option_mask32 |= SHELL_IS_TCSH;
 	else
 		bb_error_msg("unknown shell '%s', assuming bash", new_shell);
