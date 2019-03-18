@@ -228,7 +228,7 @@
 	"\t-d [#] -l [#] -S -L logfile -f -b -c dir\n" \
 	"\t-d num\tdebug level\n" \
 	"\t-l num\tlog level (8 - default)\n" \
-	"\t-S\tlog to syslod (default)\n" \
+	"\t-S\tlog to syslogd (default)\n" \
 	"\t-L file\tlog to file\n" \
 	"\t-f\trun in fordeground\n" \
 	"\t-b\trun in background (default)\n" \
@@ -431,7 +431,7 @@
 	"\t-C\tConfigure an unpackaged package\n" \
 	"\t-P\tPurge all files of a package\n" \
 	"\t-r\tRemove all but the configuration files for a package\n" \
-	"\t-u\tUnpack a package, but dont configure it"
+	"\t-u\tUnpack a package, but don't configure it"
 
 #define dpkg_deb_trivial_usage \
 	"[-cefxX] FILE [argument]"
@@ -500,8 +500,8 @@
 	"Displays the DHCP leases granted by udhcpd.\n\n" \
 	"Options:\n" \
 	"\t-f,\t--file=FILENAME\tLeases file to load\n" \
-	"\t-r,\t--remaining\tInterepret lease times as time remaing\n" \
-	"\t-a,\t--absolute\tInterepret lease times as expire time"
+	"\t-r,\t--remaining\tInterpret lease times as time remaing\n" \
+	"\t-a,\t--absolute\tInterpret lease times as expire time"
 
 #ifdef CONFIG_FEATURE_FANCY_ECHO
   #define USAGE_FANCY_ECHO(a) a
@@ -828,9 +828,11 @@
 	"-rw-rw-r--    1 andersen andersen   554058 Apr 14 17:49 /tmp/busybox.tar.gz\n"
 
 #define halt_trivial_usage \
-	""
+	"[-d<delay>]"
 #define halt_full_usage \
-	"Halt the system."
+	"Halt the system.\n" \
+	"Options:\n" \
+	"\t-d\t\tdelay interval for halting."
 
 #ifdef CONFIG_FEATURE_HDPARM_GET_IDENTITY
 #define USAGE_HDPARM_IDENT(a) a
@@ -1217,7 +1219,7 @@
 "\n" \
 "	<process>:\n" \
 "\n" \
-"		Specifies the process to be executed and it's command line.\n" \
+"		Specifies the process to be executed and its command line.\n" \
 "\n" \
 "Example /etc/inittab file:\n" \
 "\n" \
@@ -1838,10 +1840,12 @@
 	"$ patch -p1 <example.diff"
 
 #define pidof_trivial_usage \
-	"process-name [process-name ...]"
+	"process-name [OPTION] [process-name ...]"
 #define pidof_full_usage \
 	"Lists the PIDs of all processes with names that match the\n" \
-	"names on the command line"
+	"names on the command line.\n" \
+	"Options:\n" \
+	"\t-s\t\tdisplay only a single PID."
 #define pidof_example_usage \
 	"$ pidof init\n" \
 	"1\n"
@@ -1899,9 +1903,11 @@
 	"the new root file system."
 
 #define poweroff_trivial_usage \
-	""
+	"[-d<delay>]"
 #define poweroff_full_usage \
-	"Halt the system and request that the kernel shut off the power."
+	"Halt the system and request that the kernel shut off the power.\n" \
+	"Options:\n" \
+	"\t-d\t\tdelay interval for shutting off."
 
 #define printf_trivial_usage \
 	"FORMAT [ARGUMENT...]"
@@ -1971,9 +1977,11 @@
 	"Returns the absolute pathnames of given argument."
 
 #define reboot_trivial_usage \
-	""
+	"[-d<delay>]"
 #define reboot_full_usage \
-	"Reboot the system."
+	"Reboot the system.\n" \
+	"Options:\n" \
+	"\t-d\t\tdelay interval for rebooting."
 
 #define renice_trivial_usage \
 	"priority pid [pid ...]"
@@ -2207,6 +2215,7 @@
 #define strings_full_usage \
 	"Display printable strings in a binary file." \
 	"\n\nOptions:" \
+	"\n\t-a\tScan the whole files (this is the default)."\
 	"\n\t-f\tPrecede each string with the name of the file where it was found." \
 	"\n\t-n N\tSpecifies that at least N characters forms a sequence (default 4)" \
 	"\n\t-o\tEach string is preceded by its decimal offset in the file."

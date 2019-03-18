@@ -49,6 +49,7 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <sys/socket.h>
+#include <sys/sysmacros.h>     /* major() and minor() */
 #include "unarchive.h"
 #include "busybox.h"
 
@@ -57,11 +58,6 @@
 /* Tar file constants  */
 # define TAR_MAGIC          "ustar"	/* ustar and a null */
 # define TAR_VERSION        "  "	/* Be compatable with GNU tar format */
-
-# ifndef MAJOR
-#  define MAJOR(dev) (((dev)>>8)&0xff)
-#  define MINOR(dev) ((dev)&0xff)
-# endif
 
 static const int TAR_BLOCK_SIZE = 512;
 static const int TAR_MAGIC_LEN = 6;
@@ -262,15 +258,15 @@ static inline int writeTarHeader(struct TarBallInfo *tbInfo,
 	} else if (S_ISCHR(statbuf->st_mode)) {
 		header.typeflag = CHRTYPE;
 		putOctal(header.devmajor, sizeof(header.devmajor),
-				 MAJOR(statbuf->st_rdev));
+				 major(statbuf->st_rdev));
 		putOctal(header.devminor, sizeof(header.devminor),
-				 MINOR(statbuf->st_rdev));
+				 minor(statbuf->st_rdev));
 	} else if (S_ISBLK(statbuf->st_mode)) {
 		header.typeflag = BLKTYPE;
 		putOctal(header.devmajor, sizeof(header.devmajor),
-				 MAJOR(statbuf->st_rdev));
+				 major(statbuf->st_rdev));
 		putOctal(header.devminor, sizeof(header.devminor),
-				 MINOR(statbuf->st_rdev));
+				 minor(statbuf->st_rdev));
 	} else if (S_ISFIFO(statbuf->st_mode)) {
 		header.typeflag = FIFOTYPE;
 	} else if (S_ISREG(statbuf->st_mode)) {
@@ -625,7 +621,7 @@ static char get_header_tar_Z(archive_handle_t *archive_handle)
 #endif
 
 #ifdef CONFIG_FEATURE_TAR_FROM
-# define TAR_OPT_FROM_FILE	(1 << (8 + TAR_OPT_FLAG_CREATE + TAR_OPT_FLAG_BZIP2))
+# define TAR_OPT_INCLUDE_FROM	(1 << (8 + TAR_OPT_FLAG_CREATE + TAR_OPT_FLAG_BZIP2))
 # define TAR_OPT_EXCLUDE_FROM	(1 << (8 + TAR_OPT_FLAG_CREATE + TAR_OPT_FLAG_BZIP2 + 1))
 # define TAR_OPT_STR_FROM	"T:X:"
 # define TAR_OPT_FLAG_FROM	2
@@ -675,7 +671,7 @@ static const struct option tar_long_options[] = {
 	{ "bzip2",			0,	NULL,	'j' },
 # endif
 # ifdef CONFIG_FEATURE_TAR_FROM
-	{ "from-file",		1,	NULL,	'T' },
+	{ "files-from",		1,	NULL,	'T' },
 	{ "exclude-from",	1,	NULL,	'X' },
 # endif
 # ifdef CONFIG_FEATURE_TAR_GZIP
@@ -722,7 +718,7 @@ int tar_main(int argc, char **argv)
 				&base_dir,      /* Change to dir <optarg> */
 				&tar_filename /* archive filename */
 #ifdef CONFIG_FEATURE_TAR_FROM
-				, NULL,
+				, &(tar_handle->accept),
 				&(tar_handle->reject)
 #endif
 				);
@@ -786,6 +782,9 @@ int tar_main(int argc, char **argv)
 #ifdef CONFIG_FEATURE_TAR_FROM
 	if(opt & TAR_OPT_EXCLUDE_FROM) {
 		tar_handle->reject = append_file_list_to_list(tar_handle->reject);
+	}
+	if(opt & TAR_OPT_INCLUDE_FROM) {
+		tar_handle->accept = append_file_list_to_list(tar_handle->accept);
 	}
 #endif
 

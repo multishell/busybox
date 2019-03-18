@@ -3865,7 +3865,7 @@ extern int insmod_main( int argc, char **argv)
 	++optind;
 
 	if (optind < argc) {
-		if (new_process_module_arguments(f, argc - optind, argv + optind))
+		if (!new_process_module_arguments(f, argc - optind, argv + optind))
 		{
 			goto out;
 		}
