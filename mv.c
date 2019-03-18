@@ -19,11 +19,11 @@ mv_fn(const struct FileInfo * i)
 		if ( i->stat.st_ino == destination_stat.st_ino
 		 &&  i->stat.st_dev == destination_stat.st_dev )
 			return 0;	/* Move file to itself. */
-		if ( (destination_stat.st_mode & S_IFMT) == S_IFDIR ) {
-			n = *i;
-			n.destination = join_paths(d, i->destination, basename(i->source));
-			i = &n;
-		}
+	}
+	if ( (destination_stat.st_mode & S_IFMT) == S_IFDIR ) {
+		n = *i;
+		n.destination = join_paths(d, i->destination, basename(i->source));
+		i = &n;
 	}
 	if ( rename(i->source, i->destination) == 0 )
 		return 0;

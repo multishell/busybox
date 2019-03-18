@@ -13,18 +13,15 @@
 #include <sys/mount.h>
 #include <sys/reboot.h>
 #include <sys/kdaemon.h>
-#include <asm/page.h>
 #include <sys/swap.h>
 #include <sys/sysmacros.h>
-#include <linux/serial.h>	/* for serial_struct */
-#include <sys/ioctl.h>
 
 const char		init_usage[] = "Used internally by the system.";
 char			console[16] = "";
 const char *	default_console = "/dev/tty1";
 char *			first_terminal = NULL;
 const char *	second_terminal = "/dev/tty2";
-const char *	log = "/dev/tty3";
+const char		log[] = "/dev/tty3";
 char * term_ptr = NULL;
 
 static void
@@ -39,8 +36,7 @@ message(const char * terminal, const char * pattern, ...)
 	 * has switched consoles, the open will get the new console. If we kept
 	 * the console open, we'd always print to the same one.
 	 */
-	if ( !terminal
-	 ||  ((fd = open(terminal, O_WRONLY|O_NOCTTY)) < 0)
+	if ( ((fd = open(terminal, O_WRONLY|O_NOCTTY)) < 0)
 	 ||  ((con = fdopen(fd, "w")) == NULL) )
 		return;
 
@@ -197,18 +193,6 @@ set_free_pages()
   fclose(f);
 }
 
-static int
-get_kernel_revision()
-{
-  FILE *f;
-  int major=0, minor=0, patch=0;
-
-  f = fopen("/proc/sys/kernel/osrelease","r");
-  fscanf(f,"%d.%d.%d",&major,&minor,&patch);
-  fclose(f);
-  return major*65536 + minor*256 + patch;
-}
-
 static void
 shutdown_system(int do_reboot)
 {
@@ -261,7 +245,7 @@ exit_signal(int sig)
 	*/
 }
 
-static void
+void
 configure_terminals( int serial_cons );
 
 extern int
@@ -275,7 +259,7 @@ init_main(struct FileInfo * i, int argc, char * * argv)
 	int							pid2 = 0;
 	int							create_swap= -1;
 	struct stat					statbuf;
-	const char *				tty_commands[2] = { "sbin/dbootstrap", "bin/sh"};
+	const char *				tty_commands[2] = { "sbin/dinstall", "bin/sh"};
 	char						swap[20];
 	int							serial_console = 0;
 
@@ -332,19 +316,13 @@ init_main(struct FileInfo * i, int argc, char * * argv)
 			term_ptr=__environ[j];
 		}
 	}
+	configure_terminals( serial_console );
+
 	printf("mounting /proc ...\n");
 	if (mount("/proc","/proc","proc",0,0)) {
 	  perror("mounting /proc failed\n");
 	}
 	printf("\tdone.\n");
-
-	if (get_kernel_revision() >= 2*65536+1*256+71) {
-	  /* if >= 2.1.71 kernel, /dev/console is not a symlink anymore:
-	   * use it as primary console */
-	  serial_console=-1;
-	}
-
-	configure_terminals( serial_console );
 
 	set_free_pages();
 
@@ -407,7 +385,7 @@ Read the instructions in the install.html file.
 			arguments[0] = tty_commands[0];
 			pid1 = run(tty_commands[0], arguments, first_terminal, 0);
 		}
-		if ( pid2 == 0 && second_terminal && tty_commands[1] )
+		if ( pid2 == 0 && tty_commands[1] )
 			pid2 = run(tty_commands[1], arguments, second_terminal, 1);
 		wpid = wait(&status);
 		if ( wpid > 0 ) {
@@ -422,41 +400,24 @@ Read the instructions in the install.html file.
 	}
 }
 
-static int
-check_serial()
-{
-	struct serial_struct sr;
-	if (ioctl(0, TIOCGSERIAL, &sr) < 0)
-		/* not a serial console */
-		return 0;
-	else
-		/* ttyS<line> */
-		return sr.line+1;
-}
-
 void
 configure_terminals( int serial_cons )
 {
+	//struct stat statbuf;
 	char *tty;
 
 	switch (serial_cons) {
-	case -1:
-		/* direct use of /dev/console for 2.2 kernels */
-		strcpy( console, "/dev/console" );
-		/* check if serial line (to set TERM below) */
-		serial_cons = check_serial( console );
-		break;
 	case 1:
-		strcpy( console, "/dev/cua0" );
+		strcpy( console, "/dev/ttyS0" );
 		break;
 	case 2:
-		strcpy( console, "/dev/cua1" );
+		strcpy( console, "/dev/ttyS1" );
 		break;
 	default:
 		tty = ttyname(0);
 		if (tty) {
 			strcpy( console, tty );
-			if (!strncmp( tty, "/dev/cua", 8 ))
+			if (!strncmp( tty, "/dev/ttyS", 9 ))
 				serial_cons=1;
 		}
 		else
@@ -465,17 +426,6 @@ configure_terminals( int serial_cons )
 	}
 	if (!first_terminal)
 		first_terminal = console;
-#if #cpu (sparc)
-	if (serial_cons > 0 && !strncmp(term_ptr,"TERM=linux",10))
+	if (serial_cons && !strncmp(term_ptr,"TERM=linux",10))
 		term_ptr = "TERM=vt100";
-#endif
-	if (serial_cons) {
-		/* disable other but the first terminal:
-		 * VT is not initialized anymore on 2.2 kernel when booting from
-		 * serial console, therefore modprobe is flooding the display with
-		 * "can't locate module char-major-4" messages. */
-		log = 0;
-		second_terminal = 0;
-	}
 }
-

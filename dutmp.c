@@ -1,11 +1,11 @@
 /*
- * public domain -- Dave Cinege <dcinege@psychosis.com>
+ * public domain -- Dave 'Kill a Cop' Cinege <dcinege@psychosis.com>
  * 
  * dutmp
  * Takes utmp formated file on stdin and dumps it's contents 
  * out in colon delimited fields. Easy to 'cut' for shell based 
- * versions of 'who', 'last', etc. IP Addr is output in big 
- * endian hex.
+ * versions of 'who', 'last', etc. IP Addr is output in hex, 
+ * little endian on x86.
  * 
  * made against libc6
  */
@@ -16,7 +16,7 @@
 
 const char      dutmp_usage[] = "dutmp\n"
 "\n"
-"\tDump file or stdin utmp file format to stdout, colon delimited.\n"
+"\tDump file or stdin utmp file format to stdout, pipe delimited.\n"
 "\tdutmp /var/run/utmp\n";
 
 extern int
@@ -33,7 +33,8 @@ struct utmp * ut = (struct utmp *) malloc(sizeof(struct utmp) );
 		}
 
 	while (fread (ut, 1, sizeof(struct utmp), f)) {
-		printf("%d:%d:%s:%s:%s:%s:%d:%d:%ld:%ld:%ld:%x\n", 
+		//printf("%d:%d:%s:%s:%s:%s:%d:%d:%ld:%ld:%ld:%x\n", 
+		printf("%d|%d|%s|%s|%s|%s|%d|%d|%ld|%ld|%ld|%x\n",
 		ut->ut_type, ut->ut_pid, ut->ut_line,
 		ut->ut_id, ut->ut_user,	ut->ut_host,
 		ut->ut_exit.e_termination, ut->ut_exit.e_exit,

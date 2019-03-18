@@ -2,31 +2,20 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/ioctl.h>
 #include <fcntl.h>
-
-/* ED: sparc termios is broken: revert back to old termio handling. */
-#if #cpu(sparc)
-#  define USE_OLD_TERMIO
-#endif
 
 #define BB_MORE_TERM
 
 #ifdef BB_MORE_TERM
-#  ifdef USE_OLD_TERMIO
-#	include <termio.h>
-#	define termios termio
-#	define stty(fd,argp) ioctl(fd,TCSETAF,argp)
-#  else
-#	include <termios.h>
-#	define stty(fd,argp) tcsetattr(fd,TCSANOW,argp)
-#  endif
-#	include <signal.h>
+	#include <termios.h>
+	#include <signal.h>
 
 	FILE *cin;
 	struct termios initial_settings, new_settings;
 
 	void gotsig(int sig) { 
-		stty(fileno(cin), &initial_settings);
+		tcsetattr(fileno(cin), TCSANOW, &initial_settings);
 		exit(0);
 	}
 #endif
@@ -43,28 +32,37 @@ more_fn(const struct FileInfo * i)
 	int	c;
 	int	lines = 0, tlines = 0;
 	int	next_page = 0;
+	int	rows = 24, cols = 79;
+#ifdef BB_MORE_TERM
+	long sizeb = 0;
+	struct stat st;	
+	struct winsize win;
+#endif
 	
-	if ( i ) 
-		if (! (f = fopen(i->source, "r"))) {
+	if ( i ) {
+		if (! (f = fopen(i->source, "r") )) {
 			name_and_error(i->source);
 			return 1;
 		}
+		fstat(fileno(f), &st);
+		sizeb = st.st_size / 100;
+	}
 		
 #ifdef BB_MORE_TERM
 	cin = fopen("/dev/tty", "r");
-	if (!cin)
-		cin = fopen("/dev/console", "r");
-#ifdef USE_OLD_TERMIO
-	ioctl(fileno(cin),TCGETA,&initial_settings);
-#else
 	tcgetattr(fileno(cin),&initial_settings);
-#endif
 	new_settings = initial_settings;
 	new_settings.c_lflag &= ~ICANON;
 	new_settings.c_lflag &= ~ECHO;
-	stty(fileno(cin), &new_settings);
+	tcsetattr(fileno(cin), TCSANOW, &new_settings);
 	
 	(void) signal(SIGINT, gotsig);
+
+	ioctl(STDOUT_FILENO, TIOCGWINSZ, &win);
+	if (win.ws_row > 4)	rows = win.ws_row - 2;
+	if (win.ws_col > 0)	cols = win.ws_col - 1;
+
+
 #endif
 
 	while ( (c = getc(f)) != EOF ) {
@@ -73,9 +71,9 @@ more_fn(const struct FileInfo * i)
 			int	len;
 			tlines += lines;
 			lines = 0;
-			next_page = 0;
-			if ( i && i->source )
-				len = printf("%s - line: %d", i->source, tlines);
+			next_page = 0;		//Percentage is based on bytes, not lines.
+			if ( i && i->source )	//It is not very acurate, but still useful.
+				len = printf("%s - %%%2ld - line: %d", i->source, (ftell(f) - sizeb - sizeb) / sizeb, tlines);
 			else
 				len = printf("line: %d", tlines);
 				
@@ -88,19 +86,19 @@ more_fn(const struct FileInfo * i)
 			} while ((garbage != ' ') && (garbage != '\n'));
 			
 			if (garbage == '\n') {
-				lines = 22;
-				tlines -= 22;
+				lines = rows;
+				tlines -= rows;
 			}					
 			garbage = 0;				
 			//clear line, since tabs don't overwrite.
 			while(len-- > 0)	putchar('\b');
-			while(len++ < 79)	putchar(' ');
+			while(len++ < cols)	putchar(' ');
 			while(len-- > 0)	putchar('\b');
 			fflush(stdout);
 #endif								
 		}
 		putchar(c);
-		if ( c == '\n' && ++lines == 23 )
+		if ( c == '\n' && ++lines == (rows + 1) )
 			next_page = 1;
 	}
 	if ( f != stdin )

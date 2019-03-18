@@ -13,6 +13,9 @@ monadic_main(
 
 	while ( argc > 1 && argv[1][0] == '-' ) {
 		switch ( argv[1][1] ) {
+		case 'c':
+			i->create = 1;
+			break;
 		case 'f':
 			i->force = 1;
 			break;

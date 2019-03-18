@@ -17,13 +17,11 @@ using C++ comments (//)
 After the build is complete a busybox.links file is generated to allow
 you to easily make the sym/hard links to the busybox binary.
 
-Note the modular system is Makefile based, and purposely very
+Note the modular system is Makefile based, and purposly very
 simplistic. It does no dependency checking. That is left for you
 to figure out by trial and error.
 
 Please feed patches back to:
-	Bruce Perens <bruce@perens.com>
-and
 	Dave Cinege <dcinege@psychosis.com>
 and:
-	Enrique Zanardi <ezanard@debian.org>
+	Enrique Zanardi <ezanardi@ull.es>

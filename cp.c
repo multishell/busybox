@@ -46,25 +46,25 @@ cp_fn(const struct FileInfo * i)
             close(sourceFd);
             return 1;
         }
-        /*
-         * If the destination is a directory, create a file within it.
-         */
-        if ( (destination_stat.st_mode & S_IFMT) == S_IFDIR ) {
+    }
+    /*
+     * If the destination is a directory, create a file within it.
+     */
+    if ( (destination_stat.st_mode & S_IFMT) == S_IFDIR ) {
 		destination = join_paths(
-			 d
-			,i->destination
-			,&i->source[i->directoryLength]);
+		 d
+		,i->destination
+		,&i->source[i->directoryLength]);
 
-            if ( stat(destination, &destination_stat) == 0 ) {
-                if ( i->stat.st_ino == destination_stat.st_ino
-                     &&  i->stat.st_dev == destination_stat.st_dev ) {
-                    fprintf(stderr
-                    ,"copy of %s to %s would copy file to itself.\n"
-                    ,i->source
-                    ,destination);
-                    close(sourceFd);
-                    return 1;
-                }
+        if ( stat(destination, &destination_stat) == 0 ) {
+            if ( i->stat.st_ino == destination_stat.st_ino
+             &&  i->stat.st_dev == destination_stat.st_dev ) {
+                fprintf(stderr
+                ,"copy of %s to %s would copy file to itself.\n"
+                ,i->source
+                ,destination);
+                close(sourceFd);
+                return 1;
             }
         }
     }

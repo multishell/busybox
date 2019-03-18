@@ -1,3 +1,11 @@
+/*
+   3/21/1999	Charles P. Wright <cpwright@cpwright.com>
+		searches through fstab when -a is passed
+		will try mounting stuff with all fses when passed -t auto
+
+	1999-04-17	Dave Cinege...Rewrote -t auto. Fixed ro mtab.
+*/
+
 #include "internal.h"
 #include <stdlib.h>
 #include <unistd.h>
@@ -6,11 +14,13 @@
 #include <stdio.h>
 #include <mntent.h>
 #include <sys/mount.h>
+#include <ctype.h>
 
 const char	mount_usage[] = "mount\n"
 "\t\tmount [flags] special-device directory\n"
 "\n"
 "Flags:\n"
+"\t-a:\tMount all file systems in fstab.\n"
 "\t-f:\t\"Fake\" mount. Add entry to mount table but don't mount it.\n"
 "\t-n:\tDon't write a mount table entry.\n"
 "\t-o option:\tOne of many filesystem options, listed below.\n"
@@ -120,18 +130,43 @@ mount_one(
 ,int		noMtab
 ,int		fake)
 {
-	int		error = 0;
+	int	error = 0;
 	int 	status = 0;
 
-	if ( !fake ) {
-		status = mount(
-		 blockDevice
-		,directory
-		,filesystemType
-		,flags|MS_MGC_VAL
-		,string_flags);
+	char	buf[255];
+		
+if (!fake)
+	if (*filesystemType == 'a') { 			//Will fail on real FS starting with 'a'
+
+		FILE	*f = fopen("/proc/filesystems", "r");
+
+		if (f == NULL)	return 1;
+
+		while (fgets(buf, sizeof(buf), f) != NULL) {
+			filesystemType = buf;
+			if (*filesystemType == '\t') {  // Not a nodev filesystem
+				
+				while (*filesystemType && *filesystemType != '\n')	filesystemType++;
+				*filesystemType = '\0';
+					
+				filesystemType = buf;
+				filesystemType++;	//hop past tab
+				
+				status = mount(blockDevice, directory, filesystemType,
+						flags|MS_MGC_VAL ,string_flags);
+				error = errno;
+
+				if (status == 0) break;
+			}
+		}
+		fclose(f);
+	} else {	
+
+		status = mount( blockDevice, directory, filesystemType,
+				flags|MS_MGC_VAL ,string_flags);
 		error = errno;
 	}
+
 
 	if ( status == 0 ) {
 		char *	s = &string_flags[strlen(string_flags)];
@@ -157,15 +192,23 @@ mount_one(
 			m.mnt_fsname = blockDevice;
 			m.mnt_dir = directory;
 			m.mnt_type = filesystemType ? filesystemType : "default";
-			m.mnt_opts = *string_flags ? string_flags : "rw";
+			
+			if (*string_flags) {
+				m.mnt_opts = string_flags;
+			} else {
+				if ( (flags | MS_RDONLY) == flags )
+					m.mnt_opts = "ro";
+				else	
+					m.mnt_opts = "rw";
+			}
+			
 			m.mnt_freq = 0;
 			m.mnt_passno = 0;
 			addmntent(mountTable, &m);
 			endmntent(mountTable);
 		}
 		return 0;
-	}
-	else {
+	} else {
 		fprintf(stderr, "Mount %s", blockDevice);
 		if ( filesystemType && *filesystemType )
 			fprintf(stderr, " (type %s)", filesystemType);
@@ -283,9 +326,10 @@ mount_main(struct FileInfo * i, int argc, char * * argv)
 {
 	char	string_flags[1024];
 	unsigned long	flags = 0;
-	char *	filesystemType = 0;
+	char *	filesystemType = "auto";
 	int		fake = 0;
 	int		noMtab = 0;
+	int 		all = 0;
 	
 	*string_flags = '\0';
 
@@ -341,33 +385,46 @@ mount_main(struct FileInfo * i, int argc, char * * argv)
 			flags &= ~MS_RDONLY;
 			break;
 		case 'a':
+			all = 1;
+			break;
 		default:
-			fprintf(
-			 stderr
-			,"This version of \"mount\" doesn't support"
-			 " the \"-a\" flag.\n");
+			usage(mount_usage);
 			return 1;
 		}
 		argc--;
 		argv++;
 	}
 
-	if ( argc >= 3 ) {
-		if ( mount_one(
-		 argv[1]
-		,argv[2]
-		,filesystemType
-		,flags
-		,string_flags
-		,noMtab
-		,fake) == 0 )
-			return 0;
-		else
+	if (all == 1) {
+		struct 	mntent *m;
+		FILE	*f = setmntent("/etc/fstab", "r");
+
+		if (f == NULL)	{
 			return 1;
-	}
-	else {
-		usage(mount_usage);
-		return 1;
+		}
+
+		// FIXME: Combine read routine (make new function) with unmount_all to save space.
+
+		while ((m = getmntent(f)) != NULL) {	
+			// If the file system isn't noauto, and isn't mounted on /, mount it
+			if ((!strstr(m->mnt_opts, "noauto")) && (m->mnt_dir[1] != '\0') 
+				&& !((m->mnt_type[0] == 's') && (m->mnt_type[1] == 'w')) 
+				&& !((m->mnt_type[0] == 'n') && (m->mnt_type[1] == 'f'))) {
+				mount_one(m->mnt_fsname, m->mnt_dir, m->mnt_type, flags, m->mnt_opts, noMtab, fake);	
+			}
+		}
+
+		endmntent(f);
+	} else {
+		if ( argc >= 3 ) {
+			if ( mount_one( argv[1], argv[2], filesystemType, flags, string_flags, noMtab, fake) == 0 )
+				return 0;
+			else
+				return 1;
+		} else {
+			usage(mount_usage);
+			return 1;
+		}
 	}
 	return 0;
 }

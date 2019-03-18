@@ -42,13 +42,10 @@ const char mnc_usage[] =
 int
 mnc_main(struct FileInfo * i, int argc, char **argv)
 {
- 
         int sfd;
         int ofd;
         int result;
         int len;
-        int pid;
-        char ch;
         
         struct sockaddr_in address;
         struct hostent *hostinfo;
@@ -78,19 +75,20 @@ mnc_main(struct FileInfo * i, int argc, char **argv)
                 exit(2);
         }
 
-#ifdef SELECT
         FD_ZERO(&readfds);
         FD_SET(sfd, &readfds);
-        FD_SET(fileno(stdin), &readfds);
+        FD_SET(0, &readfds);
 
         while(1)
         {
+                char ch;
                 int fd;
                 int nread;
 
                 testfds = readfds;
 
-                result = select(FD_SETSIZE, &testfds, (fd_set *) NULL, (fd_set *) NULL, (struct timeval *) 0);
+                result = select(FD_SETSIZE, &testfds, (fd_set *)0, (fd_set *)0, (struct timeval *)
+0);
 
                 if(result < 1) 
                 {
@@ -104,45 +102,23 @@ mnc_main(struct FileInfo * i, int argc, char **argv)
                                 ioctl(fd, FIONREAD, &nread);
 
                                 if (nread == 0)
+                                {
+                                        close(sfd);
                                         exit(0);
+                                }
 
                                 if(fd == sfd)
                                 {
-                                        read(sfd, &ch, 1);
-                                        write(fileno(stdout), &ch, 1);
+                                        ofd = 0;
                                 }
                                 else
                                 {
-                                        read(fileno(stdin), &ch, 1);
-                                        write(sfd, &ch, 1);
+                                        ofd = sfd;
                                 }
+
+                                read(fd, &ch, 1);
+                                write(ofd, &ch, 1);
                         }
                 }
         }
-#else
-        pid = fork();
-
-        if (!pid)
-        {
-                int retval;
-                retval = 1;
-                while(retval == 1)
-                {
-                        retval = read(fileno(stdin), &ch, 1);
-                        write(sfd, &ch, 1);
-                }
-        }
-        else
-        {
-                int retval;
-                retval = 1;
-                while(retval == 1)
-                {
-                        retval = read(sfd, &ch, 1);
-                        write(fileno(stdout), &ch, 1);
-                }
-        }
-
-        exit(0);
-#endif
 }

@@ -1,5 +1,5 @@
 /*
- * public domain -- Dave Cinege <dcinege@psychosis.com>
+ * public domain -- Dave 'Kill a Cop' Cinege <dcinege@psychosis.com>
  * 
  * makedevs
  * Make ranges of device files quickly. 

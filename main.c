@@ -65,9 +65,6 @@ static const struct Applet	applets[] = {
 #ifdef BB_LN	//bin
 { "ln",		dyadic_main, ln_fn, ln_usage,			2, -1 },
 #endif
-#ifdef BB_LOADFONT	//usr/bin
-{ "loadfont",	loadfont_main, 0, loadfont_usage,		0, 0 },
-#endif
 #ifdef BB_LOADKMAP	//sbin
 { "loadkmap",	loadkmap_main, 0, loadkmap_usage,		0, 0 },
 #endif
@@ -106,6 +103,9 @@ static const struct Applet	applets[] = {
 #endif
 #ifdef BB_MV	//bin
 { "mv",		dyadic_main, mv_fn, mv_usage,			2, -1 },
+#endif
+#ifdef BB_PRINTF	//usr/bin
+{ "printf",	printf_main, 0, printf_usage,			1, 0 },
 #endif
 #ifdef BB_PWD	//bin
 { "pwd",	pwd_main, 0, pwd_usage,				0, 0 },
@@ -174,10 +174,10 @@ main(int argc, char * * argv)
 	}
 
 #ifdef INCLUDE_DINSTALL
-	if ( strcmp(name,"dbootstrap") == 0) {
+	if ( strcmp(name,"dinstall") == 0) {
 		int status;
 
-		status = dbootstrap_main();
+		status = dinstall_main();
 		exit (status);
 	}
 #endif

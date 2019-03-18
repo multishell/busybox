@@ -10,17 +10,15 @@ Copyright 1996 Brian Candler <B.Candler@pobox.com>
 tarcat, loadkmap, various fixes, Debian maintenance
 Copyright 1998 Enrique Zanardi <ezanardi@ull.es>
 
-more(v2), makedevs, dutmp, modularization, auto links file,
+more(v2), makedevs, dutmp, modularization, auto links file, 
 various fixes, Linux Router Project maintenance
-Copyright 1998 Dave Cinege <dcinege@psychosis.com>     
+Copyright 1998 Dave Cinege <dcinege@psychosis.com>	
 
 mini-gzip(gzip), mini-netcat(mnc)
 Copyright 1998 Charles P. Wright <cpwright@villagenet.com>
 
-Please see the top of the source files for more precise individual
+
+Please see the top of the source files for more precise indivigual 
 copyright and license info.
 
 This program suite may be distributed under the GNU General Public License.
-
-Please send patches to the Debian boot-floppies package maintainer
-<boot-floppies@packages.debian.org>.

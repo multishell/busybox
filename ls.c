@@ -1,5 +1,4 @@
 #include "internal.h"
-#define umode_t mode_t
 /*
  * tiny-ls.c version 0.1.0: A minimalist 'ls'
  * Copyright (C) 1996 Brian Candler <B.Candler@pobox.com>
@@ -42,7 +41,7 @@
  * 1. requires lstat (BSD) - how do you do it without?
  */
 
-/* #define FEATURE_USERNAME */	/* show username/groupnames (libc6 uses NSS) */
+#define FEATURE_USERNAME	/* show username/groupnames (libc6 uses NSS) */
 #define FEATURE_TIMESTAMPS	/* show file timestamps */
 #define FEATURE_AUTOWIDTH	/* calculate terminal & column widths */
 #define FEATURE_FILETYPECHAR	/* enable -p and -F */
@@ -57,7 +56,7 @@
 
 #define HAS_REWINDDIR
 
-#if !defined(__GLIBC__) && (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 1)
+#if 1 /* FIXME libc 6 */
 # include <linux/types.h> 
 #else
 # include <sys/types.h> 
