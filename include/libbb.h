@@ -290,7 +290,7 @@ extern int setsockopt_broadcast(int fd);
 
 /* "new" (ipv4+ipv6) API */
 typedef struct len_and_sockaddr {
-	int len;
+	socklen_t len;
 	union {
 		struct sockaddr sa;
 		struct sockaddr_in sin;
@@ -690,7 +690,7 @@ extern const char bb_msg_standard_input[];
 extern const char bb_msg_standard_output[];
 
 extern const char bb_str_default[];
-/* NB: (bb_hexdigits_upcase[i] | 0x10) -> lowercase hex digit */
+/* NB: (bb_hexdigits_upcase[i] | 0x20) -> lowercase hex digit */
 extern const char bb_hexdigits_upcase[];
 
 extern const char bb_path_mtab_file[];
