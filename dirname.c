@@ -28,7 +28,11 @@ extern int dirname_main(int argc, char **argv)
 	char* s;
 
 	if ((argc < 2) || (**(argv + 1) == '-')) {
-		usage("dirname [file ...]\n");
+		usage("dirname [FILENAME ...]\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+				"\nStrips non-directory suffix from FILENAME\n"
+#endif
+				);
 	}
 	argv++;
 
@@ -41,5 +45,5 @@ extern int dirname_main(int argc, char **argv)
 	if (s && *s)
 		*s = '\0';
 	printf("%s\n", (s)? *argv : ".");
-	exit(TRUE);
+	return(TRUE);
 }

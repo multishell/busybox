@@ -28,14 +28,18 @@
 #include <errno.h>
 
 
-static const char chroot_usage[] = "chroot NEWROOT [COMMAND...]\n\n"
-
-	"Run COMMAND with root directory set to NEWROOT.\n";
+static const char chroot_usage[] = "chroot NEWROOT [COMMAND...]\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nRun COMMAND with root directory set to NEWROOT.\n"
+#endif
+	;
 
 
 
 int chroot_main(int argc, char **argv)
 {
+	char *prog;
+
 	if ((argc < 2) || (**(argv + 1) == '-')) {
 		usage(chroot_usage);
 	}
@@ -43,27 +47,24 @@ int chroot_main(int argc, char **argv)
 	argv++;
 
 	if (chroot(*argv) || (chdir("/"))) {
-		fprintf(stderr, "chroot: cannot change root directory to %s: %s\n",
+		fatalError("chroot: cannot change root directory to %s: %s\n", 
 				*argv, strerror(errno));
-		exit(FALSE);
 	}
 
 	argc--;
 	argv++;
 	if (argc >= 1) {
-		fprintf(stderr, "command: %s\n", *argv);
+		prog = *argv;
 		execvp(*argv, argv);
 	} else {
-		char *prog;
-
 		prog = getenv("SHELL");
 		if (!prog)
 			prog = "/bin/sh";
 		execlp(prog, prog, NULL);
 	}
-	fprintf(stderr, "chroot: cannot execute %s: %s\n",
-			*argv, strerror(errno));
-	exit(FALSE);
+	fatalError("chroot: cannot execute %s: %s\n", 
+			prog, strerror(errno));
+
 }
 
 

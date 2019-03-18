@@ -28,8 +28,11 @@
 #include <sys/stat.h>
 #include <sys/vfs.h>
 
-static const char df_usage[] = "df [filesystem ...]\n\n"
-	"Print the filesystem space used and space available.\n";
+static const char df_usage[] = "df [filesystem ...]\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nPrint the filesystem space used and space available.\n"
+#endif
+	;
 
 extern const char mtab_file[];	/* Defined in utility.c */
 
@@ -48,7 +51,6 @@ static int df(char *device, const char *mountPoint)
 		blocks_used = s.f_blocks - s.f_bfree;
 		blocks_percent_used = (long)
 			(blocks_used * 100.0 / (blocks_used + s.f_bavail) + 0.5);
-		/* Note that if /etc/fstab is missing, libc can't fix up /dev/root for us */
 		if (strcmp(device, "/dev/root") == 0) {
 			/* Adjusts device to be the real root device,
 			 * or leaves device alone if it can't find it */
@@ -106,7 +108,7 @@ extern int df_main(int argc, char **argv)
 		endmntent(mountTable);
 	}
 
-	exit(TRUE);
+	return(TRUE);
 }
 
 /*

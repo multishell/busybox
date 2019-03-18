@@ -30,14 +30,15 @@ int atexit(void (*__func) (void))
 void *__libc_stack_end;
 #endif
 
-static const struct Applet applets[] = {
+const struct BB_applet applets[] = {
 
+#ifdef BB_AR
+	{"ar", ar_main, _BB_DIR_USR_BIN},
+#endif
 #ifdef BB_BASENAME
 	{"basename", basename_main, _BB_DIR_USR_BIN},
 #endif
-#ifdef BB_BUSYBOX
 	{"busybox", busybox_main, _BB_DIR_BIN},
-#endif
 #ifdef BB_BLOCK_DEVICE
 	{"block_device", block_device_main, _BB_DIR_SBIN},
 #endif
@@ -65,8 +66,14 @@ static const struct Applet applets[] = {
 #ifdef BB_CP_MV
 	{"cp", cp_mv_main, _BB_DIR_BIN},
 #endif
+#ifdef BB_CUT
+	{"cut", cut_main, _BB_DIR_USR_BIN},
+#endif
 #ifdef BB_DATE
 	{"date", date_main, _BB_DIR_BIN},
+#endif
+#ifdef BB_DC
+	{"dc", dc_main, _BB_DIR_USR_BIN},
 #endif
 #ifdef BB_DD
 	{"dd", dd_main, _BB_DIR_BIN},
@@ -134,6 +141,9 @@ static const struct Applet applets[] = {
 #ifdef BB_HOSTNAME
 	{"hostname", hostname_main, _BB_DIR_BIN},
 #endif
+#ifdef BB_ID
+	{"id", id_main, _BB_DIR_USR_BIN},
+#endif
 #ifdef BB_INIT
 	{"init", init_main, _BB_DIR_SBIN},
 #endif
@@ -179,8 +189,8 @@ static const struct Applet applets[] = {
 #ifdef BB_MAKEDEVS
 	{"makedevs", makedevs_main, _BB_DIR_SBIN},
 #endif
-#ifdef BB_MATH
-	{"math", math_main, _BB_DIR_USR_BIN},
+#ifdef BB_MD5SUM
+	{"md5sum", md5sum_main, _BB_DIR_USR_BIN},
 #endif
 #ifdef BB_MKDIR
 	{"mkdir", mkdir_main, _BB_DIR_BIN},
@@ -197,8 +207,11 @@ static const struct Applet applets[] = {
 #ifdef BB_MKSWAP
 	{"mkswap", mkswap_main, _BB_DIR_SBIN},
 #endif
-#ifdef BB_MNC
-	{"mnc", mnc_main, _BB_DIR_USR_BIN},
+#ifdef BB_MKTEMP
+	{"mktemp", mktemp_main, _BB_DIR_BIN},
+#endif
+#ifdef BB_NC
+	{"nc", nc_main, _BB_DIR_USR_BIN},
 #endif
 #ifdef BB_MORE
 	{"more", more_main, _BB_DIR_BIN},
@@ -245,11 +258,14 @@ static const struct Applet applets[] = {
 #ifdef BB_SED
 	{"sed", sed_main, _BB_DIR_BIN},
 #endif
-#ifdef BB_SH
-	{"sh", shell_main, _BB_DIR_BIN},
+#ifdef BB_SETKEYCODES
+	{"setkeycodes", setkeycodes_main, _BB_DIR_USR_BIN},
 #endif
 #ifdef BB_SFDISK
 	{"sfdisk", sfdisk_main, _BB_DIR_SBIN},
+#endif
+#ifdef BB_SH
+	{"sh", shell_main, _BB_DIR_BIN},
 #endif
 #ifdef BB_SLEEP
 	{"sleep", sleep_main, _BB_DIR_BIN},
@@ -311,11 +327,20 @@ static const struct Applet applets[] = {
 #ifdef BB_UPTIME
 	{"uptime", uptime_main, _BB_DIR_USR_BIN},
 #endif
+#ifdef BB_UUENCODE
+	{"uuencode", uuencode_main, _BB_DIR_USR_BIN},
+#endif
+#ifdef BB_UUDECODE
+	{"uudecode", uudecode_main, _BB_DIR_USR_BIN},
+#endif
 #ifdef BB_USLEEP
 	{"usleep", usleep_main, _BB_DIR_BIN},
 #endif
 #ifdef BB_WC
 	{"wc", wc_main, _BB_DIR_USR_BIN},
+#endif
+#ifdef BB_WHICH
+	{"which", which_main, _BB_DIR_USR_BIN},
 #endif
 #ifdef BB_WHOAMI
 	{"whoami", whoami_main, _BB_DIR_USR_BIN},
@@ -338,7 +363,7 @@ int main(int argc, char **argv)
 {
 	char				*s;
 	char				*name;
-	const struct Applet	*a		= applets;
+	const struct BB_applet	*a		= applets;
 
 	for (s = name = argv[0]; *s != '\0';) {
 		if (*s++ == '/')
@@ -349,18 +374,11 @@ int main(int argc, char **argv)
 
 	while (a->name != 0) {
 		if (strcmp(name, a->name) == 0) {
-			int status;
-
-			status = ((*(a->main)) (argc, argv));
-			if (status < 0) {
-				fprintf(stderr, "%s: %s\n", a->name, strerror(errno));
-			}
-			fprintf(stderr, "\n");
-			exit(status);
+			exit(((*(a->main)) (argc, argv)));
 		}
 		a++;
 	}
-	exit(busybox_main(argc, argv));
+	return(busybox_main(argc, argv));
 }
 
 
@@ -372,18 +390,16 @@ int busybox_main(int argc, char **argv)
 	argv++;
 
 	if (been_there_done_that == 1 || argc < 1) {
-		const struct Applet *a = applets;
+		const struct BB_applet *a = applets;
 
-		fprintf(stderr, "BusyBox v%s (%s) multi-call binary -- GPL2\n\n",
-				BB_VER, BB_BT);
-		fprintf(stderr, "Usage: busybox [function] [arguments]...\n");
-		fprintf(stderr, "   or: [function] [arguments]...\n\n");
-		fprintf(stderr,
+		fprintf(stderr, "BusyBox v%s (%s) multi-call binary -- GPL2\n\n"
+				"Usage: busybox [function] [arguments]...\n"
+				"   or: [function] [arguments]...\n\n"
 				"\tBusyBox is a multi-call binary that combines many common Unix\n"
 				"\tutilities into a single executable.  Most people will create a\n"
 				"\tlink to busybox for each function they wish to use, and BusyBox\n"
-				"\twill act like whatever it was invoked as.\n");
-		fprintf(stderr, "\nCurrently defined functions:\n");
+				"\twill act like whatever it was invoked as.\n" 
+				"\nCurrently defined functions:\n", BB_VER, BB_BT);
 
 		while (a->name != 0) {
 			col +=
@@ -396,11 +412,10 @@ int busybox_main(int argc, char **argv)
 		}
 		fprintf(stderr, "\n\n");
 		exit(-1);
-	} else {
-		/* If we've already been here once, exit now */
-		been_there_done_that = 1;
-		return (main(argc, argv));
 	}
+	/* If we've already been here once, exit now */
+	been_there_done_that = 1;
+	return (main(argc, argv));
 }
 
 /*

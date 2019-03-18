@@ -113,13 +113,18 @@ static int busy_loop(FILE * input);
 static struct builtInCommand bltins[] = {
 	{"bg", "Resume a job in the background", "bg [%%job]", shell_fg_bg},
 	{"cd", "Change working directory", "cd [dir]", shell_cd},
-	{"env", "Print all environment variables", "env", shell_env},
 	{"exit", "Exit from shell()", "exit", shell_exit},
 	{"fg", "Bring job into the foreground", "fg [%%job]", shell_fg_bg},
 	{"jobs", "Lists the active jobs", "jobs", shell_jobs},
-	{"pwd", "Print current directory", "pwd", shell_pwd},
 	{"export", "Set environment variable", "export [VAR=value]", shell_export},
 	{"unset", "Unset environment variable", "unset VAR", shell_unset},
+	{NULL, NULL, NULL, NULL}
+};
+
+/* Table of built-in functions */
+static struct builtInCommand bltins_forking[] = {
+	{"env", "Print all environment variables", "env", shell_env},
+	{"pwd", "Print current directory", "pwd", shell_pwd},
 	{".", "Source-in and run commands in a file", ". filename", shell_source},
 	{"help", "List shell built-in commands", "help", shell_help},
 	{NULL, NULL, NULL, NULL}
@@ -127,8 +132,11 @@ static struct builtInCommand bltins[] = {
 
 static const char shell_usage[] =
 
-	"sh [FILE]...\n\n" "The BusyBox command interpreter (shell).\n\n";
-
+	"sh [FILE]...\n" 
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nlash: The BusyBox command interpreter (shell).\n\n"
+#endif
+	;
 
 static char cwd[1024];
 static char *prompt = "# ";
@@ -180,8 +188,7 @@ static int shell_exit(struct job *cmd, struct jobSet *junk)
 	if (!cmd->progs[0].argv[1] == 1)
 		exit TRUE;
 
-	else
-		exit(atoi(cmd->progs[0].argv[1]));
+	return(atoi(cmd->progs[0].argv[1]));
 }
 
 /* built-in 'fg' and 'bg' handler */
@@ -242,6 +249,9 @@ static int shell_help(struct job *cmd, struct jobSet *junk)
 	fprintf(stdout, "\nBuilt-in commands:\n");
 	fprintf(stdout, "-------------------\n");
 	for (x = bltins; x->cmd; x++) {
+		fprintf(stdout, "%s\t%s\n", x->cmd, x->descr);
+	}
+	for (x = bltins_forking; x->cmd; x++) {
 		fprintf(stdout, "%s\t%s\n", x->cmd, x->descr);
 	}
 	fprintf(stdout, "\n\n");
@@ -718,6 +728,7 @@ static int parseCommand(char **commandPtr, struct job *job, int *isBg)
 	return 0;
 }
 
+
 static int runCommand(struct job newJob, struct jobSet *jobList, int inBg)
 {
 	struct job *job;
@@ -725,14 +736,10 @@ static int runCommand(struct job newJob, struct jobSet *jobList, int inBg)
 	int nextin, nextout;
 	int pipefds[2];				/* pipefd[0] is for reading */
 	struct builtInCommand *x;
+#ifdef BB_FEATURE_STANDALONE_SHELL
+	const struct BB_applet *a = applets;
+#endif
 
-	/* handle built-ins here -- we don't fork() so we can't background
-	   these very easily */
-	for (x = bltins; x->cmd; x++) {
-		if (!strcmp(newJob.progs[0].argv[0], x->cmd)) {
-			return (x->function(&newJob, jobList));
-		}
-	}
 
 	nextin = 0, nextout = 1;
 	for (i = 0; i < newJob.numProgs; i++) {
@@ -741,6 +748,13 @@ static int runCommand(struct job newJob, struct jobSet *jobList, int inBg)
 			nextout = pipefds[1];
 		} else {
 			nextout = 1;
+		}
+
+		/* Match any built-ins here */
+		for (x = bltins; x->cmd; x++) {
+			if (!strcmp(newJob.progs[i].argv[0], x->cmd)) {
+				return (x->function(&newJob, jobList));
+			}
 		}
 
 		if (!(newJob.progs[i].pid = fork())) {
@@ -758,6 +772,25 @@ static int runCommand(struct job newJob, struct jobSet *jobList, int inBg)
 
 			/* explicit redirections override pipes */
 			setupRedirections(newJob.progs + i);
+
+			/* Match any built-ins here */
+			for (x = bltins_forking; x->cmd; x++) {
+				if (!strcmp(newJob.progs[i].argv[0], x->cmd)) {
+					exit (x->function(&newJob, jobList));
+				}
+			}
+#ifdef BB_FEATURE_STANDALONE_SHELL
+			/* Handle busybox internals here */
+			while (a->name != 0) {
+				if (strcmp(newJob.progs[i].argv[0], a->name) == 0) {
+					int argc;
+					char** argv=newJob.progs[i].argv;
+					for(argc=0;*argv!=NULL; argv++, argc++);
+					exit((*(a->main)) (argc, newJob.progs[i].argv));
+				}
+				a++;
+			}
+#endif
 
 			execvp(newJob.progs[i].argv[0], newJob.progs[i].argv);
 			fatalError("sh: %s: %s\n", newJob.progs[i].argv[0],
@@ -947,6 +980,7 @@ int shell_main(int argc, char **argv)
 	getcwd(cwd, sizeof(cwd));
 
 #ifdef BB_FEATURE_SH_COMMAND_EDITING
+	cmdedit_init();
 	signal(SIGWINCH, win_changed);
 	win_changed(0);
 #endif

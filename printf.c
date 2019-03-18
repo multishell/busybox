@@ -51,14 +51,12 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <sys/types.h>
-#include <getopt.h>
 #include <sys/stat.h>
 #include <string.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <fcntl.h>
 #include <ctype.h>
-#include <libintl.h>
 
 
 #ifndef S_IFMT
@@ -139,7 +137,12 @@ static void verify __P((char *s, char *end));
 /* The value to return to the calling program.  */
 static int exit_status;
 
-static const char printf_usage[] = "printf format [argument...]\n\nFormats and prints the given data.\n";
+static const char printf_usage[] = "printf FORMAT [ARGUMENT...]\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nFormats and prints ARGUMENT(s) according to FORMAT,\n"
+	"Where FORMAT controls the output exactly as in C printf.\n"
+#endif
+	;
 
 int printf_main(int argc, char **argv)
 {
@@ -167,7 +170,7 @@ int printf_main(int argc, char **argv)
     fprintf(stderr, "excess args ignored");
 */
 
-	exit(exit_status);
+	return(exit_status);
 }
 
 /* Print the text in FORMAT, using ARGV (with ARGC elements) for

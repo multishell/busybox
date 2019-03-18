@@ -49,27 +49,34 @@ static const char *dz;			/* dollar zero, .bss */
 static const char *cp_mv_usage[] =	/* .rodata */
 {
 	"cp [OPTION]... SOURCE DEST\n"
-		"   or: cp [OPTION]... SOURCE... DIRECTORY\n\n"
-		"Copy SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.\n"
+		"   or: cp [OPTION]... SOURCE... DIRECTORY\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+		"\nCopies SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.\n"
 		"\n"
-		"\t-a\tsame as -dpR\n"
-		"\t-d\tpreserve links\n"
-		"\t-p\tpreserve file attributes if possible\n"
-		"\t-R\tcopy directories recursively\n",
+		"\t-a\tSame as -dpR\n"
+		"\t-d\tPreserves links\n"
+		"\t-p\tPreserves file attributes if possible\n"
+		"\t-f\tforce (implied; ignored) - always set\n"
+		"\t-R\tCopies directories recursively\n"
+#endif
+		,
 	"mv SOURCE DEST\n"
-		"   or: mv SOURCE... DIRECTORY\n\n"
-		"Rename SOURCE to DEST, or move SOURCE(s) to DIRECTORY.\n"
+		"   or: mv SOURCE... DIRECTORY\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+		"\nRename SOURCE to DEST, or move SOURCE(s) to DIRECTORY.\n"
+#endif
 };
 
 static int recursiveFlag;
 static int followLinks;
 static int preserveFlag;
+static int forceFlag;
 
 static const char *baseSrcName;
 static int		   srcDirFlag;
 static struct stat srcStatBuf;
 
-static char		   baseDestName[PATH_MAX + 1];
+static char		   baseDestName[BUFSIZ + 1];
 static size_t	   baseDestLen;
 static int		   destDirFlag;
 static struct stat destStatBuf;
@@ -83,7 +90,7 @@ static
 void name_too_long__exit (void)
 {
 	fprintf(stderr, name_too_long, dz);
-	exit FALSE;
+	exit(FALSE);
 }
 
 static void
@@ -92,12 +99,12 @@ fill_baseDest_buf(char *_buf, size_t * _buflen) {
 	if ((srcBasename = strrchr(baseSrcName, '/')) == NULL) {
 		srcBasename = baseSrcName;
 		if (_buf[*_buflen - 1] != '/') {
-			if (++(*_buflen) > PATH_MAX)
+			if (++(*_buflen) > BUFSIZ)
 				name_too_long__exit();
 			strcat(_buf, "/");
 		}
 	}
-	if (*_buflen + strlen(srcBasename) > PATH_MAX)
+	if (*_buflen + strlen(srcBasename) > BUFSIZ)
 		name_too_long__exit();
 	strcat(_buf, srcBasename);
 	return;
@@ -107,7 +114,7 @@ fill_baseDest_buf(char *_buf, size_t * _buflen) {
 static int
 cp_mv_Action(const char *fileName, struct stat *statbuf, void* junk)
 {
-	char		destName[PATH_MAX + 1];
+	char		destName[BUFSIZ + 1];
 	size_t		destLen;
 	const char *srcBasename;
 	char	   *name;
@@ -123,7 +130,7 @@ cp_mv_Action(const char *fileName, struct stat *statbuf, void* junk)
 		srcBasename = (strstr(fileName, baseSrcName)
 					   + strlen(baseSrcName));
 
-		if (destLen + strlen(srcBasename) > PATH_MAX) {
+		if (destLen + strlen(srcBasename) > BUFSIZ) {
 			fprintf(stderr, name_too_long, dz);
 			return FALSE;
 		}
@@ -161,7 +168,7 @@ cp_mv_Action(const char *fileName, struct stat *statbuf, void* junk)
 			add_to_ino_dev_hashtable(statbuf, destName);
 		}
 	}
-	return copyFile(fileName, destName, preserveFlag, followLinks);
+	return copyFile(fileName, destName, preserveFlag, followLinks, forceFlag);
 }
 
 static int
@@ -194,9 +201,9 @@ extern int cp_mv_main(int argc, char **argv)
 	argv++;
 
 	if (dz_i == is_cp) {
-		recursiveFlag = preserveFlag = FALSE;
+		recursiveFlag = preserveFlag = forceFlag = FALSE;
 		followLinks = TRUE;
-		while (**argv == '-') {
+		while (*argv && **argv == '-') {
 			while (*++(*argv)) {
 				switch (**argv) {
 				case 'a':
@@ -213,6 +220,9 @@ extern int cp_mv_main(int argc, char **argv)
 				case 'R':
 					recursiveFlag = TRUE;
 					break;
+				case 'f':
+					forceFlag = TRUE;
+					break;
 				default:
 					usage(cp_mv_usage[is_cp]);
 				}
@@ -220,12 +230,16 @@ extern int cp_mv_main(int argc, char **argv)
 			argc--;
 			argv++;
 		}
+		if (argc < 2) {
+			usage(cp_mv_usage[dz_i]);
+		}
 	} else {					/* (dz_i == is_mv) */
 		recursiveFlag = preserveFlag = TRUE;
 		followLinks = FALSE;
 	}
+	
 
-	if (strlen(argv[argc - 1]) > PATH_MAX) {
+	if (strlen(argv[argc - 1]) > BUFSIZ) {
 		fprintf(stderr, name_too_long, "cp");
 		goto exit_false;
 	}
@@ -247,7 +261,7 @@ extern int cp_mv_main(int argc, char **argv)
 
 		baseSrcName = *(argv++);
 
-		if ((srcLen = strlen(baseSrcName)) > PATH_MAX)
+		if ((srcLen = strlen(baseSrcName)) > BUFSIZ)
 			name_too_long__exit();
 
 		if (srcLen == 0) continue; /* "" */
@@ -261,7 +275,7 @@ extern int cp_mv_main(int argc, char **argv)
 			int			state = 0;
 			char		*pushd, *d, *p;
 
-			if ((pushd = getcwd(NULL, PATH_MAX + 1)) == NULL) {
+			if ((pushd = getcwd(NULL, BUFSIZ + 1)) == NULL) {
 				fprintf(stderr, "%s: getcwd(): %s\n", dz, strerror(errno));
 				continue;
 			}
@@ -269,7 +283,7 @@ extern int cp_mv_main(int argc, char **argv)
 				fprintf(stderr, "%s: chdir(%s): %s\n", dz, baseSrcName, strerror(errno));
 				continue;
 			}
-			if ((d = getcwd(NULL, PATH_MAX + 1)) == NULL) {
+			if ((d = getcwd(NULL, BUFSIZ + 1)) == NULL) {
 				fprintf(stderr, "%s: getcwd(): %s\n", dz, strerror(errno));
 				continue;
 			}
@@ -319,10 +333,9 @@ extern int cp_mv_main(int argc, char **argv)
 		if (flags_memo)
 			*(baseDestName + baseDestLen) = '\0';
 	}
-// exit_true:
-	exit TRUE;
+	return( TRUE);
  exit_false:
-	exit FALSE;
+	return( FALSE);
 }
 
 /*

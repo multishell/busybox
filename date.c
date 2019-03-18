@@ -40,12 +40,14 @@
    mail commands */
 
 static const char date_usage[] = "date [OPTION]... [+FORMAT]\n"
-	"  or:  date [OPTION] [MMDDhhmm[[CC]YY][.ss]]\n\n"
-	"Display the current time in the given FORMAT, or set the system date.\n"
-	"\nOptions:\n\t-R\t\toutput RFC-822 compliant date string\n"
-	"\t-s\t\tset time described by STRING\n"
-
-	"\t-u\t\tprint or set Coordinated Universal Time\n";
+	"  or:  date [OPTION] [MMDDhhmm[[CC]YY][.ss]]\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nDisplays the current time in the given FORMAT, or sets the system date.\n"
+	"\nOptions:\n\t-R\tOutputs RFC-822 compliant date string\n"
+	"\t-s\tSets time described by STRING\n"
+	"\t-u\tPrints or sets Coordinated Universal Time\n"
+#endif
+	;
 
 
 /* Input parsing code is always bulky - used heavy duty libc stuff as
@@ -179,18 +181,18 @@ int date_main(int argc, char **argv)
 					set_time = 1;
 					if (date_str != NULL)
 						usage(date_usage);
-					date_str = optarg;
+					date_str = *argv;
 					break;
 				case 'u':
 					utc = 1;
 					if (putenv("TZ=UTC0") != 0) 
 						fatalError(memory_exhausted, "date");
-					/* Look ma, no break.  Don't fix it either. */
+					break;
 				case 'd':
 					use_arg = 1;
 					if (date_str != NULL)
 						usage(date_usage);
-					date_str = optarg;
+					date_str = *argv;
 					break;
 				case '-':
 					usage(date_usage);
@@ -271,6 +273,5 @@ int date_main(int argc, char **argv)
 	strftime(t_buff, 200, date_fmt, &tm_time);
 	printf("%s\n", t_buff);
 
-	exit(TRUE);
-
+	return(TRUE);
 }

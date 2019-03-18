@@ -30,16 +30,21 @@
 #include <stdio.h>
 #include <dirent.h>
 #include <errno.h>
-#include <sys/param.h>			/* for PATH_MAX */
 
 static const char ln_usage[] =
-	"ln [OPTION] TARGET... LINK_NAME|DIRECTORY\n\n"
-	"Create a link named LINK_NAME or DIRECTORY to the specified TARGET\n\n"
+	"ln [OPTION] TARGET... LINK_NAME|DIRECTORY\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nCreate a link named LINK_NAME or DIRECTORY to the specified TARGET\n"
+	"\nYou may use '--' to indicate that all following arguments are non-options.\n\n"
 	"Options:\n"
 	"\t-s\tmake symbolic links instead of hard links\n"
 
 	"\t-f\tremove existing destination files\n"
-	"\t-n\tno dereference symlinks - treat like normal file\n";
+#if 0
+	"\t-n\tno dereference symlinks - treat like normal file\n"
+#endif
+#endif
+	;
 
 static int symlinkFlag = FALSE;
 static int removeoldFlag = FALSE;
@@ -49,64 +54,78 @@ extern int ln_main(int argc, char **argv)
 {
 	char *linkName;
 	int linkIntoDirFlag;
+	int stopIt = FALSE;
 
-	if (argc < 3) {
-		usage(ln_usage);
-	}
 	argc--;
 	argv++;
 
 	/* Parse any options */
-	while (**argv == '-') {
-		while (*++(*argv))
-			switch (**argv) {
-			case 's':
-				symlinkFlag = TRUE;
-				break;
-			case 'f':
-				removeoldFlag = TRUE;
-				break;
-			case 'n':
-				followLinks = FALSE;
-				break;
-			default:
-				usage(ln_usage);
-			}
-		argc--;
-		argv++;
+	while (argc > 0 && stopIt == FALSE) {
+		if (**argv == '-') {
+			while (*++(*argv))
+				switch (**argv) {
+					case 's':
+						symlinkFlag = TRUE;
+						break;
+					case 'f':
+						removeoldFlag = TRUE;
+						break;
+					case 'n':
+						followLinks = FALSE;
+						break;
+					case '-':
+						stopIt = TRUE;
+						break;
+					default:
+						usage(ln_usage);
+				}
+			argc--;
+			argv++;
+		}
+		else
+			break;
+	}
+
+	if (argc < 2) {
+		usage(ln_usage);
 	}
 
 	linkName = argv[argc - 1];
 
-	if (strlen(linkName) > PATH_MAX) {
+	if (strlen(linkName) > BUFSIZ) {
 		fprintf(stderr, name_too_long, "ln");
 		exit FALSE;
 	}
 
 	linkIntoDirFlag = isDirectory(linkName, TRUE, NULL);
 
-	if ((argc > 3) && !linkIntoDirFlag) {
+	if ((argc >= 3) && linkIntoDirFlag == FALSE) {
 		fprintf(stderr, not_a_directory, "ln", linkName);
 		exit FALSE;
 	}
 
 	while (argc-- >= 2) {
-		char srcName[PATH_MAX + 1];
-		int nChars, status;
+#if 0
+		char srcName[BUFSIZ + 1];
+		int nChars;
+#endif
+		int status;
 
-		if (strlen(*argv) > PATH_MAX) {
+		if (strlen(*argv) > BUFSIZ) {
 			fprintf(stderr, name_too_long, "ln");
 			exit FALSE;
 		}
 
+#if 0
 		if (followLinks == FALSE) {
 			strcpy(srcName, *argv);
 		} else {
-			/* Warning!  This can silently truncate if > PATH_MAX, but
-			   I don't think that there can be one > PATH_MAX anyway. */
-			nChars = readlink(*argv, srcName, PATH_MAX);
+			/* Warning!  This can silently truncate if > BUFSIZ, but
+			   I don't think that there can be one > BUFSIZ anyway. */
+			nChars = readlink(*argv, srcName, BUFSIZ);
 			srcName[nChars] = '\0';
 		}
+#endif
 
 		if (removeoldFlag == TRUE) {
 			status = (unlink(linkName) && errno != ENOENT);
@@ -125,7 +144,7 @@ extern int ln_main(int argc, char **argv)
 			exit FALSE;
 		}
 	}
-	exit TRUE;
+	return( TRUE);
 }
 
 /*

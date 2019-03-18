@@ -19,7 +19,7 @@
 #
 
 PROG      := busybox
-VERSION   := 0.43
+VERSION   := 0.45
 BUILDTIME := $(shell TZ=UTC date --utc "+%Y.%m.%d-%H:%M%z")
 export VERSION
 
@@ -31,55 +31,47 @@ DODEBUG = false
 # If you want a static binary, turn this on.
 DOSTATIC = false
 
-# This will choke on a non-debian system
-ARCH =`uname -m | sed -e 's/i.86/i386/' | sed -e 's/sparc.*/sparc/'`
+# To compile vs an alternative libc, you may need to use/adjust
+# the following lines to meet your needs.  This is how I did it...
+#CFLAGS+=-nostdinc -I/home/andersen/CVS/uC-libc/include -I/usr/include/linux
+#LDFLAGS+=-nostdlib
+#LIBRARIES = /home/andersen/CVS/uC-libc/libc.a
+
 
 CC = gcc
 
-GCCMAJVERSION = $(shell $(CC) --version | sed -n "s/^[^0-9]*\([0-9]\)\.\([0-9].*\)[\.].*/\1/p")
-GCCMINVERSION = $(shell $(CC) --version | sed -n "s/^[^0-9]*\([0-9]\)\.\([0-9].*\)[\.].*/\2/p")
+# use '-Os' optimization if available, else use -O2
+OPTIMIZATION = $(shell if $(CC) -Os -S -o /dev/null -xc /dev/null >/dev/null 2>&1; \
+    then echo "-Os"; else echo "-O2" ; fi)
 
-
-GCCSUPPORTSOPTSIZE = $(shell			\
-if ( test $(GCCMAJVERSION) -eq 2 ) ; then	\
-    if ( test $(GCCMINVERSION) -ge 66 ) ; then	\
-	echo "true";				\
-    else					\
-	echo "false";				\
-    fi;						\
-else						\
-    if ( test $(GCCMAJVERSION) -gt 2 ) ; then	\
-	echo "true";				\
-    else					\
-	echo "false";				\
-    fi;						\
-fi; )
-
-
-ifeq ($(GCCSUPPORTSOPTSIZE), true)
-    OPTIMIZATION = -Os
-else
-    OPTIMIZATION = -O2
-endif
 
 # Allow alternative stripping tools to be used...
 ifndef $(STRIPTOOL)
     STRIPTOOL = strip
 endif
 
-
 # -D_GNU_SOURCE is needed because environ is used in init.c
 ifeq ($(DODEBUG),true)
-    CFLAGS += -Wall -g -D_GNU_SOURCE
-    LDFLAGS = 
+    CFLAGS += -Wall -g -fno-builtin -D_GNU_SOURCE
+    LDFLAGS += 
     STRIP   =
 else
     CFLAGS  += -Wall $(OPTIMIZATION) -fomit-frame-pointer -fno-builtin -D_GNU_SOURCE
-    LDFLAGS  = -s
+    LDFLAGS  += -s
     STRIP    = $(STRIPTOOL) --remove-section=.note --remove-section=.comment $(PROG)
     #Only staticly link when _not_ debugging 
     ifeq ($(DOSTATIC),true)
 	LDFLAGS += --static
+	#
+	#use '-ffunction-sections -fdata-sections' and '--gc-sections' if they work
+	#to try and strip out any unused junk.  Doesn't do much for me, but you may
+	#want to give it a shot...
+	#
+	#ifeq ($(shell $(CC) -ffunction-sections -fdata-sections -S \
+	#	-o /dev/null -xc /dev/null 2>/dev/null && $(LD) --gc-sections -v >/dev/null && echo 1),1)
+	#	CFLAGS += -ffunction-sections -fdata-sections
+	#	LDFLAGS += --gc-sections
+	#endif
     endif
 endif
 
@@ -87,7 +79,7 @@ ifndef $(PREFIX)
     PREFIX = `pwd`/_install
 endif
 
-LIBRARIES =
+
 OBJECTS   = $(shell ./busybox.sh) busybox.o messages.o utility.o
 CFLAGS    += -DBB_VER='"$(VERSION)"'
 CFLAGS    += -DBB_BT='"$(BUILDTIME)"'
@@ -95,17 +87,35 @@ ifdef BB_INIT_SCRIPT
     CFLAGS += -DINIT_SCRIPT='"$(BB_INIT_SCRIPT)"'
 endif
 
-all: busybox busybox.links
+all: busybox busybox.links doc
+
+doc: docs/BusyBox.txt docs/BusyBox.1 docs/BusyBox.html
+
+docs/BusyBox.txt: docs/busybox.pod
+	@echo
+	@echo BusyBox Documentation
+	@echo
+	- pod2text docs/busybox.pod > docs/BusyBox.txt
+
+docs/BusyBox.1: docs/busybox.pod
+	- pod2man --center=BusyBox --release="version $(VERSION)" docs/busybox.pod > docs/BusyBox.1
+
+docs/BusyBox.html: docs/busybox.lineo.com/BusyBox.html
+	- rm -f docs/BusyBox.html
+	- ln -s busybox.lineo.com/BusyBox.html docs/BusyBox.html
+
+docs/busybox.lineo.com/BusyBox.html: docs/busybox.pod
+	- pod2html docs/busybox.pod > docs/busybox.lineo.com/BusyBox.html
+	- rm -f pod2html*
 
 busybox: $(OBJECTS)
 	$(CC) $(LDFLAGS) -o $@ $^ $(LIBRARIES)
 	$(STRIP)
-	$(MAKE) -C docs
-	
+
 busybox.links: busybox.def.h
 	- ./busybox.mkll | sort >$@
 
-regexp.o nfsmount.o: %.o: %.h
+regexp.o nfsmount.o cmdedit.o: %.o: %.h
 $(OBJECTS): %.o: busybox.def.h internal.h  %.c Makefile
 
 test tests:
@@ -115,6 +125,8 @@ clean:
 	- rm -f busybox.links *~ *.o core
 	- rm -rf _install
 	- cd tests && $(MAKE) clean
+	- rm -f docs/BusyBox.html docs/busybox.lineo.com/BusyBox.html \
+		docs/BusyBox.1 docs/BusyBox.txt pod2html*
 
 distclean: clean
 	- rm -f busybox
@@ -123,8 +135,7 @@ distclean: clean
 install: busybox busybox.links
 	./install.sh $(PREFIX)
 
-dist release: distclean
-	$(MAKE) -C docs
+dist release: distclean doc
 	cd ..;					\
 	rm -rf busybox-$(VERSION);		\
 	cp -a busybox busybox-$(VERSION);	\

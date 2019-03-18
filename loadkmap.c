@@ -29,8 +29,11 @@
 #include <sys/ioctl.h>
 
 
-static const char loadkmap_usage[] = "loadkmap\n\n"
-	"Loads a binary keyboard translation table from standard input.\n";
+static const char loadkmap_usage[] = "loadkmap\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"Loads a binary keyboard translation table from standard input.\n"
+#endif
+	;
 
 
 int loadkmap_main(int argc, char **argv)
@@ -91,5 +94,5 @@ int loadkmap_main(int argc, char **argv)
 	/* Don't bother to close files.  Exit does that 
 	 * automagically, so we can save a few bytes */
 	/* close(fd); */
-	exit(TRUE);
+	return(TRUE);
 }

@@ -1,6 +1,6 @@
 /* vi: set sw=4 ts=4: */
 /*
- * $Id: ping.c,v 1.12 2000/04/13 18:49:43 erik Exp $
+ * $Id: ping.c,v 1.17 2000/06/19 18:51:53 andersen Exp $
  * Mini ping implementation for busybox
  *
  * Copyright (C) 1999 by Randolph Chung <tausq@debian.org>
@@ -48,6 +48,88 @@
 #include <stdlib.h>
 #include <errno.h>
 
+
+/* It turns out that libc5 doesn't have proper icmp support
+ * built into it header files, so we have to supplement it */
+#if __GNU_LIBRARY__ < 5
+typedef unsigned int socklen_t;
+
+#define	ICMP_MINLEN	8				/* abs minimum */
+
+struct icmp_ra_addr
+{
+  u_int32_t ira_addr;
+  u_int32_t ira_preference;
+};
+
+
+struct icmp
+{
+  u_int8_t  icmp_type;	/* type of message, see below */
+  u_int8_t  icmp_code;	/* type sub code */
+  u_int16_t icmp_cksum;	/* ones complement checksum of struct */
+  union
+  {
+    u_char ih_pptr;		/* ICMP_PARAMPROB */
+    struct in_addr ih_gwaddr;	/* gateway address */
+    struct ih_idseq		/* echo datagram */
+    {
+      u_int16_t icd_id;
+      u_int16_t icd_seq;
+    } ih_idseq;
+    u_int32_t ih_void;
+
+    /* ICMP_UNREACH_NEEDFRAG -- Path MTU Discovery (RFC1191) */
+    struct ih_pmtu
+    {
+      u_int16_t ipm_void;
+      u_int16_t ipm_nextmtu;
+    } ih_pmtu;
+
+    struct ih_rtradv
+    {
+      u_int8_t irt_num_addrs;
+      u_int8_t irt_wpa;
+      u_int16_t irt_lifetime;
+    } ih_rtradv;
+  } icmp_hun;
+#define	icmp_pptr	icmp_hun.ih_pptr
+#define	icmp_gwaddr	icmp_hun.ih_gwaddr
+#define	icmp_id		icmp_hun.ih_idseq.icd_id
+#define	icmp_seq	icmp_hun.ih_idseq.icd_seq
+#define	icmp_void	icmp_hun.ih_void
+#define	icmp_pmvoid	icmp_hun.ih_pmtu.ipm_void
+#define	icmp_nextmtu	icmp_hun.ih_pmtu.ipm_nextmtu
+#define	icmp_num_addrs	icmp_hun.ih_rtradv.irt_num_addrs
+#define	icmp_wpa	icmp_hun.ih_rtradv.irt_wpa
+#define	icmp_lifetime	icmp_hun.ih_rtradv.irt_lifetime
+  union
+  {
+    struct
+    {
+      u_int32_t its_otime;
+      u_int32_t its_rtime;
+      u_int32_t its_ttime;
+    } id_ts;
+    struct
+    {
+      struct ip idi_ip;
+      /* options and then 64 bits of data */
+    } id_ip;
+    struct icmp_ra_addr id_radv;
+    u_int32_t   id_mask;
+    u_int8_t    id_data[1];
+  } icmp_dun;
+#define	icmp_otime	icmp_dun.id_ts.its_otime
+#define	icmp_rtime	icmp_dun.id_ts.its_rtime
+#define	icmp_ttime	icmp_dun.id_ts.its_ttime
+#define	icmp_ip		icmp_dun.id_ip.idi_ip
+#define	icmp_radv	icmp_dun.id_radv
+#define	icmp_mask	icmp_dun.id_mask
+#define	icmp_data	icmp_dun.id_data
+};
+#endif
+
 #define DEFDATALEN      56
 #define	MAXIPLEN	60
 #define	MAXICMPLEN	76
@@ -63,6 +145,8 @@
 #define	SET(bit)	(A(bit) |= B(bit))
 #define	CLR(bit)	(A(bit) &= (~B(bit)))
 #define	TST(bit)	(A(bit) & B(bit))
+
+static void ping(const char *host);
 
 /* common routines */
 static int in_cksum(unsigned short *buf, int sz)
@@ -90,7 +174,11 @@ static int in_cksum(unsigned short *buf, int sz)
 
 /* simple version */
 #ifdef BB_SIMPLE_PING
-static const char *ping_usage = "ping host\n\n";
+static const char *ping_usage = "ping host\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nSend ICMP ECHO_REQUEST packets to network hosts\n"
+#endif
+	;
 
 static char *hostname = NULL;
 
@@ -100,7 +188,7 @@ static void noresp(int ign)
 	exit(0);
 }
 
-static int ping(const char *host)
+static void ping(const char *host)
 {
 	struct hostent *h;
 	struct sockaddr_in pingaddr;
@@ -109,7 +197,7 @@ static int ping(const char *host)
 	char packet[DEFDATALEN + MAXIPLEN + MAXICMPLEN];
 
 	if ((pingsock = socket(AF_INET, SOCK_RAW, 1)) < 0) {	/* 1 == ICMP */
-		perror("ping");
+		perror("ping: creating a raw socket");
 		exit(1);
 	}
 
@@ -136,7 +224,7 @@ static int ping(const char *host)
 
 	if (c < 0 || c != sizeof(packet)) {
 		if (c < 0)
-			perror("ping");
+			perror("ping: sendto");
 		fprintf(stderr, "ping: write incomplete\n");
 		exit(1);
 	}
@@ -152,7 +240,7 @@ static int ping(const char *host)
 						  (struct sockaddr *) &from, &fromlen)) < 0) {
 			if (errno == EINTR)
 				continue;
-			perror("ping");
+			perror("ping: recvfrom");
 			continue;
 		}
 		if (c >= 76) {			/* ip + icmp */
@@ -164,7 +252,7 @@ static int ping(const char *host)
 		}
 	}
 	printf("%s is alive!\n", hostname);
-	return (TRUE);
+	return;
 }
 
 extern int ping_main(int argc, char **argv)
@@ -177,18 +265,23 @@ extern int ping_main(int argc, char **argv)
 	exit(TRUE);
 }
 
-#else
+#else /* ! BB_SIMPLE_PING */
 /* full(er) version */
-static const char *ping_usage = "ping [OPTION]... host\n\n"
-	"Send ICMP ECHO_REQUEST packets to network hosts.\n\n"
+static const char *ping_usage = "ping [OPTION]... host\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nSend ICMP ECHO_REQUEST packets to network hosts.\n\n"
 	"Options:\n"
 	"\t-c COUNT\tSend only COUNT pings.\n"
+	"\t-s SIZE\t\tSend SIZE data bytes in packets (default=56).\n"
 	"\t-q\t\tQuiet mode, only displays output at start\n"
-	"\t\t\tand when finished.\n"; 
+	"\t\t\tand when finished.\n"
+#endif
+	;
 
 static char *hostname = NULL;
 static struct sockaddr_in pingaddr;
 static int pingsock = -1;
+static int datalen = DEFDATALEN;
 
 static long ntransmitted = 0, nreceived = 0, nrepeats = 0, pingcount = 0;
 static int myid = 0, options = 0;
@@ -198,8 +291,6 @@ static char rcvd_tbl[MAX_DUP_CHK / 8];
 static void sendping(int);
 static void pingstats(int);
 static void unpack(char *, int, struct sockaddr_in *);
-
-static void ping(char *);
 
 /**************************************************************************/
 
@@ -227,7 +318,7 @@ static void sendping(int ign)
 {
 	struct icmp *pkt;
 	int i;
-	char packet[DEFDATALEN + 8];
+	char packet[datalen + 8];
 
 	pkt = (struct icmp *) packet;
 
@@ -244,13 +335,11 @@ static void sendping(int ign)
 	i = sendto(pingsock, packet, sizeof(packet), 0,
 			   (struct sockaddr *) &pingaddr, sizeof(struct sockaddr_in));
 
-	if (i < 0 || i != sizeof(packet)) {
-		if (i < 0)
-			perror("ping");
-		fprintf(stderr, "ping wrote %d chars; %d expected\n", i,
-				sizeof(packet));
-		exit(1);
-	}
+	if (i < 0)
+		fatalError("ping: sendto: %s\n", strerror(errno));
+	else if (i != sizeof(packet))
+		fatalError("ping wrote %d chars; %d expected\n", i,
+			   (int)sizeof(packet));
 
 	signal(SIGALRM, sendping);
 	if (pingcount == 0 || ntransmitted < pingcount) {	/* schedule next in 1s */
@@ -259,6 +348,26 @@ static void sendping(int ign)
 		/* todo, don't necessarily need to wait so long... */
 		signal(SIGALRM, pingstats);
 		alarm(MAXWAIT);
+	}
+}
+
+static char *icmp_type_name (int id)
+{
+	switch (id) {
+	case ICMP_ECHOREPLY: 		return "Echo Reply";
+	case ICMP_DEST_UNREACH: 	return "Destination Unreachable";
+	case ICMP_SOURCE_QUENCH: 	return "Source Quench";
+	case ICMP_REDIRECT: 		return "Redirect (change route)";
+	case ICMP_ECHO: 			return "Echo Request";
+	case ICMP_TIME_EXCEEDED: 	return "Time Exceeded";
+	case ICMP_PARAMETERPROB: 	return "Parameter Problem";
+	case ICMP_TIMESTAMP: 		return "Timestamp Request";
+	case ICMP_TIMESTAMPREPLY: 	return "Timestamp Reply";
+	case ICMP_INFO_REQUEST: 	return "Information Request";
+	case ICMP_INFO_REPLY: 		return "Information Reply";
+	case ICMP_ADDRESS: 			return "Address Mask Request";
+	case ICMP_ADDRESSREPLY: 	return "Address Mask Reply";
+	default: 					return "unknown ICMP type";
 	}
 }
 
@@ -276,16 +385,17 @@ static void unpack(char *buf, int sz, struct sockaddr_in *from)
 	iphdr = (struct iphdr *) buf;
 	hlen = iphdr->ihl << 2;
 	/* discard if too short */
-	if (sz < (DEFDATALEN + ICMP_MINLEN))
+	if (sz < (datalen + ICMP_MINLEN))
 		return;
 
 	sz -= hlen;
 	icmppkt = (struct icmp *) (buf + hlen);
 
+	if (icmppkt->icmp_id != myid)
+	    return;				/* not our ping */
+
 	if (icmppkt->icmp_type == ICMP_ECHOREPLY) {
-		if (icmppkt->icmp_id != myid)
-			return;				/* not our ping */
-		++nreceived;
+	    ++nreceived;
 		tp = (struct timeval *) icmppkt->icmp_data;
 
 		if ((tv.tv_usec -= tp->tv_usec) < 0) {
@@ -321,18 +431,19 @@ static void unpack(char *buf, int sz, struct sockaddr_in *from)
 		if (dupflag)
 			printf(" (DUP!)");
 		printf("\n");
-	} else {
-		fprintf(stderr,
-				"Warning: unknown ICMP packet received (not echo-reply)\n");
-	}
+	} else 
+		if (icmppkt->icmp_type != ICMP_ECHO)
+			fprintf(stderr,
+					"Warning: Got ICMP %d (%s)\n",
+					icmppkt->icmp_type, icmp_type_name (icmppkt->icmp_type));
 }
 
-static void ping(char *host)
+static void ping(const char *host)
 {
 	struct protoent *proto;
 	struct hostent *h;
 	char buf[MAXHOSTNAMELEN];
-	char packet[DEFDATALEN + MAXIPLEN + MAXICMPLEN];
+	char packet[datalen + MAXIPLEN + MAXICMPLEN];
 	int sockopt;
 
 	proto = getprotobyname("icmp");
@@ -343,7 +454,7 @@ static void ping(char *host)
 		if (errno == EPERM) {
 			fprintf(stderr, "ping: permission denied. (are you root?)\n");
 		} else {
-			perror("ping");
+			perror("ping: creating a raw socket");
 		}
 		exit(1);
 	}
@@ -383,7 +494,7 @@ static void ping(char *host)
 	printf("PING %s (%s): %d data bytes\n",
 		   hostname,
 		   inet_ntoa(*(struct in_addr *) &pingaddr.sin_addr.s_addr),
-		   DEFDATALEN);
+		   datalen);
 
 	signal(SIGINT, pingstats);
 
@@ -393,14 +504,14 @@ static void ping(char *host)
 	/* listen for replies */
 	while (1) {
 		struct sockaddr_in from;
-		size_t fromlen = sizeof(from);
+		socklen_t fromlen = (socklen_t) sizeof(from);
 		int c;
 
 		if ((c = recvfrom(pingsock, packet, sizeof(packet), 0,
 						  (struct sockaddr *) &from, &fromlen)) < 0) {
 			if (errno == EINTR)
 				continue;
-			perror("ping");
+			perror("ping: recvfrom");
 			continue;
 		}
 		unpack(packet, c, &from);
@@ -426,9 +537,16 @@ extern int ping_main(int argc, char **argv)
 			options |= O_QUIET;
 			break;
 		case 'c':
-			argc--;
+			if (--argc <= 0)
+			        usage(ping_usage);
 			argv++;
 			pingcount = atoi(*argv);
+			break;
+		case 's':
+			if (--argc <= 0)
+			        usage(ping_usage);
+			argv++;
+			datalen = atoi(*argv);
 			break;
 		default:
 			usage(ping_usage);
@@ -441,9 +559,9 @@ extern int ping_main(int argc, char **argv)
 
 	myid = getpid() & 0xFFFF;
 	ping(*argv);
-	exit(TRUE);
+	return(TRUE);
 }
-#endif
+#endif /* ! BB_SIMPLE_PING */
 
 /*
  * Copyright (c) 1989 The Regents of the University of California.

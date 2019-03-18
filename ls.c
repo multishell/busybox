@@ -86,8 +86,9 @@
 #define DISP_DOT	8			/* show . and .. */
 #define DISP_NUMERIC	16		/* numeric uid and gid */
 #define DISP_FULLTIME	32		/* show extended time display */
-#define DIR_NOLIST	64			/* show directory as itself, not contents */
+#define DIR_NOLIST		64		/* show directory as itself, not contents */
 #define DISP_DIRNAME	128		/* show directory name (for internal use) */
+#define DISP_RECURSIVE	256		/* Do a recursive listing */
 
 #ifndef MAJOR
 #define MAJOR(dev) (((dev)>>8)&0xff)
@@ -183,7 +184,7 @@ static char append_char(mode_t mode)
 static void list_single(const char *name, struct stat *info,
 						const char *fullname)
 {
-	char scratch[PATH_MAX + 1];
+	char scratch[BUFSIZ + 1];
 	short len = strlen(name);
 
 #ifdef BB_FEATURE_LS_FILETYPES
@@ -449,7 +450,12 @@ static const char ls_usage[] = "ls [-1a"
 #ifdef BB_FEATURE_LS_FILETYPES
 	"F"
 #endif
-	"] [filenames...]\n\n"
+#ifdef BB_FEATURE_LS_RECURSIVE
+	"R"
+#endif
+	"] [filenames...]\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nList directory contents\n\n"
 	"Options:\n"
 	"\t-a\tdo not hide entries starting with .\n"
 #ifdef BB_FEATURE_LS_TIMESTAMPS
@@ -475,7 +481,23 @@ static const char ls_usage[] = "ls [-1a"
 #ifdef BB_FEATURE_LS_FILETYPES
 	"\t-F\tappend indicator (one of */=@|) to entries\n"
 #endif
+#ifdef BB_FEATURE_LS_RECURSIVE
+	"\t-R\tlist subdirectories recursively\n"
+#endif
+#endif
 	;
+
+
+#ifdef BB_FEATURE_LS_RECURSIVE
+static int dirAction(const char *fileName, struct stat *statbuf, void* junk)
+{
+	int i;
+	fprintf(stdout, "\n%s:\n", fileName);
+	i = list_item(fileName);
+	newline();
+	return (i);
+}
+#endif
 
 extern int ls_main(int argc, char **argv)
 {
@@ -541,6 +563,11 @@ extern int ls_main(int argc, char **argv)
 				opts |= DISP_FULLTIME;
 				break;
 #endif
+#ifdef BB_FEATURE_LS_RECURSIVE
+			case 'R':
+				opts |= DISP_RECURSIVE;
+				break;
+#endif
 			default:
 				goto print_usage_message;
 			}
@@ -567,12 +594,25 @@ extern int ls_main(int argc, char **argv)
 #endif
 
 	/* process files specified, or current directory if none */
-	i = 0;
-	if (argi == argc)
-		i = list_item(".");
-	while (argi < argc)
-		i |= list_item(argv[argi++]);
-	newline();
+#ifdef BB_FEATURE_LS_RECURSIVE
+	if (opts & DISP_RECURSIVE) {
+		i = 0;
+		if (argi == argc) {
+			i = recursiveAction(".", TRUE, FALSE, FALSE, NULL, dirAction, NULL);
+		}
+		while (argi < argc) {
+			i |= recursiveAction(argv[argi++], TRUE, FALSE, FALSE, NULL, dirAction, NULL);
+		}
+	} else 
+#endif
+	{
+		i = 0;
+		if (argi == argc)
+			i = list_item(".");
+		while (argi < argc)
+			i |= list_item(argv[argi++]);
+		newline();
+	}
 	exit(i);
 
   print_usage_message:

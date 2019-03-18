@@ -39,6 +39,9 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#define BB_DECLARE_EXTERN
+#define bb_need_help
+#include "messages.c"
 
 /* test(1) accepts the following grammar:
 	oexpr	::= aexpr | aexpr "-o" oexpr ;
@@ -182,14 +185,17 @@ test_main(int argc, char** argv)
 
 	if (strcmp(argv[0], "[") == 0) {
 		if (strcmp(argv[--argc], "]"))
-			fatalError("missing ]");
+			fatalError("missing ]\n");
 		argv[argc] = NULL;
 	}
-	if (strcmp(argv[1], "--help") == 0) {
+	if (strcmp(argv[1], dash_dash_help) == 0) {
 		usage("test EXPRESSION\n"
-			  "or   [ EXPRESSION ]\n\n"
-				"Checks file types and compares values returning an exit\n"
-				"code determined by the value of EXPRESSION.\n");
+			  "or   [ EXPRESSION ]\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+				"\nChecks file types and compares values returning an exit\n"
+				"code determined by the value of EXPRESSION.\n"
+#endif
+				);
 	}
 
 	/* Implement special cases from POSIX.2, section 4.62.4 */
@@ -229,7 +235,7 @@ test_main(int argc, char** argv)
 	if (*t_wp != NULL && *++t_wp != NULL)
 		syntax(*t_wp, "unknown operand");
 
-	exit( res);
+	return( res);
 }
 
 static void
@@ -238,9 +244,9 @@ syntax(op, msg)
 	char	*msg;
 {
 	if (op && *op)
-		fatalError("%s: %s", op, msg);
+		fatalError("%s: %s\n", op, msg);
 	else
-		fatalError("%s", msg);
+		fatalError("%s\n", msg);
 }
 
 static int
@@ -475,13 +481,13 @@ getn(s)
 	r = strtol(s, &p, 10);
 
 	if (errno != 0)
-	  fatalError("%s: out of range", s);
+	  fatalError("%s: out of range\n", s);
 
 	while (isspace(*p))
 	  p++;
 	
 	if (*p)
-	  fatalError("%s: bad number", s);
+	  fatalError("%s: bad number\n", s);
 
 	return (int) r;
 }
@@ -561,7 +567,7 @@ initialize_group_array ()
 {
 	ngroups = getgroups(0, NULL);
 	if ((group_array = realloc(group_array, ngroups * sizeof(gid_t))) == NULL)
-		fatalError("Out of space");
+		fatalError("Out of space\n");
 
 	getgroups(ngroups, group_array);
 }

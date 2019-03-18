@@ -1,5 +1,5 @@
 /* vi: set sw=4 ts=4: */
-/*  mnc: mini-netcat - built from the ground up for LRP
+/*  nc: mini-netcat - built from the ground up for LRP
     Copyright (C) 1998  Charles P. Wright
 
     0.0.1   6K      It works.
@@ -40,11 +40,13 @@
 
 #define BUFSIZE 100
 
-static const char mnc_usage[] =
+static const char nc_usage[] = "nc [IP] [port]\n" 
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nNetcat opens a pipe to IP:port\n"
+#endif
+	;
 
-	"mnc [IP] [port]\n\n" "mini-netcat opens a pipe to IP:port\n";
-
-int mnc_main(int argc, char **argv)
+int nc_main(int argc, char **argv)
 {
 	int sfd;
 	int result;
@@ -59,7 +61,7 @@ int mnc_main(int argc, char **argv)
 	argc--;
 	argv++;
 	if (argc < 2 || **(argv + 1) == '-') {
-		usage(mnc_usage);
+		usage(nc_usage);
 	}
 
 	sfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -67,7 +69,7 @@ int mnc_main(int argc, char **argv)
 	hostinfo = (struct hostent *) gethostbyname(*argv);
 
 	if (!hostinfo) {
-		exit(1);
+		fatalError("nc: cannot resolve %s\n", *argv);
 	}
 
 	address.sin_family = AF_INET;
@@ -79,6 +81,7 @@ int mnc_main(int argc, char **argv)
 	result = connect(sfd, (struct sockaddr *) &address, len);
 
 	if (result < 0) {
+		perror("nc: connect");
 		exit(2);
 	}
 
@@ -98,6 +101,7 @@ int mnc_main(int argc, char **argv)
 				   (struct timeval *) 0);
 
 		if (result < 1) {
+			perror("nc: select");
 			exit(3);
 		}
 

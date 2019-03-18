@@ -23,22 +23,24 @@
 #include "internal.h"
 #include <stdio.h>
 
-static const char logname_usage[] = "logname\n\n"
-
-	"Print the name of the current user.\n";
+static const char logname_usage[] = "logname\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nPrint the name of the current user.\n"
+#endif
+	;
 
 extern int logname_main(int argc, char **argv)
 {
-	char *cp;
+	char *user = xmalloc(9);
 
 	if (argc > 1)
 		usage(logname_usage);
 
-	cp = getlogin();
-	if (cp) {
-		puts(cp);
+	my_getpwuid(user, geteuid());
+	if (user) {
+		puts(user);
 		exit(TRUE);
 	}
-	fprintf(stderr, "%s: no login name\n", argv[0]);
-	exit(FALSE);
+	fprintf(stderr, "no login name\n");
+	return(FALSE);
 }

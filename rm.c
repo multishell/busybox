@@ -29,12 +29,15 @@
 #include <dirent.h>
 #include <errno.h>
 
-static const char *rm_usage = "rm [OPTION]... FILE...\n\n"
-	"Remove (unlink) the FILE(s).\n\n"
+static const char *rm_usage = "rm [OPTION]... FILE...\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nRemove (unlink) the FILE(s).  You may use '--' to\n"
+	"indicate that all following arguments are non-options.\n\n"
 	"Options:\n"
-
 	"\t-f\t\tremove existing destinations, never prompt\n"
-	"\t-r or -R\tremove the contents of directories recursively\n";
+	"\t-r or -R\tremove the contents of directories recursively\n"
+#endif
+	;
 
 
 static int recursiveFlag = FALSE;
@@ -62,30 +65,39 @@ static int dirAction(const char *fileName, struct stat *statbuf, void* junk)
 
 extern int rm_main(int argc, char **argv)
 {
+	int stopIt=FALSE;
 	struct stat statbuf;
 
-	if (argc < 2) {
-		usage(rm_usage);
-	}
 	argc--;
 	argv++;
 
 	/* Parse any options */
-	while (**argv == '-') {
-		while (*++(*argv))
-			switch (**argv) {
-			case 'R':
-			case 'r':
-				recursiveFlag = TRUE;
-				break;
-			case 'f':
-				forceFlag = TRUE;
-				break;
-			default:
-				usage(rm_usage);
-			}
-		argc--;
-		argv++;
+	while (argc > 0 && stopIt == FALSE) {
+		if (**argv == '-') {
+			while (*++(*argv))
+				switch (**argv) {
+					case 'R':
+					case 'r':
+						recursiveFlag = TRUE;
+						break;
+					case 'f':
+						forceFlag = TRUE;
+						break;
+					case '-':
+						stopIt = TRUE;
+						break;
+					default:
+						usage(rm_usage);
+				}
+			argc--;
+			argv++;
+		}
+		else
+			break;
+	}
+
+	if (argc < 1 && forceFlag == FALSE) {
+		usage(rm_usage);
 	}
 
 	while (argc-- > 0) {
@@ -100,5 +112,5 @@ extern int rm_main(int argc, char **argv)
 			}
 		}
 	}
-	exit(TRUE);
+	return(TRUE);
 }

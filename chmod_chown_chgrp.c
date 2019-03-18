@@ -25,6 +25,7 @@
 #include "internal.h"
 #define BB_DECLARE_EXTERN
 #define bb_need_invalid_option
+#define bb_need_too_few_args
 #include "messages.c"
 
 #include <stdio.h>
@@ -32,8 +33,8 @@
 #include <pwd.h>
 
 
-static uid_t uid = -1;
-static gid_t gid = -1;
+static unsigned long uid = -1;
+static unsigned long gid = -1;
 static int whichApp;
 static char *invocationName = NULL;
 static char *theMode = NULL;
@@ -43,21 +44,27 @@ static char *theMode = NULL;
 #define CHOWN_APP   2
 #define CHMOD_APP   3
 
-static const char chgrp_usage[] = "chgrp [OPTION]... GROUP FILE...\n\n"
-	"Change the group membership of each FILE to GROUP.\n"
-
-	"\nOptions:\n\t-R\tchange files and directories recursively\n";
+static const char chgrp_usage[] = "chgrp [OPTION]... GROUP FILE...\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nChange the group membership of each FILE to GROUP.\n"
+	"\nOptions:\n\t-R\tChanges files and directories recursively.\n"
+#endif
+	;
 static const char chown_usage[] =
-	"chown [OPTION]...  OWNER[<.|:>[GROUP] FILE...\n\n"
-	"Change the owner and/or group of each FILE to OWNER and/or GROUP.\n"
-
-	"\nOptions:\n\t-R\tchange files and directories recursively\n";
+	"chown [OPTION]...  OWNER[<.|:>[GROUP] FILE...\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nChange the owner and/or group of each FILE to OWNER and/or GROUP.\n"
+	"\nOptions:\n\t-R\tChanges files and directories recursively.\n"
+#endif
+	;
 static const char chmod_usage[] =
-	"chmod [-R] MODE[,MODE]... FILE...\n\n"
-	"Each MODE is one or more of the letters ugoa, one of the symbols +-= and\n"
-
+	"chmod [-R] MODE[,MODE]... FILE...\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nEach MODE is one or more of the letters ugoa, one of the symbols +-= and\n"
 	"one or more of the letters rwxst.\n\n"
-	"\nOptions:\n\t-R\tchange files and directories recursively.\n";
+	"\nOptions:\n\t-R\tChanges files and directories recursively.\n"
+#endif
+	;
 
 
 static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
@@ -94,8 +101,8 @@ static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
 int chmod_chown_chgrp_main(int argc, char **argv)
 {
 	int recursiveFlag = FALSE;
-	char *groupName;
-	char *p;
+	char *groupName=NULL;
+	char *p=NULL;
 	const char *appUsage;
 
 	whichApp = (strcmp(*argv, "chown") == 0)? 
@@ -108,22 +115,26 @@ int chmod_chown_chgrp_main(int argc, char **argv)
 	if (argc < 2)
 		usage(appUsage);
 	invocationName = *argv;
-	argc--;
 	argv++;
 
 	/* Parse options */
-	while (**argv == '-') {
-		while (*++(*argv))
+	while (--argc >= 0 && *argv && (**argv == '-')) {
+		while (*++(*argv)) {
 			switch (**argv) {
-			case 'R':
-				recursiveFlag = TRUE;
-				break;
-			default:
-				fprintf(stderr, invalid_option, invocationName, **argv);
-				usage(appUsage);
+				case 'R':
+					recursiveFlag = TRUE;
+					break;
+				default:
+					fprintf(stderr, invalid_option, invocationName, **argv);
+					usage(appUsage);
 			}
-		argc--;
+		}
 		argv++;
+	}
+
+	if (argc == 0 || *argv == NULL) {
+		fprintf(stderr, too_few_args, invocationName);
+		usage(appUsage);
 	}
 
 	if (whichApp == CHMOD_APP) {

@@ -32,17 +32,19 @@
 #include <dirent.h>
 #include <stdio.h>
 #include <errno.h>
-#include <sys/param.h>			/* for PATH_MAX */
 
 typedef void (Display) (long, char *);
 
 static const char du_usage[] =
-	"du [OPTION]... [FILE]...\n\n"
-	"Summarize disk space used for each FILE and/or directory.\n"
+	"du [OPTION]... [FILE]...\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nSummarizes disk space used for each FILE and/or directory.\n"
 	"Disk space is printed in units of 1024 bytes.\n\n"
 	"Options:\n"
 	"\t-l\tcount sizes many times if hard linked\n"
-	"\t-s\tdisplay only a total for each argument\n";
+	"\t-s\tdisplay only a total for each argument\n"
+#endif
+	;
 
 static int du_depth = 0;
 static int count_hardlinks = 0;
@@ -97,7 +99,7 @@ static long du(char *filename)
 			filename[--len] = '\0';
 
 		while ((entry = readdir(dir))) {
-			char newfile[PATH_MAX + 1];
+			char newfile[BUFSIZ + 1];
 			char *name = entry->d_name;
 
 			if ((strcmp(name, "..") == 0)
@@ -105,7 +107,7 @@ static long du(char *filename)
 				continue;
 			}
 
-			if (len + strlen(name) + 1 > PATH_MAX) {
+			if (len + strlen(name) + 1 > BUFSIZ) {
 				fprintf(stderr, name_too_long, "du");
 				du_depth--;
 				return 0;
@@ -179,10 +181,10 @@ int du_main(int argc, char **argv)
 		}
 	}
 
-	exit(0);
+	return(0);
 }
 
-/* $Id: du.c,v 1.17 2000/04/13 01:18:56 erik Exp $ */
+/* $Id: du.c,v 1.20 2000/06/19 17:25:39 andersen Exp $ */
 /*
 Local Variables:
 c-file-style: "linux"

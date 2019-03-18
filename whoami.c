@@ -24,24 +24,26 @@
 #include <stdio.h>
 #include <pwd.h>
 
-static const char whoami_usage[] = "whoami\n\n"
-	"Prints the user name associated with the current effective user id.\n";
+static const char whoami_usage[] = "whoami\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nPrints the user name associated with the current effective user id.\n"
+#endif
+	;
 
 extern int whoami_main(int argc, char **argv)
 {
-	struct passwd *pw;
-	uid_t uid;
+	char *user = xmalloc(9);
+	uid_t uid = geteuid();
 
 	if (argc > 1)
 		usage(whoami_usage);
 
-	uid = geteuid();
-	pw = getpwuid(uid);
-	if (pw) {
-		puts(pw->pw_name);
+	my_getpwuid(user, uid);
+	if (user) {
+		puts(user);
 		exit(TRUE);
 	}
 	fprintf(stderr, "%s: cannot find username for UID %u\n", argv[0],
 			(unsigned) uid);
-	exit(FALSE);
+	return(FALSE);
 }

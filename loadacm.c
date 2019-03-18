@@ -22,8 +22,11 @@
 #include <sys/ioctl.h>
 #include <sys/kd.h>
 
-static const char loadacm_usage[] = "loadacm\n\n"
-	"Loads an acm from standard input.\n";
+static const char loadacm_usage[] = "loadacm\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nLoads an acm from standard input.\n"
+#endif
+	;
 
 typedef unsigned short unicode;
 
@@ -137,10 +140,9 @@ int screen_map_load(int fd, FILE * fp)
 			perror("PIO_SCRNMAP ioctl"), exit(1);
 		else
 			return 0;
-	} else {
-		fprintf(stderr, "Error parsing symbolic map\n");
-		exit(1);
 	}
+	fprintf(stderr, "Error parsing symbolic map\n");
+	return(1);
 }
 
 

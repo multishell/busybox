@@ -1,6 +1,6 @@
 /* vi: set sw=4 ts=4: */
 /*
- * $Id: hostname.c,v 1.7 2000/02/08 19:58:47 erik Exp $
+ * $Id: hostname.c,v 1.10 2000/06/19 17:25:39 andersen Exp $
  * Mini hostname implementation for busybox
  *
  * Copyright (C) 1999 by Randolph Chung <tausq@debian.org>
@@ -31,15 +31,18 @@
 #include <stdio.h>
 
 static const char *hostname_usage =
-	"hostname [OPTION] {hostname | -F file}\n\n"
-	"Get or set the hostname or DNS domain name. If a hostname is given\n"
+	"hostname [OPTION] {hostname | -F file}\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nGet or set the hostname or DNS domain name. If a hostname is given\n"
 	"(or a file with the -F parameter), the host name will be set.\n\n"
 	"Options:\n"
 	"\t-s\t\tShort\n"
 
 	"\t-i\t\tAddresses for the hostname\n"
 	"\t-d\t\tDNS domain name\n"
-	"\t-F FILE\t\tUse the contents of FILE to specify the hostname\n";
+	"\t-F FILE\t\tUse the contents of FILE to specify the hostname\n"
+#endif
+	;
 
 
 void do_sethostname(char *s, int isfile)
@@ -101,7 +104,6 @@ int hostname_main(int argc, char **argv)
 				opt_domain = 1;
 				break;
 			case 'F':
-				filename = optarg;
 				if (--argc == 0) {
 					usage(hostname_usage);
 				}
@@ -141,5 +143,5 @@ int hostname_main(int argc, char **argv)
 			printf("%s\n", buf);
 		}
 	}
-	exit(0);
+	return(0);
 }

@@ -48,6 +48,9 @@
 #if defined BB_FEATURE_USE_DEVPS_PATCH
 #include <linux/devmtab.h>
 #endif
+#ifndef MS_RDONLY
+#include <linux/fs.h>
+#endif
 
 
 #if defined BB_FEATURE_MOUNT_LOOP
@@ -61,30 +64,36 @@ static int use_loop = FALSE;
 
 extern const char mtab_file[];	/* Defined in utility.c */
 
-static const char mount_usage[] = "\tmount [flags]\n"
-	"\tmount [flags] device directory [-o options,more-options]\n"
-	"\n" "Flags:\n" "\t-a:\tMount all file systems in fstab.\n"
+static const char mount_usage[] = 
+	"mount [flags] device directory [-o options,more-options]\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nMount a filesystem\n\n"
+	"Flags:\n" 
+	"\t-a:\t\tMount all filesystems in fstab.\n"
 #ifdef BB_MTAB
-	"\t-f:\t\"Fake\" mount. Add entry to mount table but don't mount it.\n"
-	"\t-n:\tDon't write a mount table entry.\n"
+	"\t-f:\t\t\"Fake\" mount. Add entry to mount table but don't mount it.\n"
+	"\t-n:\t\tDon't write a mount table entry.\n"
 #endif
 	"\t-o option:\tOne of many filesystem options, listed below.\n"
-	"\t-r:\tMount the filesystem read-only.\n"
-	"\t-t filesystem-type:\tSpecify the filesystem type.\n"
-	"\t-w:\tMount for reading and writing (default).\n"
+	"\t-r:\t\tMount the filesystem read-only.\n"
+	"\t-t fs-type:\tSpecify the filesystem type.\n"
+	"\t-w:\t\tMount for reading and writing (default).\n"
 	"\n"
 	"Options for use with the \"-o\" flag:\n"
-	"\tasync / sync:\tWrites are asynchronous / synchronous.\n"
-	"\tdev / nodev:\tAllow use of special device files / disallow them.\n"
-	"\texec / noexec:\tAllow use of executable files / disallow them.\n"
+	"\tasync/sync:\tWrites are asynchronous / synchronous.\n"
+	"\tatime/noatime:\tEnable / disable updates to inode access times.\n"
+	"\tdev/nodev:\tAllow use of special device files / disallow them.\n"
+	"\texec/noexec:\tAllow use of executable files / disallow them.\n"
 #if defined BB_FEATURE_MOUNT_LOOP
-	"\tloop: Mounts a file via loop device.\n"
+	"\tloop:\t\tMounts a file via loop device.\n"
 #endif
-	"\tsuid / nosuid:\tAllow set-user-id-root programs / disallow them.\n"
-	"\tremount: Re-mount a currently-mounted filesystem, changing its flags.\n"
-	"\tro / rw: Mount for read-only / read-write.\n"
-	"There are EVEN MORE flags that are specific to each filesystem.\n"
-	"You'll have to see the written documentation for those.\n";
+	"\tsuid/nosuid:\tAllow set-user-id-root programs / disallow them.\n"
+	"\tremount:\tRe-mount a currently-mounted filesystem, changing its flags.\n"
+	"\tro/rw:\t\tMount for read-only / read-write.\n"
+	"\nThere are EVEN MORE flags that are specific to each filesystem.\n"
+	"You'll have to see the written documentation for those.\n"
+#endif
+	;
 
 
 struct mount_options {
@@ -95,10 +104,14 @@ struct mount_options {
 
 static const struct mount_options mount_options[] = {
 	{"async", ~MS_SYNCHRONOUS, 0},
+	{"atime", ~0, ~MS_NOATIME},
 	{"defaults", ~0, 0},
 	{"dev", ~MS_NODEV, 0},
+	{"diratime", ~0, ~MS_NODIRATIME},
 	{"exec", ~MS_NOEXEC, 0},
+	{"noatime", ~0, MS_NOATIME},
 	{"nodev", ~0, MS_NODEV},
+	{"nodiratime", ~0, MS_NODIRATIME},
 	{"noexec", ~0, MS_NOEXEC},
 	{"nosuid", ~0, MS_NOSUID},
 	{"remount", ~0, MS_REMOUNT},
@@ -141,8 +154,7 @@ do_mount(char *specialfile, char *dir, char *filesystemtype,
 			}
 		}
 #endif
-		status =
-			mount(specialfile, dir, filesystemtype, flags, string_flags);
+		status = mount(specialfile, dir, filesystemtype, flags, string_flags);
 	}
 
 
@@ -163,6 +175,11 @@ do_mount(char *specialfile, char *dir, char *filesystemtype,
 		del_loop(specialfile);
 	}
 #endif
+
+	if (errno == EPERM) {
+		fatalError("mount: permission denied. Are you root?\n");
+	}
+
 	return (FALSE);
 }
 
@@ -294,7 +311,7 @@ mount_one(char *blockDevice, char *directory, char *filesystemType,
 						  fakeIt, mtab_opts);
 	}
 
-	if (status == FALSE && whineOnErrors == TRUE) {
+	if (status == FALSE) {
 		if (whineOnErrors == TRUE) {
 			fprintf(stderr, "Mounting %s on %s failed: %s\n",
 					blockDevice, directory, strerror(errno));
@@ -442,27 +459,22 @@ extern int mount_main(int argc, char **argv)
 			fatalError( "\nCannot read /etc/fstab: %s\n", strerror (errno));
 
 		while ((m = getmntent(f)) != NULL) {
-			// If the file system isn't noauto, 
+			// If the filesystem isn't noauto, 
 			// and isn't swap or nfs, then mount it
 			if ((!strstr(m->mnt_opts, "noauto")) &&
-				(!strstr(m->mnt_type, "swap")) &&
-				(!strstr(m->mnt_type, "nfs"))) {
+					(!strstr(m->mnt_type, "swap")) &&
+					(!strstr(m->mnt_type, "nfs"))) {
 				flags = 0;
 				*string_flags = '\0';
 				parse_mount_options(m->mnt_opts, &flags, string_flags);
-				/* If the directory is /, try to remount
-				 * with the options specified in fstab */
-				if (m->mnt_dir[0] == '/' && m->mnt_dir[1] == '\0') {
-					flags |= MS_REMOUNT;
-				}
 				if (mount_one(m->mnt_fsname, m->mnt_dir, m->mnt_type,
-						  flags, string_flags, useMtab, fakeIt,
-						  extra_opts, FALSE)) 
+							flags, string_flags, useMtab, fakeIt,
+							extra_opts, FALSE)==FALSE) 
 				{
 					/* Try again, but this time try a remount */
 					mount_one(m->mnt_fsname, m->mnt_dir, m->mnt_type,
-							  flags|MS_REMOUNT, string_flags, useMtab, fakeIt,
-							  extra_opts, TRUE);
+							flags|MS_REMOUNT, string_flags, useMtab, fakeIt,
+							extra_opts, TRUE);
 				}
 			}
 		}
@@ -470,11 +482,14 @@ extern int mount_main(int argc, char **argv)
 	} else {
 		if (device && directory) {
 #ifdef BB_NFSMOUNT
+			if (strchr(device, ':') != NULL)
+				filesystemType = "nfs";
 			if (strcmp(filesystemType, "nfs") == 0) {
-				if (nfsmount
-					(device, directory, &flags, &extra_opts, &string_flags,
-					 1) != 0)
-					exit(FALSE);
+				int ret;
+				ret = nfsmount (device, directory, &flags,
+						&extra_opts, &string_flags, 1);
+				if (ret != 0)
+					fatalError("nfsmount failed: %s\n", strerror(errno));
 			}
 #endif
 			exit(mount_one(device, directory, filesystemType,

@@ -37,6 +37,14 @@ extern int free_main(int argc, char **argv)
 	info.sharedram/=DIVISOR;
 	info.bufferram/=DIVISOR;
 
+	if (argc > 1 && **(argv + 1) == '-') {
+		usage("free\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+				"\nDisplays the amount of free and used system memory\n"
+#endif
+				);
+	}
+
 
 	printf("%6s%13s%13s%13s%13s%13s\n", "", "total", "used", "free", 
 			"shared", "buffers");
@@ -51,5 +59,5 @@ extern int free_main(int argc, char **argv)
 	printf("%6s%13ld%13ld%13ld\n", "Total:", info.totalram+info.totalswap,
 			(info.totalram-info.freeram)+(info.totalswap-info.freeswap),
 			info.freeram+info.freeswap);
-	exit(TRUE);
+	return(TRUE);
 }

@@ -7,6 +7,7 @@
 //
 //
 // BusyBox Applications
+#define BB_AR
 #define BB_BASENAME
 #define BB_CAT
 #define BB_CHMOD_CHOWN_CHGRP
@@ -14,7 +15,9 @@
 #define BB_CHVT
 #define BB_CLEAR
 #define BB_CP_MV
+#define BB_CUT
 #define BB_DATE
+#define BB_DC
 #define BB_DD
 #define BB_DEALLOCVT
 #define BB_DF
@@ -36,9 +39,9 @@
 #define BB_HEAD
 #define BB_HOSTID
 #define BB_HOSTNAME
+#define BB_ID
 #define BB_INIT
-// Don't bother turning BB_INSMOD on.  It doesn't work yet.
-//#define BB_INSMOD
+#define BB_INSMOD
 #define BB_KILL
 #define BB_KILLALL
 #define BB_KLOGD
@@ -52,16 +55,16 @@
 #define BB_LS
 #define BB_LSMOD
 #define BB_MAKEDEVS
-#define BB_MKFS_MINIX
-#define BB_MATH
+//#define BB_MD5SUM
 #define BB_MKDIR
 #define BB_MKFIFO
+#define BB_MKFS_MINIX
 #define BB_MKNOD
 #define BB_MKSWAP
-#define BB_MNC
+#define BB_MKTEMP
+#define BB_NC
 #define BB_MORE
 #define BB_MOUNT
-#define BB_NFSMOUNT
 #define BB_MT
 #define BB_NSLOOKUP
 #define BB_PING
@@ -74,6 +77,7 @@
 #define BB_RMDIR
 #define BB_RMMOD
 #define BB_SED
+#define BB_SETKEYCODES
 #define BB_SFDISK
 #define BB_SH
 #define BB_SLEEP
@@ -85,8 +89,7 @@
 #define BB_TAR
 #define BB_TEE
 #define BB_TEST
-// Don't bother turning BB_TELNET on.  It doesn't work properly yet.
-//#define BB_TELNET
+#define BB_TELNET
 #define BB_TOUCH
 #define BB_TR
 #define BB_TRUE_FALSE
@@ -94,7 +97,10 @@
 #define BB_UPTIME
 #define BB_USLEEP
 #define BB_WC
+#define BB_WHICH
 #define BB_WHOAMI
+#define BB_UUENCODE
+#define BB_UUDECODE
 #define BB_UMOUNT
 #define BB_UNIQ
 #define BB_UNAME
@@ -130,8 +136,9 @@
 // normal strings.
 #define BB_FEATURE_FULL_REGULAR_EXPRESSIONS
 //
-// Use only simple command help
-#define BB_FEATURE_TRIVIAL_HELP
+// This compiles out everything but the most 
+// trivial --help usage information (i.e. reduces binary size)
+//#define BB_FEATURE_TRIVIAL_HELP
 //
 // Use termios to manipulate the screen ('more' is prettier with this on)
 #define BB_FEATURE_USE_TERMIOS
@@ -147,6 +154,9 @@
 //
 // enable ls -p and -F
 #define BB_FEATURE_LS_FILETYPES
+//
+// enable ls -R
+#define BB_FEATURE_LS_RECURSIVE
 //
 // Change ping implementation -- simplified, featureless, but really small.
 //#define BB_SIMPLE_PING
@@ -178,8 +188,13 @@
 // Enable support for a real /etc/mtab file instead of /proc/mounts
 //#define BB_FEATURE_MOUNT_MTAB_SUPPORT
 //
-// Enable support for remounting filesystems
-#define BB_FEATURE_REMOUNT
+// Enable support forced filesystem unmounting 
+// (i.e. in case of an unreachable NFS system).
+#define BB_FEATURE_MOUNT_FORCE
+//
+// Enable support for mounting remote NFS volumes
+// (This does not yet work with Linux 2.[34].x kernels)
+//#define BB_FEATURE_NFSMOUNT
 //
 // Enable support for creation of tar files.
 #define BB_FEATURE_TAR_CREATE
@@ -193,12 +208,26 @@
 // Enable command line editing in the shell
 #define BB_FEATURE_SH_COMMAND_EDITING
 //
+//Allow the shell to invoke all the compiled in BusyBox commands as if they
+//were shell builtins.  Nice for staticly linking an emergency rescue shell
+//amoung other thing.
+#define BB_FEATURE_STANDALONE_SHELL
+//
 // Enable tab completion in the shell (not yet 
 // working very well -- so don't turn this on)
 //#define BB_FEATURE_SH_TAB_COMPLETION
 //
 //Turn on extra fbset options
 //#define BB_FEATURE_FBSET_FANCY
+//
+// You must enable one or both of these features
+// Support installing modules from pre 2.1 kernels
+//#define BB_FEATURE_INSMOD_OLD_KERNEL
+// Support installing modules from kernel versions after 2.1.18
+#define BB_FEATURE_INSMOD_NEW_KERNEL
+//
+// Support module version checking
+//#define BB_FEATURE_INSMOD_VERSION_CHECKING
 //
 //
 // End of Features List
@@ -243,3 +272,24 @@
 #endif
 #endif
 //
+#if defined BB_MOUNT && defined BB_FEATURE_NFSMOUNT
+#define BB_NFSMOUNT
+#endif
+//
+#if defined BB_FEATURE_SH_COMMAND_EDITING
+#ifndef BB_FEATURE_USE_TERMIOS
+#define BB_FEATURE_USE_TERMIOS
+#endif
+#endif
+//
+#if defined BB_FEATURE_AUTOWIDTH
+#ifndef BB_FEATURE_USE_TERMIOS
+#define BB_FEATURE_USE_TERMIOS
+#endif
+#endif
+//
+#if defined BB_INSMOD
+#ifndef BB_FEATURE_INSMOD_OLD_KERNEL
+#define BB_FEATURE_INSMOD_NEW_KERNEL
+#endif
+#endif

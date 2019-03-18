@@ -49,7 +49,6 @@
 #include <utime.h>
 #include <sys/types.h>
 #include <sys/sysmacros.h>
-#include <sys/param.h>			/* for PATH_MAX */
 
 
 static const char tar_usage[] =
@@ -61,8 +60,9 @@ static const char tar_usage[] =
 #if defined BB_FEATURE_TAR_EXCLUDE
 	"[--exclude File] "
 #endif
-	"[-f tarFile] [FILE] ...\n\n"
-	"Create, extract, or list files from a tar file.  Note that\n"
+	"[-f tarFile] [FILE] ...\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nCreate, extract, or list files from a tar file.  Note that\n"
 	"this version of tar treats hard links as separate files.\n\n"
 	"Main operation mode:\n"
 #ifdef BB_FEATURE_TAR_CREATE
@@ -78,6 +78,7 @@ static const char tar_usage[] =
 #endif
 	"\nInformative output:\n"
 	"\tv\t\tverbosely list files processed\n"
+#endif
 	;
 
 /* Tar file constants  */
@@ -172,7 +173,7 @@ extern int tar_main(int argc, char **argv)
 #if defined BB_FEATURE_TAR_EXCLUDE
 	int excludeListSize=0;
 #endif
-	const char *tarName=NULL;
+	const char *tarName="-";
 	int listFlag     = FALSE;
 	int extractFlag  = FALSE;
 	int createFlag   = FALSE;
@@ -184,15 +185,15 @@ extern int tar_main(int argc, char **argv)
 		usage(tar_usage);
 
 	/* Parse any options */
-	while (--argc > 0 && (**(++argv) != '\0')) {
+	while (--argc > 0 && strspn(*(++argv), "-cxt") >0 ) {
 		stopIt=FALSE;
-		while (stopIt==FALSE && *(++(*argv))) {
+		while (stopIt==FALSE && *argv && **argv) {
 			switch (**argv) {
 				case 'f':
 					if (--argc == 0) {
 						fatalError( "Option requires an argument: No file specified\n");
 					}
-					if (tarName != NULL)
+					if (*tarName != '-')
 						fatalError( "Only one 'f' option allowed\n");
 					tarName = *(++argv);
 					if (tarName == NULL)
@@ -245,12 +246,16 @@ extern int tar_main(int argc, char **argv)
 						break;
 					}
 #endif
+					if (strcmp(*argv, "-help")==0) {
+						usage(tar_usage);
+					}
 					break;
 
 				default:
 					fatalError( "Unknown tar flag '%c'\n" 
 							"Try `tar --help' for more information\n", **argv);
 			}
+			++(*argv);
 		}
 	}
 
@@ -264,7 +269,8 @@ extern int tar_main(int argc, char **argv)
 #else
 		exit(writeTarFile(tarName, tostdoutFlag, verboseFlag, argc, argv, excludeList));
 #endif
-	} else {
+	}
+	if (listFlag == TRUE || extractFlag == TRUE) {
 		exit(readTarFile(tarName, extractFlag, listFlag, tostdoutFlag, verboseFlag, excludeList));
 	}
 
@@ -297,11 +303,14 @@ tarExtractRegularFile(TarInfo *header, int extractFlag, int tostdoutFlag)
 
 	/* Open the file to be written, if a file is supposed to be written */
 	if (extractFlag==TRUE && tostdoutFlag==FALSE) {
-		if ((outFd=open(header->name, O_CREAT|O_TRUNC|O_WRONLY, header->mode & ~S_IFMT)) < 0)
-			errorMsg(io_error, header->name, strerror(errno)); 
 		/* Create the path to the file, just in case it isn't there...
 		 * This should not screw up path permissions or anything. */
 		createPath(header->name, 0777);
+		if ((outFd=open(header->name, O_CREAT|O_TRUNC|O_WRONLY, 
+						header->mode & ~S_IFMT)) < 0) {
+			errorMsg(io_error, header->name, strerror(errno)); 
+			return( FALSE);
+		}
 	}
 
 	/* Write out the file, if we are supposed to be doing that */
@@ -608,7 +617,7 @@ static int readTarFile(const char* tarName, int extractFlag, int listFlag,
 				len1=snprintf(buf, sizeof(buf), "%ld,%-ld ", 
 						header.devmajor, header.devminor);
 			} else {
-				len1=snprintf(buf, sizeof(buf), "%d ", header.size);
+				len1=snprintf(buf, sizeof(buf), "%lu ", (long)header.size);
 			}
 			/* Jump through some hoops to make the columns match up */
 			for(;(len+len1)<31;len++)

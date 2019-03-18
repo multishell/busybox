@@ -1,3 +1,107 @@
+0.45
+	* Now compiles vs libc5 (which can save lots of space for 
+	    embedded systems).
+	* Added BB_FEATURE_TRIVIAL_HELP which compiles out most all of the
+	    help messages (i.e --help).  Saves 17k over a full compile.
+	* Added cut and tr from minix, since due to the license change, 
+	    we can now use minix code.  Minix tr saves 4k. 
+	* insmod now works.  It costs 29k, but imagine an initrd with a 
+	    staticly linked busybox containing only insmod and sh, a few /dev 
+	    entries, and a kernel module or two...  It doesn't get smaller
+	    then this folks (I pity the fool that writes insmod in asm ;-).
+	    Many kudos go to Ron Alder <alder@lineo.com> for finishing this off!
+	* Added a mini ar archive utility, especially written for BusyBox by 
+	    Glenn McGrath <bug1@netconnect.com.au>
+	* Added mktemp, contributed by Daniel Jacobowitz <dan@debian.org>
+	* Added setkeycodes, for those that have wierd keyboard buttons.
+	* Added md5sum, uuencode and uudecode -- thanks to Alfred M. Szmidt 
+	    <ams@trillian.itslinux.org> for contributing these.
+        * Added 'grep -v' option (inverted search) and updated 
+	    docs accordingly.  -beppu
+	* Wrote which
+	* Replaced the telnet implementation with one written by 
+	    Tomi Ollila <too@iki.fi> It works great and costs 3k.
+	* BusyBox sh (lash) now supports being used as a standalone shell.  When
+	    BB_FEATURE_STANDALONE_SHELL is defined, all the busybox commands may
+	    be invoked as shell internals.  Best used when compiling staticly 
+	    (i.e. DOSTATIC=true)
+	* BusyBox sh (lash) internals now behave as expected wrt pipes 
+	    and redirects. 
+	* Fixed ping warnings -- fix from Sascha Ziemann <szi@aibon.ping.de>
+	* Fixed update segfault
+	* Fixed mknod -- minor number was always 0
+	* Fixed tar option parsing, so both "tar xvf foo.tar" and 
+	    "tar -xvf foo.tar" now work (i.e. no "-" before options) 
+	    (this was very broken in 0.43).
+	* Several contributions from Randolph Chung <tausq@debian.org>.
+	    * cp/mv now accepts the -f flag
+	    * tail can now accept -<num> commands (e.g. -10) for better 
+		compatibility with the standard tail command
+	    * added a simple id implementation; doesn't support sup. groups yet
+	* logname used getlogin(3) which uses utmp.  Now it doesn't. 
+	* whoami used getpwuid(3) which uses libc NSS.  Now it behaves. 
+	* Add support for "noatime" and "nodiratime" mount flags to mount.
+	* Changed 'umount -f' to mean force, and actually use umount2.
+	* Changed 'umount -l' to mean "Do not free loop device".
+	* Fixed basename to support stripping of suffixes.  Patch thanks
+	    to xiong jianxin <jxiong@uiuc.edu>
+	* cp -fa now works as expected for symlinks (it didn't before)
+	* zcat now works (wasn't working since option parsing was broken)
+	* Renamed "mnc" to the more correct "nc" (for netcat).
+	* Makefile intelligence updates
+	* Changed the way init parses /etc/inittab entries to avoid problems
+	    with commands that contain colons in them.  Fix thanks to 
+	    Pavel Roskin <proski@gnu.org>
+	* Fixed a warning in utility.c due to char being unsigned on Linux/PPC, 
+	    Fix thanks to Pavel Roskin <proski@gnu.org>
+	* Made "killall" complain (not error and exit) about processes that it 
+	    cannot find by name -- Pavel Roskin <proski@gnu.org> 
+	* Fixed more and ps to have sensible terminal width defaults, thanks 
+	    to Pavel Roskin.
+	* Fixed all fatalError() calls lacking a "\n", thanks to Pavel Roskin.
+	* Fixed a segfault in yes when no args were given -- Pavel Roskin.
+	* Simplified freeramdisk and added argument checking -- Pavel Roskin. 
+	* Fixed segfault caused by "touch -c"
+	* Fixed segfault caused by "rm -f"
+	* Fixed segfault caused by "ln -s -s" and similar abuses. Further fixes
+	    and "--" support from Pavel Roskin.
+	* Fixed segfault caused by "cp -a -a" and similar abuses.
+	* Implemented "rm -- <foo>". Implementation fixed by Pavel Roskin.
+	* "which" rewritten to use stat(). Fixes to improve its compatability
+	    with traditional implementations -- Pavel Roskin.
+	* "mount" now reports errors from nfsmount() and assumes NFS mount
+	    if ':' is present in the device name - Pavel Roskin
+	* Fixed exit status for killall - Pavel Roskin
+	* Fixed 'swapon -a' and 'swapoff -a', which were broken.
+	* Fixed 'mount -a' so it works as expected.
+	* Implemented 'ls -R' (enabled by enabling BB_FEATURE_LS_RECURSIVE)
+	* Implemented "ping -s", fixed error messages and argument parsing -
+	    Pavel Roskin
+	* Syslogd will not go to background if "-n" is given. Better help
+	    and argument checking -- Pavel Roskin
+	* Fixed a small bug that could cause tar to emit warning messages
+	    and not extract the first file in a directory in some cases
+	    of nested directories.  Thanks to Kevin Traas <kevin@netmaster.com>
+	    for helping track this one down.
+	* More doc updates
+	* Fixed grep "Line too long" problem -- John Beppu
+	* Fixed 'grep -q -i B some_file' so it works
+	* math takes input from stdin if no args are given.  -- John Beppu
+	* math was renamed to dc.  Although it deviates from dc's behaviour,
+	    this will probably be remedied in the future.  -- John Beppu
+
+
+	 -Erik Andersen, June 21, 2000
+
+
+0.44
+	Previously, an erronous announcement of BusyBox 0.44 was made, so to 
+	avoid possible confusion, we are skipping straight to 0.45, and calling
+	it good.
+
+	 -Erik Andersen
+
+
 0.43
 	* Major update to the provided documentation.
 	* Busybox now includes a shell!  It currently costs 7.5 k (plus an
@@ -22,7 +126,7 @@
 	* Added echo and test (from me).
 	* Added usleep contributed by Nicolas Pitre <nico@cam.org>
 	* BusyBox's bss size has been majorly reduced (was 384668, is now 28740).
-	* Several fixes from Pavel Roskin <pavel_roskin@geocities.com>:
+	* Several fixes from Pavel Roskin <proski@gnu.org>:
 	    - When `tail' fails to open a file it now exits.
 	    - When `syslogd' is given the `-n' option it should still use 
 		fork() for running klogd.
@@ -47,7 +151,7 @@
 	    - mv now attempts to do a rename, and will fall back to doing
 		a copy only if the rename fails.
 	    - Syslogd now supports multiple concurrent connections
-	* Several fixes from Pavel Roskin <pavel_roskin@geocities.com>:
+	* Several fixes from Pavel Roskin <proski@gnu.org>:
 	    - Fixes to sort.  Removed "-g", fixed and added "-r"
 	    - Fixes to the makefile for handling "strip"
 	* An initial telnet implementation was added by 
@@ -157,7 +261,7 @@
 	    Randolph Chung <tausq@debian.org>.
 	* cp could, when copying symlinks, change permissions of the
 	    files pointed to by the symlinks.
-	* Several fixes from Pavel Roskin <pavel_roskin@geocities.com>:
+	* Several fixes from Pavel Roskin <proski@gnu.org>:
 	    - `chown' with 1 argument displayed the error incorrectly
 	    - `fdflush', `length' and `printf' crashed if run without arguments
 	    - `fdflush' tried to flush itself using *argv

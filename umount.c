@@ -24,24 +24,41 @@
 
 #include "internal.h"
 #include <stdio.h>
-#include <sys/mount.h>
 #include <mntent.h>
 #include <errno.h>
+#include <linux/unistd.h>
+
+
+//#include <sys/mount.h>
+/* Include our own version of sys/mount.h, since libc5 doesn't
+ * know about umount2 */
+static _syscall1(int, umount, const char *, special_file);
+static _syscall2(int, umount2, const char *, special_file, int, flags);
+static _syscall5(int, mount, const char *, special_file, const char *, dir,
+		const char *, fstype, unsigned long int, rwflag, const void *, data);
+#define MNT_FORCE		1
+#define MS_MGC_VAL		0xc0ed0000		/* Magic flag number to indicate "new" flags */
+#define MS_REMOUNT		32				/* Alter flags of a mounted FS.  */
+#define MS_RDONLY		1				/* Mount read-only.  */
 
 
 static const char umount_usage[] =
-	"umount [flags] filesystem|directory\n\n"
-	"Flags:\n" "\t-a:\tUnmount all file systems"
+	"umount [flags] filesystem|directory\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"Unmount file systems\n"
+	"\nFlags:\n" "\t-a:\tUnmount all file systems"
 #ifdef BB_MTAB
 	" in /etc/mtab\n\t-n:\tDon't erase /etc/mtab entries\n"
 #else
 	"\n"
 #endif
-#ifdef BB_FEATURE_REMOUNT
 	"\t-r:\tTry to remount devices as read-only if mount is busy\n"
+#if defined BB_FEATURE_MOUNT_FORCE
+	"\t-f:\tForce filesystem umount (i.e. unreachable NFS server)\n"
 #endif
 #if defined BB_FEATURE_MOUNT_LOOP
-	"\t-f:\tDo not free loop device (if a loop device has been used)\n"
+	"\t-l:\tDo not free loop device (if a loop device has been used)\n"
+#endif
 #endif
 ;
 
@@ -55,14 +72,15 @@ static struct _mtab_entry_t *mtab_cache = NULL;
 
 
 
+#if defined BB_FEATURE_MOUNT_FORCE
+static int doForce = FALSE;
+#endif
 #if defined BB_FEATURE_MOUNT_LOOP
 static int freeLoop = TRUE;
 #endif
 static int useMtab = TRUE;
 static int umountAll = FALSE;
-#if defined BB_FEATURE_REMOUNT
 static int doRemount = FALSE;
-#endif
 extern const char mtab_file[];	/* Defined in utility.c */
 
 
@@ -180,20 +198,25 @@ static int do_umount(const char *name, int useMtab)
 		/* this was a loop device, delete it */
 		del_loop(blockDevice);
 #endif
-#if defined BB_FEATURE_REMOUNT
+#if defined BB_FEATURE_MOUNT_FORCE
+	if (status != 0 && doForce == TRUE) {
+		status = umount2(blockDevice, MNT_FORCE);
+		if (status != 0) {
+			fatalError("umount: forced umount of %s failed!\n", blockDevice);
+		}
+	}
+#endif
 	if (status != 0 && doRemount == TRUE && errno == EBUSY) {
 		status = mount(blockDevice, name, NULL,
 					   MS_MGC_VAL | MS_REMOUNT | MS_RDONLY, NULL);
 		if (status == 0) {
 			fprintf(stderr, "umount: %s busy - remounted read-only\n",
 					blockDevice);
-			/* TODO: update mtab if BB_MTAB is defined */
 		} else {
 			fprintf(stderr, "umount: Cannot remount %s read-only\n",
 					blockDevice);
 		}
 	}
-#endif
 	if (status == 0) {
 #if defined BB_MTAB
 		if (useMtab == TRUE)
@@ -246,7 +269,7 @@ extern int umount_main(int argc, char **argv)
 				umountAll = TRUE;
 				break;
 #if defined BB_FEATURE_MOUNT_LOOP
-			case 'f':
+			case 'l':
 				freeLoop = FALSE;
 				break;
 #endif
@@ -255,11 +278,14 @@ extern int umount_main(int argc, char **argv)
 				useMtab = FALSE;
 				break;
 #endif
-#ifdef BB_FEATURE_REMOUNT
+#ifdef BB_FEATURE_MOUNT_FORCE
+			case 'f':
+				doForce = TRUE;
+				break;
+#endif
 			case 'r':
 				doRemount = TRUE;
 				break;
-#endif
 			case 'v':
 				break; /* ignore -v */
 			default:
@@ -273,9 +299,7 @@ extern int umount_main(int argc, char **argv)
 	}
 	if (do_umount(*argv, useMtab) == 0)
 		exit(TRUE);
-	else {
-		perror("umount");
-		exit(FALSE);
-	}
+	perror("umount");
+	return(FALSE);
 }
 

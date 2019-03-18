@@ -8,46 +8,53 @@
  * versions of 'who', 'last', etc. IP Addr is output in hex, 
  * little endian on x86.
  * 
- * made against libc6
+ * Modified to support all sort of libcs by 
+ * Erik Andersen <andersen@lineo.com>
  */
 
 #include "internal.h"
-#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
 #include <errno.h>
-#include <utmp.h>
 #define BB_DECLARE_EXTERN
 #define bb_need_io_error
 #include "messages.c"
+#include <utmp.h>
 
-static const char dutmp_usage[] = "dutmp [FILE]\n\n"
-	"Dump utmp file format (pipe delimited) from FILE\n"
-	"or stdin to stdout.  (i.e. 'dutmp /var/run/utmp')\n";
+
+static const char dutmp_usage[] = "dutmp [FILE]\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nDump utmp file format (pipe delimited) from FILE\n"
+	"or stdin to stdout.  (i.e. 'dutmp /var/run/utmp')\n"
+#endif
+	;
 
 extern int dutmp_main(int argc, char **argv)
 {
 
-	FILE *f;
+	int file;
 	struct utmp ut;
 
 	if (argc<2) {
-		f = stdin;
+		file = fileno(stdin);
 	} else if (*argv[1] == '-' ) {
 		usage(dutmp_usage);
 	} else  {
-		f = fopen(argv[1], "r");
-		if (f == NULL) {
+		file = open(argv[1], O_RDONLY);
+		if (file < 0) {
 			fatalError(io_error, argv[1], strerror(errno));
 		}
 	}
 
-	while (fread(&ut, sizeof(struct utmp), 1, f)) {
-		printf("%d|%d|%s|%s|%s|%s|%d|%d|%ld|%ld|%ld|%x\n",
-			   ut.ut_type, ut.ut_pid, ut.ut_line,
-			   ut.ut_id, ut.ut_user, ut.ut_host,
-			   ut.ut_exit.e_termination, ut.ut_exit.e_exit,
-			   ut.ut_session,
-			   ut.ut_tv.tv_sec, ut.ut_tv.tv_usec, ut.ut_addr);
+	while (read(file, (void*)&ut, sizeof(struct utmp))) {
+		printf("%d|%d|%s|%s|%s|%s|%s|%lx\n",
+				ut.ut_type, ut.ut_pid, ut.ut_line,
+				ut.ut_id, ut.ut_user, ut.ut_host,
+				ctime(&(ut.ut_time)), 
+				(long)ut.ut_addr);
 	}
 
-	exit(TRUE);
+	return(TRUE);
 }

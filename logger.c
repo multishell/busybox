@@ -48,14 +48,17 @@ extern CODE facilitynames[];
 #endif
 
 static const char logger_usage[] =
-	"logger [OPTION]... [MESSAGE]\n\n"
-	"Write MESSAGE to the system log.  If MESSAGE is '-', log stdin.\n\n"
+	"logger [OPTION]... [MESSAGE]\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nWrite MESSAGE to the system log.  If MESSAGE is '-', log stdin.\n\n"
 	"Options:\n"
 	"\t-s\tLog to stderr as well as the system log.\n"
 	"\t-t\tLog using the specified tag (defaults to user name).\n"
 
 	"\t-p\tEnter the message with the specified priority.\n"
-	"\t\tThis may be numerical or a ``facility.level'' pair.\n";
+	"\t\tThis may be numerical or a ``facility.level'' pair.\n"
+#endif
+	;
 
 
 /* Decode a symbolic name to a numeric value 
@@ -115,7 +118,7 @@ extern int logger_main(int argc, char **argv)
 	int option = 0;
 	int fromStdinFlag = FALSE;
 	int stopLookingAtMeLikeThat = FALSE;
-	char *message, buf[1024], name[128];
+	char *message=NULL, buf[1024], name[128];
 
 	/* Fill out the name string early (may be overwritten later */
 	my_getpwuid(name, geteuid());
@@ -172,5 +175,5 @@ extern int logger_main(int argc, char **argv)
 	syslog(pri, message);
 	closelog();
 
-	exit(TRUE);
+	return(TRUE);
 }

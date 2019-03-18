@@ -24,6 +24,8 @@
  */
 
 #include "internal.h"
+#include <stdio.h>
+#include <stdlib.h>
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -31,17 +33,30 @@
 #include <paths.h>
 #include <signal.h>
 #include <stdarg.h>
-#include <stdio.h>
-#include <sys/klog.h>
+#include <time.h>
+#include <unistd.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/un.h>
-#include <time.h>
-#include <unistd.h>
+#include <sys/param.h>
+#include <linux/unistd.h>
 
-#define ksyslog klogctl
-extern int ksyslog(int type, char *buf, int len);
+#if __GNU_LIBRARY__ < 5
+
+typedef unsigned int socklen_t;
+
+#ifndef __alpha__
+# define __NR_klogctl __NR_syslog
+static inline _syscall3(int, klogctl, int, type, char *, b, int, len);
+#else							/* __alpha__ */
+#define klogctl syslog
+#endif
+
+#else
+# include <sys/klog.h>
+#endif
+
 
 
 /* SYSLOG_NAMES defined to pull some extra junk from syslog.h */
@@ -52,7 +67,7 @@ extern int ksyslog(int type, char *buf, int len);
 #define __LOG_FILE "/var/log/messages"
 
 /* Path to the unix socket */
-char lfile[PATH_MAX] = "";
+char lfile[BUFSIZ] = "";
 
 static char *logFilePath = __LOG_FILE;
 
@@ -63,16 +78,19 @@ static int MarkInterval = 20 * 60;
 static char LocalHostName[32];
 
 static const char syslogd_usage[] =
-	"syslogd [OPTION]...\n\n"
-	"Linux system and kernel (provides klogd) logging utility.\n"
+	"syslogd [OPTION]...\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nLinux system and kernel (provides klogd) logging utility.\n"
 	"Note that this version of syslogd/klogd ignores /etc/syslog.conf.\n\n"
 	"Options:\n"
-	"\t-m\tChange the mark timestamp interval. default=20min. 0=off\n"
-	"\t-n\tDo not fork into the background (for when run by init)\n"
+	"\t-m NUM\t\tInterval between MARK lines (default=20min, 0=off)\n"
+	"\t-n\t\tRun as a foreground process\n"
 #ifdef BB_KLOGD
-	"\t-K\tDo not start up the klogd process (by default syslogd spawns klogd).\n"
+	"\t-K\t\tDo not start up the klogd process\n"
 #endif
-	"\t-O\tSpecify an alternate log file.  default=/var/log/messages\n";
+	"\t-O FILE\t\tUse an alternate log file (default=/var/log/messages)\n"
+#endif
+	;
 
 /* Note: There is also a function called "message()" in init.c */
 /* Print a message to the log file. */
@@ -80,14 +98,23 @@ static void message (char *fmt, ...) __attribute__ ((format (printf, 1, 2)));
 static void message (char *fmt, ...)
 {
 	int fd;
+	struct flock fl;
 	va_list arguments;
+
+	fl.l_whence = SEEK_SET;
+	fl.l_start  = 0;
+	fl.l_len    = 1;
 
 	if ((fd = device_open (logFilePath,
 						   O_WRONLY | O_CREAT | O_NOCTTY | O_APPEND |
 						   O_NONBLOCK)) >= 0) {
+		fl.l_type = F_WRLCK;
+		fcntl (fd, F_SETLKW, &fl);
 		va_start (arguments, fmt);
 		vdprintf (fd, fmt, arguments);
 		va_end (arguments);
+		fl.l_type = F_UNLCK;
+		fcntl (fd, F_SETLKW, &fl);
 		close (fd);
 	} else {
 		/* Always send console messages to /dev/console so people will see them. */
@@ -157,29 +184,73 @@ static void domark(int sig)
 	}
 }
 
+#define BUFSIZE 1023
+static int serveConnection (int conn)
+{
+	char   buf[ BUFSIZE + 1 ];
+	int    n_read;
+
+	while ((n_read = read (conn, buf, BUFSIZE )) > 0) {
+
+		int           pri = (LOG_USER | LOG_NOTICE);
+		char          line[ BUFSIZE + 1 ];
+		unsigned char c;
+
+		char *p = buf, *q = line;
+
+		buf[ n_read - 1 ] = '\0';
+
+		while (p && (c = *p) && q < &line[ sizeof (line) - 1 ]) {
+			if (c == '<') {
+			/* Parse the magic priority number. */
+				pri = 0;
+				while (isdigit (*(++p))) {
+					pri = 10 * pri + (*p - '0');
+				}
+				if (pri & ~(LOG_FACMASK | LOG_PRIMASK))
+					pri = (LOG_USER | LOG_NOTICE);
+			} else if (c == '\n') {
+				*q++ = ' ';
+			} else if (iscntrl (c) && (c < 0177)) {
+				*q++ = '^';
+				*q++ = c ^ 0100;
+			} else {
+				*q++ = c;
+			}
+			p++;
+		}
+		*q = '\0';
+		/* Now log it */
+		logMessage (pri, line);
+	}
+	return (0);
+}
+
 static void doSyslogd (void) __attribute__ ((noreturn));
 static void doSyslogd (void)
 {
 	struct sockaddr_un sunx;
-	size_t addrLength;
+	socklen_t addrLength;
+
 
 	int sock_fd;
 	fd_set fds;
 
-	char lfile[PATH_MAX];
+	char lfile[BUFSIZ];
 
 	/* Set up signal handlers. */
 	signal (SIGINT,  quit_signal);
 	signal (SIGTERM, quit_signal);
 	signal (SIGQUIT, quit_signal);
 	signal (SIGHUP,  SIG_IGN);
+	signal (SIGCLD,  SIG_IGN);
 	signal (SIGALRM, domark);
 	alarm (MarkInterval);
 
 	/* Create the syslog file so realpath() can work. */
 	close (open (_PATH_LOG, O_RDWR | O_CREAT, 0644));
 	if (realpath (_PATH_LOG, lfile) == NULL)
-		fatalError ("Could not resolv path to " _PATH_LOG ": %s", strerror (errno));
+		fatalError ("Could not resolv path to " _PATH_LOG ": %s\n", strerror (errno));
 
 	unlink (lfile);
 
@@ -187,14 +258,14 @@ static void doSyslogd (void)
 	sunx.sun_family = AF_UNIX;
 	strncpy (sunx.sun_path, lfile, sizeof (sunx.sun_path));
 	if ((sock_fd = socket (AF_UNIX, SOCK_STREAM, 0)) < 0)
-		fatalError ("Couldn't obtain descriptor for socket " _PATH_LOG ": %s", strerror (errno));
+		fatalError ("Couldn't obtain descriptor for socket " _PATH_LOG ": %s\n", strerror (errno));
 
 	addrLength = sizeof (sunx.sun_family) + strlen (sunx.sun_path);
 	if ((bind (sock_fd, (struct sockaddr *) &sunx, addrLength)) || (listen (sock_fd, 5)))
-		fatalError ("Could not connect to socket " _PATH_LOG ": %s", strerror (errno));
+		fatalError ("Could not connect to socket " _PATH_LOG ": %s\n", strerror (errno));
 
 	if (chmod (lfile, 0666) < 0)
-		fatalError ("Could not set permission on " _PATH_LOG ": %s", strerror (errno));
+		fatalError ("Could not set permission on " _PATH_LOG ": %s\n", strerror (errno));
 
 	FD_ZERO (&fds);
 	FD_SET (sock_fd, &fds);
@@ -216,54 +287,29 @@ static void doSyslogd (void)
 
 		for (fd = 0; (n_ready > 0) && (fd < FD_SETSIZE); fd++) {
 			if (FD_ISSET (fd, &readfds)) {
+
 				--n_ready;
+
 				if (fd == sock_fd) {
-					int conn;
+
+					int   conn;
+					pid_t pid;
+
 					if ((conn = accept (sock_fd, (struct sockaddr *) &sunx, &addrLength)) < 0) {
 						fatalError ("accept error: %s\n", strerror (errno));
 					}
-					FD_SET (conn, &fds);
-					continue;
-				}
-				else {
-#					define BUFSIZE 1023
-					char buf[ BUFSIZE + 1 ];
-					int n_read;
 
-					while ((n_read = read (fd, buf, BUFSIZE )) > 0) {
+					pid = fork();
 
-						int pri = (LOG_USER | LOG_NOTICE);
-						char line[ BUFSIZE + 1 ];
-						unsigned char c;
-						char *p = buf, *q = line;
-
-						buf[ n_read - 1 ] = '\0';
-
-						while (p && (c = *p) && q < &line[ sizeof (line) - 1 ]) {
-							if (c == '<') {
-								/* Parse the magic priority number. */
-								pri = 0;
-								while (isdigit (*(++p))) {
-									pri = 10 * pri + (*p - '0');
-								}
-								if (pri & ~(LOG_FACMASK | LOG_PRIMASK))
-									pri = (LOG_USER | LOG_NOTICE);
-							} else if (c == '\n') {
-								*q++ = ' ';
-							} else if (iscntrl (c) && (c < 0177)) {
-								*q++ = '^';
-								*q++ = c ^ 0100;
-							} else {
-								*q++ = c;
-							}
-							p++;
-						}
-						*q = '\0';
-						/* Now log it */
-						logMessage (pri, line);
+					if (pid < 0) {
+						perror ("syslogd: fork");
+						close (conn);
+						continue;
 					}
-					close (fd);
-					FD_CLR (fd, &fds);
+
+					if (pid == 0)
+						serveConnection (conn);
+					close (conn);
 				}
 			}
 		}
@@ -274,8 +320,8 @@ static void doSyslogd (void)
 
 static void klogd_signal(int sig)
 {
-	ksyslog(7, NULL, 0);
-	ksyslog(0, 0, 0);
+	klogctl(7, NULL, 0);
+	klogctl(0, 0, 0);
 	logMessage(0, "Kernel log daemon exiting.");
 	exit(TRUE);
 }
@@ -295,12 +341,12 @@ static void doKlogd (void)
 	logMessage(0, "klogd started: "
 			   "BusyBox v" BB_VER " (" BB_BT ")");
 
-	ksyslog(1, NULL, 0);
+	klogctl(1, NULL, 0);
 
 	while (1) {
 		/* Use kernel syscalls */
 		memset(log_buffer, '\0', sizeof(log_buffer));
-		if (ksyslog(2, log_buffer, sizeof(log_buffer)) < 0) {
+		if (klogctl(2, log_buffer, sizeof(log_buffer)) < 0) {
 			char message[80];
 
 			if (errno == EINTR)
@@ -399,6 +445,9 @@ extern int syslogd_main(int argc, char **argv)
 		}
 	}
 
+	if (argc > 0)
+		usage(syslogd_usage);
+
 	/* Store away localhost's name before the fork */
 	gethostname(LocalHostName, sizeof(LocalHostName));
 	if ((p = strchr(LocalHostName, '.'))) {
@@ -428,13 +477,13 @@ extern int syslogd_main(int argc, char **argv)
 		doSyslogd();
 	}
 
-	exit(TRUE);
+	return(TRUE);
 }
 
 /*
- * Local Variables
- * c-file-style: "linux"
- * c-basic-offset: 4
- * tab-width: 4
- * End:
- */
+Local Variables
+c-file-style: "linux"
+c-basic-offset: 4
+tab-width: 4
+End:
+*/

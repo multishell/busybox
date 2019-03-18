@@ -1,6 +1,6 @@
 <HTML>
 <HEAD>
-<TITLE>busybox - I am BusyBox of Borg.  Unix will be assimilated.</TITLE>
+<TITLE>BusyBox - The Swiss Army Knife of Embedded Linux</TITLE>
 <LINK REV="made" HREF="mailto:none">
 </HEAD>
 
@@ -11,10 +11,12 @@
 <UL>
 
 	<LI><A HREF="#NAME">NAME</A>
-	<LI><A HREF="#SYNOPSIS">SYNOPSIS</A>
+	<LI><A HREF="#SYNTAX">SYNTAX</A>
 	<LI><A HREF="#DESCRIPTION">DESCRIPTION</A>
+	<LI><A HREF="#USAGE">USAGE</A>
 	<LI><A HREF="#COMMON_OPTIONS">COMMON OPTIONS</A>
 	<LI><A HREF="#COMMANDS">COMMANDS</A>
+	<LI><A HREF="#LIBC_NSS">LIBC NSS</A>
 	<LI><A HREF="#SEE_ALSO">SEE ALSO</A>
 	<LI><A HREF="#MAINTAINER">MAINTAINER</A>
 	<LI><A HREF="#AUTHORS">AUTHORS</A>
@@ -25,13 +27,13 @@
 <P>
 <H1><A NAME="NAME">NAME</A></H1>
 <P>
-busybox - I am BusyBox of Borg. Unix will be assimilated.
+BusyBox - The Swiss Army Knife of Embedded Linux
 
 <P>
 <HR>
-<H1><A NAME="SYNOPSIS">SYNOPSIS</A></H1>
+<H1><A NAME="SYNTAX">SYNTAX</A></H1>
 <P>
-<PRE> busybox &lt;function&gt; [arguments...]  # or
+<PRE> BusyBox &lt;function&gt; [arguments...]  # or
 </PRE>
 <P>
 <PRE> &lt;function&gt; [arguments...]          # if symlinked
@@ -40,30 +42,50 @@ busybox - I am BusyBox of Borg. Unix will be assimilated.
 <HR>
 <H1><A NAME="DESCRIPTION">DESCRIPTION</A></H1>
 <P>
-BusyBox is a multi-call binary that combines many common Unix utilities
-into a single executable. Most people will create a link to busybox for
-each function they wish to use, and BusyBox will act like whatever it was
-invoked as. For example,
+BusyBox combines tiny versions of many common UNIX utilities into a single
+small executable. It provides minimalist replacements for most of the
+utilities you usually find in fileutils, shellutils, findutils, textutils,
+grep, gzip, tar, etc. BusyBox provides a fairly complete POSIX environment
+for any small or embedded system. The utilities in BusyBox generally have
+fewer options than their full-featured GNU cousins; however, the options
+that are included provide the expected functionality and behave very much
+like their GNU counterparts. 
 
 <P>
-<PRE>        ln -s ./busybox ls
+BusyBox has been written with size-optimization and limited resources in
+mind. It is also extremely modular so you can easily include or exclude
+commands (or features) at compile time. This makes it easy to customize
+your embedded systems. To create a working system, just add a kernel, a
+shell (such as ash), and an editor (such as elvis-tiny or ae).
+
+<P>
+<HR>
+<H1><A NAME="USAGE">USAGE</A></H1>
+<P>
+When you create a link to BusyBox for the function you wish to use, when
+BusyBox is called using that link it will behave as if the command itself
+has been invoked.
+
+<P>
+For example, entering
+
+<P>
+<PRE>        ln -s ./BusyBox ls
         ./ls
 </PRE>
 <P>
 will cause BusyBox to behave as 'ls' (if the 'ls' command has been compiled
-into busybox). You can also invoke BusyBox by providing it the command to
-run on the command line. For example,
+into BusyBox). 
 
 <P>
-<PRE>        ./busybox ls
+You can also invoke BusyBox by issuing the command as an argument on the
+command line. For example, entering
+
+<P>
+<PRE>        ./BusyBox ls
 </PRE>
 <P>
 will also cause BusyBox to behave as 'ls'. 
-
-<P>
-BusyBox has been written with size-optimization in mind. It is very easy to
-include or exclude the commands (or features) you want installed. BusyBox
-tries to make itself useful to small systems with limited resources.
 
 <P>
 <HR>
@@ -78,42 +100,69 @@ Most BusyBox commands support the <STRONG>--help</STRONG> option to provide a te
 Currently defined functions include:
 
 <P>
-basename, cat, chgrp, chmod, chown, chroot, clear, chvt, cp, date, dd, df,
-dirname, dmesg, du, dutmp, echo, false, fbset, fdflush, find, free,
-freeramdisk, deallocvt, fsck.minix, grep, gunzip, gzip, halt, head, hostid,
-hostname, init, kill, killall, length, ln, loadacm, loadfont, loadkmap,
-logger, logname, ls, lsmod, makedevs, math, mkdir, mkfifo, mkfs.minix,
-mknod, mkswap, mnc, more, mount, mt, mv, nslookup, ping, poweroff, printf,
-ps, pwd, reboot, rm, rmdir, rmmod, sed, sh, sfdisk, sleep, sort, sync,
-syslogd, swapon, swapoff, tail, tar, test, tee, touch, tr, true, tty,
-umount, uname, uniq, update, uptime, usleep, wc, whoami, yes, zcat, [
+ar, basename, cat, chgrp, chmod, chown, chroot, chvt, clear, cp, cut, date,
+dc, dd, deallocvt, df, dirname, dmesg, du, dutmp, echo, false, fbset,
+fdflush, find, free, freeramdisk, fsck.minix, grep, gunzip, gzip, halt,
+head, hostid, hostname, id, init, insmod, kill, killall, length, ln,
+loadacm, loadfont, loadkmap, logger, logname, ls, lsmod, makedevs, mkdir,
+mkfifo, mkfs.minix, mknod, mkswap, mktemp, more, mount, mt, mv, nc,
+nslookup, ping, poweroff, printf, ps, pwd, reboot, rm, rmdir, rmmod, sed,
+setkeycodes, sfdisk, sh, sleep, sort, swapoff, swapon, sync, syslogd, tail,
+tar, tee, telnet, test, touch, tr, true, tty, umount, uname, uniq, update,
+uptime, usleep, uudecode, uuencode, wc, which, whoami, yes, zcat, [
+
+<P>
+-------------------------------
 
 <DL>
+<DT><STRONG><A NAME="item_ar">ar</A></STRONG><DD>
+<P>
+Usage: ar [optxvV] archive [filenames]
+
+<P>
+Extract or list files from an ar archive.
+
+<P>
+Options:
+
+<P>
+<PRE>        o               preserve original dates
+        p               extract to stdout
+        t               list
+        x               extract
+        v               verbosely list files processed
+</PRE>
+<P>
+-------------------------------
+
 <DT><STRONG><A NAME="item_basename">basename</A></STRONG><DD>
 <P>
-Usage: basename [file ...]
+Usage: basename FILE [SUFFIX]
 
 <P>
-Strips directory and suffix from filenames. 
+Strips directory path and suffixes from FILE. If specified, also removes
+any trailing SUFFIX.
 
 <P>
-Example: 
+Example:
 
 <P>
 <PRE>        $ basename /usr/local/bin/foo
         foo
         $ basename /usr/local/bin/
         bin
+        $ basename /foo/bar.txt .txt
+        bar
 </PRE>
 <P>
 -------------------------------
 
 <DT><STRONG><A NAME="item_cat">cat</A></STRONG><DD>
 <P>
-Usage: cat [file ...]
+Usage: cat [FILE ...]
 
 <P>
-Concatenates files and prints them to the standard output.
+Concatenates <CODE>FILE(s)</CODE> and prints them to the standard output.
 
 <P>
 Example:
@@ -156,63 +205,64 @@ Example:
 Usage: chmod [<STRONG>-R</STRONG>] MODE[,MODE]... FILE...
 
 <P>
-Changes file access permissions for the specified <CODE>file(s)</CODE> or
-<CODE>directory(s).</CODE> Each MODE is defined by combining the letters
-for WHO has access to the file, an OPERATOR for selecting how the
-permissions should be changed, and a PERISSION for the <CODE>file(s)</CODE>
-or <CODE>directory(s).</CODE>
+Changes file access permissions for the specified <CODE>FILE(s)</CODE> (or
+directories). Each MODE is defined by combining the letters for WHO has
+access to the file, an OPERATOR for selecting how the permissions should be
+changed, and a PERMISSION for <CODE>FILE(s)</CODE> (or directories).
 
 <P>
-WHO may be chosen from:
+WHO may be chosen from
 
 <P>
-<PRE>        u       the User who owns the file
-        g       users in the file's Group
+<PRE>        u       User who owns the file
+        g       Users in the file's Group
         o       Other users not in the file's group
         a       All users
 </PRE>
 <P>
-OPERATOR may be chosen from:
+OPERATOR may be chosen from
 
 <P>
-<PRE>        +       add a permission
-        -       remove a permission
-        =       assign a permission
- 
-PERMISSION may be chosen from:
+<PRE>        +       Add a permission
+        -       Remove a permission
+        =       Assign a permission
 </PRE>
 <P>
-<PRE>        r       Read    
+PERMISSION may be chosen from
+
+<P>
+<PRE>        r       Read
         w       Write
-        x       eXecute (or access for directories)
+        x       Execute (or access for directories)
         s       Set user (or group) ID bit
-        t       sTickey bit (for directories prevents removing files by non-owners)
+        t       Sticky bit (for directories prevents removing files by non-owners)
 </PRE>
 <P>
-Alternately, permissions may be set numerically where the first three
-numbers are calculated by adding the octal values:
+Alternately, permissions can be set numerically where the first three
+numbers are calculated by adding the octal values, such as
 
 <P>
 <PRE>        4       Read
         2       Write
-        1       eXecute
+        1       Execute
 </PRE>
 <P>
-An optional fourth digit may also be used to specify
+An optional fourth digit can also be used to specify
 
 <P>
 <PRE>        4       Set user ID
         2       Set group ID
-        1       sTickey bit
+        1       Sticky bit
 </PRE>
 <P>
 Options:
 
 <P>
-<PRE>        -R      change files and directories recursively.
- 
-Example:
+<PRE>        -R      Change files and directories recursively.
 </PRE>
+<P>
+Example:
+
 <P>
 <PRE>        $ ls -l /tmp/foo
         -rw-rw-r--    1 root     root            0 Apr 12 18:25 /tmp/foo
@@ -228,7 +278,7 @@ Example:
 
 <DT><STRONG><A NAME="item_chown">chown</A></STRONG><DD>
 <P>
-Usage: chown [OPTION]... OWNER[.[GROUP] FILE...
+Usage: chown [OPTION]... OWNER[&lt;.|:&gt;[GROUP] FILE...
 
 <P>
 Changes the owner and/or group of each FILE to OWNER and/or GROUP.
@@ -237,7 +287,7 @@ Changes the owner and/or group of each FILE to OWNER and/or GROUP.
 Options:
 
 <P>
-<PRE>        -R      change files and directories recursively
+<PRE>        -R      Changes files and directories recursively
 </PRE>
 <P>
 Example:
@@ -260,11 +310,14 @@ Example:
 Usage: chroot NEWROOT [COMMAND...]
 
 <P>
-Run COMMAND with root directory set to NEWROOT. Example:
+Run COMMAND with root directory set to NEWROOT.
+
+<P>
+Example:
 
 <P>
 <PRE>        $ ls -l /bin/ls
-        lrwxrwxrwx    1 root     root          12 Apr 13 00:46 /bin/ls -&gt; /busybox
+        lrwxrwxrwx    1 root     root          12 Apr 13 00:46 /bin/ls -&gt; /BusyBox
         $ mount /dev/hdc1 /mnt -t minix
         $ chroot /mnt
         $ ls -l /bin/ls
@@ -285,7 +338,7 @@ Clears the screen.
 Usage: chvt N
 
 <P>
-Change foreground virtual terminal to /dev/ttyN
+Changes the foreground virtual terminal to /dev/ttyN
 
 <P>
 -------------------------------
@@ -298,13 +351,45 @@ Usage: cp [OPTION]... SOURCE DEST
 <PRE>   or: cp [OPTION]... SOURCE... DIRECTORY
 </PRE>
 <P>
-Copy SOURCE to DEST, or multiple <CODE>SOURCE(s)</CODE> to DIRECTORY.
+Copies SOURCE to DEST, or multiple <CODE>SOURCE(s)</CODE> to DIRECTORY.
 
 <P>
-<PRE>        -a      same as -dpR
-        -d      preserve links
-        -p      preserve file attributes if possable
-        -R      copy directories recursively
+Options:
+
+<P>
+<PRE>        -a      Same as -dpR
+        -d      Preserves links
+        -p      Preserves file attributes if possible
+        -R      Copies directories recursively
+</PRE>
+<P>
+-------------------------------
+
+<DT><STRONG><A NAME="item_cut">cut</A></STRONG><DD>
+<P>
+Usage: cut [OPTION]... [FILE]...
+
+<P>
+Prints selected fields from each input FILE to standard output.
+
+<P>
+Options:
+
+<P>
+<PRE>        -b LIST Output only bytes from LIST
+        -c LIST Output only characters from LIST
+        -d DELIM        Use DELIM instead of tab as the field delimiter
+        -f N    Print only these fields
+        -n      Ignored
+</PRE>
+<P>
+Example:
+
+<P>
+<PRE>        $ echo &quot;Hello world&quot; | cut -f 1 -d ' '
+        Hello
+        $ echo &quot;Hello world&quot; | cut -f 2 -d ' '
+        world
 </PRE>
 <P>
 -------------------------------
@@ -317,15 +402,15 @@ Usage: date [OPTION]... [+FORMAT]
 <PRE>  or:  date [OPTION] [MMDDhhmm[[CC]YY][.ss]]
 </PRE>
 <P>
-Display the current time in the given FORMAT, or set the system date.
+Displays the current time in the given FORMAT, or sets the system date.
 
 <P>
 Options:
 
 <P>
-<PRE>        -R              output RFC-822 compliant date string
-        -s              set time described by STRING
-        -u              print or set Coordinated Universal Time
+<PRE>        -R      Outputs RFC-822 compliant date string
+        -s      Sets time described by STRING
+        -u      Prints or sets Coordinated Universal Time
 </PRE>
 <P>
 Example:
@@ -333,6 +418,37 @@ Example:
 <P>
 <PRE>        $ date
         Wed Apr 12 18:52:41 MDT 2000
+</PRE>
+<P>
+-------------------------------
+
+<DT><STRONG><A NAME="item_dc">dc</A></STRONG><DD>
+<P>
+Usage: dc expression ...
+
+<P>
+This is a Tiny RPN calculator that understands the following operations: +,
+-, /, *, and, or, not, eor. If no arguments are given, dc will process
+input from STDIN.
+
+<P>
+The behaviour of BusyBox/dc deviates (just a little ;-) from GNU/dc, but
+this will be remedied in the future.
+
+<P>
+Example:
+
+<P>
+<PRE>        $ dc 2 2 +
+        4
+        $ dc 8 8 \* 2 2 + /
+        16
+        $ dc 0 1 and
+        0
+        $ dc 0 1 or
+        1
+        $ echo 72 9 div 8 mul | dc
+        64
 </PRE>
 <P>
 -------------------------------
@@ -354,6 +470,8 @@ Copy a file, converting and formatting according to options
 </PRE>
 <P>
 Numbers may be suffixed by w (x2), k (x1024), b (x512), or M (x1024^2)
+
+<P>
 Example:
 
 <P>
@@ -407,7 +525,10 @@ Example:
 
 <DT><STRONG><A NAME="item_dmesg">dmesg</A></STRONG><DD>
 <P>
-Usage: dmesg [<STRONG>-c</STRONG>] [<STRONG>-n</STRONG> level] [<STRONG>-s</STRONG> bufsize] Print or controls the kernel ring buffer.
+Usage: dmesg [<STRONG>-c</STRONG>] [<STRONG>-n</STRONG> level] [<STRONG>-s</STRONG> bufsize]
+
+<P>
+Print or controls the kernel ring buffer.
 
 <P>
 -------------------------------
@@ -431,7 +552,7 @@ Options:
 Example:
 
 <P>
-<PRE>        $ ./busybox du
+<PRE>        $ ./BusyBox du
         16      ./CVS
         12      ./kernel-patches/CVS
         80      ./kernel-patches
@@ -442,9 +563,10 @@ Example:
         12      ./docs/CVS
         104     ./docs
         2417    .
-         
--------------------------------
 </PRE>
+<P>
+-------------------------------
+
 <DT><STRONG><A NAME="item_dutmp">dutmp</A></STRONG><DD>
 <P>
 Usage: dutmp [FILE]
@@ -464,9 +586,10 @@ Example:
         6|245|tty1|1|LOGIN||0|0|0|955637630|998974|0
         6|246|tty2|2|LOGIN||0|0|0|955637630|999498|0
         7|336|pts/0|vt00andersen|andersen|:0.0|0|0|0|955637763|0|0
-         
--------------------------------
 </PRE>
+<P>
+-------------------------------
+
 <DT><STRONG><A NAME="item_echo">echo</A></STRONG><DD>
 <P>
 Usage: echo [-neE] [ARG ...]
@@ -494,9 +617,10 @@ Example:
         cool
         $ echo &quot;Erik\nis\ncool&quot;
         Erik\nis\ncool
-         
--------------------------------
 </PRE>
+<P>
+-------------------------------
+
 <DT><STRONG><A NAME="item_false">false</A></STRONG><DD>
 <P>
 Returns an exit code of FALSE (1)
@@ -593,7 +717,7 @@ Example:
 Usage: free
 
 <P>
-Displays the amount of free and used memory in the system.
+Displays the amount of free and used system memory.
 
 <P>
 Example:
@@ -613,7 +737,7 @@ Example:
 Usage: freeramdisk DEVICE
 
 <P>
-Free all memory used by the specified ramdisk.
+Frees all memory used by the specified ramdisk.
 
 <P>
 Example:
@@ -671,9 +795,10 @@ OPTIONS:
         -i      ignore case distinctions
         -n      print line number with output lines
         -q      be quiet. Returns 0 if result was found, 1 otherwise
+        -v      select non-matching lines
 </PRE>
 <P>
-This version of grep matches full regular expresions.
+This version of grep matches full regular expressions.
 
 <P>
 Example:
@@ -705,11 +830,11 @@ Options:
 Example:
 
 <P>
-<PRE>        $ ls -la /tmp/busybox*
-        -rw-rw-r--    1 andersen andersen   557009 Apr 11 10:55 /tmp/busybox-0.43.tar.gz
-        $ gunzip /tmp/busybox-0.43.tar.gz
-        $ ls -la /tmp/busybox*
-        -rw-rw-r--    1 andersen andersen  1761280 Apr 14 17:47 /tmp/busybox-0.43.tar
+<PRE>        $ ls -la /tmp/BusyBox*
+        -rw-rw-r--    1 andersen andersen   557009 Apr 11 10:55 /tmp/BusyBox-0.43.tar.gz
+        $ gunzip /tmp/BusyBox-0.43.tar.gz
+        $ ls -la /tmp/BusyBox*
+        -rw-rw-r--    1 andersen andersen  1761280 Apr 14 17:47 /tmp/BusyBox-0.43.tar
 </PRE>
 <P>
 -------------------------------
@@ -732,11 +857,11 @@ Options:
 Example:
 
 <P>
-<PRE>        $ ls -la /tmp/busybox*
-        -rw-rw-r--    1 andersen andersen  1761280 Apr 14 17:47 /tmp/busybox-0.43.tar
-        $ gzip /tmp/busybox-0.43.tar
-        $ ls -la /tmp/busybox*
-        -rw-rw-r--    1 andersen andersen   554058 Apr 14 17:49 /tmp/busybox-0.43.tar.gz
+<PRE>        $ ls -la /tmp/BusyBox*
+        -rw-rw-r--    1 andersen andersen  1761280 Apr 14 17:47 /tmp/BusyBox-0.43.tar
+        $ gzip /tmp/BusyBox-0.43.tar
+        $ ls -la /tmp/BusyBox*
+        -rw-rw-r--    1 andersen andersen   554058 Apr 14 17:49 /tmp/BusyBox-0.43.tar.gz
 </PRE>
 <P>
 -------------------------------
@@ -746,7 +871,7 @@ Example:
 Usage: halt
 
 <P>
-This comand halts the system.
+This command halts the system.
 
 <P>
 -------------------------------
@@ -811,6 +936,28 @@ Example:
 <P>
 <PRE>        $ hostname
         slag 
+</PRE>
+<P>
+-------------------------------
+
+<DT><STRONG><A NAME="item_id">id</A></STRONG><DD>
+<P>
+Print information for USERNAME or the current user
+
+<P>
+Options:
+
+<P>
+<PRE>        -g      prints only the group ID
+        -u      prints only the user ID
+        -r      prints the real user ID instead of the effective ID (with -ug)
+</PRE>
+<P>
+Example:
+
+<P>
+<PRE>        $ id
+        uid=1000(andersen) gid=1000(andersen)
 </PRE>
 <P>
 -------------------------------
@@ -886,7 +1033,7 @@ follows:
                 the specified process.
 </PRE>
 <P>
-<PRE>                Unrecognised actions (like initdefault) will cause init to emit
+<PRE>                Unrecognized actions (like initdefault) will cause init to emit
                 an error message, and then go along with its business.
 </PRE>
 <P>
@@ -930,6 +1077,25 @@ Example /etc/inittab file:
 <PRE>        # Stuff to do before rebooting
         ::ctrlaltdel:/bin/umount -a -r &gt; /dev/null 2&gt;&amp;1
         ::ctrlaltdel:/sbin/swapoff -a &gt; /dev/null 2&gt;&amp;1
+</PRE>
+<P>
+-------------------------------
+
+<DT><STRONG><A NAME="item_insmod">insmod</A></STRONG><DD>
+<P>
+Usage: insmod [OPTION]... MODULE [symbol=value]...
+
+<P>
+Loads the specified kernel modules into the kernel.
+
+<P>
+Options:
+
+<P>
+<PRE>                -f      Force module to load into the wrong kernel version.
+                -k      Make module autoclean-able.
+                -v      verbose output
+                -x      do not export externs
 </PRE>
 <P>
 -------------------------------
@@ -989,32 +1155,43 @@ Example:
 
 <DT><STRONG><A NAME="item_length">length</A></STRONG><DD>
 <P>
-Usage: length string
+Usage: length STRING
 
 <P>
-Prints out the length of the specified string.
+Prints out the length of the specified STRING.
 
 <P>
-Example: $ length ``Hello'' 5
+Example:
 
+<P>
+<PRE>        $ length &quot;Hello&quot;
+        5
+</PRE>
 <P>
 -------------------------------
 
 <DT><STRONG><A NAME="item_ln">ln</A></STRONG><DD>
 <P>
-Usage: ln [OPTION] TARGET... LINK_NAME|DIRECTORY Create a link named
-LINK_NAME or DIRECTORY to the specified TARGET Options:
+Usage: ln [OPTION] TARGET... LINK_NAME|DIRECTORY
+
+<P>
+Create a link named LINK_NAME or DIRECTORY to the specified TARGET You may
+use '--' to indicate that all following arguments are non-options.
+
+<P>
+Options:
 
 <P>
 <PRE>        -s      make symbolic links instead of hard links
         -f      remove existing destination files
- 
-Example:
 </PRE>
 <P>
-<PRE>    $ ln -s busybox /tmp/ls
-    [andersen@debian busybox]$ ls -l /tmp/ls
-    lrwxrwxrwx    1 root     root            7 Apr 12 18:39 ls -&gt; busybox*
+Example:
+
+<P>
+<PRE>    $ ln -s BusyBox /tmp/ls
+    $ ls -l /tmp/ls
+    lrwxrwxrwx    1 root     root            7 Apr 12 18:39 ls -&gt; BusyBox*
 </PRE>
 <P>
 -------------------------------
@@ -1111,7 +1288,7 @@ Example:
 
 <DT><STRONG><A NAME="item_ls">ls</A></STRONG><DD>
 <P>
-Usage: ls [<STRONG>-1acdelnpuxACF</STRONG>] [filenames...]
+Usage: ls [<STRONG>-1acdelnpuxACFR</STRONG>] [filenames...]
 
 <P>
 Options:
@@ -1131,6 +1308,7 @@ Options:
         -A      do not list implied . and ..
         -C      list entries by columns
         -F      append indicator (one of */=@|) to entries
+        -R  list subdirectories recursively
 </PRE>
 <P>
 -------------------------------
@@ -1177,26 +1355,39 @@ Example:
 <P>
 -------------------------------
 
-<DT><STRONG><A NAME="item_math">math</A></STRONG><DD>
+<DT><STRONG><A NAME="item_md5sum">md5sum</A></STRONG><DD>
 <P>
-Usage: math expression ...
+Usage: md5sum [OPTION] [file ...]
 
 <P>
-This is a Tiny RPN calculator that understands the following operations: +,
--, /, *, and, or, not, eor.
+Print or check MD5 checksums.
 
+<P>
+Options:
+
+<P>
+<PRE>        -b       read files in binary mode
+        -c       check MD5 sums against given list
+        -t       read files in text mode (default)
+        -g       read a string
+</PRE>
+<P>
+The following two options are useful only when verifying checksums:
+
+<P>
+<PRE>        -s       don't output anything, status code shows success
+        -w       warn about improperly formated MD5 checksum lines
+</PRE>
 <P>
 Example:
 
 <P>
-<PRE>        $ math 2 2 add
-        4
-        $ math 8 8 \* 2 2 + /
-        16
-        $ math 0 1 and
-        0
-        $ math 0 1 or
-        1
+<PRE>        $ md5sum busybox
+        6fd11e98b98a58f64ff3398d7b324003  busybox
+        $ md5sum -c -
+        6fd11e98b98a58f64ff3398d7b324003  busybox
+        busybox: OK
+        ^D
 </PRE>
 <P>
 -------------------------------
@@ -1213,7 +1404,7 @@ Options:
 
 <P>
 <PRE>        -m      set permission mode (as in chmod), not rwxrwxrwx - umask
-        -p      no error if dir exists, make parent directories as needed
+        -p      no error if directory exists, make parent directories as needed
 </PRE>
 <P>
 Example:
@@ -1312,18 +1503,38 @@ Options:
 <P>
 -------------------------------
 
-<DT><STRONG><A NAME="item_mnc">mnc</A></STRONG><DD>
+<DT><STRONG><A NAME="item_mktemp">mktemp</A></STRONG><DD>
 <P>
-Usage: mnc [IP] [port]
+Usage: mktemp [<STRONG>-q</STRONG>] TEMPLATE
 
 <P>
-mini-netcat opens a pipe to IP:port
+Creates a temporary file with its name based on TEMPLATE. TEMPLATE is any
+name with six `Xs' (i.e. /tmp/temp.XXXXXX).
 
 <P>
 Example:
 
 <P>
-<PRE>        $ mnc foobar.somedomain.com 25
+<PRE>        $ mktemp /tmp/temp.XXXXXX
+        /tmp/temp.mWiLjM
+        $ ls -la /tmp/temp.mWiLjM
+        -rw-------    1 andersen andersen        0 Apr 25 17:10 /tmp/temp.mWiLjM
+</PRE>
+<P>
+-------------------------------
+
+<DT><STRONG><A NAME="item_nc">nc</A></STRONG><DD>
+<P>
+Usage: nc [IP] [port]
+
+<P>
+Netcat opens a pipe to IP:port
+
+<P>
+Example:
+
+<P>
+<PRE>        $ nc foobar.somedomain.com 25
         220 foobar ESMTP Exim 3.12 #1 Sat, 15 Apr 2000 00:03:02 -0600
         help
         214-Commands supported:
@@ -1331,9 +1542,10 @@ Example:
         214     NOOP QUIT RSET HELP
         quit
         221 foobar closing connection
- 
--------------------------------
 </PRE>
+<P>
+-------------------------------
+
 <DT><STRONG><A NAME="item_more">more</A></STRONG><DD>
 <P>
 Usage: more [file ...]
@@ -1358,23 +1570,24 @@ Usage: mount [flags] mount [flags] device directory [<STRONG>-o</STRONG> options
 Flags:
 
 <P>
-<PRE>        -a:     Mount all file systems in fstab.
+<PRE>        -a:             Mount all file systems in fstab.
         -o option:      One of many filesystem options, listed below.
-        -r:     Mount the filesystem read-only.
-        -t filesystem-type:     Specify the filesystem type.
-        -w:     Mount for reading and writing (default).
+        -r:             Mount the filesystem read-only.
+        -t fs-type:     Specify the filesystem type.
+        -w:             Mount for reading and writing (default).
 </PRE>
 <P>
 Options for use with the ``<STRONG>-o</STRONG>'' flag:
 
 <P>
-<PRE>        async / sync:   Writes are asynchronous / synchronous.
-        dev / nodev:    Allow use of special device files / disallow them.
-        exec / noexec:  Allow use of executable files / disallow them.
-        loop: Mounts a file via loop device.
-        suid / nosuid:  Allow set-user-id-root programs / disallow them.
-        remount: Re-mount a currently-mounted filesystem, changing its flags.
-        ro / rw: Mount for read-only / read-write.
+<PRE>        async/sync:     Writes are asynchronous / synchronous.
+        atime/noatime:  Enable / disable updates to inode access times.
+        dev/nodev:      Allow use of special device files / disallow them.
+        exec/noexec:    Allow use of executable files / disallow them.
+        loop:           Mounts a file via loop device.
+        suid/nosuid:    Allow set-user-id-root programs / disallow them.
+        remount:        Re-mount a currently-mounted filesystem, changing its flags.
+        ro/rw:          Mount for read-only / read-write.
         There are EVEN MORE flags that are specific to each filesystem.
         You'll have to see the written documentation for those.
 </PRE>
@@ -1455,6 +1668,7 @@ Options:
 
 <P>
 <PRE>        -c COUNT        Send only COUNT pings.
+        -s SIZE         Send SIZE data bytes in packets (default=56).
         -q              Quiet mode, only displays output at start
                         and when finished.
 Example:
@@ -1553,7 +1767,8 @@ Instructs the kernel to reboot the system.
 Usage: rm [OPTION]... FILE...
 
 <P>
-Remove (unlink) the <CODE>FILE(s).</CODE>
+Remove (unlink) the <CODE>FILE(s).</CODE> You may use '--' to indicate that
+all following arguments are non-options.
 
 <P>
 Options:
@@ -1644,7 +1859,7 @@ Options:
         -n      suppress automatic printing of pattern space
 </PRE>
 <P>
-This version of sed matches full regular expresions.
+This version of sed matches full regular expressions.
 
 <P>
 Example:
@@ -1652,6 +1867,27 @@ Example:
 <P>
 <PRE>        $ echo &quot;foo&quot; | sed -e 's/f[a-zA-Z]o/bar/g'
         bar
+</PRE>
+<P>
+-------------------------------
+
+<DT><STRONG><A NAME="item_setkeycodes">setkeycodes</A></STRONG><DD>
+<P>
+Usage: setkeycodes SCANCODE KEYCODE ...
+
+<P>
+Set entries into the kernel's scancode-to-keycode map, allowing unusual
+keyboards to generate usable keycodes.
+
+<P>
+SCANCODE may be either xx or e0xx (hexadecimal), and KEYCODE is given in
+decimal
+
+<P>
+Example:
+
+<P>
+<PRE>        # setkeycodes e030 127
 </PRE>
 <P>
 -------------------------------
@@ -1790,10 +2026,10 @@ version of syslogd/klogd ignores /etc/syslog.conf.
 Options:
 
 <P>
-<PRE>        -m      Change the mark timestamp interval. default=20min. 0=off
-        -n      Do not fork into the background (for when run by init)
-        -K      Do not start up the klogd process (by default syslogd spawns klogd).
-        -O      Specify an alternate log file.  default=/var/log/messages
+<PRE>        -m NUM          Interval between MARK lines (default=20min, 0=off)
+        -n              Run as a foreground process
+        -K              Do not start up the klogd process
+        -O FILE         Use an alternate log file (default=/var/log/messages)
 </PRE>
 <P>
 -------------------------------
@@ -1925,6 +2161,17 @@ Example:
 <P>
 -------------------------------
 
+<DT><STRONG><A NAME="item_telnet">telnet</A></STRONG><DD>
+<P>
+Usage: telnet host [port]
+
+<P>
+Telnet is used to establish interactive communication with another computer
+over a network using the TELNET protocol.
+
+<P>
+-------------------------------
+
 <DT><STRONG><A NAME="item_tee">tee</A></STRONG><DD>
 <P>
 Usage: tee [OPTION]... [FILE]...
@@ -1971,12 +2218,20 @@ Example:
 
 <DT><STRONG><A NAME="item_tr">tr</A></STRONG><DD>
 <P>
-Usage: tr [<STRONG>-cdsu</STRONG>] string1 [string2]
+Usage: tr [-cds] STRING1 [STRING2]
 
 <P>
 Translate, squeeze, and/or delete characters from standard input, writing
 to standard output.
 
+<P>
+Options:
+
+<P>
+<PRE>        -c      take complement of STRING1
+        -d      delete input characters coded STRING1
+        -s      squeeze multiple output characters of STRING2 into one character
+</PRE>
 <P>
 Example:
 
@@ -2025,6 +2280,57 @@ Example:
 <P>
 -------------------------------
 
+<DT><STRONG><A NAME="item_uuencode">uuencode</A></STRONG><DD>
+<P>
+Usage: uuencode [OPTION] [INFILE] REMOTEFILE
+
+<P>
+Uuencode a file.
+
+<P>
+Options:
+
+<P>
+<PRE>        -m      use base64 encoding as of RFC1521
+</PRE>
+<P>
+Example:
+
+<P>
+<PRE>        $ uuencode busybox busybox
+        begin 755 busybox
+        M?T5,1@$!`0````````````(``P`!````L+@$&quot;#0```!0N@,``````#0`(``&amp;
+        .....
+        $ uudecode busybox busybox &gt; busybox.uu
+        $
+</PRE>
+<P>
+-------------------------------
+
+<DT><STRONG><A NAME="item_uudecode">uudecode</A></STRONG><DD>
+<P>
+Usage: uudecode [OPTION] [FILE]
+
+<P>
+Uudecode a uuencoded file
+
+<P>
+Options:
+
+<P>
+<PRE>        -o FILE  direct output to FILE
+</PRE>
+<P>
+Example:
+
+<P>
+<PRE>        $ uudecode -o busybox busybox.uu
+        $ ls -l busybox
+        -rwxr-xr-x   1 ams      ams        245264 Jun  7 21:35 busybox
+</PRE>
+<P>
+-------------------------------
+
 <DT><STRONG><A NAME="item_umount">umount</A></STRONG><DD>
 <P>
 Usage: umount [flags] filesystem|directory
@@ -2033,9 +2339,10 @@ Usage: umount [flags] filesystem|directory
 Flags:
 
 <P>
-<PRE>        -a:     Unmount all file systems
-        -r:     Try to remount devices as read-only if mount is busy
-        -f:     Do not free loop device (if a loop device has been used)
+<PRE>                -a:     Unmount all file systems
+                -r:     Try to remount devices as read-only if mount is busy
+                -f:     Force filesystem umount (i.e. unreachable NFS server)
+                -l:     Do not free loop device (if a loop device has been used)
 </PRE>
 <P>
 Example:
@@ -2174,6 +2481,23 @@ Example:
 <P>
 -------------------------------
 
+<DT><STRONG><A NAME="item_which">which</A></STRONG><DD>
+<P>
+Usage: which [COMMAND ...]
+
+<P>
+Locates a COMMAND.
+
+<P>
+Example:
+
+<P>
+<PRE>        $ which login
+        /bin/login
+</PRE>
+<P>
+-------------------------------
+
 <DT><STRONG><A NAME="item_whoami">whoami</A></STRONG><DD>
 <P>
 Usage: whoami
@@ -2204,13 +2528,32 @@ Repeatedly outputs a line with all specified <CODE>STRING(s),</CODE> or
 
 <DT><STRONG><A NAME="item_zcat">zcat</A></STRONG><DD>
 <P>
-This is essentially an alias for invoking ``gunzip <STRONG>-c</STRONG>'', where it decompresses the file inquestion and send the output to
+This is essentially an alias for invoking ``gunzip <STRONG>-c</STRONG>'', where it decompresses the file in question and send the output to
 stdout. 
 
 <P>
 -------------------------------
 
 </DL>
+<P>
+<HR>
+<H1><A NAME="LIBC_NSS">LIBC NSS</A></H1>
+<P>
+GNU Libc uses the Name Service Switch (NSS) to configure the behavior of
+the C library for the local environment, and to configure how it reads
+system data, such as passwords and group information. BusyBox has made it
+Policy that it will never use NSS, and will never use and libc calls that
+make use of NSS. This allows you to run an embedded system without the need
+for installing an /etc/nsswitch.conf file and without and /lib/libnss_*
+libraries installed.
+
+<P>
+If you are using a system that is using a remote LDAP server for
+authentication via GNU libc NSS, and you want to use BusyBox, then you will
+need to adjust the BusyBox source. Chances are though, that if you have
+enough space to install of that stuff on your system, then you probably
+want the full GNU utilities.
+
 <P>
 <HR>
 <H1><A NAME="SEE_ALSO">SEE ALSO</A></H1>
@@ -2274,7 +2617,18 @@ HREF="mailto:john@deltanet.com">john@deltanet.com</A>&gt;
 <br>
 
 <P>
+Glenn McGrath &lt;<A
+HREF="mailto:bug1@netconnect.com.au">bug1@netconnect.com.au</A>&gt;
+
+<br>
+
+<P>
 Bruce Perens &lt;<A HREF="mailto:bruce@perens.com">bruce@perens.com</A>&gt;
+
+<br>
+
+<P>
+Pavel Roskin &lt;<A HREF="mailto:proski@gnu.org">proski@gnu.org</A>&gt;
 
 <br>
 

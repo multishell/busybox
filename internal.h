@@ -31,8 +31,11 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
-//#include <sys/param.h>
+#include <sys/param.h>
 #include <mntent.h>
+#if ! defined(__GLIBC__) && ! defined (__UCLIBC__)
+#include <asm/string.h>
+#endif
 
 
 /* Some useful definitions */
@@ -52,6 +55,36 @@
 #define isOctal(ch)     (((ch) >= '0') && ((ch) <= '7'))
 #define isWildCard(ch)  (((ch) == '*') || ((ch) == '?') || ((ch) == '['))
 
+/* Macros for min/max.  */
+#ifndef MIN
+#define	MIN(a,b) (((a)<(b))?(a):(b))
+#endif
+
+#ifndef MAX
+#define	MAX(a,b) (((a)>(b))?(a):(b))
+#endif
+
+
+/* I don't like nested includes, but the string and io functions are used
+ * too often
+ */
+#include <stdio.h>
+#if !defined(NO_STRING_H) || defined(STDC_HEADERS)
+#  include <string.h>
+#  if !defined(STDC_HEADERS) && !defined(NO_MEMORY_H) && !defined(__GNUC__)
+#    include <memory.h>
+#  endif
+#  define memzero(s, n)     memset ((void *)(s), 0, (n))
+#else
+#  include <strings.h>
+#  define strchr            index
+#  define strrchr           rindex
+#  define memcpy(d, s, n)   bcopy((s), (d), (n))
+#  define memcmp(s1, s2, n) bcmp((s1), (s2), (n))
+#  define memzero(s, n)     bzero((s), (n))
+#endif
+
+
 enum Location {
 	_BB_DIR_ROOT = 0,
 	_BB_DIR_BIN,
@@ -60,22 +93,27 @@ enum Location {
 	_BB_DIR_USR_SBIN
 };
 
-struct Applet {
+struct BB_applet {
 	const	char*	name;
 	int	(*main)(int argc, char** argv);
 	enum	Location	location;
 };
+/* From busybox.c */
+extern const struct BB_applet applets[];
 
+extern int ar_main(int argc, char **argv);
 extern int basename_main(int argc, char **argv);
 extern int busybox_main(int argc, char** argv);
 extern int block_device_main(int argc, char** argv);
 extern int cat_main(int argc, char** argv);
-extern int cp_mv_main(int argc, char** argv);
 extern int chmod_chown_chgrp_main(int argc, char** argv);
 extern int chroot_main(int argc, char** argv);
 extern int chvt_main(int argc, char** argv);
 extern int clear_main(int argc, char** argv);
+extern int cp_mv_main(int argc, char** argv);
+extern int cut_main(int argc, char** argv);
 extern int date_main(int argc, char** argv);
+extern int dc_main(int argc, char** argv);
 extern int dd_main(int argc, char** argv);
 extern int dirname_main(int argc, char** argv);
 extern int deallocvt_main(int argc, char** argv);
@@ -99,6 +137,7 @@ extern int halt_main(int argc, char** argv);
 extern int head_main(int argc, char** argv);
 extern int hostid_main(int argc, char** argv);
 extern int hostname_main(int argc, char** argv);
+extern int id_main(int argc, char** argv);
 extern int init_main(int argc, char** argv);
 extern int insmod_main(int argc, char** argv);
 extern int kill_main(int argc, char** argv);
@@ -113,13 +152,14 @@ extern int logname_main(int argc, char **argv);
 extern int ls_main(int argc, char** argv);
 extern int lsmod_main(int argc, char** argv);
 extern int makedevs_main(int argc, char** argv);
-extern int math_main(int argc, char** argv);
+extern int md5sum_main(int argc, char** argv);
 extern int mkdir_main(int argc, char** argv);
 extern int mkfifo_main(int argc, char **argv);
 extern int mkfs_minix_main(int argc, char **argv);
 extern int mknod_main(int argc, char** argv);
 extern int mkswap_main(int argc, char** argv);
-extern int mnc_main(int argc, char** argv);
+extern int mktemp_main(int argc, char **argv);
+extern int nc_main(int argc, char** argv);
 extern int more_main(int argc, char** argv);
 extern int mount_main(int argc, char** argv);
 extern int mt_main(int argc, char** argv);
@@ -135,6 +175,7 @@ extern int rmdir_main(int argc, char **argv);
 extern int rmmod_main(int argc, char** argv);
 extern int sed_main(int argc, char** argv);
 extern int sfdisk_main(int argc, char** argv);
+extern int setkeycodes_main(int argc, char** argv);
 extern int shell_main(int argc, char** argv);
 extern int sleep_main(int argc, char** argv);
 extern int sort_main(int argc, char** argv);
@@ -152,6 +193,8 @@ extern int true_main(int argc, char** argv);
 extern int tput_main(int argc, char** argv);
 extern int tryopen_main(int argc, char** argv);
 extern int tty_main(int argc, char** argv);
+extern int uuencode_main(int argc, char** argv);
+extern int uudecode_main(int argc, char** argv);
 extern int umount_main(int argc, char** argv);
 extern int uname_main(int argc, char** argv);
 extern int uptime_main(int argc, char** argv);
@@ -159,6 +202,7 @@ extern int uniq_main(int argc, char** argv);
 extern int update_main(int argc, char** argv);
 extern int usleep_main(int argc, char** argv);
 extern int wc_main(int argc, char** argv);
+extern int which_main(int argc, char** argv);
 extern int whoami_main(int argc, char** argv);
 extern int yes_main(int argc, char** argv);
 
@@ -182,8 +226,8 @@ int is_in_ino_dev_hashtable(const struct stat *statbuf, char **name);
 void add_to_ino_dev_hashtable(const struct stat *statbuf, const char *name);
 void reset_ino_dev_hashtable(void);
 
-int copyFile(const char *srcName, const char *destName, int setModes,
-	        int followLinks);
+int copyFile(const char *srcName, const char *destName,
+		 int setModes, int followLinks, int forceFlag);
 char *buildName(const char *dirName, const char *fileName);
 int makeString(int argc, const char **argv, char *buf, int bufLen);
 char *getChunk(int size);
@@ -201,10 +245,7 @@ extern int createPath (const char *name, int mode);
 extern int parse_mode( const char* s, mode_t* theMode);
 
 extern int get_kernel_revision(void);
-extern uid_t my_getpwnam(char *name);
-extern gid_t my_getgrnam(char *name); 
-extern void my_getpwuid(char* name, uid_t uid);
-extern void my_getgrgid(char* group, gid_t gid);
+
 extern int get_console_fd(char* tty_name);
 extern struct mntent *findMountPoint(const char *name, const char *table);
 extern void write_mtab(char* blockDevice, char* directory, 
@@ -220,6 +261,15 @@ extern pid_t* findPidByName( char* pidName);
 extern void *xmalloc (size_t size);
 extern int find_real_root_device_name(char* name);
 extern char *cstring_lineFromFile(FILE *f);
+
+/* These parse entries in /etc/passwd and /etc/group.  This is desirable
+ * for BusyBox since we want to avoid using the glibc NSS stuff, which
+ * increases target size and is often not needed embedded systems.  */
+extern unsigned long my_getpwnam(char *name);
+extern unsigned long my_getgrnam(char *name);
+extern void my_getpwuid(char *name, unsigned long uid);
+extern void my_getgrgid(char *group, unsigned long gid);
+extern unsigned long my_getpwnamegid(char *name);
 
 
 #if defined BB_INIT || defined BB_SYSLOGD
@@ -241,34 +291,19 @@ int nfsmount(const char *spec, const char *node, unsigned long *flags,
 	char **extra_opts, char **mount_opts, int running_bg);
 #endif
 
-#if defined (BB_FSCK_MINIX) || defined (BB_MKFS_MINIX)
-
-static inline int bit(char * addr,unsigned int nr) 
-{
-  return (addr[nr >> 3] & (1<<(nr & 7))) != 0;
-}
-
-static inline int setbit(char * addr,unsigned int nr)
-{
-  int __res = bit(addr, nr);
-  addr[nr >> 3] |= (1<<(nr & 7));
-  return __res != 0;
-}
-
-static inline int clrbit(char * addr,unsigned int nr)
-{
-  int __res = bit(addr, nr);
-  addr[nr >> 3] &= ~(1<<(nr & 7));
-  return __res != 0;
-}
-
-#endif /* inline bitops junk */
-
-
 #ifndef RB_POWER_OFF
-/* Stop system and switch power off if possable.  */
+/* Stop system and switch power off if possible.  */
 #define RB_POWER_OFF   0x4321fedc
 #endif
 
+
+#ifndef setbit
+/* Bit map related macros -- libc5 doens't provide these... sigh.  */
+#define NBBY            CHAR_BIT
+#define setbit(a,i)     ((a)[(i)/NBBY] |= 1<<((i)%NBBY))
+#define clrbit(a,i)     ((a)[(i)/NBBY] &= ~(1<<((i)%NBBY)))
+#define isset(a,i)      ((a)[(i)/NBBY] & (1<<((i)%NBBY)))
+#define isclr(a,i)      (((a)[(i)/NBBY] & (1<<((i)%NBBY))) == 0)
+#endif
 
 #endif /* _BB_INTERNAL_H_ */

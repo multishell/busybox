@@ -11,7 +11,6 @@
 #include <linux/vt.h>
 #include <stdio.h>
 
-extern int getfd(void);
 char *progname;
 
 int deallocvt_main(int argc, char *argv[])
@@ -20,7 +19,11 @@ int deallocvt_main(int argc, char *argv[])
 
 	if ((argc != 2) || (**(argv + 1) == '-')) {
 		usage
-			("deallocvt N\n\nDeallocate unused virtual terminal /dev/ttyN\n");
+			("deallocvt N\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+			 "\nDeallocate unused virtual terminal /dev/ttyN\n"
+#endif
+			 );
 	}
 
 	progname = argv[0];
@@ -31,7 +34,7 @@ int deallocvt_main(int argc, char *argv[])
 		/* deallocate all unused consoles */
 		if (ioctl(fd, VT_DISALLOCATE, 0)) {
 			perror("VT_DISALLOCATE");
-			exit(1);
+			exit( FALSE);
 		}
 	} else
 		for (i = 1; i < argc; i++) {
@@ -45,8 +48,8 @@ int deallocvt_main(int argc, char *argv[])
 				perror("VT_DISALLOCATE");
 				fprintf(stderr, "%s: could not deallocate console %d\n",
 						progname, num);
-				exit(1);
+				exit( FALSE);
 			}
 		}
-	exit(0);
+	return( TRUE);
 }

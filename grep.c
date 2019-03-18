@@ -39,38 +39,40 @@
 #include <signal.h>
 #include <time.h>
 #include <ctype.h>
+#define BB_DECLARE_EXTERN
+#define bb_need_too_few_args
+#include "messages.c"
 
 static const char grep_usage[] =
-	"grep [OPTIONS]... PATTERN [FILE]...\n\n"
-	"Search for PATTERN in each FILE or standard input.\n\n"
+	"grep [OPTIONS]... PATTERN [FILE]...\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nSearch for PATTERN in each FILE or standard input.\n\n"
 	"OPTIONS:\n"
 	"\t-h\tsuppress the prefixing filename on output\n"
 	"\t-i\tignore case distinctions\n"
 	"\t-n\tprint line number with output lines\n"
-	"\t-q\tbe quiet. Returns 0 if result was found, 1 otherwise\n\n"
+	"\t-q\tbe quiet. Returns 0 if result was found, 1 otherwise\n"
+	"\t-v\tselect non-matching lines\n\n"
 #if defined BB_REGEXP
-	"This version of grep matches full regular expresions.\n";
+	"This version of grep matches full regular expressions.\n";
 #else
-	"This version of grep matches strings (not regular expresions).\n";
+	"This version of grep matches strings (not regular expressions).\n"
 #endif
+#endif
+	;
 
 static int match = FALSE, beQuiet = FALSE;
 
 static void do_grep(FILE * fp, char *needle, char *fileName, int tellName,
-					int ignoreCase, int tellLine)
+					int ignoreCase, int tellLine, int invertSearch)
 {
-	char *cp;
 	long line = 0;
-	char haystack[BUF_SIZE];
+	char *haystack;
+	int  truth = !invertSearch;
 
-	while (fgets(haystack, sizeof(haystack), fp)) {
+	while ((haystack = cstring_lineFromFile(fp))) {
 		line++;
-		cp = &haystack[strlen(haystack) - 1];
-
-		if (*cp != '\n')
-			fprintf(stderr, "%s: Line too long\n", fileName);
-
-		if (find_match(haystack, needle, ignoreCase) == TRUE) {
+		if (find_match(haystack, needle, ignoreCase) == truth) {
 			if (tellName == TRUE)
 				printf("%s:", fileName);
 
@@ -82,6 +84,7 @@ static void do_grep(FILE * fp, char *needle, char *fileName, int tellName,
 
 			match = TRUE;
 		}
+		free(haystack);
 	}
 }
 
@@ -89,29 +92,21 @@ static void do_grep(FILE * fp, char *needle, char *fileName, int tellName,
 extern int grep_main(int argc, char **argv)
 {
 	FILE *fp;
-	char *cp;
 	char *needle;
 	char *fileName;
-	int tellName = TRUE;
-	int ignoreCase = TRUE;
-	int tellLine = FALSE;
+	int tellName     = TRUE;
+	int ignoreCase   = FALSE;
+	int tellLine     = FALSE;
+	int invertSearch = FALSE;
 
-
-	ignoreCase = FALSE;
-	tellLine = FALSE;
-
-	argc--;
-	argv++;
 	if (argc < 1) {
 		usage(grep_usage);
 	}
+	argv++;
 
-	if (**argv == '-') {
-		argc--;
-		cp = *argv++;
-
-		while (*++cp)
-			switch (*cp) {
+	while (--argc >= 0 && *argv && (**argv == '-')) {
+		while (*++(*argv)) {
+			switch (**argv) {
 			case 'i':
 				ignoreCase = TRUE;
 				break;
@@ -128,16 +123,26 @@ extern int grep_main(int argc, char **argv)
 				beQuiet = TRUE;
 				break;
 
+			case 'v':
+				invertSearch = TRUE;
+				break;
+
 			default:
 				usage(grep_usage);
 			}
+		}
+		argv++;
+	}
+
+	if (argc == 0 || *argv == NULL) {
+		fatalError(too_few_args, "grep");
 	}
 
 	needle = *argv++;
 	argc--;
 
 	if (argc == 0) {
-		do_grep(stdin, needle, "stdin", FALSE, ignoreCase, tellLine);
+		do_grep(stdin, needle, "stdin", FALSE, ignoreCase, tellLine, invertSearch);
 	} else {
 		/* Never print the filename for just one file */
 		if (argc == 1)
@@ -151,14 +156,14 @@ extern int grep_main(int argc, char **argv)
 				continue;
 			}
 
-			do_grep(fp, needle, fileName, tellName, ignoreCase, tellLine);
+			do_grep(fp, needle, fileName, tellName, ignoreCase, tellLine, invertSearch);
 
 			if (ferror(fp))
 				perror(fileName);
 			fclose(fp);
 		}
 	}
-	exit(match);
+	return(match);
 }
 
 

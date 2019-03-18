@@ -34,6 +34,7 @@
 /* same conditions as recursiveAction */
 #define bb_need_name_too_long
 #endif
+#define bb_need_memory_exhausted
 #define BB_DECLARE_EXTERN
 #include "messages.c"
 
@@ -47,7 +48,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <ctype.h>
-#include <sys/param.h>			/* for PATH_MAX */
 #include <sys/utsname.h>		/* for uname(2) */
 
 #if defined BB_FEATURE_MOUNT_LOOP
@@ -235,15 +235,14 @@ int isDirectory(const char *fileName, const int followLinks, struct stat *statBu
 
 #if defined (BB_CP_MV)
 /*
- * Copy one file to another, while possibly preserving its modes, times,
- * and modes.  Returns TRUE if successful, or FALSE on a failure with an
- * error message output.  (Failure is not indicated if the attributes cannot
- * be set.)
- *  -Erik Andersen
+ * Copy one file to another, while possibly preserving its modes, times, and
+ * modes.  Returns TRUE if successful, or FALSE on a failure with an error
+ * message output.  (Failure is not indicated if attributes cannot be set.)
+ * -Erik Andersen
  */
 int
 copyFile(const char *srcName, const char *destName,
-		 int setModes, int followLinks)
+		 int setModes, int followLinks, int forceFlag)
 {
 	int rfd;
 	int wfd;
@@ -269,7 +268,8 @@ copyFile(const char *srcName, const char *destName,
 	else
 		status = lstat(destName, &dstStatBuf);
 
-	if (status < 0) {
+	if (status < 0 || forceFlag==TRUE) {
+		unlink(destName);
 		dstStatBuf.st_ino = -1;
 		dstStatBuf.st_dev = -1;
 	}
@@ -289,12 +289,12 @@ copyFile(const char *srcName, const char *destName,
 			return FALSE;
 		}
 	} else if (S_ISLNK(srcStatBuf.st_mode)) {
-		char link_val[PATH_MAX + 1];
+		char link_val[BUFSIZ + 1];
 		int link_size;
 
 		//fprintf(stderr, "copying link %s to %s\n", srcName, destName);
-		/* Warning: This could possibly truncate silently, to PATH_MAX chars */
-		link_size = readlink(srcName, &link_val[0], PATH_MAX);
+		/* Warning: This could possibly truncate silently, to BUFSIZ chars */
+		link_size = readlink(srcName, &link_val[0], BUFSIZ);
 		if (link_size < 0) {
 			perror(srcName);
 			return FALSE;
@@ -307,10 +307,8 @@ copyFile(const char *srcName, const char *destName,
 		}
 #if (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 1)
 		if (setModes == TRUE) {
-			if (lchown(destName, srcStatBuf.st_uid, srcStatBuf.st_gid) < 0) {
-				perror(destName);
-				return FALSE;
-			}
+			/* Try to set owner, but fail silently like GNU cp */
+			lchown(destName, srcStatBuf.st_uid, srcStatBuf.st_gid);
 		}
 #endif
 		return TRUE;
@@ -602,13 +600,13 @@ int recursiveAction(const char *fileName,
 			}
 		}
 		while ((next = readdir(dir)) != NULL) {
-			char nextFile[PATH_MAX + 1];
+			char nextFile[BUFSIZ + 1];
 
 			if ((strcmp(next->d_name, "..") == 0)
 				|| (strcmp(next->d_name, ".") == 0)) {
 				continue;
 			}
-			if (strlen(fileName) + strlen(next->d_name) + 1 > PATH_MAX) {
+			if (strlen(fileName) + strlen(next->d_name) + 1 > BUFSIZ) {
 				fprintf(stderr, name_too_long, "ftw");
 				return FALSE;
 			}
@@ -658,7 +656,7 @@ extern int createPath(const char *name, int mode)
 {
 	char *cp;
 	char *cpOld;
-	char buf[PATH_MAX + 1];
+	char buf[BUFSIZ + 1];
 	int retVal = 0;
 
 	strcpy(buf, name);
@@ -784,22 +782,32 @@ extern int parse_mode(const char *s, mode_t * theMode)
 
 
 
+#if defined BB_CHMOD_CHOWN_CHGRP || defined BB_PS || defined BB_LS || defined BB_TAR || defined BB_ID 
 
-
-#if defined BB_CHMOD_CHOWN_CHGRP || defined BB_PS || defined BB_LS || defined BB_TAR 
-
-/* Use this to avoid needing the glibc NSS stuff 
- * This uses storage buf to hold things.
- * */
-uid_t my_getid(const char *filename, char *name, uid_t id)
+/* This parses entries in /etc/passwd and /etc/group.  This is desirable
+ * for BusyBox, since we want to avoid using the glibc NSS stuff, which
+ * increases target size and is often not needed or wanted for embedded
+ * systems.
+ *
+ * /etc/passwd entries look like this: 
+ *		root:x:0:0:root:/root:/bin/bash
+ * and /etc/group entries look like this: 
+ *		root:x:0:
+ *
+ * This uses buf as storage to hold things.
+ * 
+ */
+unsigned long my_getid(const char *filename, char *name, unsigned long id, unsigned long *gid)
 {
 	FILE *file;
 	char *rname, *start, *end, buf[128];
-	uid_t rid;
+	unsigned long rid;
+	unsigned long rgid = 0;
 
 	file = fopen(filename, "r");
 	if (file == NULL) {
-		perror(filename);
+		/* Do not complain.  It is ok for /etc/passwd and
+		 * friends to be missing... */
 		return (-1);
 	}
 
@@ -807,6 +815,7 @@ uid_t my_getid(const char *filename, char *name, uid_t id)
 		if (buf[0] == '#')
 			continue;
 
+		/* username/group name */
 		start = buf;
 		end = strchr(start, ':');
 		if (end == NULL)
@@ -814,24 +823,32 @@ uid_t my_getid(const char *filename, char *name, uid_t id)
 		*end = '\0';
 		rname = start;
 
+		/* password */
 		start = end + 1;
 		end = strchr(start, ':');
 		if (end == NULL)
 			continue;
 
+		/* uid in passwd, gid in group */
 		start = end + 1;
-		rid = (uid_t) strtol(start, &end, 10);
+		rid = (unsigned long) strtol(start, &end, 10);
 		if (end == start)
 			continue;
 
+		/* gid in passwd */
+		start = end + 1;
+		rgid = (unsigned long) strtol(start, &end, 10);
+		
 		if (name) {
 			if (0 == strcmp(rname, name)) {
+			    if (gid) *gid = rgid;
 				fclose(file);
 				return (rid);
 			}
 		}
 		if (id != -1 && id == rid) {
 			strncpy(name, rname, 8);
+			if (gid) *gid = rgid;
 			fclose(file);
 			return (TRUE);
 		}
@@ -840,30 +857,39 @@ uid_t my_getid(const char *filename, char *name, uid_t id)
 	return (-1);
 }
 
-uid_t my_getpwnam(char *name)
+/* returns a uid given a username */
+unsigned long my_getpwnam(char *name)
 {
-	return my_getid("/etc/passwd", name, -1);
+	return my_getid("/etc/passwd", name, -1, NULL);
 }
 
-gid_t my_getgrnam(char *name)
+/* returns a gid given a group name */
+unsigned long my_getgrnam(char *name)
 {
-	return my_getid("/etc/group", name, -1);
+	return my_getid("/etc/group", name, -1, NULL);
 }
 
-void my_getpwuid(char *name, uid_t uid)
+/* gets a username given a uid */
+void my_getpwuid(char *name, unsigned long uid)
 {
-	my_getid("/etc/passwd", name, uid);
+	my_getid("/etc/passwd", name, uid, NULL);
 }
 
-void my_getgrgid(char *group, gid_t gid)
+/* gets a groupname given a gid */
+void my_getgrgid(char *group, unsigned long gid)
 {
-	my_getid("/etc/group", group, gid);
+	my_getid("/etc/group", group, gid, NULL);
 }
 
+/* gets a gid given a user name */
+unsigned long my_getpwnamegid(char *name)
+{
+	unsigned long gid;
+	my_getid("/etc/passwd", name, -1, &gid);
+	return gid;
+}
 
-#endif							/* BB_CHMOD_CHOWN_CHGRP || BB_PS || BB_LS || BB_TAR */
-
-
+#endif /* BB_CHMOD_CHOWN_CHGRP || BB_PS || BB_LS || BB_TAR || BB_ID */ 
 
 
 #if (defined BB_CHVT) || (defined BB_DEALLOCVT)
@@ -1011,15 +1037,6 @@ extern int replace_match(char *haystack, char *needle, char *newNeedle,
 	while (where != NULL) {
 		foundOne++;
 		strcpy(oldhayStack, haystack);
-#if 0
-		if (strlen(newNeedle) > strlen(needle)) {
-			haystack =
-				(char *) realloc(haystack,
-								 (unsigned) (strlen(haystack) -
-											 strlen(needle) +
-											 strlen(newNeedle)));
-		}
-#endif
 		for (slider = haystack, slider1 = oldhayStack; slider != where;
 			 slider++, slider1++);
 		*slider = 0;
@@ -1039,7 +1056,7 @@ extern int replace_match(char *haystack, char *needle, char *newNeedle,
 #endif							/* ! BB_REGEXP && (BB_GREP || BB_SED) */
 
 
-#if defined BB_FIND
+#if defined BB_FIND || defined BB_INSMOD
 /*
  * Routine to see if a text string is matched by a wildcard pattern.
  * Returns TRUE if the text is matched, or FALSE if it is not matched
@@ -1139,7 +1156,7 @@ extern int check_wildcard_match(const char *text, const char *pattern)
 
 	return TRUE;
 }
-#endif							/* BB_FIND */
+#endif                            /* BB_FIND || BB_INSMOD */
 
 
 
@@ -1321,7 +1338,7 @@ extern pid_t* findPidByName( char* pidName)
 				&& (strlen(pidName) == strlen(info.command_line))) {
 			pidList=realloc( pidList, sizeof(pid_t) * (j+2));
 			if (pidList==NULL)
-				fatalError("out of memory\n");
+				fatalError(memory_exhausted, "");
 			pidList[j++]=info.pid;
 		}
 	}
@@ -1394,7 +1411,7 @@ extern pid_t* findPidByName( char* pidName)
 				&& (strlen(pidName) == strlen(p))) {
 			pidList=realloc( pidList, sizeof(pid_t) * (i+2));
 			if (pidList==NULL)
-				fatalError("out of memory\n");
+				fatalError(memory_exhausted, "");
 			pidList[i++]=strtol(next->d_name, NULL, 0);
 		}
 	}
@@ -1411,7 +1428,7 @@ extern void *xmalloc(size_t size)
 	void *cp = malloc(size);
 
 	if (cp == NULL)
-		fatalError("out of memory\n");
+		fatalError(memory_exhausted, "");
 	return cp;
 }
 
@@ -1512,7 +1529,7 @@ extern char *find_unused_loop_device(void)
 }
 #endif							/* BB_FEATURE_MOUNT_LOOP */
 
-#if defined BB_MOUNT || defined BB_DF
+#if defined BB_MOUNT || defined BB_DF || ( defined BB_UMOUNT && ! defined BB_MTAB)
 extern int find_real_root_device_name(char* name)
 {
 	DIR *dir;
@@ -1556,7 +1573,7 @@ extern int find_real_root_device_name(char* name)
 }
 #endif
 
-const unsigned int CSTRING_BUFFER_LENGTH = 128;
+const unsigned int CSTRING_BUFFER_LENGTH = 1024;
 /* recursive parser that returns cstrings of arbitrary length
  * from a FILE* 
  */
@@ -1566,12 +1583,12 @@ cstring_alloc(FILE* f, int depth)
     char *cstring;
     char buffer[CSTRING_BUFFER_LENGTH];
     int	 target = CSTRING_BUFFER_LENGTH * depth;
-    int  i, len;
-    int  size;
+    int  c, i, len, size;
 
     /* fill buffer */
     i = 0;
-    while ((buffer[i] = fgetc(f)) != EOF) {
+	while ((c = fgetc(f)) != EOF) {
+		buffer[i] = (char) c;
 		if (buffer[i++] == 0x0a) { break; }
 		if (i == CSTRING_BUFFER_LENGTH) { break; }
     }

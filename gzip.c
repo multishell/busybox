@@ -30,6 +30,9 @@
  */
 
 #include "internal.h"
+#define BB_DECLARE_EXTERN
+#define bb_need_memory_exhausted
+#include "messages.c"
 
 /* These defines are very important for BusyBox.  Without these,
  * huge chunks of ram are pre-allocated making the BusyBox bss 
@@ -39,12 +42,15 @@
 
 
 static const char gzip_usage[] =
-	"gzip [OPTION]... FILE\n\n"
-	"Compress FILE with maximum compression.\n"
+	"gzip [OPTION]... FILE\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nCompress FILE with maximum compression.\n"
 	"When FILE is '-', reads standard input.  Implies -c.\n\n"
 
 	"Options:\n"
-	"\t-c\tWrite output to standard output instead of FILE.gz\n";
+	"\t-c\tWrite output to standard output instead of FILE.gz\n"
+#endif
+	;
 
 
 /* I don't like nested includes, but the string and io functions are used
@@ -121,7 +127,7 @@ extern int method;				/* compression method */
 #  define DECLARE(type, array, size)  type * array
 #  define ALLOC(type, array, size) { \
       array = (type*)calloc((size_t)(((size)+1L)/2), 2*sizeof(type)); \
-      if (array == NULL) errorMsg("insufficient memory"); \
+      if (array == NULL) errorMsg(memory_exhausted, "gzip"); \
    }
 #  define FREE(array) {if (array != NULL) free(array), array=NULL;}
 #else
@@ -276,8 +282,6 @@ extern int save_orig_name;		/* set if original name must be saved */
 #define WARN(msg) {if (!quiet) fprintf msg ; \
 		   if (exit_code == OK) exit_code = WARNING;}
 
-#define do_exit(c) exit(c)
-
 
 	/* in zip.c: */
 extern int zip (int in, int out);
@@ -323,8 +327,8 @@ extern void flush_window (void);
 extern void write_buf (int fd, void * buf, unsigned cnt);
 extern char *strlwr (char *s);
 extern char *add_envopt (int *argcp, char ***argvp, char *env);
-extern void read_error (void);
-extern void write_error (void);
+extern void read_error_msg (void);
+extern void write_error_msg (void);
 extern void display_ratio (long num, long den, FILE * file);
 
 	/* in inflate.c */
@@ -1778,7 +1782,6 @@ int part_nb;					/* number of parts in .gz file */
 long time_stamp;				/* original time stamp (modification time) */
 long ifile_size;				/* input file size, -1 for devices (debug only) */
 char *env;						/* contents of GZIP env variable */
-char **args = NULL;				/* argv pointer if GZIP env variable defined */
 char z_suffix[MAX_SUFFIX + 1];	/* default suffix (can be set with --suffix) */
 int z_len;						/* strlen(z_suffix) */
 
@@ -1878,13 +1881,13 @@ int gzip_main(int argc, char **argv)
 		inFileNum = open(ifname, O_RDONLY);
 		if (inFileNum < 0) {
 			perror(ifname);
-			do_exit(WARNING);
+			exit(WARNING);
 		}
 		/* Get the time stamp on the input file. */
 		result = stat(ifname, &statBuf);
 		if (result < 0) {
 			perror(ifname);
-			do_exit(WARNING);
+			exit(WARNING);
 		}
 		time_stamp = statBuf.st_ctime;
 		ifile_size = statBuf.st_size;
@@ -1918,7 +1921,7 @@ int gzip_main(int argc, char **argv)
 #endif
 		if (outFileNum < 0) {
 			perror(ofname);
-			do_exit(WARNING);
+			exit(WARNING);
 		}
 		SET_BINARY_MODE(outFileNum);
 		/* Set permissions on the file */
@@ -1943,7 +1946,7 @@ int gzip_main(int argc, char **argv)
 		}
 	}
 
-	do_exit(exit_code);
+	return(exit_code);
 }
 
 /* trees.c -- output deflated data using Huffman coding
@@ -2272,7 +2275,6 @@ local void set_file_type (void);
  * used.
  */
 
-#define MAX(a,b) (a >= b ? a : b)
 /* the arguments must not have side effects */
 
 /* ===========================================================================
@@ -3134,7 +3136,7 @@ int in, out;					/* input and output file descriptors */
 		insize = read(in, (char *) inbuf, INBUFSIZ);
 	}
 	if ((int) insize == EOF && errno != 0) {
-		read_error();
+		read_error_msg();
 	}
 	bytes_in = bytes_out;
 	return OK;
@@ -3249,7 +3251,7 @@ char *env;						/* name of environment variable */
 	nargv = (char **) calloc(*argcp + 1, sizeof(char *));
 
 	if (nargv == NULL)
-		errorMsg("out of memory");
+		errorMsg(memory_exhausted, "gzip");
 	oargv = *argvp;
 	*argvp = nargv;
 

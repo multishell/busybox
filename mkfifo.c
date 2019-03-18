@@ -26,11 +26,13 @@
 #include <sys/stat.h>
 #include <errno.h>
 
-static const char mkfifo_usage[] = "mkfifo [OPTIONS] name\n\n"
-	"Creates a named pipe (identical to 'mknod name p')\n\n"
-
+static const char mkfifo_usage[] = "mkfifo [OPTIONS] name\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nCreates a named pipe (identical to 'mknod name p')\n\n"
 	"Options:\n"
-	"\t-m\tcreate the pipe using the specified mode (default a=rw)\n";
+	"\t-m\tcreate the pipe using the specified mode (default a=rw)\n"
+#endif
+	;
 
 extern int mkfifo_main(int argc, char **argv)
 {
@@ -58,12 +60,11 @@ extern int mkfifo_main(int argc, char **argv)
 		argc--;
 		argv++;
 	}
-	if (argc < 1)
+	if (argc < 1 || *argv[0] == '-')
 		usage(mkfifo_usage);
 	if (mkfifo(*argv, mode) < 0) {
 		perror("mkfifo");
 		exit(255);
-	} else {
-		exit(TRUE);
 	}
+	return(TRUE);
 }

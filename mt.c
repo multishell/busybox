@@ -4,8 +4,11 @@
 #include <sys/mtio.h>
 #include <sys/fcntl.h>
 
-static const char mt_usage[] = "mt [-f device] opcode value\n\n"
-			"Control magnetic tape drive operation\n";
+static const char mt_usage[] = "mt [-f device] opcode value\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+			"\nControl magnetic tape drive operation\n"
+#endif
+			;
 
 struct mt_opcodes {
 	char *name;
@@ -58,7 +61,7 @@ extern int mt_main(int argc, char **argv)
 	struct mtop op;
 	int fd;
 	
-	if ((argc != 2 && argc != 3) || **(argv + 1) == '-') {
+	if ((argc != 2 && argc != 3) && **(argv + 1) != '-') {
 		usage(mt_usage);
 	}
 
@@ -98,5 +101,5 @@ extern int mt_main(int argc, char **argv)
 		exit (FALSE);
 	}
 
-	exit (TRUE);
+	return (TRUE);
 }

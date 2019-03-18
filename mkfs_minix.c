@@ -57,6 +57,9 @@
  *
  * The device may be a block device or a image of one, but this isn't
  * enforced (but it's not much fun on a character device :-). 
+ *
+ * Modified for BusyBox by Erik Andersen <andersen@debian.org> --
+ *	removed getopt based parser and added a hand rolled one.
  */
 
 #include "internal.h"
@@ -71,18 +74,14 @@
 #include <termios.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
+#include <sys/param.h>
 #include <mntent.h>
-#include <getopt.h>
 
 #include <linux/fs.h>
 #include <linux/minix_fs.h>
 
 #ifdef MINIX2_SUPER_MAGIC2
 #define HAVE_MINIX2 1
-#endif
-
-#ifndef __GNUC__
-#error "needs gcc for the bitop-__asm__'s"
 #endif
 
 #ifndef __linux__
@@ -154,8 +153,8 @@ static unsigned short good_blocks_table[MAX_GOOD_BLOCKS];
 static int used_good_blocks = 0;
 static unsigned long req_nr_inodes = 0;
 
-#define inode_in_use(x) (bit(inode_map,(x)))
-#define zone_in_use(x) (bit(zone_map,(x)-FIRSTZONE+1))
+#define inode_in_use(x) (isset(inode_map,(x)))
+#define zone_in_use(x) (isset(zone_map,(x)-FIRSTZONE+1))
 
 #define mark_inode(x) (setbit(inode_map,(x)))
 #define unmark_inode(x) (clrbit(inode_map,(x)))
@@ -174,23 +173,26 @@ static volatile void die(char *str)
 	exit(8);
 }
 
+static volatile void show_usage() __attribute__ ((noreturn));
 static volatile void show_usage()
 {
 	fprintf(stderr, "BusyBox v%s (%s) multi-call binary -- GPL2\n\n",
 			BB_VER, BB_BT);
 	fprintf(stderr,
-			"Usage: %s [-c | -l filename] [-nXX] [-iXX] /dev/name [blocks]\n\n",
+			"Usage: %s [-c | -l filename] [-nXX] [-iXX] /dev/name [blocks]\n",
 			program_name);
-	fprintf(stderr, "Make a MINIX filesystem.\n\n");
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	fprintf(stderr, "\nMake a MINIX filesystem.\n\n");
 	fprintf(stderr, "OPTIONS:\n");
 	fprintf(stderr, "\t-c\t\tCheck the device for bad blocks\n");
 	fprintf(stderr,
 			"\t-n [14|30]\tSpecify the maximum length of filenames\n");
 	fprintf(stderr,
-			"\t-i\t\tSpecify the number of inodes for the filesystem\n");
+			"\t-i INODES\tSpecify the number of inodes for the filesystem\n");
 	fprintf(stderr,
 			"\t-l FILENAME\tRead the bad blocks list from FILENAME\n");
 	fprintf(stderr, "\t-v\t\tMake a Minix version 2 filesystem\n\n");
+#endif
 	exit(16);
 }
 
@@ -642,10 +644,11 @@ char *filename;
 
 extern int mkfs_minix_main(int argc, char **argv)
 {
-	int i;
+	int i=1;
 	char *tmp;
 	struct stat statbuf;
 	char *listfile = NULL;
+	int stopIt=FALSE;
 
 	if (argc && *argv)
 		program_name = *argv;
@@ -655,56 +658,92 @@ extern int mkfs_minix_main(int argc, char **argv)
 	if (INODE_SIZE2 * MINIX2_INODES_PER_BLOCK != BLOCK_SIZE)
 		die("bad inode size");
 #endif
-	opterr = 0;
-	while ((i = getopt(argc, argv, "ci:l:n:v")) != EOF)
-		switch (i) {
-		case 'c':
-			check = 1;
-			break;
-		case 'i':
-			req_nr_inodes = (unsigned long) atol(optarg);
-			break;
-		case 'l':
-			listfile = optarg;
-			break;
-		case 'n':
-			i = strtoul(optarg, &tmp, 0);
-			if (*tmp)
-				show_usage();
-			if (i == 14)
-				magic = MINIX_SUPER_MAGIC;
-			else if (i == 30)
-				magic = MINIX_SUPER_MAGIC2;
-			else
-				show_usage();
-			namelen = i;
-			dirsize = i + 2;
-			break;
-		case 'v':
+	
+	/* Parse options */
+	argv++;
+	while (--argc >= 0 && *argv && **argv) {
+		if (**argv == '-') {
+			stopIt=FALSE;
+			while (i > 0 && *++(*argv) && stopIt==FALSE) {
+				switch (**argv) {
+					case 'c':
+						check = 1;
+						break;
+					case 'i':
+						{
+							char *cp=NULL;
+							if (*(*argv+1) != 0) {
+								cp = ++(*argv);
+							} else {
+								if (--argc == 0) {
+									goto goodbye;
+								}
+								cp = *(++argv);
+							}
+							req_nr_inodes = strtoul(cp, &tmp, 0);
+							if (*tmp)
+								show_usage();
+							stopIt=TRUE;
+							break;
+						}
+					case 'l':
+						if (--argc == 0) {
+							goto goodbye;
+						}
+						listfile = *(++argv);
+						break;
+					case 'n':
+						{
+							char *cp=NULL;
+
+							if (*(*argv+1) != 0) {
+								cp = ++(*argv);
+							} else {
+								if (--argc == 0) {
+									goto goodbye;
+								}
+								cp = *(++argv);
+							}
+							i = strtoul(cp, &tmp, 0);
+							if (*tmp)
+								show_usage();
+							if (i == 14)
+								magic = MINIX_SUPER_MAGIC;
+							else if (i == 30)
+								magic = MINIX_SUPER_MAGIC2;
+							else 
+								show_usage();
+							namelen = i;
+							dirsize = i + 2;
+							stopIt=TRUE;
+							break;
+						}
+					case 'v':
 #ifdef HAVE_MINIX2
-			version2 = 1;
+						version2 = 1;
 #else
-			fprintf(stderr, "%s: not compiled with minix v2 support\n",
-					program_name, device_name);
-			exit(-1);
+						fprintf(stderr, "%s: not compiled with minix v2 support\n",
+								program_name, device_name);
+						exit(-1);
 #endif
-			break;
-		default:
-			show_usage();
+						break;
+					case '-':
+					case 'h':
+					default:
+goodbye:
+						show_usage();
+				}
+			}
+		} else {
+			if (device_name == NULL)
+				device_name = *argv;
+			else if (BLOCKS == 0)
+				BLOCKS = strtol(*argv, &tmp, 0);
+			else {
+				goto goodbye;
+			}
 		}
-	argc -= optind;
-	argv += optind;
-	if (argc > 0 && !device_name) {
-		device_name = argv[0];
-		argc--;
 		argv++;
-	}
-	if (argc > 0) {
-		BLOCKS = strtol(argv[0], &tmp, 0);
-		if (*tmp) {
-			printf("strtol error: number of blocks not specified");
-			show_usage();
-		}
 	}
 
 	if (device_name && !BLOCKS)
@@ -758,5 +797,6 @@ extern int mkfs_minix_main(int argc, char **argv)
 	}
 	mark_good_blocks();
 	write_tables();
-	return 0;
+	return( 0);
+
 }

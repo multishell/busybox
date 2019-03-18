@@ -32,16 +32,22 @@
 #include <unistd.h>
 
 static const char *kill_usage =
-	"kill [-signal] process-id [process-id ...]\n\n"
-	"Send a signal (default is SIGTERM) to the specified process(es).\n\n"
-	"Options:\n" "\t-l\tList all signal names and numbers.\n\n";
+	"kill [-signal] process-id [process-id ...]\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nSend a signal (default is SIGTERM) to the specified process(es).\n\n"
+	"Options:\n" "\t-l\tList all signal names and numbers.\n\n"
+#endif
+	;
 
 #ifdef BB_KILLALL
 static const char *killall_usage =
-	"killall [-signal] process-name [process-name ...]\n\n"
-	"Send a signal (default is SIGTERM) to the specified process(es).\n\n"
-	"Options:\n" "\t-l\tList all signal names and numbers.\n\n";
+	"killall [-signal] process-name [process-name ...]\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nSend a signal (default is SIGTERM) to the specified process(es).\n\n"
+	"Options:\n" "\t-l\tList all signal names and numbers.\n\n"
 #endif
+#endif
+	;
 
 #define KILL	0
 #define KILLALL	1
@@ -222,12 +228,18 @@ extern int kill_main(int argc, char **argv)
 	} 
 #ifdef BB_KILLALL
 	else {
+		int all_found = TRUE;
 		pid_t myPid=getpid();
 		/* Looks like they want to do a killall.  Do that */
 		while (--argc >= 0) {
 			pid_t* pidList;
 
 			pidList = findPidByName( *argv);
+			if (!pidList) {
+				all_found = FALSE;
+				errorMsg( "%s: no process killed\n", *argv);
+			}
+
 			for(; pidList && *pidList!=0; pidList++) {
 				if (*pidList==myPid)
 					continue;
@@ -239,6 +251,7 @@ extern int kill_main(int argc, char **argv)
 			 * upon exit, so we can save a byte or two */
 			argv++;
 		}
+		exit (all_found);
 	}
 #endif
 

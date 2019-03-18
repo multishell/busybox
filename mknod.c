@@ -28,14 +28,17 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-static const char mknod_usage[] = "mknod [OPTIONS] NAME TYPE MAJOR MINOR\n\n"
-	"Create a special file (block, character, or pipe).\n\n"
+static const char mknod_usage[] = "mknod [OPTIONS] NAME TYPE MAJOR MINOR\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nCreate a special file (block, character, or pipe).\n\n"
 	"Options:\n"
 	"\t-m\tcreate the special file using the specified mode (default a=rw)\n\n"
 	"TYPEs include:\n"
 	"\tb:\tMake a block (buffered) device.\n"
 	"\tc or u:\tMake a character (un-buffered) device.\n"
-	"\tp:\tMake a named pipe. MAJOR and MINOR are ignored for named pipes.\n";
+	"\tp:\tMake a named pipe. MAJOR and MINOR are ignored for named pipes.\n"
+#endif
+	;
 
 int mknod_main(int argc, char **argv)
 {
@@ -58,6 +61,7 @@ int mknod_main(int argc, char **argv)
 			argc--;
 			argv++;
 			parse_mode(*argv, &perm);
+			umask(0);
 			break;
 		default:
 			usage(mknod_usage);
@@ -87,13 +91,13 @@ int mknod_main(int argc, char **argv)
 	}
 
 	if (mode == S_IFCHR || mode == S_IFBLK) {
-		dev = (atoi(argv[2]) << 8) | atoi(argv[1]);
+		dev = (atoi(argv[2]) << 8) | atoi(argv[3]);
 	}
 
 	mode |= perm;
 
 	if (mknod(argv[0], mode, dev) != 0)
 		fatalError("%s: %s\n", argv[0], strerror(errno));
-	exit (TRUE);
+	return (TRUE);
 }
 

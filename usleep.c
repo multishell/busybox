@@ -25,7 +25,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-const char usleep_usage[] = "usleep N\n\n" "Pause for N microseconds.\n";
+const char usleep_usage[] = "usleep N\n" 
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nPause for N microseconds.\n"
+#endif
+	;
 
 extern int usleep_main(int argc, char **argv)
 {
@@ -34,5 +38,5 @@ extern int usleep_main(int argc, char **argv)
 	}
 
 	usleep(atoi(*(++argv)));	/* return void */
-	exit(TRUE);
+	return(TRUE);
 }

@@ -28,31 +28,50 @@
 */
 
 #include "internal.h"
-#include <asm/types.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <errno.h>
-#include <linux/serial.h>		/* for serial_struct */
-#include <linux/version.h>
 #include <paths.h>
 #include <signal.h>
 #include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+#include <termios.h>
+#include <unistd.h>
+#include <asm/types.h>
+#include <linux/serial.h>		/* for serial_struct */
+#include <linux/version.h>
+#include <linux/reboot.h>
+#include <linux/unistd.h>
+#include <sys/sysinfo.h>		/* For check_free_memory() */
 #include <sys/fcntl.h>
 #include <sys/ioctl.h>
-#include <sys/kdaemon.h>
 #include <sys/mount.h>
-#include <sys/reboot.h>
-#include <sys/sysinfo.h>		/* For check_free_memory() */
-#ifdef BB_SYSLOGD
-# include <sys/syslog.h>
-#endif
-#include <sys/sysmacros.h>
+//#include <sys/sysmacros.h>
 #include <sys/types.h>
 #include <sys/vt.h>				/* for vt_stat */
 #include <sys/wait.h>
-#include <termios.h>
-#include <unistd.h>
+#ifdef BB_SYSLOGD
+# include <sys/syslog.h>
+#endif
+
+
+#ifndef RB_HALT_SYSTEM
+#define RB_HALT_SYSTEM  0xcdef0123
+#define RB_ENABLE_CAD   0x89abcdef
+#define RB_DISABLE_CAD  0
+#define RB_POWER_OFF    0x4321fedc
+#define RB_AUTOBOOT     0x01234567
+#if defined(__GLIBC__)
+#include <sys/reboot.h>
+  #define init_reboot(magic) reboot(magic)
+#else
+  #define init_reboot(magic) reboot(0xfee1dead, 672274793, magic)
+#endif
+#endif
+
+#ifndef _PATH_STDPATH
+#define _PATH_STDPATH	"/usr/bin:/bin:/usr/sbin:/sbin"
+#endif
 
 
 #if defined BB_FEATURE_INIT_COREDUMPS
@@ -70,6 +89,12 @@
 #ifndef KERNEL_VERSION
 #define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))
 #endif
+
+#if defined(__GLIBC__)
+#include <sys/kdaemon.h>
+#else
+static _syscall2(int, bdflush, int, func, int, data);
+#endif							/* __GLIBC__ */
 
 
 #define VT_PRIMARY   "/dev/tty1"     /* Primary virtual console */
@@ -201,6 +226,7 @@ static void message(int device, char *fmt, ...)
 	}
 }
 
+#define CTRLCHAR(ch)	((ch)&0x1f)
 
 /* Set terminal settings to reasonable defaults */
 void set_term(int fd)
@@ -210,14 +236,14 @@ void set_term(int fd)
 	tcgetattr(fd, &tty);
 
 	/* set control chars */
-	tty.c_cc[VINTR]  = 3;	/* C-c */
-	tty.c_cc[VQUIT]  = 28;	/* C-\ */
-	tty.c_cc[VERASE] = 127; /* C-? */
-	tty.c_cc[VKILL]  = 21;	/* C-u */
-	tty.c_cc[VEOF]   = 4;	/* C-d */
-	tty.c_cc[VSTART] = 17;	/* C-q */
-	tty.c_cc[VSTOP]  = 19;	/* C-s */
-	tty.c_cc[VSUSP]  = 26;	/* C-z */
+	tty.c_cc[VINTR]  = CTRLCHAR('C');	/* Ctrl-C */
+	tty.c_cc[VQUIT]  = CTRLCHAR('\\');	/* Ctrl-\ */
+	tty.c_cc[VERASE] = CTRLCHAR('?');	/* Ctrl-? */
+	tty.c_cc[VKILL]  = CTRLCHAR('U');	/* Ctrl-U */
+	tty.c_cc[VEOF]   = CTRLCHAR('D');	/* Ctrl-D */
+	tty.c_cc[VSTOP]  = CTRLCHAR('S');	/* Ctrl-S */
+	tty.c_cc[VSTART] = CTRLCHAR('Q');	/* Ctrl-Q */
+	tty.c_cc[VSUSP]  = CTRLCHAR('Z');	/* Ctrl-Z */
 
 	/* use line dicipline 0 */
 	tty.c_line = 0;
@@ -509,7 +535,7 @@ static void shutdown_system(void)
 	signal(SIGHUP, SIG_DFL);
 
 	/* Allow Ctrl-Alt-Del to reboot system. */
-	reboot(RB_ENABLE_CAD);
+	init_reboot(RB_ENABLE_CAD);
 
 	message(CONSOLE|LOG, "\r\nThe system is going down NOW !!\r\n");
 	sync();
@@ -549,10 +575,10 @@ static void halt_signal(int sig)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2,2,0)
 	if (sig == SIGUSR2)
-		reboot(RB_POWER_OFF);
+		init_reboot(RB_POWER_OFF);
 	else
 #endif
-		reboot(RB_HALT_SYSTEM);
+		init_reboot(RB_HALT_SYSTEM);
 	exit(0);
 }
 
@@ -565,7 +591,7 @@ static void reboot_signal(int sig)
 	/* allow time for last message to reach serial console */
 	sleep(2);
 
-	reboot(RB_AUTOBOOT);
+	init_reboot(RB_AUTOBOOT);
 	exit(0);
 }
 
@@ -719,7 +745,7 @@ void parse_inittab(void)
 #ifdef BB_FEATURE_USE_INITTAB
 	FILE *file;
 	char buf[256], lineAsRead[256], tmpConsole[256];
-	char *p, *q, *r, *s;
+	char *id, *runlev, *action, *process, *eol;
 	const struct initActionType *a = actions;
 	int foundIt;
 
@@ -746,64 +772,69 @@ void parse_inittab(void)
 
 	while (fgets(buf, 255, file) != NULL) {
 		foundIt = FALSE;
-		for (p = buf; *p == ' ' || *p == '\t'; p++);
-		if (*p == '#' || *p == '\n')
+		/* Skip leading spaces */
+		for (id = buf; *id == ' ' || *id == '\t'; id++);
+
+		/* Skip the line if it's a comment */
+		if (*id == '#' || *id == '\n')
 			continue;
 
 		/* Trim the trailing \n */
-		q = strrchr(p, '\n');
-		if (q != NULL)
-			*q = '\0';
+		eol = strrchr(id, '\n');
+		if (eol != NULL)
+			*eol = '\0';
 
 		/* Keep a copy around for posterity's sake (and error msgs) */
 		strcpy(lineAsRead, buf);
 
-		/* Grab the ID field */
-		s = p;
-		p = strchr(p, ':');
-		if (p != NULL || *(p + 1) != '\0') {
-			*p = '\0';
-			++p;
-		}
-
-		/* Now peel off the process field from the end
-		 * of the string */
-		q = strrchr(p, ':');
-		if (q == NULL || *(q + 1) == '\0') {
+		/* Separate the ID field from the runlevels */
+		runlev = strchr(id, ':');
+		if (runlev == NULL || *(runlev + 1) == '\0') {
 			message(LOG | CONSOLE, "Bad inittab entry: %s\n", lineAsRead);
 			continue;
 		} else {
-			*q = '\0';
-			++q;
+			*runlev = '\0';
+			++runlev;
 		}
 
-		/* Now peel off the action field */
-		r = strrchr(p, ':');
-		if (r == NULL || *(r + 1) == '\0') {
+		/* Separate the runlevels from the action */
+		action = strchr(runlev, ':');
+		if (action == NULL || *(action + 1) == '\0') {
 			message(LOG | CONSOLE, "Bad inittab entry: %s\n", lineAsRead);
 			continue;
 		} else {
-			++r;
+			*action = '\0';
+			++action;
+		}
+
+		/* Separate the action from the process */
+		process = strchr(action, ':');
+		if (process == NULL || *(process + 1) == '\0') {
+			message(LOG | CONSOLE, "Bad inittab entry: %s\n", lineAsRead);
+			continue;
+		} else {
+			*process = '\0';
+			++process;
 		}
 
 		/* Ok, now process it */
 		a = actions;
 		while (a->name != 0) {
-			if (strcmp(a->name, r) == 0) {
-				if (*s != '\0') {
+			if (strcmp(a->name, action) == 0) {
+				if (*id != '\0') {
 					struct stat statBuf;
 
 					strcpy(tmpConsole, "/dev/");
-					strncat(tmpConsole, s, 200);
+					strncat(tmpConsole, id, 200);
 					if (stat(tmpConsole, &statBuf) != 0) {
 						message(LOG | CONSOLE,
 								"device '%s' does not exist.  Did you read the directions?\n",
 								tmpConsole);
 						break;
 					}
-					s = tmpConsole;
+					id = tmpConsole;
 				}
-				new_initAction(a->action, q, s);
+				new_initAction(a->action, process, id);
 				foundIt = TRUE;
 			}
 			a++;
@@ -851,7 +882,7 @@ extern int init_main(int argc, char **argv)
 
 	/* Turn off rebooting via CTL-ALT-DEL -- we get a 
 	 * SIGINT on CAD so we can shut things down gracefully... */
-	reboot(RB_DISABLE_CAD);
+	init_reboot(RB_DISABLE_CAD);
 #endif
 
 	/* Figure out what kernel this is running */

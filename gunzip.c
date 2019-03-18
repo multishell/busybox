@@ -28,13 +28,17 @@
  */
 
 #include "internal.h"
+
 static const char gunzip_usage[] =
-	"gunzip [OPTION]... FILE\n\n"
-	"Uncompress FILE (or standard input if FILE is '-').\n\n"
+	"gunzip [OPTION]... FILE\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nUncompress FILE (or standard input if FILE is '-').\n\n"
 	"Options:\n"
 
 	"\t-c\tWrite output to standard output\n"
-	"\t-t\tTest compressed file integrity\n";
+	"\t-t\tTest compressed file integrity\n"
+#endif
+	;
 
 	
 	/* These defines are very important for BusyBox.  Without these,
@@ -43,8 +47,9 @@ static const char gunzip_usage[] =
 #define SMALL_MEM
 #define DYN_ALLOC
 
-#define bb_need_name_too_long
 #define BB_DECLARE_EXTERN
+#define bb_need_memory_exhausted
+#define bb_need_name_too_long
 #include "messages.c"
 
 
@@ -102,7 +107,6 @@ static char *license_msg[] = {
 #include <signal.h>
 #include <sys/stat.h>
 #include <errno.h>
-#include <sys/param.h>			/* for PATH_MAX */
 
 /* #include "tailor.h" */
 
@@ -207,7 +211,7 @@ extern int method;				/* compression method */
 #  define DECLARE(type, array, size)  type * array
 #  define ALLOC(type, array, size) { \
       array = (type*)calloc((size_t)(((size)+1L)/2), 2*sizeof(type)); \
-      if (array == NULL) errorMsg("insufficient memory"); \
+      if (array == NULL) errorMsg(memory_exhausted, "gunzip"); \
    }
 #  define FREE(array) {if (array != NULL) free(array), array=NULL;}
 #else
@@ -363,25 +367,23 @@ void send_bits (int value, int length);
 unsigned bi_reverse (unsigned value, int length);
 void bi_windup (void);
 void copy_block (char *buf, unsigned len, int header);
-extern int (*read_buf) (char *buf, unsigned size);
 
 	/* in util.c: */
-extern int copy (int in, int out);
 extern ulg updcrc (uch * s, unsigned n);
 extern void clear_bufs (void);
-extern int fill_inbuf (int eof_ok);
+static int fill_inbuf (int eof_ok);
 extern void flush_outbuf (void);
-extern void flush_window (void);
+static void flush_window (void);
 extern void write_buf (int fd, void * buf, unsigned cnt);
 
 #ifndef __linux__
-extern char *basename (char *fname);
+static char *basename (char *fname);
 #endif							/* not __linux__ */
-extern void read_error (void);
-extern void write_error (void);
+void read_error_msg (void);
+void write_error_msg (void);
 
 	/* in inflate.c */
-extern int inflate (void);
+static int inflate (void);
 
 /* #include "lzw.h" */
 
@@ -446,133 +448,6 @@ extern int unlzw (int in, int out);
 #  undef LZW
 #endif
 
-/* #include "getopt.h" */
-
-/* Declarations for getopt.
-   Copyright (C) 1989, 1990, 1991, 1992, 1993 Free Software Foundation, Inc.
-
-   This program is free software; you can redistribute it and/or modify it
-   under the terms of the GNU General Public License as published by the
-   Free Software Foundation; either version 2, or (at your option) any
-   later version.
-
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-   GNU General Public License for more details.
-
-   You should have received a copy of the GNU General Public License
-   along with this program; if not, write to the Free Software
-   Foundation, 675 Mass Ave, Cambridge, MA 02139, USA.  */
-
-#ifndef _GETOPT_H
-#define _GETOPT_H 1
-
-#ifdef	__cplusplus
-extern "C" {
-#endif
-/* For communication from `getopt' to the caller.
-   When `getopt' finds an option that takes an argument,
-   the argument value is returned here.
-   Also, when `ordering' is RETURN_IN_ORDER,
-   each non-option ARGV-element is returned here.  */
-		extern char *optarg;
-
-/* Index in ARGV of the next element to be scanned.
-   This is used for communication to and from the caller
-   and for communication between successive calls to `getopt'.
-
-   On entry to `getopt', zero means this is the first call; initialize.
-
-   When `getopt' returns EOF, this is the index of the first of the
-   non-option elements that the caller should itself scan.
-
-   Otherwise, `optind' communicates from one call to the next
-   how much of ARGV has been scanned so far.  */
-
-	extern int optind;
-
-/* Callers store zero here to inhibit the error message `getopt' prints
-   for unrecognized options.  */
-
-	extern int opterr;
-
-/* Set to an option character which was unrecognized.  */
-
-	extern int optopt;
-
-/* Describe the long-named options requested by the application.
-   The LONG_OPTIONS argument to getopt_long or getopt_long_only is a vector
-   of `struct option' terminated by an element containing a name which is
-   zero.
-
-   The field `has_arg' is:
-   no_argument		(or 0) if the option does not take an argument,
-   required_argument	(or 1) if the option requires an argument,
-   optional_argument 	(or 2) if the option takes an optional argument.
-
-   If the field `flag' is not NULL, it points to a variable that is set
-   to the value given in the field `val' when the option is found, but
-   left unchanged if the option is not found.
-
-   To have a long-named option do something other than set an `int' to
-   a compiled-in constant, such as set a value from `optarg', set the
-   option's `flag' field to zero and its `val' field to a nonzero
-   value (the equivalent single-letter option character, if there is
-   one).  For long options that have a zero `flag' field, `getopt'
-   returns the contents of the `val' field.  */
-
-	struct option {
-#if	__STDC__
-		const char *name;
-#else
-		char *name;
-#endif
-		/* has_arg can't be an enum because some compilers complain about
-		   type mismatches in all the code that assumes it is an int.  */
-		int has_arg;
-		int *flag;
-		int val;
-	};
-
-/* Names for the values of the `has_arg' field of `struct option'.  */
-
-#define	no_argument		0
-#define required_argument	1
-#define optional_argument	2
-
-#if __STDC__ || defined(PROTO)
-#if defined(__GNU_LIBRARY__)
-/* Many other libraries have conflicting prototypes for getopt, with
-   differences in the consts, in stdlib.h.  To avoid compilation
-   errors, only prototype getopt for the GNU C library.  */
-	extern int getopt(int argc, char *const *argv, const char *shortopts);
-#endif							/* not __GNU_LIBRARY__ */
-	extern int getopt_long(int argc, char *const *argv,
-						   const char *shortopts,
-						   const struct option *longopts, int *longind);
-	extern int getopt_long_only(int argc, char *const *argv,
-								const char *shortopts,
-								const struct option *longopts,
-								int *longind);
-
-/* Internal only.  Users should not call this directly.  */
-	extern int _getopt_internal(int argc, char *const *argv,
-								const char *shortopts,
-								const struct option *longopts,
-								int *longind, int long_only);
-#else							/* not __STDC__ */
-	extern int getopt();
-	extern int getopt_long();
-	extern int getopt_long_only();
-
-	extern int _getopt_internal();
-#endif							/* not __STDC__ */
-
-#ifdef	__cplusplus
-}
-#endif
-#endif							/* _GETOPT_H */
 #include <time.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -641,8 +516,8 @@ typedef RETSIGTYPE(*sig_type) (int);
 #define RW_USER (S_IRUSR | S_IWUSR)	/* creation mode for open() */
 
 #ifndef MAX_PATH_LEN			/* max pathname length */
-#  ifdef PATH_MAX
-#    define MAX_PATH_LEN   PATH_MAX
+#  ifdef BUFSIZ
+#    define MAX_PATH_LEN   BUFSIZ
 #  else
 #    define MAX_PATH_LEN   1024
 #  endif
@@ -716,11 +591,12 @@ int gunzip_main(int argc, char **argv)
 	char ifname[MAX_PATH_LEN + 1];	/* input file name */
 	char ofname[MAX_PATH_LEN + 1];	/* output file name */
 
-	if (argc == 1)
-		usage(gunzip_usage);
-
-	if (strcmp(*argv, "zcat") == 0)
+	if (strcmp(*argv, "zcat") == 0) {
 		to_stdout = 1;
+		if (argc == 1) {
+			fromstdin = 1;
+		}
+	}
 
 	/* Parse any options */
 	while (--argc > 0 && **(++argv) == '-') {
@@ -870,7 +746,7 @@ int gunzip_main(int argc, char **argv)
 			exit(FALSE);
 		}
 	}
-	exit(exit_code);
+	return(exit_code);
 }
 
 
@@ -1053,7 +929,7 @@ int in, out;					/* input and output file descriptors */
 		int res = inflate();
 
 		if (res == 3) {
-			errorMsg("out of memory");
+			errorMsg(memory_exhausted, "gunzip");
 		} else if (res != 0) {
 			errorMsg("invalid compressed data--format violated");
 		}
@@ -1156,7 +1032,7 @@ unsigned n;						/* number of bytes in s[] */
 /* ===========================================================================
  * Clear input and output buffers
  */
-void clear_bufs()
+void clear_bufs(void)
 {
 	outcnt = 0;
 	insize = inptr = 0;
@@ -1184,7 +1060,7 @@ int eof_ok;						/* set if EOF acceptable as a result */
 	if (insize == 0) {
 		if (eof_ok)
 			return EOF;
-		read_error();
+		read_error_msg();
 	}
 	bytes_in += (ulg) insize;
 	inptr = 1;
@@ -1235,7 +1111,7 @@ unsigned cnt;
 
 	while ((n = write(fd, buf, cnt)) != cnt) {
 		if (n == (unsigned) (-1)) {
-			write_error();
+			write_error_msg();
 		}
 		cnt -= n;
 		buf = (void *) ((char *) buf + n);
@@ -1301,7 +1177,7 @@ const char *reject;
 /* ========================================================================
  * Error handlers.
  */
-void read_error()
+void read_error_msg()
 {
 	fprintf(stderr, "\n");
 	if (errno != 0) {
@@ -1312,7 +1188,7 @@ void read_error()
 	abort_gzip();
 }
 
-void write_error()
+void write_error_msg()
 {
 	fprintf(stderr, "\n");
 	perror("");

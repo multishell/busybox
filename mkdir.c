@@ -28,15 +28,17 @@
 
 #include <stdio.h>
 #include <errno.h>
-#include <sys/param.h>			/* for PATH_MAX */
 
 static const char mkdir_usage[] =
-	"mkdir [OPTION] DIRECTORY...\n\n"
-	"Create the DIRECTORY(ies), if they do not already exist\n\n"
+	"mkdir [OPTION] DIRECTORY...\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nCreate the DIRECTORY(ies), if they do not already exist\n\n"
 	"Options:\n"
 
 	"\t-m\tset permission mode (as in chmod), not rwxrwxrwx - umask\n"
-	"\t-p\tno error if existing, make parent directories as needed\n";
+	"\t-p\tno error if existing, make parent directories as needed\n"
+#endif
+	;
 
 
 static int parentFlag = FALSE;
@@ -86,9 +88,9 @@ extern int mkdir_main(int argc, char **argv)
 	while (argc > 0) {
 		int status;
 		struct stat statBuf;
-		char buf[PATH_MAX + 1];
+		char buf[BUFSIZ + 1];
 
-		if (strlen(*argv) > PATH_MAX - 1) {
+		if (strlen(*argv) > BUFSIZ - 1) {
 			fprintf(stderr, name_too_long, "mkdir");
 			exit FALSE;
 		}
@@ -110,5 +112,5 @@ extern int mkdir_main(int argc, char **argv)
 		argc--;
 		argv++;
 	}
-	exit TRUE;
+	return( TRUE);
 }

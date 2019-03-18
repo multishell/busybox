@@ -28,19 +28,24 @@
 #include <sys/param.h>
 #include <sys/syslog.h>
 
+
 #if defined(__GLIBC__)
 #include <sys/kdaemon.h>
 #else
-_syscall2(int, bdflush, int, func, int, data);
+static _syscall2(int, bdflush, int, func, int, data);
 #endif							/* __GLIBC__ */
 
+
 static char update_usage[] =
-	"update [options]\n\n"
-	"Periodically flushes filesystem buffers.\n\n"
+	"update [options]\n"
+#ifndef BB_FEATURE_TRIVIAL_HELP
+	"\nPeriodically flushes filesystem buffers.\n\n"
 	"Options:\n"
 	"\t-S\tforce use of sync(2) instead of flushing\n"
 	"\t-s SECS\tcall sync this often (default 30)\n"
-	"\t-f SECS\tflush some buffers this often (default 5)\n";
+	"\t-f SECS\tflush some buffers this often (default 5)\n"
+#endif
+	;
 
 static unsigned int sync_duration = 30;
 static unsigned int flush_duration = 5;
@@ -52,7 +57,7 @@ extern int update_main(int argc, char **argv)
 
 	argc--;
 	argv++;
-	while (**argv == '-') {
+	while (argc>0 && **argv == '-') {
 		while (*++(*argv)) {
 			switch (**argv) {
 			case 'S':
@@ -106,7 +111,7 @@ extern int update_main(int argc, char **argv)
 			}
 		}
 	}
-	exit( TRUE);
+	return( TRUE);
 }
 
 /*
