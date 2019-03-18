@@ -198,7 +198,8 @@
 	"\t-d\tPreserves links\n" \
 	"\t-p\tPreserves file attributes if possible\n" \
 	"\t-f\tforce (implied; ignored) - always set\n" \
-	"\t-R\tCopies directories recursively"
+	"\t-i\tinteractive, prompt before overwrite\n" \
+	"\t-R,-r\tCopies directories recursively"
 
 #define cpio_trivial_usage \
 	"-[dimtuv][F cpiofile]"
@@ -702,7 +703,7 @@
 	"\t-f\tForce file system check."
 
 #define ftpget_trivial_usage \
-	"[options] remote-host local-directory remote-file"
+	"[options] remote-host local-file remote-file"
 #define ftpget_full_usage \
 	"Retrieve a remote file via FTP.\n\n" \
 	"Options:\n" \
@@ -713,7 +714,7 @@
 	"\t-P, --port             Port number to be used\n"
 
 #define ftpput_trivial_usage \
-	"[options] remote-host remote-directory local-file"
+	"[options] remote-host remote-file local-file"
 #define ftpput_full_usage \
 	"Store a local file on a remote machine via FTP.\n\n" \
 	"Options:\n" \
@@ -2414,11 +2415,26 @@
 	"$ cat /tmp/foo\n" \
 	"Hello\n"
 
+#ifdef CONFIG_FEATURE_TELNET_AUTOLOGIN
+#define telnet_trivial_usage \
+	"[-a] [-l USER] HOST [PORT]"
+#define telnet_full_usage \
+	"Telnet is used to establish interactive communication with another\n" \
+	"computer over a network using the TELNET protocol.\n\n" \
+	"Options:\n" \
+	"\t-a\t\tAttempt an automatic login with the USER variable.\n" \
+	"\t-l USER\t\tAttempt an automatic login with the USER argument.\n" \
+	"\tHOST\t\tThe official name, alias or the IP address of the\n" \
+	"\t\t\tremote host.\n" \
+	"\tPORT\t\tThe remote port number to connect to. If it is not\n" \
+	"\t\t\tspecified, the default telnet (23) port is used.\n"
+#else
 #define telnet_trivial_usage \
 	"HOST [PORT]"
 #define telnet_full_usage \
 	"Telnet is used to establish interactive communication with another\n"\
 	"computer over a network using the TELNET protocol."
+#endif
 
 #ifdef CONFIG_FEATURE_TELNETD_INETD
 #define telnetd_trivial_usage \

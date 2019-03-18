@@ -12,6 +12,15 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ *
+ *  FIXME:
+ *    In privelidged mode if uname and gname map to a uid amd gid then use the
+ *    mapped value instead of the uid/gid values in tar header
+ *
+ *  References:
+ *    GNU tar and star man pages,
+ *    Opengroup's ustar interchange format,
+ *      	http://www.opengroup.org/onlinepubs/007904975/utilities/pax.html
  */
 
 #include <stdio.h>
@@ -106,15 +115,6 @@ extern char get_header_tar(archive_handle_t *archive_handle)
 		file_header->name = concat_path_file(tar.formated.prefix, tar.formated.name);
 	}
 
-	{	/* Strip trailing '/' in directories */
-		char *tmp = last_char_is(file_header->name, '/');
-		if (tmp) {
-			*tmp = '\0';
-		}
-	}
-
-
-	file_header->mode = strtol(tar.formated.mode, NULL, 8);
 	file_header->uid = strtol(tar.formated.uid, NULL, 8);
 	file_header->gid = strtol(tar.formated.gid, NULL, 8);
 	file_header->size = strtol(tar.formated.size, NULL, 8);
@@ -124,16 +124,29 @@ extern char get_header_tar(archive_handle_t *archive_handle)
 	file_header->device = (dev_t) ((strtol(tar.formated.devmajor, NULL, 8) << 8) +
 				 strtol(tar.formated.devminor, NULL, 8));
 
-	/* Fix mode, used by the old format */
+	/* Set bits 0-11 of the files mode */
+	file_header->mode = 07777 & strtol(tar.formated.mode, NULL, 8);
+
+	/* Set bits 12-15 of the files mode */
 	switch (tar.formated.typeflag) {
-# ifdef CONFIG_FEATURE_TAR_OLDGNU_COMPATABILITY
+	/* busybox identifies hard links as being regular files with 0 size and a link name */
+	case '1':
+		file_header->mode |= S_IFREG;
+		break;
+	case 'x':
+	case 'g':
+		bb_error_msg_and_die("pax is not tar");
+		break;
+	case '7':
+		/* Reserved for high performance files, treat as normal file */
 	case 0:
 	case '0':
+#ifdef CONFIG_FEATURE_TAR_OLDGNU_COMPATABILITY
 		if (last_char_is(file_header->name, '/')) {
 			file_header->mode |= S_IFDIR;
-		} else {
+		} else
+#endif
 			file_header->mode |= S_IFREG;
-		}
 		break;
 	case '2':
 		file_header->mode |= S_IFLNK;
@@ -150,12 +163,7 @@ extern char get_header_tar(archive_handle_t *archive_handle)
 	case '6':
 		file_header->mode |= S_IFIFO;
 		break;
-# endif
-	/* hard links are detected as regular files with 0 size and a link name */
-	case '1':
-		file_header->mode &= (S_IFREG | 07777);
-		break;
-# ifdef CONFIG_FEATURE_TAR_GNU_EXTENSIONS
+#ifdef CONFIG_FEATURE_TAR_GNU_EXTENSIONS
 	case 'L': {
 			longname = xmalloc(file_header->size + 1);
 			archive_xread_all(archive_handle, longname, file_header->size);
@@ -173,13 +181,22 @@ extern char get_header_tar(archive_handle_t *archive_handle)
 			file_header->name = linkname;
 			return(get_header_tar(archive_handle));
 		}
-	case 'D':
-	case 'M':
-	case 'N':
-	case 'S':
-	case 'V':
+	case 'D':	/* GNU dump dir */
+	case 'M':	/* Continuation of multi volume archive*/
+	case 'N':	/* Old GNU for names > 100 characters */
+	case 'S':	/* Sparse file */
+	case 'V':	/* Volume header */
 		bb_error_msg("Ignoring GNU extension type %c", tar.formated.typeflag);
-# endif
+#endif
+	default:
+		bb_error_msg("Unknown typeflag: 0x%x", tar.formated.typeflag);
+	}
+	{	/* Strip trailing '/' in directories */
+		/* Must be done after mode is set as '/' is used to check if its a directory */
+		char *tmp = last_char_is(file_header->name, '/');
+		if (tmp) {
+			*tmp = '\0';
+		}
 	}
 
 	if (archive_handle->filter(archive_handle) == EXIT_SUCCESS) {

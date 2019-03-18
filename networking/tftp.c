@@ -156,7 +156,7 @@ static inline int tftp(const int cmd, const struct hostent *host,
 	int opcode = 0;
 	int finished = 0;
 	int timeout = bb_tftp_num_retries;
-	int block_nr = 1;
+	unsigned short block_nr = 1;
 
 #ifdef CONFIG_FEATURE_TFTP_BLOCKSIZE
 	int want_option_ack = 0;
@@ -292,10 +292,10 @@ static inline int tftp(const int cmd, const struct hostent *host,
 			len = cp - buf;
 
 #ifdef CONFIG_FEATURE_TFTP_DEBUG
-			printf("sending %u bytes\n", len);
+			fprintf(stderr, "sending %u bytes\n", len);
 			for (cp = buf; cp < &buf[len]; cp++)
-				printf("%02x ", *cp);
-			printf("\n");
+				fprintf(stderr, "%02x ", *cp);
+			fprintf(stderr, "\n");
 #endif
 			if (sendto(socketfd, buf, len, 0,
 					(struct sockaddr *) &sa, sizeof(sa)) < 0) {
@@ -371,7 +371,7 @@ static inline int tftp(const int cmd, const struct hostent *host,
 		tmp = ntohs(*((unsigned short *) &buf[2]));
 
 #ifdef CONFIG_FEATURE_TFTP_DEBUG
-		printf("received %d bytes: %04x %04x\n", len, opcode, tmp);
+		fprintf(stderr, "received %d bytes: %04x %04x\n", len, opcode, tmp);
 #endif
 
 		if (opcode == TFTP_ERROR) {
@@ -420,7 +420,7 @@ static inline int tftp(const int cmd, const struct hostent *host,
 				                         opcode = TFTP_ACK;
 						 }
 #ifdef CONFIG_FEATURE_TFTP_DEBUG
-						 printf("using blksize %u\n", blksize);
+						 fprintf(stderr, "using blksize %u\n", blksize);
 #endif
 					         tftp_bufsize = blksize + 4;
 						 block_nr = 0;
@@ -462,7 +462,7 @@ static inline int tftp(const int cmd, const struct hostent *host,
 
 		if (cmd_put && (opcode == TFTP_ACK)) {
 
-			if (tmp == (block_nr - 1)) {
+			if (tmp == (unsigned short)(block_nr - 1)) {
 				if (finished) {
 					break;
 				}
@@ -567,7 +567,7 @@ int tftp_main(int argc, char **argv)
 	port = bb_lookup_port(argv[optind + 1], "udp", 69);
 
 #ifdef CONFIG_FEATURE_TFTP_DEBUG
-	printf("using server \"%s\", remotefile \"%s\", "
+	fprintf(stderr, "using server \"%s\", remotefile \"%s\", "
 		"localfile \"%s\".\n",
 		inet_ntoa(*((struct in_addr *) host->h_addr)),
 		remotefile, localfile);

@@ -25,6 +25,7 @@
 #define	__LIBCONFIG_H__    1
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -482,6 +483,5 @@ extern void xregcomp(regex_t *preg, const char *regex, int cflags);
 #define HASH_SHA1	1
 #define HASH_MD5	2
 extern int hash_fd(int fd, const size_t size, const uint8_t hash_algo, uint8_t *hashval);
-extern size_t bb_full_fd_action(int src_fd, int dst_fd, const size_t size, ssize_t (*action)(int fd, const void *, size_t));
 
 #endif /* __LIBCONFIG_H__ */
