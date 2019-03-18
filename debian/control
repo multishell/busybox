@@ -21,8 +21,8 @@ Description: Tiny utilities for small and embedded systems.
  .
  This package installs the BusyBox binary but does not install symlinks
  for any of the supported utilities.  You can use /bin/busybox --install
- to install BusyBox to the current directory (you do not want to do this
- in / on your Debian system!).
+ to install BusyBox to the root directory (you do not want to do this
+ to your your Debian system, except in dire emergencies!).
 
 Package: busybox-static
 Architecture: any

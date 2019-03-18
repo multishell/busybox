@@ -18,7 +18,7 @@
 #
 
 PROG      := busybox
-VERSION   := 0.60.4
+VERSION   := 0.60.5
 BUILDTIME := $(shell TZ=UTC date -u "+%Y.%m.%d-%H:%M%z")
 export VERSION
 
@@ -161,7 +161,7 @@ OPTIMIZATIONS:=$(OPTIMIZATION) -fomit-frame-pointer
 # 
 ifeq ($(strip $(DOLFS)),true)
     # For large file support
-    CFLAGS+=-D_FILE_OFFSET_BITS=64 -D__USE_FILE_OFFSET64
+    CFLAGS+=-D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
 endif
 ifeq ($(strip $(DODMALLOC)),true)
     # For testing mem leaks with dmalloc
@@ -200,7 +200,7 @@ ifeq ($(strip $(DOSTATIC)),true)
     #endif
 endif
 
-ifndef $(PREFIX)
+ifeq ($(strip $(PREFIX)),)
     PREFIX = `pwd`/_install
 endif
 
@@ -438,7 +438,7 @@ clean:
 	- cd tests && $(MAKE) clean
 	- rm -f docs/BusyBox.txt docs/BusyBox.1 docs/BusyBox.html docs/BusyBox.html
 	- rm -f docs/busybox.txt docs/busybox.dvi docs/busybox.ps \
-	    docs/busybox.pdf docs/busybox.html
+	    docs/busybox.pdf docs/busybox.html docs/busybox.pod
 	- rm -f multibuild.log Config.h.orig *.gdb *.elf
 	- rm -rf docs/busybox _install libpwd.a libbb.a pod2htm*
 	- rm -f busybox busybox.links libbb/loop.h *~ slist.mk core applet_source_list

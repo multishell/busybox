@@ -1,3 +1,29 @@
+0.60.5
+
+    Stable Release
+
+    Bugfixes:
+	* Fixed a race that could cause init to hang
+	* Fixed init orphan process reaping 
+	* Fixed init to always attempt to provide a controlling tty.
+	    This should fix most cases where ash would print
+	    "job control disabled" -- the other cases are user error.
+	* Fixed 'gunzip -c' to not delete the source source file
+	* Fixed a silly math problem in the time applet
+	* Fixed 'cp -a' so it will once again copy symlinks properly 
+	* Fixed a long standing problem in tftp with freeing memory
+	* Fixed Makefile largefile settings
+	* Fixed a buffer overflow in vi
+	* Cosmetic cleanups in lsmod, lash, init, swapon/off, and hostname 
+	* Set the close-on-exec flag on files opened by init
+	* The updated top applet was backported from unstable
+	* Several ash bugfixes were backported from unstable
+	* Several warnings in ash, md5sum, and ifconfig
+
+	 -Erik Andersen, 26 October 2002
+
+
+
 0.60.4
 
     Stable Release

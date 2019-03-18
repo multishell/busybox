@@ -1210,7 +1210,7 @@ static int pseudo_exec(struct child_prog *child)
 	 */
 	for (x = bltins; x->cmd; x++) {
 		if (strcmp(child->argv[0], x->cmd) == 0 ) {
-			exit(x->function(child));
+			_exit(x->function(child));
 		}
 	}
 
@@ -1218,7 +1218,7 @@ static int pseudo_exec(struct child_prog *child)
 	for (x = bltins_forking; x->cmd; x++) {
 		if (strcmp(child->argv[0], x->cmd) == 0) {
 			applet_name=x->cmd;
-			exit (x->function(child));
+			_exit (x->function(child));
 		}
 	}
 #ifdef BB_FEATURE_SH_STANDALONE_SHELL
@@ -1254,7 +1254,11 @@ static int pseudo_exec(struct child_prog *child)
 #endif
 
 	execvp(child->argv[0], child->argv);
-	perror_msg_and_die("%s", child->argv[0]);
+
+	/* Do not use perror_msg_and_die() here, since we must not 
+	 * call exit() but should call _exit() instead */
+	fprintf(stderr, "%s: %m\n", child->argv[0]);
+	_exit(EXIT_FAILURE);
 }
 
 static void insert_job(struct job *newjob, int inbg)

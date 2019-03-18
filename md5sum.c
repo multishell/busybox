@@ -56,6 +56,12 @@
 #undef FALSE
 #define FALSE   ((int) 1)
 #define TRUE    ((int) 0)
+    
+/* It is unfortunate that C does not provide an operator for
+   cyclic rotation.  Hope the C compiler is smart enough.
+   gcc 2.95.4 seems to be --aaronl */
+#define CYCLIC(w, s) (w = (w << s) | (w >> (32 - s)))
+
 
 //----------------------------------------------------------------------------
 //--------md5.c
@@ -401,7 +407,6 @@ static void md5_process_block(const void *buffer, size_t len, struct md5_ctx *ct
     md5_uint32 D_save = D;
 
 #if MD5SUM_SIZE_VS_SPEED > 1
-#define CYCLIC(w, s) (w = (w << s) | (w >> (32 - s)))
 
     const md5_uint32 *pc;
     const char *pp;
@@ -434,7 +439,7 @@ static void md5_process_block(const void *buffer, size_t len, struct md5_ctx *ct
 		temp += FI(B,C,D);
 	}
 	temp += cwp[(int)(*pp++)] + *pc++;
-	temp = CYCLIC (temp, ps[i&3]);
+	CYCLIC (temp, ps[i&3]);
 	temp += B;
 	A = D; D = C; C = B; B = temp;
     }
@@ -443,7 +448,7 @@ static void md5_process_block(const void *buffer, size_t len, struct md5_ctx *ct
 
     for ( i = 0 ; i < 16 ; i++ ) {
 	temp = A + FF(B,C,D) + cwp[(int)(*pp++)] + *pc++;
-	temp = CYCLIC (temp, ps[i&3]);
+	CYCLIC (temp, ps[i&3]);
 	temp += B;
 	A = D; D = C; C = B; B = temp;
     }
@@ -451,21 +456,21 @@ static void md5_process_block(const void *buffer, size_t len, struct md5_ctx *ct
     ps += 4;
     for ( i = 0 ; i < 16 ; i++ ) {
 	temp = A + FG(B,C,D) + cwp[(int)(*pp++)] + *pc++;
-	temp = CYCLIC (temp, ps[i&3]);
+	CYCLIC (temp, ps[i&3]);
 	temp += B;
 	A = D; D = C; C = B; B = temp;
     }
     ps += 4;
     for ( i = 0 ; i < 16 ; i++ ) {
 	temp = A + FH(B,C,D) + cwp[(int)(*pp++)] + *pc++;
-	temp = CYCLIC (temp, ps[i&3]);
+	CYCLIC (temp, ps[i&3]);
 	temp += B;
 	A = D; D = C; C = B; B = temp;
     }
     ps += 4;
     for ( i = 0 ; i < 16 ; i++ ) {
 	temp = A + FI(B,C,D) + cwp[(int)(*pp++)] + *pc++;
-	temp = CYCLIC (temp, ps[i&3]);
+	CYCLIC (temp, ps[i&3]);
 	temp += B;
 	A = D; D = C; C = B; B = temp;
     }
@@ -488,11 +493,6 @@ static void md5_process_block(const void *buffer, size_t len, struct md5_ctx *ct
 	  a += b;							\
         }								\
       while (0)
-
-    /* It is unfortunate that C does not provide an operator for
-       cyclic rotation.  Hope the C compiler is smart enough.  */
-    /* gcc 2.95.4 seems to be --aaronl */
-#define CYCLIC(w, s) (w = (w << s) | (w >> (32 - s)))
 
     /* Before we start, one word to the strange constants.
        They are defined in RFC 1321 as

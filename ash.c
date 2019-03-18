@@ -2444,8 +2444,22 @@ static void evalcommand(union node *cmd, int flags)
 	for (argp = cmd->ncmd.assign; argp; argp = argp->narg.next) {
 		expandarg(argp, &varlist, EXP_VARTILDE);
 	}
-	for (argp = cmd->ncmd.args; argp; argp = argp->narg.next) {
+	for (argp = cmd->ncmd.args; argp && !arglist.list; argp = argp->narg.next) {
 		expandarg(argp, &arglist, EXP_FULL | EXP_TILDE);
+	}
+	if (argp) {
+		struct builtincmd *bcmd;
+		int pseudovarflag;
+
+		bcmd = find_builtin(arglist.list->text);
+		pseudovarflag = bcmd && IS_BUILTIN_ASSIGN(bcmd);
+		for (; argp; argp = argp->narg.next) {
+			if (pseudovarflag && isassignment(argp->narg.text)) {
+				expandarg(argp, &arglist, EXP_VARTILDE);
+				continue;
+			}
+			expandarg(argp, &arglist, EXP_FULL | EXP_TILDE);
+		}
 	}
 	*arglist.lastp = NULL;
 	*varlist.lastp = NULL;
@@ -10887,6 +10901,7 @@ static void redirect(union node *redir, int flags)
 		INTOFF;
 		newfd = openredirect(n);
 		if ((flags & REDIR_PUSH) && sv->renamed[fd] == EMPTY) {
+			i = fd;
 			if (newfd == fd) {
 				try++;
 			} else if ((i = fcntl(fd, F_DUPFD, 10)) == -1) {

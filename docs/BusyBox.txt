@@ -968,7 +968,7 @@ COMMANDS
 
                         Unrecognized actions (like initdefault) will cause init to emit an
                         error message, and then go along with its business.  All actions are
-                        run in the reverse order from how they appear in /etc/inittab.
+                        run in the order they appear in /etc/inittab.
 
                 <process>: 
 

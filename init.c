@@ -223,6 +223,8 @@ static void message(int device, char *fmt, ...)
 			log_fd = -2;
 			fprintf(stderr, "Bummer, can't write to log on %s!\n", log);
 			device = CONSOLE;
+		} else {
+			fcntl(log_fd, F_SETFD, FD_CLOEXEC);
 		}
 	}
 	if ((device & LOG) && (log_fd >= 0)) {
@@ -491,12 +493,11 @@ static pid_t run(struct init_action *a)
 		signal(SIGTSTP, SIG_DFL);
 
 		/* Create a new session and make ourself the process
-		 * group leader for non-interactive jobs */
-		if ((a->action & (RESPAWN))==0)
-			setsid();
+		 * group leader */
+		setsid();
 
 		/* Open the new terminal device */
-		if ((device_open(a->terminal, O_RDWR|O_NOCTTY)) < 0) {
+		if ((device_open(a->terminal, O_RDWR)) < 0) {
 			if (stat(a->terminal, &sb) != 0) {
 				message(LOG | CONSOLE, "\rdevice '%s' does not exist.\n",
 						a->terminal);
@@ -506,21 +507,12 @@ static pid_t run(struct init_action *a)
 			_exit(1);
 		}
 
-		/* Non-interactive jobs should not get a controling tty */
-		if ((a->action & (RESPAWN))==0)
-			(void)ioctl(0, TIOCSCTTY, 0);
-
 		/* Make sure the terminal will act fairly normal for us */
 		set_term(0);
 		/* Setup stdout, stderr for the new process so
 		 * they point to the supplied terminal */
 		dup(0);
 		dup(0);
-
-		/* For interactive jobs, create a new session 
-		 * and become the process group leader */
-		if ((a->action & (RESPAWN)))
-			setsid();
 
 		/* If the init Action requires us to wait, then force the
 		 * supplied terminal to be the controlling tty. */
@@ -628,6 +620,7 @@ static pid_t run(struct init_action *a)
 			 */
 			messageND(LOG, "Waiting for enter to start '%s' (pid %d, terminal %s)\n",
 					cmdpath, getpid(), a->terminal);
+			fflush(stdout);
 			write(fileno(stdout), press_enter, sizeof(press_enter) - 1);
 			getc(stdin);
 		}
@@ -1053,7 +1046,6 @@ extern int init_main(int argc, char **argv)
 	signal(SIGCONT, cont_handler);
 	signal(SIGSTOP, stop_handler);
 	signal(SIGTSTP, stop_handler);
-	signal(SIGCHLD, SIG_IGN);
 
 	/* Turn off rebooting via CTL-ALT-DEL -- we get a 
 	 * SIGINT on CAD so we can shut things down gracefully... */
@@ -1140,7 +1132,7 @@ extern int init_main(int argc, char **argv)
 
 		/* Wait for a child process to exit */
 		wpid = wait(&status);
-		if (wpid > 0) {
+		while (wpid > 0) {
 			/* Find out who died and clean up their corpse */
 			for (a = init_action_list; a; a = a->next) {
 				if (a->pid == wpid) {
@@ -1151,6 +1143,8 @@ extern int init_main(int argc, char **argv)
 							"Scheduling it for restart.\n", a->command, wpid);
 				}
 			}
+			/* see if anyone else is waiting to be reaped */
+			wpid = waitpid (-1, &status, WNOHANG);
 		}
 	}
 }

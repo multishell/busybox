@@ -75,7 +75,7 @@ static int gunzip_file (const char *path, int flags)
 {
 	FILE *in_file, *out_file;
 	struct stat stat_buf;
-	const char *delete_path;
+	const char *delete_path = NULL;
 	char *out_path = NULL;
 
 	if (path == NULL || strcmp (path, "-") == 0) {
@@ -132,7 +132,8 @@ static int gunzip_file (const char *path, int flags)
 	/* do the decompression, and cleanup */
 	if (unzip(in_file, out_file) == 0) {
 		/* Success, remove .gz file */
-		delete_path = path;
+		if ( !(flags & gunzip_to_stdout ))
+			delete_path = path;
 		if (flags & gunzip_verbose) {
 			fprintf(stderr, "OK\n");
 		}

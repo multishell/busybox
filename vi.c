@@ -19,7 +19,7 @@
  */
 
 static const char vi_Version[] =
-	"$Id: vi.c,v 1.18 2002/04/26 08:06:31 andersen Exp $";
+	"$Id: vi.c,v 1.19 2002/10/26 10:19:07 andersen Exp $";
 
 /*
  * To compile for standalone use:
@@ -3435,8 +3435,14 @@ static Byte get_one_char()
 		// adding STDIN chars to q
 		c = readit();	// get the users input
 		if (last_modifying_cmd != 0) {
-			// add new char to q
-			last_modifying_cmd[strlen((char *) last_modifying_cmd)] = c;
+			int len = strlen((char *) last_modifying_cmd);
+			if (len + 1 >= BUFSIZ) {
+				psbs("last_modifying_cmd overrun");
+			} else {
+				// add new char to q
+				last_modifying_cmd[len] = c;
+			}
+
 		}
 	}
 #else							/* BB_FEATURE_VI_DOT_CMD */

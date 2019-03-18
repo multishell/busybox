@@ -56,13 +56,13 @@ void check_tainted(void)
 		fclose(f);
 	}
 	if (f && tainted) {
-		printf("    Tainted: %c%c%c",
+		printf("    Tainted: %c%c%c\n",
 				tainted & TAINT_PROPRIETORY_MODULE      ? 'P' : 'G',
 				tainted & TAINT_FORCED_MODULE           ? 'F' : ' ',
 				tainted & TAINT_UNSAFE_SMP              ? 'S' : ' ');
 	}
 	else {
-		printf("    Not tainted");
+		printf("    Not tainted\n");
 	}
 }
 
@@ -127,7 +127,6 @@ extern int lsmod_main(int argc, char **argv)
 	deps = xmalloc(depsize = 256);
 	printf("Module                  Size  Used by");
 	check_tainted();
-	printf("\n");
 
 	for (i = 0, mn = module_names; i < nmod; mn += strlen(mn) + 1, i++) {
 		if (query_module(mn, QM_INFO, &info, sizeof(info), &count)) {
@@ -145,24 +144,24 @@ extern int lsmod_main(int argc, char **argv)
 			}
 			perror_msg_and_die("module %s: QM_REFS", mn);
 		}
-		printf("%-20s%8lu%4ld ", mn, info.size, info.usecount);
+		printf("%-20s%8lu%4ld", mn, info.size, info.usecount);
 		if (info.flags & NEW_MOD_DELETED)
-			printf("(deleted)");
+			printf(" (deleted)");
 		else if (info.flags & NEW_MOD_INITIALIZING)
-			printf("(initializing)");
+			printf(" (initializing)");
 		else if (!(info.flags & NEW_MOD_RUNNING))
-			printf("(uninitialized)");
+			printf(" (uninitialized)");
 		else {
 			if (info.flags & NEW_MOD_AUTOCLEAN)
-				printf("(autoclean) ");
+				printf(" (autoclean) ");
 			if (!(info.flags & NEW_MOD_USED_ONCE))
-				printf("(unused)");
+				printf(" (unused)");
 		}
-		if (count) printf("[");
+		if (count) printf(" [");
 		for (j = 0, dn = deps; j < count; dn += strlen(dn) + 1, j++) {
 			printf("%s%s", dn, (j==count-1)? "":" ");
 		}
-		if (count) printf("] ");
+		if (count) printf("]");
 
 		printf("\n");
 	}

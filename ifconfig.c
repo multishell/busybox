@@ -15,7 +15,7 @@
  * Foundation;  either  version 2 of the License, or  (at
  * your option) any later version.
  *
- * $Id: ifconfig.c,v 1.14 2001/10/28 05:14:46 andersen Exp $
+ * $Id: ifconfig.c,v 1.15 2002/10/22 22:14:29 andersen Exp $
  *
  */
 
@@ -441,6 +441,7 @@ int ifconfig_main(int argc, char **argv)
 			}
 		}
 	LOOP:
+		continue;
 	} /* end of while-loop */
 
 	return goterr;

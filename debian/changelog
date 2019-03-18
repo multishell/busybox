@@ -1,3 +1,19 @@
+busybox (1:0.60.5-1) unstable; urgency=low
+  
+  * New version released.  See Changelog for non-Debian specific details.
+  * zcat no longer tries to delete source files (closes: #164968)
+  * Eliminate /linuxrc from the .udeb (closes: #163890)
+  * Fix description of the --install option (closes: #164178)
+
+ -- Erik Andersen <andersee@debian.org>  Sat, 26 Oct 2002 06:23:51 -0600
+
+busybox (1:0.60.4-1.1) unstable; urgency=low
+
+  * NMU
+  * Fix cp -a so it handles symlinks properly (closes: #163501)
+
+ -- Tollef Fog Heen <tfheen@debian.org>  Sun,  6 Oct 2002 16:08:45 +0200
+
 busybox (1:0.60.4-1) unstable; urgency=low
   
   * New version released.  See Changelog for non-Debian specific details.

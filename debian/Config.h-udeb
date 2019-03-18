@@ -87,7 +87,7 @@
 #define BB_MV
 //#define BB_NC
 //#define BB_NSLOOKUP
-//#define BB_PIDOF
+#define BB_PIDOF
 #define BB_PING
 #define BB_PIVOT_ROOT
 //#define BB_POWEROFF
@@ -218,7 +218,7 @@
 #define BB_FEATURE_USE_INITTAB
 //
 //Enable init being called as /linuxrc
-#define BB_FEATURE_LINUXRC
+//#define BB_FEATURE_LINUXRC
 //
 //Have init enable core dumping for child processes (for debugging only) 
 //#define BB_FEATURE_INIT_COREDUMPS

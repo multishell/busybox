@@ -318,7 +318,7 @@ static void summarize (FILE *fp, const char *fmt, char **command, resource_t *re
 			    fprintf (fp, "%ldm %ld.%02lds",	/* -> m:s.  */
 				    resp->ru.ru_stime.tv_sec / 60,
 				    resp->ru.ru_stime.tv_sec % 60,
-				    resp->ru.ru_stime.tv_sec / 10000);
+				    resp->ru.ru_stime.tv_usec / 10000);
 			break;
 		    case 'U':		/* User time.  */
 			fprintf (fp, "%ld.%02ld",
@@ -335,7 +335,7 @@ static void summarize (FILE *fp, const char *fmt, char **command, resource_t *re
 			    fprintf (fp, "%ldm %ld.%02lds",	/* -> m:s.  */
 				    resp->ru.ru_utime.tv_sec / 60,
 				    resp->ru.ru_utime.tv_sec % 60,
-				    resp->ru.ru_utime.tv_sec / 10000);
+				    resp->ru.ru_utime.tv_usec / 10000);
 			break;
 		    case 'W':		/* Times swapped out.  */
 			fprintf (fp, "%ld", resp->ru.ru_nswap);
