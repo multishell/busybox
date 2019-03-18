@@ -1,9 +1,7 @@
 /*
- * Mini true/false implementation for busybox
+ * Mini yes implementation for busybox
  *
- *
- * Copyright (C) 1999 by Lineo, inc.
- * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
+ * Copyright (C) 2000  Edward Betts <edward@debian.org>.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,17 +20,22 @@
  */
 
 #include "internal.h"
+#include <stdio.h>
 
+extern int yes_main(int argc, char **argv) {
+	int i;
+	if (argc == 1)
+		while (1)
+			if (puts ("y") == EOF) {
+				perror ("yes");
+				exit(FALSE);
+			}
 
-extern int
-true_main(int argc, char** argv)
-{
-	exit( TRUE);
+	while (1)
+		for (i = 1; i < argc; i++)
+			if (fputs (argv[i], stdout) == EOF || putchar (i == argc - 1 ? '\n' : ' ') == EOF) {
+				perror ("yes");
+				exit(FALSE);
+			}
+	exit(TRUE);
 }
-
-extern int
-false_main(int argc, char** argv)
-{
-	exit( FALSE);
-}
-

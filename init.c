@@ -106,10 +106,11 @@ struct initActionTag {
 initAction* initActionList = NULL;
 
 
-static char *console = _PATH_CONSOLE;
-static char *second_console = VT_SECONDARY;
+static char *secondConsole = VT_SECONDARY;
 static char *log = VT_LOG;
-static int kernel_version = 0;
+static int kernelVersion = 0;
+static char termType[32] = "TERM=ansi";
+static char console[32] = _PATH_CONSOLE;
 
 
 /* try to open up the specified device */
@@ -257,35 +258,37 @@ static void console_init()
     struct serial_struct sr;
     char *s;
 
+    if ((s = getenv("TERM")) != NULL) {
+	snprintf(termType,sizeof(termType)-1,"TERM=%s",s);
+    }
+
     if ((s = getenv("CONSOLE")) != NULL) {
-	console = s;
+	snprintf(console, sizeof(console)-1, "%s",s);
     }
 #if #cpu(sparc)
     /* sparc kernel supports console=tty[ab] parameter which is also 
      * passed to init, so catch it here */
-    else if ((s = getenv("console")) != NULL) {
+    else if ((s = getenv("console")) != NULL) {*/
 	/* remap tty[ab] to /dev/ttyS[01] */
 	if (strcmp( s, "ttya" )==0)
-	    console = SERIAL_CON0;
+	    snprintf(console, sizeof(console)-1, "%s", SERIAL_CON0);
 	else if (strcmp( s, "ttyb" )==0)
-	    console = SERIAL_CON1;
+	    snprintf(console, sizeof(console)-1, "%s", SERIAL_CON1);
     }
 #endif
     else {
 	struct vt_stat vt;
-	static char the_console[13];
 
-	console = the_console;
 	/* 2.2 kernels: identify the real console backend and try to use it */
 	if (ioctl(0, TIOCGSERIAL, &sr) == 0) {
 	    /* this is a serial console */
-	    snprintf( the_console, sizeof the_console, "/dev/ttyS%d", sr.line );
+	    snprintf(console, sizeof(console)-1, "/dev/ttyS%d", sr.line);
 	}
 	else if (ioctl(0, VT_GETSTATE, &vt) == 0) {
 	    /* this is linux virtual tty */
-	    snprintf( the_console, sizeof the_console, "/dev/tty%d", vt.v_active );
+	    snprintf(console, sizeof(console)-1, "/dev/tty%d", vt.v_active);
 	} else {
-	    console = _PATH_CONSOLE;
+	    snprintf(console, sizeof(console)-1, "%s", _PATH_CONSOLE);
 	    tried_devcons++;
 	}
     }
@@ -294,27 +297,27 @@ static void console_init()
 	/* Can't open selected console -- try /dev/console */
 	if (!tried_devcons) {
 	    tried_devcons++;
-	    console = _PATH_CONSOLE;
+	    snprintf(console, sizeof(console)-1, "%s", _PATH_CONSOLE);
 	    continue;
 	}
 	/* Can't open selected console -- try vt1 */
 	if (!tried_vtprimary) {
 	    tried_vtprimary++;
-	    console = VT_PRIMARY;
+	    snprintf(console, sizeof(console)-1, "%s", VT_PRIMARY);
 	    continue;
 	}
 	break;
     }
-    if (fd < 0)
+    if (fd < 0) {
 	/* Perhaps we should panic here? */
-	console = "/dev/null";
-    else {
+	snprintf(console, sizeof(console)-1, "/dev/null");
+    } else {
 	/* check for serial console and disable logging to tty3 & running a
 	* shell to tty2 */
 	if (ioctl(0,TIOCGSERIAL,&sr) == 0) {
-	    message(LOG|CONSOLE, "serial console detected.  Disabling virtual terminals.\r\n", console );
+	    message(LOG|CONSOLE, "serial console detected.  Disabling virtual terminals.\r\n" );
 	    log = NULL;
-	    second_console = NULL;
+	    secondConsole = NULL;
 	}
 	close(fd);
     }
@@ -324,15 +327,23 @@ static void console_init()
 static pid_t run(char* command, 
 	char *terminal, int get_enter)
 {
-    int i;
+    int i, fd;
     pid_t pid;
     char* tmpCmd;
     char* cmd[255];
     static const char press_enter[] =
 	"\nPlease press Enter to activate this console. ";
+    char* environment[] = {
+	"HOME=/",
+	"PATH=/usr/bin:/bin:/usr/sbin:/sbin",
+	"SHELL=/bin/sh",
+	termType,
+	"USER=root",
+	0
+    };
+
 
     if ((pid = fork()) == 0) {
-	int fd;
 	pid_t shell_pgid = getpid ();
 
 	/* Clean up */
@@ -341,21 +352,20 @@ static pid_t run(char* command,
 	close(2);
 	setsid();
 
-	if ((fd=device_open(terminal, O_RDWR)) < 0) {
-	    message(LOG|CONSOLE, "Bummer, can't open %s\r\n", terminal);
-	    exit(1);
-	}
-	dup(fd);
-	dup(fd);
-	set_term(fd);
-	tcsetpgrp (fd, getpgrp());
-
 	/* Reset signal handlers set for parent process */
 	signal(SIGUSR1, SIG_DFL);
 	signal(SIGUSR2, SIG_DFL);
 	signal(SIGINT, SIG_DFL);
 	signal(SIGTERM, SIG_DFL);
 
+	if ((fd = device_open(terminal, O_RDWR)) < 0) {
+	    message(LOG|CONSOLE, "Bummer, can't open %s\r\n", terminal);
+	    exit(1);
+	}
+	dup(fd);
+	dup(fd);
+	tcsetpgrp (0, getpgrp());
+	set_term(0);
 
 	if (get_enter==TRUE) {
 	    /*
@@ -373,23 +383,25 @@ static pid_t run(char* command,
 	    read(fileno(stdin), &c, 1);
 	}
 
+	/* Log the process name and args */
+	message(LOG, "Starting pid %d, console %s: '", 
+		shell_pgid, terminal, command);
+
 	/* Convert command (char*) into cmd (char**, one word per string) */
 	for (tmpCmd=command, i=0; (tmpCmd=strsep(&command, " \t")) != NULL;) {
 	    if (*tmpCmd != '\0') {
 		cmd[i] = tmpCmd;
+		message(LOG, "%s ", tmpCmd);
 		tmpCmd++;
 		i++;
 	    }
 	}
 	cmd[i] = NULL;
-
-	/* Log the process name and args */
-	message(LOG, "Starting pid %d, console %s: '%s'\r\n", 
-		shell_pgid, terminal, cmd[0]);
+	message(LOG, "'\r\n");
 
 	/* Now run it.  The new program will take over this PID, 
 	 * so nothing further in init.c should be run. */
-	execvp(cmd[0], cmd);
+	execve(cmd[0], cmd, environment);
 
 	/* We're still here?  Some error happened. */
 	message(LOG|CONSOLE, "Bummer, could not run '%s': %s\n", cmd[0],
@@ -464,7 +476,7 @@ static void shutdown_system(void)
     message(CONSOLE, "Unmounting filesystems.\r\n");
     waitfor("umount -a", console, FALSE);
     sync();
-    if (kernel_version > 0 && kernel_version <= 2 * 65536 + 2 * 256 + 11) {
+    if (kernelVersion > 0 && kernelVersion <= 2 * 65536 + 2 * 256 + 11) {
 	/* bdflush, kupdate not needed for kernels >2.2.11 */
 	bdflush(1, 0);
 	sync();
@@ -505,7 +517,7 @@ void new_initAction (initActionEnum action,
     /* If BusyBox detects that a serial console is in use, 
      * then entries containing non-empty id fields will _not_ be run.
      */
-    if (second_console == NULL && *cons != '\0') {
+    if (secondConsole == NULL && *cons != '\0') {
 	return;
     }
 
@@ -563,8 +575,8 @@ void parse_inittab(void)
 	/* Askfirst shell on tty1 */
 	new_initAction( ASKFIRST, SHELL, console );
 	/* Askfirst shell on tty2 */
-	if (second_console != NULL) 
-	    new_initAction( ASKFIRST, SHELL, second_console );
+	if (secondConsole != NULL) 
+	    new_initAction( ASKFIRST, SHELL, secondConsole );
 	/* sysinit */
 	new_initAction( SYSINIT, INIT_SCRIPT, console );
 
@@ -655,11 +667,11 @@ extern int init_main(int argc, char **argv)
 	usage( "init\n\nInit is the parent of all processes.\n\n"
 		"This version of init is designed to be run only by the kernel\n");
     }
+    /* Fix up argv[0] to be certain we claim to be init */
+    strncpy(argv[0], "init", strlen(argv[0]));
 
-    /* from the controlling terminal */
-    setsid();
-
-    /* Set up sig handlers  -- be sure to clear all of these in run() */
+    /* Set up sig handlers  -- be sure to
+     * clear all of these in run() */
     signal(SIGUSR1, halt_signal);
     signal(SIGUSR2, reboot_signal);
     signal(SIGINT, reboot_signal);
@@ -669,7 +681,7 @@ extern int init_main(int argc, char **argv)
      * SIGINT on CAD so we can shut things down gracefully... */
     reboot(RB_DISABLE_CAD);
 #endif 
-    
+
     /* Figure out where the default console should be */
     console_init();
 
@@ -678,11 +690,11 @@ extern int init_main(int argc, char **argv)
     close(1);
     close(2);
     set_term(0);
+    setsid();
 
     /* Make sure PATH is set to something sane */
     putenv(_PATH_STDPATH);
 
-   
     /* Hello world */
 #ifndef DEBUG_INIT
     message(LOG|CONSOLE, 
@@ -698,7 +710,7 @@ extern int init_main(int argc, char **argv)
     /* Mount /proc */
     if (mount ("proc", "/proc", "proc", 0, 0) == 0) {
 	message(LOG|CONSOLE, "Mounting /proc: done.\n");
-	kernel_version = get_kernel_revision();
+	kernelVersion = get_kernel_revision();
     } else
 	message(LOG|CONSOLE, "Mounting /proc: failed!\n");
 
@@ -710,8 +722,8 @@ extern int init_main(int argc, char **argv)
 		!strcmp(argv[1], "-s") || !strcmp(argv[1], "1"))) 
     {
 	/* Ask first then start a shell on tty2 */
-	if (second_console != NULL) 
-	    new_initAction( ASKFIRST, SHELL, second_console);
+	if (secondConsole != NULL) 
+	    new_initAction( ASKFIRST, SHELL, secondConsole);
 	/* Ask first then start a shell on tty1 */
 	new_initAction( ASKFIRST, SHELL, console);
     } else {

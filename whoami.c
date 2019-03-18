@@ -1,9 +1,7 @@
 /*
- * Mini true/false implementation for busybox
+ * Mini whoami implementation for busybox
  *
- *
- * Copyright (C) 1999 by Lineo, inc.
- * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
+ * Copyright (C) 2000  Edward Betts <edward@debian.org>.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,17 +20,25 @@
  */
 
 #include "internal.h"
+#include <stdio.h>
+#include <pwd.h>
 
+static const char whoami_usage[] = "whoami\n\n"
+"Print the user name associated with the current effective user id.\n"
+"Same as id -un.\n";
 
-extern int
-true_main(int argc, char** argv)
-{
-	exit( TRUE);
+extern int whoami_main(int argc, char **argv) {
+	struct passwd *pw;
+	uid_t uid;
+
+	if (argc > 1) usage (whoami_usage);
+
+	uid = geteuid ();
+	pw = getpwuid (uid);
+	if (pw) {
+		puts (pw->pw_name);
+		exit (TRUE);
+    	}
+	fprintf (stderr, "%s: cannot find username for UID %u\n", argv[0], (unsigned) uid);
+	exit (FALSE);
 }
-
-extern int
-false_main(int argc, char** argv)
-{
-	exit( FALSE);
-}
-

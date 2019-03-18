@@ -17,7 +17,7 @@
 
 
 PROG=busybox
-VERSION=0.40
+VERSION=0.41
 BUILDTIME=$(shell date "+%Y%m%d-%H%M")
 
 # Comment out the following to make a debuggable build
@@ -36,7 +36,7 @@ GCCMINVERSION=$(shell $(CC) --version | sed -n "s/^[^\.]*\.\([^\.]*\)[\.].*/\1/p
 
 GCCSUPPORTSOPTSIZE=$(shell \
 if ( test $(GCCMAJVERSION) -eq 2 ) ; then \
-    if ( test $(GCCMINVERSION) -ge 91 ) ; then \
+    if ( test $(GCCMINVERSION) -ge 66 ) ; then \
 	echo "true"; \
     else \
 	echo "false"; \

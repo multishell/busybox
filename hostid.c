@@ -1,9 +1,7 @@
 /*
- * Mini true/false implementation for busybox
+ * Mini hostid implementation for busybox
  *
- *
- * Copyright (C) 1999 by Lineo, inc.
- * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
+ * Copyright (C) 2000  Edward Betts <edward@debian.org>.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,17 +20,9 @@
  */
 
 #include "internal.h"
+#include <stdio.h>
 
-
-extern int
-true_main(int argc, char** argv)
-{
+extern int hostid_main(int argc, char **argv) {
+	printf ("%lx\n", gethostid());
 	exit( TRUE);
 }
-
-extern int
-false_main(int argc, char** argv)
-{
-	exit( FALSE);
-}
-

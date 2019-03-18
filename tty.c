@@ -1,9 +1,7 @@
 /*
- * Mini true/false implementation for busybox
+ * Mini tty implementation for busybox
  *
- *
- * Copyright (C) 1999 by Lineo, inc.
- * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
+ * Copyright (C) 2000  Edward Betts <edward@debian.org>.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,17 +20,23 @@
  */
 
 #include "internal.h"
+#include <stdio.h>
+#include <sys/types.h>
 
+static const char tty_usage[] = "tty\n\n"
+"Print the file name of the terminal connected to standard input.\n"
+"\t-s\tprint nothing, only return an exit status\n";
 
-extern int
-true_main(int argc, char** argv)
-{
-	exit( TRUE);
+extern int tty_main(int argc, char **argv) {
+	char *tty;
+
+	if (argc > 1) {
+		if (argv[1][0] != '-' || argv[1][1] != 's') usage (tty_usage);
+	}
+	else {
+		tty = ttyname (0);
+		if (tty) puts (tty);
+		else puts ("not a tty");
+	}
+	exit (isatty (0) ? TRUE : FALSE);
 }
-
-extern int
-false_main(int argc, char** argv)
-{
-	exit( FALSE);
-}
-

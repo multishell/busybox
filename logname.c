@@ -1,9 +1,7 @@
 /*
- * Mini true/false implementation for busybox
+ * Mini logname implementation for busybox
  *
- *
- * Copyright (C) 1999 by Lineo, inc.
- * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
+ * Copyright (C) 2000  Edward Betts <edward@debian.org>.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,17 +20,21 @@
  */
 
 #include "internal.h"
+#include <stdio.h>
 
+static const char logname_usage[] = "logname\n\n"
+"Print the name of the current user.\n";
 
-extern int
-true_main(int argc, char** argv)
-{
-	exit( TRUE);
+extern int logname_main(int argc, char **argv) {
+	char *cp;
+
+	if (argc > 1) usage (logname_usage);
+
+	cp = getlogin ();
+	if (cp) {
+		puts (cp);
+		exit (TRUE);
+    	}
+	fprintf (stderr, "%s: no login name\n", argv[0]);
+	exit (FALSE);
 }
-
-extern int
-false_main(int argc, char** argv)
-{
-	exit( FALSE);
-}
-
