@@ -36,9 +36,19 @@
 #include <unistd.h>
 #include <ctype.h>
 
+#ifdef BB_MTAB
+const char mtab_file[] = "/etc/mtab";
+#else
+#if defined BB_MOUNT || defined BB_UMOUNT || defined BB_DF
+const char mtab_file[] = "/proc/mounts";
+#endif
+#endif
+
+
 /* volatile so gcc knows this is the enod of the line */
 volatile void usage(const char *usage)
 {
+    fprintf(stderr, "BusyBox v%s (%s) multi-call binary -- GPL2\n\n", BB_VER, BB_BT);
     fprintf(stderr, "Usage: %s\n", usage);
     exit(FALSE);
 }
@@ -59,7 +69,7 @@ get_kernel_revision()
 
   file = fopen(filename,"r");
   if (file == NULL) {
-    perror(filename);
+    /* bummer, /proc must not be mounted... */
     return( 0);
   }
   fscanf(file,"%d.%d.%d",&major,&minor,&patch);
@@ -383,7 +393,8 @@ int fullRead(int fd, char *buf, int len)
  *
  * Unfortunatly, while nftw(3) could replace this and reduce 
  * code size a bit, nftw() wasn't supported before GNU libc 2.1, 
- * and so isn't sufficiently portable to take over...
+ * and so isn't sufficiently portable to take over since glibc2.1
+ * is so stinking huge.
  */
 int
 recursiveAction(const char *fileName, int recurse, int followLinks, int depthFirst,
@@ -394,7 +405,7 @@ recursiveAction(const char *fileName, int recurse, int followLinks, int depthFir
     struct stat statbuf;
     struct dirent *next;
 
-    if (followLinks == FALSE)
+    if (followLinks == TRUE)
 	status = stat(fileName, &statbuf);
     else
 	status = lstat(fileName, &statbuf);
@@ -403,6 +414,9 @@ recursiveAction(const char *fileName, int recurse, int followLinks, int depthFir
 	perror(fileName);
 	return (FALSE);
     }
+
+    if ( (followLinks == FALSE) && (S_ISLNK(statbuf.st_mode)) )
+	return (TRUE);
 
     if (recurse == FALSE) {
 	if (S_ISDIR(statbuf.st_mode)) {
@@ -540,11 +554,9 @@ parse_mode( const char* s, mode_t* theMode)
 					groups |= S_ISUID|S_ISGID|S_IRWXU|S_IRWXG|S_IRWXO;
 				break;
 			default:
-				if ( isdigit(c) && c >= '0' && c <= '7' && mode == 0 && groups == 0 ) {
-					andMode = 0;
-					orMode = strtol(--s, NULL, 8);
-					*theMode &= andMode;
-					*theMode |= orMode;
+				if ( isdigit(c) && c >= '0' && c <= '7' && 
+						mode == 0 && groups == 0 ) {
+					*theMode = strtol(--s, NULL, 8);
 					return (TRUE);
 				}
 				else
@@ -687,39 +699,174 @@ my_getgrgid(char* group, gid_t gid)
 
 
 
-#if !defined BB_REGEXP && (defined BB_GREP || defined BB_FIND )  
+
+#if (defined BB_CHVT) || (defined BB_DEALLOCVT)
+
+
+#include <linux/kd.h>
+#include <sys/ioctl.h>
+
+int is_a_console(int fd) 
+{
+  char arg;
+  
+  arg = 0;
+  return (ioctl(fd, KDGKBTYPE, &arg) == 0
+	  && ((arg == KB_101) || (arg == KB_84)));
+}
+
+static int open_a_console(char *fnam) 
+{
+  int fd;
+  
+  /* try read-only */
+  fd = open(fnam, O_RDWR);
+  
+  /* if failed, try read-only */
+  if (fd < 0 && errno == EACCES)
+      fd = open(fnam, O_RDONLY);
+  
+  /* if failed, try write-only */
+  if (fd < 0 && errno == EACCES)
+      fd = open(fnam, O_WRONLY);
+  
+  /* if failed, fail */
+  if (fd < 0)
+      return -1;
+  
+  /* if not a console, fail */
+  if (! is_a_console(fd))
+    {
+      close(fd);
+      return -1;
+    }
+  
+  /* success */
+  return fd;
+}
+
+/*
+ * Get an fd for use with kbd/console ioctls.
+ * We try several things because opening /dev/console will fail
+ * if someone else used X (which does a chown on /dev/console).
+ *
+ * if tty_name is non-NULL, try this one instead.
+ */
+
+int get_console_fd(char* tty_name) 
+{
+  int fd;
+
+  if (tty_name)
+    {
+      if (-1 == (fd = open_a_console(tty_name)))
+	return -1;
+      else
+	return fd;
+    }
+  
+  fd = open_a_console("/dev/tty");
+  if (fd >= 0)
+    return fd;
+  
+  fd = open_a_console("/dev/tty0");
+  if (fd >= 0)
+    return fd;
+  
+  fd = open_a_console("/dev/console");
+  if (fd >= 0)
+    return fd;
+  
+  for (fd = 0; fd < 3; fd++)
+    if (is_a_console(fd))
+      return fd;
+  
+  fprintf(stderr,
+	  "Couldnt get a file descriptor referring to the console\n");
+  return -1;		/* total failure */
+}
+
+
+#endif
+
+
+#if !defined BB_REGEXP && (defined BB_GREP || defined BB_FIND || defined BB_SED)  
+
+/* Do a case insensitive strstr() */
+char* stristr(char *haystack, const char *needle)
+{
+    int len = strlen( needle );
+    while( *haystack ) {
+	if( !strncasecmp( haystack, needle, len ) )
+	    break;
+	haystack++;
+    }
+
+    if( !(*haystack) )
+	    haystack = NULL;
+
+    return haystack;
+}
+
 /* This tries to find a needle in a haystack, but does so by
  * only trying to match literal strings (look 'ma, no regexps!)
  * This is short, sweet, and carries _very_ little baggage,
- * unlike its beefier cousin a few lines down...
+ * unlike its beefier cousin in regexp.c
  *  -Erik Andersen
  */
 extern int find_match(char *haystack, char *needle, int ignoreCase)
 {
 
-    if (ignoreCase == FALSE) {
+    if (ignoreCase == FALSE)
 	haystack = strstr (haystack, needle);
-	if (haystack == NULL)
-	    return FALSE;
-	return TRUE;
-    } else {
-	int i;
-	char needle1[BUF_SIZE];
-	char haystack1[BUF_SIZE];
-
-	strncpy( haystack1, haystack, sizeof(haystack1));
-	strncpy( needle1, needle, sizeof(needle1));
-	for( i=0; i<sizeof(haystack1) && haystack1[i]; i++)
-	    haystack1[i]=tolower( haystack1[i]);
-	for( i=0; i<sizeof(needle1) && needle1[i]; i++)
-	    needle1[i]=tolower( needle1[i]);
-	haystack = strstr (haystack1, needle1);
-	if (haystack == NULL)
-	    return FALSE;
-	return TRUE;
-    }
+    else
+	haystack = stristr (haystack, needle);
+    if (haystack == NULL)
+	return FALSE;
+    return TRUE;
 }
-#endif
 
+
+/* This performs substitutions after a string match has been found.  */
+extern int replace_match(char *haystack, char *needle, char *newNeedle, int ignoreCase)
+{
+    int foundOne=0;
+    char *where, *slider, *slider1, *oldhayStack;
+
+    if (ignoreCase == FALSE)
+	where = strstr (haystack, needle);
+    else
+	where = stristr (haystack, needle);
+
+    if (strcmp(needle, newNeedle)==0)
+	return FALSE;
+
+    oldhayStack = (char*)malloc((unsigned)(strlen(haystack)));
+    while(where!=NULL) {
+	foundOne++;
+	strcpy(oldhayStack, haystack);
+#if 0
+	if ( strlen(newNeedle) > strlen(needle)) {
+	    haystack = (char *)realloc(haystack, (unsigned)(strlen(haystack) - 
+		strlen(needle) + strlen(newNeedle)));
+	}
+#endif
+	for(slider=haystack,slider1=oldhayStack;slider!=where;slider++,slider1++);
+	*slider=0;
+	haystack=strcat(haystack, newNeedle);
+	slider1+=strlen(needle);
+	haystack = strcat(haystack, slider1);
+	where = strstr (slider, needle);
+    }
+    free( oldhayStack);
+
+    if (foundOne > 0)
+	return TRUE;
+    else
+	return FALSE;
+}
+
+
+#endif
 /* END CODE */
 

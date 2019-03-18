@@ -47,7 +47,6 @@
 #define isWildCard(ch)  (((ch) == '*') || ((ch) == '?') || ((ch) == '['))
 
 
-
 struct Applet {
 	const	char*	name;
 	int	(*main)(int argc, char** argv);
@@ -82,6 +81,8 @@ extern int loadfont_main(int argc, char** argv);
 extern int loadkmap_main(int argc, char** argv);
 extern int losetup_main(int argc, char** argv);
 extern int ls_main(int argc, char** argv);
+extern int chvt_main(int argc, char** argv);
+extern int deallocvt_main(int argc, char** argv);
 extern int makedevs_main(int argc, char** argv);
 extern int math_main(int argc, char** argv);
 extern int mkdir_main(int argc, char** argv);
@@ -100,6 +101,7 @@ extern int rm_main(int argc, char** argv);
 extern int scan_partitions_main(int argc, char** argv);
 extern int sh_main(int argc, char** argv);
 extern int sfdisk_main(int argc, char** argv);
+extern int sed_main(int argc, char** argv);
 extern int sleep_main(int argc, char** argv);
 extern int swap_on_off_main(int argc, char** argv);
 extern int sync_main(int argc, char** argv);
@@ -110,6 +112,7 @@ extern int true_main(int argc, char** argv);
 extern int tryopen_main(int argc, char** argv);
 extern int umount_main(int argc, char** argv);
 extern int update_main(int argc, char** argv);
+extern int uname_main(int argc, char** argv);
 extern int zcat_main(int argc, char** argv);
 extern int gzip_main(int argc, char** argv);
 
@@ -141,7 +144,11 @@ extern gid_t my_getgrnam(char *name);
 extern void my_getpwuid(char* name, uid_t uid);
 extern void my_getgrgid(char* group, gid_t gid);
 extern int get_kernel_revision();
+extern int get_console_fd(char* tty_name);
 
+extern void write_mtab(char* blockDevice, char* directory, 
+	char* filesystemType, long flags, char* string_flags);
+extern void erase_mtab(const char * name);
 
 
 #if defined (BB_FSCK_MINIX) || defined (BB_MKFS_MINIX)
