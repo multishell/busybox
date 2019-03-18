@@ -6,13 +6,12 @@
  *
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details. */
 
-#include "busybox.h"
+#include "libbb.h"
 
 int cksum_main(int argc, char **argv);
 int cksum_main(int argc, char **argv)
 {
-
-	uint32_t *crc32_table = crc32_filltable(1);
+	uint32_t *crc32_table = crc32_filltable(NULL, 1);
 
 	FILE *fp;
 	uint32_t crc;

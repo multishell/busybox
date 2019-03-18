@@ -6,7 +6,7 @@
  * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
-#include "busybox.h"
+#include "libbb.h"
 
 typedef enum { HASH_SHA1, HASH_MD5 } hash_algo_t;
 
@@ -38,9 +38,8 @@ static uint8_t *hash_file(const char *filename, hash_algo_t hash_algo)
 
 	src_fd = STDIN_FILENO;
 	if (NOT_LONE_DASH(filename)) {
-		src_fd = open(filename, O_RDONLY);
+		src_fd = open_or_warn(filename, O_RDONLY);
 		if (src_fd < 0) {
-			bb_perror_msg("%s", filename);
 			return NULL;
 		}
 	}

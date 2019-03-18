@@ -8,7 +8,7 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include "busybox.h"
+#include "libbb.h"
 
 /* X/OPEN tells us to use <sys/{types,ipc,sem}.h> for semctl() */
 /* X/OPEN tells us to use <sys/{types,ipc,msg}.h> for msgctl() */
@@ -17,7 +17,7 @@
 #include <sys/msg.h>
 #include <sys/sem.h>
 
-#if defined (__GNU_LIBRARY__) && !defined(_SEM_SEMUN_UNDEFINED)
+#if defined(__GNU_LIBRARY__) && !defined(_SEM_SEMUN_UNDEFINED)
 /* union semun is defined by including <sys/sem.h> */
 #else
 /* according to X/OPEN we have to define it ourselves */
@@ -154,7 +154,6 @@ int ipcrm_main(int argc, char **argv)
 
 			if (id < 0) {
 				const char *errmsg;
-				const char *const what = "key";
 
 				error++;
 				switch (errno) {
@@ -171,7 +170,7 @@ int ipcrm_main(int argc, char **argv)
 					errmsg = "unknown error in";
 					break;
 				}
-				bb_error_msg("%s %s (%s)",  errmsg, what, optarg);
+				bb_error_msg("%s %s (%s)", errmsg, "key", optarg);
 				continue;
 			}
 		} else {

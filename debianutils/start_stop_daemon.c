@@ -8,9 +8,10 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include "busybox.h"
 #include <getopt.h>
 #include <sys/resource.h>
+
+#include "libbb.h"
 
 static int signal_nr = 15;
 static int user_id = -1;
@@ -183,7 +184,7 @@ static int do_stop(void)
 	if (!quiet && killed) {
 		printf("stopped %s (pid", what);
 		for (p = found; p; p = p->next)
-			if(p->pid < 0)
+			if (p->pid < 0)
 				printf(" %d", -p->pid);
 		puts(")");
 	}
@@ -299,8 +300,7 @@ int start_stop_daemon_main(int argc, char **argv)
 	}
 	*--argv = startas;
 	if (opt & OPT_BACKGROUND) {
-		setsid();
-		bb_daemonize();
+		bb_daemonize(0);
 	}
 	if (opt & OPT_MAKEPID) {
 		/* user wants _us_ to make the pidfile */

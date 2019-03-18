@@ -5,7 +5,7 @@
  *  Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include "busybox.h"
+#include "libbb.h"
 #include "unarchive.h"
 
 enum {
@@ -20,16 +20,11 @@ enum {
 static
 int open_to_or_warn(int to_fd, const char *filename, int flags, int mode)
 {
-	int fd = open(filename, flags, mode);
+	int fd = open3_or_warn(filename, flags, mode);
 	if (fd < 0) {
-		bb_perror_msg("%s", filename);
 		return 1;
 	}
-	if (fd != to_fd) {
-		if (dup2(fd, to_fd) < 0)
-			bb_perror_msg_and_die("cannot dup");
-		close(fd);
-	}
+	xmove_fd(fd, to_fd);
 	return 0;
 }
 
@@ -105,8 +100,7 @@ int bbunpack(char **argv,
 				if (new_name == filename)
 					filename[strlen(filename)] = '.';
 			}
-			if (unlink(del) < 0)
-				bb_perror_msg_and_die("cannot remove %s", del);
+			xunlink(del);
 
 #if 0 /* Currently buggy - wrong name: "a.gz: 261% - replaced with a.gz" */
 			/* Extreme bloat for gunzip compat */
@@ -223,7 +217,7 @@ char* make_new_name_gunzip(char *filename)
 #endif
 	) {
 		extension[-1] = '\0';
-	} else if(strcmp(extension, "tgz") == 0) {
+	} else if (strcmp(extension, "tgz") == 0) {
 		filename = xstrdup(filename);
 		extension = strrchr(filename, '.');
 		extension[2] = 'a';

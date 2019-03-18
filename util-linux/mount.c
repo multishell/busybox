@@ -18,7 +18,7 @@
    mount_it_now() does the actual mount.
 */
 
-#include "busybox.h"
+#include "libbb.h"
 #include <mntent.h>
 
 /* Needed for nfs support only... */
@@ -77,6 +77,7 @@ struct {
 		{"defaults", 0},
 		/* {"quiet", 0}, - do not filter out, vfat wants to see it */
 		{"noauto", MOUNT_NOAUTO},
+		{"sw", MOUNT_SWAP},
 		{"swap", MOUNT_SWAP},
 		USE_DESKTOP({"user",  MOUNT_USERS},)
 		USE_DESKTOP({"users", MOUNT_USERS},)
@@ -137,7 +138,7 @@ static void append_mount_options(char **oldopts, const char *newopts)
 				 && (p[len]==',' || p[len]==0))
 					goto skip;
 				p = strchr(p,',');
-				if(!p) break;
+				if (!p) break;
 				p++;
 			}
 			p = xasprintf("%s,%.*s", *oldopts, len, newopts);
@@ -200,17 +201,16 @@ static int parse_mount_options(char *options, char **unrecognized)
 
 static llist_t *get_block_backed_filesystems(void)
 {
-	static const char *const filesystems[] = {
+	static const char filesystems[2][sizeof("/proc/filesystems")] = {
 		"/etc/filesystems",
 		"/proc/filesystems",
-		0
 	};
 	char *fs, *buf;
 	llist_t *list = 0;
 	int i;
 	FILE *f;
 
-	for (i = 0; filesystems[i]; i++) {
+	for (i = 0; i < 2; i++) {
 		f = fopen(filesystems[i], "r");
 		if (!f) continue;
 
@@ -886,11 +886,10 @@ static int nfsmount(struct mntent *mp, int vfsflags, char *filteropts)
 	nfsvers = 0;
 
 	/* parse options */
-
-	for (opt = strtok(filteropts, ","); opt; opt = strtok(NULL, ",")) {
+	if (filteropts)	for (opt = strtok(filteropts, ","); opt; opt = strtok(NULL, ",")) {
 		char *opteq = strchr(opt, '=');
 		if (opteq) {
-			const char *const options[] = {
+			static const char *const options[] = {
 				/* 0 */ "rsize",
 				/* 1 */ "wsize",
 				/* 2 */ "timeo",
@@ -995,7 +994,7 @@ static int nfsmount(struct mntent *mp, int vfsflags, char *filteropts)
 			}
 		}
 		else {
-			const char *const options[] = {
+			static const char *const options[] = {
 				"bg",
 				"fg",
 				"soft",
@@ -1454,8 +1453,10 @@ static int singlemount(struct mntent *mp, int ignore_busy)
 
 	// Look at the file.  (Not found isn't a failure for remount, or for
 	// a synthetic filesystem like proc or sysfs.)
+	// (We use stat, not lstat, in order to allow
+	// mount symlink_to_file_or_blkdev dir)
 
-	if (!lstat(mp->mnt_fsname, &st)
+	if (!stat(mp->mnt_fsname, &st)
 	 && !(vfsflags & (MS_REMOUNT | MS_BIND | MS_MOVE))
 	) {
 		// Do we need to allocate a loopback device for it?
@@ -1703,9 +1704,7 @@ int mount_main(int argc, char **argv)
 
 		} else {
 			// Do we need to match a filesystem type?
-			// TODO: support "-t type1,type2"; "-t notype1,type2"
-
-			if (fstype && strcmp(mtcur->mnt_type, fstype)) continue;
+			if (fstype && match_fstype(mtcur, fstype)) continue;
 
 			// Skip noauto and swap anyway.
 

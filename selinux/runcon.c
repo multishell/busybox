@@ -26,10 +26,11 @@
  * Port to busybox: KaiGai Kohei <kaigai@kaigai.gr.jp>
  *                  - based on coreutils-5.97 (in Fedora Core 6)
  */
-#include "busybox.h"
 #include <getopt.h>
 #include <selinux/context.h>
 #include <selinux/flask.h>
+
+#include "libbb.h"
 
 static context_t runcon_compute_new_context(char *user, char *role, char *type, char *range,
 					    char *command, int compute_trans)
@@ -87,8 +88,8 @@ static const struct option runcon_options[] = {
 #define OPTS_HELP	(1<<5)	/* h */
 #define OPTS_CONTEXT_COMPONENT		(OPTS_ROLE | OPTS_TYPE | OPTS_USER | OPTS_RANGE)
 
-int runcon_main(int argc, char *argv[]);
-int runcon_main(int argc, char *argv[])
+int runcon_main(int argc, char **argv);
+int runcon_main(int argc, char **argv)
 {
 	char *role = NULL;
 	char *range = NULL;
@@ -110,7 +111,7 @@ int runcon_main(int argc, char *argv[])
 	if (!(opts & OPTS_CONTEXT_COMPONENT)) {
 		context = *argv++;
 		if (!argv[0])
-			bb_error_msg_and_die("no command found");
+			bb_error_msg_and_die("no command given");
 	}
 
 	if (context) {
@@ -133,5 +134,4 @@ int runcon_main(int argc, char *argv[])
 	execvp(argv[0], argv);
 
 	bb_perror_msg_and_die("cannot execute '%s'", argv[0]);
-	return 1;
 }

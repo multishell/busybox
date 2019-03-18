@@ -24,7 +24,7 @@
 /*#define DEBUG 1 */
 #define DEBUG 0
 
-#include "busybox.h"
+#include "libbb.h"
 
 #if DEBUG
 #define TELCMDS
@@ -285,8 +285,6 @@ make_new_session(
 
 	/* make new process group */
 	setsid();
-	tcsetpgrp(0, getpid());
-	/* ^^^ strace says: "ioctl(0, TIOCSPGRP, [pid]) = -1 ENOTTY" -- ??! */
 
 	/* open the child's side of the tty. */
 	/* NB: setsid() disconnects from any previous ctty's. Therefore
@@ -296,6 +294,7 @@ make_new_session(
 	dup2(fd, 1);
 	dup2(fd, 2);
 	while (fd > 2) close(fd--);
+	tcsetpgrp(0, getpid()); /* comment? */
 
 	/* The pseudo-terminal allocated to the client is configured to operate in
 	 * cooked mode, and with XTABS CRMOD enabled (see tty(4)). */
@@ -415,7 +414,7 @@ int telnetd_main(int argc, char **argv)
 		master_fd = create_and_bind_stream_or_die(opt_bindaddr, portnbr);
 		xlisten(master_fd, 1);
 		if (!(opt & OPT_FOREGROUND))
-			xdaemon(0, 0);
+			bb_daemonize(DAEMON_CHDIR_ROOT);
 	}
 #else
 	sessions = make_new_session();

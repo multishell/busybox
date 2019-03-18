@@ -53,13 +53,14 @@
 #if DEBUG
 #define _GNU_SOURCE
 #endif
-#include "busybox.h"
+#include "busybox.h" /* for struct bb_applet */
 #include <paths.h>
 #include <setjmp.h>
 #include <fnmatch.h>
 #if JOBS || ENABLE_ASH_READ_NCHARS
 #include <termios.h>
 #endif
+extern char **environ;
 
 #if defined(__uClinux__)
 #error "Do not even bother, ash will not run on uClinux"
@@ -125,13 +126,6 @@ static char optlist[NOPTS];
 
 
 /* ============ Misc data */
-
-#ifdef __GLIBC__
-/* glibc sucks */
-static int *dash_errno;
-#undef errno
-#define errno (*dash_errno)
-#endif
 
 static char nullstr[1];                /* zero length string */
 static const char homestr[] = "HOME";
@@ -1747,7 +1741,6 @@ struct redirtab {
 
 static struct redirtab *redirlist;
 static int nullredirs;
-extern char **environ;
 static int preverrout_fd;   /* save fd2 before print debug if xflag is set. */
 
 #define VTABSIZE 39
@@ -2293,7 +2286,8 @@ updatepwd(const char *dir)
 						break;
 				}
 				break;
-			} else if (p[1] == '\0')
+			}
+			if (p[1] == '\0')
 				break;
 			/* fall through */
 		default:
@@ -3500,7 +3494,9 @@ setjobctl(int on)
 		/* turning job control off */
 		fd = ttyfd;
 		pgrp = initialpgrp;
-		xtcsetpgrp(fd, pgrp);
+		/* was xtcsetpgrp, but this can make exiting ash
+		 * with pty already deleted loop forever */
+		tcsetpgrp(fd, pgrp);
 		setpgid(0, pgrp);
 		setsignal(SIGTSTP);
 		setsignal(SIGTTOU);
@@ -3516,91 +3512,22 @@ setjobctl(int on)
 static int
 killcmd(int argc, char **argv)
 {
-	int signo = -1;
-	int list = 0;
-	int i;
-	pid_t pid;
-	struct job *jp;
-
-	if (argc <= 1) {
- usage:
-		ash_msg_and_raise_error(
-"usage: kill [-s sigspec | -signum | -sigspec] [pid | job]... or\n"
-"kill -l [exitstatus]"
-		);
-	}
-
-	if (**++argv == '-') {
-		signo = get_signum(*argv + 1);
-		if (signo < 0) {
-			int c;
-
-			while ((c = nextopt("ls:")) != '\0') {
-				switch (c) {
-				default:
-#if DEBUG
-					abort();
-#endif
-				case 'l':
-					list = 1;
-					break;
-				case 's':
-					signo = get_signum(optionarg);
-					if (signo < 0) {
-						ash_msg_and_raise_error(
-							"invalid signal number or name: %s",
-							optionarg
-						);
-					}
-					break;
-				}
+	if (argv[1] && strcmp(argv[1], "-l") != 0) {
+		int i = 1;
+		do {
+			if (argv[i][0] == '%') {
+				struct job *jp = getjob(argv[i], 0);
+				unsigned pid = jp->ps[0].pid;
+				/* Enough space for ' -NNN<nul>' */
+				argv[i] = alloca(sizeof(int)*3 + 3);
+				/* kill_main has matching code to expect
+				 * leading space. Needed to not confuse
+				 * negative pids with "kill -SIGNAL_NO" syntax */
+				sprintf(argv[i], " -%u", pid);
 			}
-			argv = argptr;
-		} else
-			argv++;
+		} while (argv[++i]);
 	}
-
-	if (!list && signo < 0)
-		signo = SIGTERM;
-
-	if ((signo < 0 || !*argv) ^ list) {
-		goto usage;
-	}
-
-	if (list) {
-		const char *name;
-
-		if (!*argv) {
-			for (i = 1; i < NSIG; i++) {
-				name = get_signame(i);
-				if (isdigit(*name))
-					out1fmt(snlfmt, name);
-			}
-			return 0;
-		}
-		name = get_signame(signo);
-		if (!isdigit(*name))
-			ash_msg_and_raise_error("invalid signal number or exit status: %s", *argptr);
-		out1fmt(snlfmt, name);
-		return 0;
-	}
-
-	i = 0;
-	do {
-		if (**argv == '%') {
-			jp = getjob(*argv, 0);
-			pid = -jp->ps[0].pid;
-		} else {
-			pid = **argv == '-' ?
-				-number(*argv + 1) : number(*argv);
-		}
-		if (kill(pid, signo) != 0) {
-			ash_msg("(%d) - %m", pid);
-			i = 1;
-		}
-	} while (*++argv);
-
-	return i;
+	return kill_main(argc, argv);
 }
 
 static void
@@ -3639,7 +3566,8 @@ restartjob(struct job *jp, int mode)
 		if (WIFSTOPPED(ps->status)) {
 			ps->status = -1;
 		}
-	} while (ps++, --i);
+		ps++;
+	} while (--i);
  out:
 	status = (mode == FORK_FG) ? waitforjob(jp) : 0;
 	INT_ON;
@@ -5067,8 +4995,9 @@ esclen(const char *start, const char *p)
 static char *
 _rmescapes(char *str, int flag)
 {
+	static const char qchars[] = { CTLESC, CTLQUOTEMARK, '\0' };
+
 	char *p, *q, *r;
-	static const char qchars[] = { CTLESC, CTLQUOTEMARK, 0 };
 	unsigned inquotes;
 	int notescaped;
 	int globbing;
@@ -6468,43 +6397,6 @@ casematch(union node *pattern, char *val)
 
 /* ============ find_command */
 
-#if ENABLE_FEATURE_SH_STANDALONE_SHELL
-static int
-is_safe_applet(char *name)
-{
-	/* It isn't a bug to have non-existent applet here... */
-	/* ...just a waste of space... */
-	static const char safe_applets[][8] = {
-		"["
-		USE_AWK    (, "awk"    )
-		USE_CAT    (, "cat"    )
-		USE_CHMOD  (, "chmod"  )
-		USE_CHOWN  (, "chown"  )
-		USE_CP     (, "cp"     )
-		USE_CUT    (, "cut"    )
-		USE_DD     (, "dd"     )
-		USE_ECHO   (, "echo"   )
-		USE_FIND   (, "find"   )
-		USE_HEXDUMP(, "hexdump")
-		USE_LN     (, "ln"     )
-		USE_LS     (, "ls"     )
-		USE_MKDIR  (, "mkdir"  )
-		USE_RM     (, "rm"     )
-		USE_SORT   (, "sort"   )
-		USE_TEST   (, "test"   )
-		USE_TOUCH  (, "touch"  )
-		USE_XARGS  (, "xargs"  )
-	};
-	int n = sizeof(safe_applets) / sizeof(safe_applets[0]);
-	int i;
-	for (i = 0; i < n; i++)
-		if (strcmp(safe_applets[i], name) == 0)
-			return 1;
-
-	return 0;
-}
-#endif
-
 struct builtincmd {
 	const char *name;
 	int (*builtin)(int, char **);
@@ -6568,19 +6460,15 @@ tryexec(char *cmd, char **argv, char **envp)
 {
 	int repeated = 0;
 
-#if ENABLE_FEATURE_SH_STANDALONE_SHELL
+#if ENABLE_FEATURE_SH_STANDALONE
 	if (strchr(cmd, '/') == NULL) {
-		struct BB_applet *a;
-		char **c;
+		const struct bb_applet *a;
 
 		a = find_applet_by_name(cmd);
 		if (a) {
-			if (is_safe_applet(cmd)) {
-				c = argv;
-				while (*c)
-					c++;
-				applet_name = cmd;
-				exit(a->main(c - argv, argv));
+			if (a->noexec) {
+				current_applet = a;
+				run_current_applet_and_exit(argv);
 			}
 			/* re-exec ourselves with the new arguments */
 			execve(CONFIG_BUSYBOX_EXEC_PATH, argv, envp);
@@ -6608,7 +6496,7 @@ tryexec(char *cmd, char **argv, char **envp)
 			;
 		ap = new = ckmalloc((ap - argv + 2) * sizeof(char *));
 		ap[1] = cmd;
-		*ap = cmd = (char *)DEFAULT_SHELL;
+		ap[0] = cmd = (char *)DEFAULT_SHELL;
 		ap += 2;
 		argv++;
 		while ((*ap++ = *argv++))
@@ -6635,7 +6523,7 @@ shellexec(char **argv, const char *path, int idx)
 	clearredir(1);
 	envp = environment();
 	if (strchr(argv[0], '/')
-#if ENABLE_FEATURE_SH_STANDALONE_SHELL
+#if ENABLE_FEATURE_SH_STANDALONE
 	 || find_applet_by_name(argv[0])
 #endif
 	) {
@@ -6967,6 +6855,11 @@ tokname(int tok)
 {
 	static char buf[16];
 
+//try this:
+//if (tok < TSEMI) return tokname_array[tok] + 1;
+//sprintf(buf, "\"%s\"", tokname_array[tok] + 1);
+//return buf;
+
 	if (tok >= TSEMI)
 		buf[0] = '"';
 	sprintf(buf + (tok >= TSEMI), "%s%c",
@@ -6978,28 +6871,22 @@ tokname(int tok)
 static int
 pstrcmp(const void *a, const void *b)
 {
-	return strcmp((const char *) a, (*(const char *const *) b) + 1);
+	return strcmp((char*) a, (*(char**) b) + 1);
 }
 
 static const char *const *
 findkwd(const char *s)
 {
 	return bsearch(s, tokname_array + KWDOFFSET,
-			(sizeof(tokname_array) / sizeof(const char *)) - KWDOFFSET,
-			sizeof(const char *), pstrcmp);
+			(sizeof(tokname_array) / sizeof(char *)) - KWDOFFSET,
+			sizeof(char *), pstrcmp);
 }
 
 /*
  * Locate and print what a word is...
  */
-#if ENABLE_ASH_CMDCMD
 static int
 describe_command(char *command, int describe_command_verbose)
-#else
-#define describe_command_verbose 1
-static int
-describe_command(char *command)
-#endif
 {
 	struct cmdentry entry;
 	struct tblentry *cmdp;
@@ -7022,13 +6909,12 @@ describe_command(char *command)
 	/* Then look at the aliases */
 	ap = lookupalias(command, 0);
 	if (ap != NULL) {
-		if (describe_command_verbose) {
-			out1fmt(" is an alias for %s", ap->val);
-		} else {
+		if (!describe_command_verbose) {
 			out1str("alias ");
 			printalias(ap);
 			return 0;
 		}
+		out1fmt(" is an alias for %s", ap->val);
 		goto out;
 	}
 #endif
@@ -7097,15 +6983,17 @@ describe_command(char *command)
 static int
 typecmd(int argc, char **argv)
 {
-	int i;
+	int i = 1;
 	int err = 0;
+	int verbose = 1;
 
-	for (i = 1; i < argc; i++) {
-#if ENABLE_ASH_CMDCMD
-		err |= describe_command(argv[i], 1);
-#else
-		err |= describe_command(argv[i]);
-#endif
+	/* type -p ... ? (we don't bother checking for 'p') */
+	if (argv[1][0] == '-') {
+		i++;
+		verbose = 0;
+	}
+	while (i < argc) {
+		err |= describe_command(argv[i++], verbose);
 	}
 	return err;
 }
@@ -11150,19 +11038,7 @@ find_command(char *name, struct cmdentry *entry, int act, const char *path)
 		return;
 	}
 
-#if ENABLE_FEATURE_SH_STANDALONE_SHELL
-	if (find_applet_by_name(name)) {
-		entry->cmdtype = CMDNORMAL;
-		entry->u.index = -1;
-		return;
-	}
-	/* Already caught above
-	if (is_safe_applet(name)) {
-		entry->cmdtype = CMDNORMAL;
-		entry->u.index = -1;
-		return;
-	}*/
-#endif
+/* #if ENABLE_FEATURE_SH_STANDALONE... moved after builtin check */
 
 	updatetbl = (path == pathval());
 	if (!updatetbl) {
@@ -11211,6 +11087,14 @@ find_command(char *name, struct cmdentry *entry, int act, const char *path)
 			goto builtin_success;
 		}
 	}
+
+#if ENABLE_FEATURE_SH_STANDALONE
+	if (find_applet_by_name(name)) {
+		entry->cmdtype = CMDNORMAL;
+		entry->u.index = -1;
+		return;
+	}
+#endif
 
 	/* We have to search path. */
 	prev = -1;              /* where to start */
@@ -11381,7 +11265,7 @@ helpcmd(int argc, char **argv)
 			col = 0;
 		}
 	}
-#if ENABLE_FEATURE_SH_STANDALONE_SHELL
+#if ENABLE_FEATURE_SH_STANDALONE
 	for (i = 0; i < NUM_APPLETS; i++) {
 		col += out1fmt("%c%s", ((col == 0) ? '\t' : ' '), applets[i].name);
 		if (col > 60) {
@@ -12842,10 +12726,6 @@ int ash_main(int argc, char **argv)
 	volatile int state;
 	struct jmploc jmploc;
 	struct stackmark smark;
-
-#ifdef __GLIBC__
-	dash_errno = __errno_location();
-#endif
 
 #if PROFILE
 	monitor(4, etext, profile_buf, sizeof(profile_buf), 50);

@@ -23,7 +23,7 @@
 // - avoid silent script failures, especially under load...
 // - link status monitoring (restart on link-up; stop on link-down)
 
-#include "busybox.h"
+#include "libbb.h"
 #include <syslog.h>
 #include <poll.h>
 #include <sys/wait.h>
@@ -70,10 +70,6 @@ enum {
 #define VDBG(fmt,args...) \
 	do { } while (0)
 
-static unsigned opts;
-#define FOREGROUND (opts & 1)
-#define QUIT (opts & 2)
-
 /**
  * Pick a random link local IP address on 169.254/16, except that
  * the first and last 256 addresses are reserved.
@@ -118,58 +114,37 @@ static void arp(int fd, struct sockaddr *saddr, int op,
 	memcpy(&p.arp.arp_tpa, &target_ip, sizeof(p.arp.arp_tpa));
 
 	// send it
-	if (sendto(fd, &p, sizeof(p), 0, saddr, sizeof(*saddr)) < 0) {
-		bb_perror_msg("sendto");
-		//return -errno;
-	}
+	xsendto(fd, &p, sizeof(p), saddr, sizeof(*saddr));
+
 	// Currently all callers ignore errors, that's why returns are
 	// commented out...
 	//return 0;
 }
 
 /**
- * Run a script.
+ * Run a script. argv[2] is already NULL.
  */
-static int run(const char *script, const char *arg, const char *intf, struct in_addr *ip)
+static int run(char *argv[3], const char *intf, struct in_addr *ip)
 {
-	int pid, status;
-	const char *why;
+	int status;
 
-	if(1) { //always true: if (script != NULL)
-		VDBG("%s run %s %s\n", intf, script, arg);
-		if (ip != NULL) {
-			char *addr = inet_ntoa(*ip);
-			setenv("ip", addr, 1);
-			bb_info_msg("%s %s %s", arg, intf, addr);
-		}
+	VDBG("%s run %s %s\n", intf, argv[0], argv[1]);
 
-		pid = vfork();
-		if (pid < 0) {			// error
-			why = "vfork";
-			goto bad;
-		} else if (pid == 0) {		// child
-			execl(script, script, arg, NULL);
-			bb_perror_msg("execl");
-			_exit(EXIT_FAILURE);
-		}
-
-		if (waitpid(pid, &status, 0) <= 0) {
-			why = "waitpid";
-			goto bad;
-		}
-		if (WEXITSTATUS(status) != 0) {
-			bb_error_msg("script %s failed, exit=%d",
-				script, WEXITSTATUS(status));
-			return -errno;
-		}
+	if (ip) {
+		char *addr = inet_ntoa(*ip);
+		setenv("ip", addr, 1);
+		bb_info_msg("%s %s %s", argv[1], intf, addr);
 	}
-	return 0;
-bad:
-	status = -errno;
-	bb_perror_msg("%s %s, %s", arg, intf, why);
+
+	status = wait4pid(spawn(argv));
+	if (status < 0) {
+		bb_perror_msg("%s %s", argv[1], intf);
+		return -errno;
+	}
+	if (status != 0)
+		bb_error_msg("script %s %s failed, exitcode=%d", argv[0], argv[1], status);
 	return status;
 }
-
 
 /**
  * Return milliseconds of random delay, up to "secs" seconds.
@@ -182,43 +157,58 @@ static unsigned ATTRIBUTE_ALWAYS_INLINE ms_rdelay(unsigned secs)
 /**
  * main program
  */
-
-/* Used to be auto variables on main() stack, but
- * most of them were zero-inited. Moving them to bss
- * is more space-efficient.
- */
-static	const struct in_addr null_ip; // = { 0 };
-static	const struct ether_addr null_addr; // = { {0, 0, 0, 0, 0, 0} };
-
-static	struct sockaddr saddr; // memset(0);
-static	struct in_addr ip; // = { 0 };
-static	struct ifreq ifr; //memset(0);
-
-static	char *intf; // = NULL;
-static	char *script; // = NULL;
-static	suseconds_t timeout; // = 0;	// milliseconds
-static	unsigned conflicts; // = 0;
-static	unsigned nprobes; // = 0;
-static	unsigned nclaims; // = 0;
-static	int ready; // = 0;
-static	int verbose; // = 0;
-static	int state = PROBE;
-
-int zcip_main(int argc, char *argv[]);
-int zcip_main(int argc, char *argv[])
+int zcip_main(int argc, char **argv);
+int zcip_main(int argc, char **argv)
 {
+	int state = PROBE;
 	struct ether_addr eth_addr;
 	const char *why;
 	int fd;
-
-	// parse commandline: prog [options] ifname script
 	char *r_opt;
-	opt_complementary = "vv:vf"; // -v accumulates and implies -f
+	unsigned opts;
+
+	/* Ugly trick, but I want these zeroed in one go */
+	struct {
+		const struct in_addr null_ip;
+		const struct ether_addr null_addr;
+		struct sockaddr saddr;
+		struct in_addr ip;
+		struct ifreq ifr;
+		char *intf;
+		char *script_av[3];
+		suseconds_t timeout; // milliseconds
+		unsigned conflicts;
+		unsigned nprobes;
+		unsigned nclaims;
+		int ready;
+		int verbose;
+	} L;
+#define null_ip   (L.null_ip  )
+#define null_addr (L.null_addr)
+#define saddr     (L.saddr    )
+#define ip        (L.ip       )
+#define ifr       (L.ifr      )
+#define intf      (L.intf     )
+#define script_av (L.script_av)
+#define timeout   (L.timeout  )
+#define conflicts (L.conflicts)
+#define nprobes   (L.nprobes  )
+#define nclaims   (L.nclaims  )
+#define ready     (L.ready    )
+#define verbose   (L.verbose  )
+
+	memset(&L, 0, sizeof(L));
+
+#define FOREGROUND (opts & 1)
+#define QUIT       (opts & 2)
+	// parse commandline: prog [options] ifname script
+	// exactly 2 args; -v accumulates and implies -f
+	opt_complementary = "=2:vv:vf";
 	opts = getopt32(argc, argv, "fqr:v", &r_opt, &verbose);
 	if (!FOREGROUND) {
 		/* Do it early, before all bb_xx_msg calls */
-		logmode = LOGMODE_SYSLOG;
 		openlog(applet_name, 0, LOG_DAEMON);
+		logmode |= LOGMODE_SYSLOG;
 	}
 	if (opts & 4) { // -r n.n.n.n
 		if (inet_aton(r_opt, &ip) == 0
@@ -227,16 +217,21 @@ int zcip_main(int argc, char *argv[])
 			bb_error_msg_and_die("invalid link address");
 		}
 	}
+	// On NOMMU reexec early (or else we will rerun things twice)
+#if !BB_MMU
+	if (!FOREGROUND)
+		bb_daemonize_or_rexec(DAEMON_CHDIR_ROOT, argv);
+#endif
 	argc -= optind;
 	argv += optind;
-	if (argc != 2)
-		bb_show_usage();
+
 	intf = argv[0];
-	script = argv[1];
+	script_av[0] = argv[1];
 	setenv("interface", intf, 1);
 
 	// initialize the interface (modprobe, ifup, etc)
-	if (run(script, "init", intf, NULL) < 0)
+	script_av[1] = (char*)"init";
+	if (run(script_av, intf, NULL))
 		return EXIT_FAILURE;
 
 	// initialize saddr
@@ -271,8 +266,9 @@ int zcip_main(int argc, char *argv[])
 
 	// daemonize now; don't delay system startup
 	if (!FOREGROUND) {
-		/* bb_daemonize(); - bad, will close fd! */
-		xdaemon(0, 0);
+#if BB_MMU
+		bb_daemonize(DAEMON_CHDIR_ROOT);
+#endif
 		bb_info_msg("start, interface %s", intf);
 	}
 
@@ -375,7 +371,8 @@ int zcip_main(int argc, char *argv[])
 					state = MONITOR;
 					// link is ok to use earlier
 					// FIXME update filters
-					run(script, "config", intf, &ip);
+					script_av[1] = (char*)"config";
+					run(script_av, intf, &ip);
 					ready = 1;
 					conflicts = 0;
 					timeout = -1; // Never timeout in the monitor state.
@@ -429,8 +426,8 @@ int zcip_main(int argc, char *argv[])
 					// this shouldn't necessarily exit.
 					bb_error_msg("%s: poll error", intf);
 					if (ready) {
-						run(script, "deconfig",
-								intf, &ip);
+						script_av[1] = (char*)"deconfig";
+						run(script_av, intf, &ip);
 					}
 					return EXIT_FAILURE;
 				}
@@ -516,7 +513,8 @@ int zcip_main(int argc, char *argv[])
 					state = PROBE;
 					VDBG("defend conflict -- starting over\n");
 					ready = 0;
-					run(script, "deconfig", intf, &ip);
+					script_av[1] = (char*)"deconfig";
+					run(script_av, intf, &ip);
 
 					// restart the whole protocol
 					pick(&ip);
@@ -542,7 +540,7 @@ int zcip_main(int argc, char *argv[])
 			goto bad;
 		} // switch poll
 	}
-bad:
+ bad:
 	bb_perror_msg("%s, %s", intf, why);
 	return EXIT_FAILURE;
 }

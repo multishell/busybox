@@ -15,10 +15,11 @@
  * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
-#include "busybox.h"
 #include <sys/utsname.h>
 #include <fnmatch.h>
 #include <getopt.h>
+
+#include "libbb.h"
 
 #define MAX_OPT_DEPTH 10
 #define EUNBALBRACK 10001
@@ -439,7 +440,7 @@ static int static_down(struct interface_defn_t *ifd, execfn *exec)
 	return ((result == 2) ? 2 : 0);
 }
 
-#if !ENABLE_APP_UDHCPC
+#if ENABLE_FEATURE_IFUPDOWN_EXTERNAL_DHCP
 struct dhcp_client_t
 {
 	const char *name;
@@ -448,32 +449,28 @@ struct dhcp_client_t
 };
 
 static const struct dhcp_client_t ext_dhcp_clients[] = {
-	{ "udhcpc",
-		"udhcpc -R -n -p /var/run/udhcpc.%iface%.pid -i %iface%[[ -H %hostname%]][[ -c %clientid%]][[ -s %script%]]",
-		"kill -TERM `cat /var/run/udhcpc.%iface%.pid` 2>/dev/null",
-	},
-	{ "pump",
-		"pump -i %iface%[[ -h %hostname%]][[ -l %leasehours%]]",
-		"pump -i %iface% -k",
+	{ "dhcpcd",
+		"dhcpcd[[ -h %hostname%]][[ -i %vendor%]][[ -I %clientid%]][[ -l %leasetime%]] %iface%",
+		"dhcpcd -k %iface%",
 	},
 	{ "dhclient",
 		"dhclient -pf /var/run/dhclient.%iface%.pid %iface%",
 		"kill -9 `cat /var/run/dhclient.%iface%.pid` 2>/dev/null",
 	},
-	{ "dhcpcd",
-		"dhcpcd[[ -h %hostname%]][[ -i %vendor%]][[ -I %clientid%]][[ -l %leasetime%]] %iface%",
-		"dhcpcd -k %iface%",
+	{ "pump",
+		"pump -i %iface%[[ -h %hostname%]][[ -l %leasehours%]]",
+		"pump -i %iface% -k",
+	},
+	{ "udhcpc",
+		"udhcpc -R -n -p /var/run/udhcpc.%iface%.pid -i %iface%[[ -H %hostname%]][[ -c %clientid%]][[ -s %script%]]",
+		"kill -TERM `cat /var/run/udhcpc.%iface%.pid` 2>/dev/null",
 	},
 };
-#endif
+#endif /* ENABLE_FEATURE_IFUPDOWN_EXTERNAL_DHCPC */
 
 static int dhcp_up(struct interface_defn_t *ifd, execfn *exec)
 {
-#if ENABLE_APP_UDHCPC
-	return execute("udhcpc -R -n -p /var/run/udhcpc.%iface%.pid "
-			"-i %iface%[[ -H %hostname%]][[ -c %clientid%]][[ -s %script%]]",
-			ifd, exec);
-#else
+#if ENABLE_FEATURE_IFUPDOWN_EXTERNAL_DHCP
 	int i, nclients = sizeof(ext_dhcp_clients) / sizeof(ext_dhcp_clients[0]);
 	for (i = 0; i < nclients; i++) {
 		if (exists_execable(ext_dhcp_clients[i].name))
@@ -481,15 +478,18 @@ static int dhcp_up(struct interface_defn_t *ifd, execfn *exec)
 	}
 	bb_error_msg("no dhcp clients found");
 	return 0;
+#elif ENABLE_APP_UDHCPC
+	return execute("udhcpc -R -n -p /var/run/udhcpc.%iface%.pid "
+			"-i %iface%[[ -H %hostname%]][[ -c %clientid%]][[ -s %script%]]",
+			ifd, exec);
+#else
+	return 0; /* no dhcp support */
 #endif
 }
 
 static int dhcp_down(struct interface_defn_t *ifd, execfn *exec)
 {
-#if ENABLE_APP_UDHCPC
-	return execute("kill -TERM "
-	               "`cat /var/run/udhcpc.%iface%.pid` 2>/dev/null", ifd, exec);
-#else
+#if ENABLE_FEATURE_IFUPDOWN_EXTERNAL_DHCP
 	int i, nclients = sizeof(ext_dhcp_clients) / sizeof(ext_dhcp_clients[0]);
 	for (i = 0; i < nclients; i++) {
 		if (exists_execable(ext_dhcp_clients[i].name))
@@ -497,6 +497,11 @@ static int dhcp_down(struct interface_defn_t *ifd, execfn *exec)
 	}
 	bb_error_msg("no dhcp clients found, using static interface shutdown");
 	return static_down(ifd, exec);
+#elif ENABLE_APP_UDHCPC
+	return execute("kill -TERM "
+	               "`cat /var/run/udhcpc.%iface%.pid` 2>/dev/null", ifd, exec);
+#else
+	return 0; /* no support for dhcp */
 #endif
 }
 
@@ -546,7 +551,7 @@ static const struct method_t methods[] = {
 
 static const struct address_family_t addr_inet = {
 	"inet",
-	sizeof(methods) / sizeof(struct method_t),
+	sizeof(methods) / sizeof(methods[0]),
 	methods
 };
 
@@ -1074,8 +1079,8 @@ static llist_t *find_iface_state(llist_t *state_list, const char *iface)
 	llist_t *search = state_list;
 
 	while (search) {
-		if ((strncmp(search->data, iface, iface_len) == 0) &&
-				(search->data[iface_len] == '=')) {
+		if ((strncmp(search->data, iface, iface_len) == 0)
+		 && (search->data[iface_len] == '=')) {
 			return search;
 		}
 		search = search->link;
@@ -1084,10 +1089,11 @@ static llist_t *find_iface_state(llist_t *state_list, const char *iface)
 }
 
 /* read the previous state from the state file */
-static llist_t *read_iface_state(void) {
+static llist_t *read_iface_state(void)
+{
 	llist_t *state_list = NULL;
-	FILE *state_fp;
-	state_fp = fopen("/var/run/ifstate", "r");
+	FILE *state_fp = fopen("/var/run/ifstate", "r");
+
 	if (state_fp) {
 		char *start, *end_ptr;
 		while ((start = xmalloc_fgets(state_fp)) != NULL) {
@@ -1234,8 +1240,10 @@ int ifupdown_main(int argc, char **argv)
 		if (!okay && !FORCE) {
 			bb_error_msg("ignoring unknown interface %s", liface);
 			any_failures = 1;
-		} else {
+		} else if (!NO_ACT) {
 			/* update the state file */
+			FILE *state_fp;
+			llist_t *state;
 			llist_t *state_list = read_iface_state();
 			llist_t *iface_state = find_iface_state(state_list, iface);
 
@@ -1254,17 +1262,15 @@ int ifupdown_main(int argc, char **argv)
 			}
 
 			/* Actually write the new state */
-			if (!NO_ACT) {
-				FILE *state_fp = xfopen("/var/run/ifstate", "w");
-				llist_t *state = state_list;
-				while (state) {
-					if (state->data) {
-						fprintf(state_fp, "%s\n", state->data);
-					}
-					state = state->link;
+			state_fp = xfopen("/var/run/ifstate", "w");
+			state = state_list;
+			while (state) {
+				if (state->data) {
+					fprintf(state_fp, "%s\n", state->data);
 				}
-				fclose(state_fp);
+				state = state->link;
 			}
+			fclose(state_fp);
 			llist_free(state_list, free);
 		}
 	}

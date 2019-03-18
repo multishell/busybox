@@ -24,7 +24,7 @@
  * 7) lseek attempted when count==0 even if arg was +0 (from top)
  */
 
-#include "busybox.h"
+#include "libbb.h"
 
 static const struct suffix_mult tail_suffixes[] = {
 	{ "b", 512 },
@@ -33,7 +33,10 @@ static const struct suffix_mult tail_suffixes[] = {
 	{ NULL, 0 }
 };
 
-static int status;
+struct globals {
+	bool status;
+};
+#define G (*(struct globals*)&bb_common_bufsiz1)
 
 static void tail_xprint_header(const char *fmt, const char *filename)
 {
@@ -54,7 +57,7 @@ static ssize_t tail_read(int fd, char *buf, size_t count)
 	r = safe_read(fd, buf, count);
 	if (r < 0) {
 		bb_perror_msg(bb_msg_read_error);
-		status = EXIT_FAILURE;
+		G.status = EXIT_FAILURE;
 	}
 
 	return r;
@@ -62,9 +65,10 @@ static ssize_t tail_read(int fd, char *buf, size_t count)
 
 static const char header_fmt[] = "\n==> %s <==\n";
 
-static unsigned eat_num(const char *p) {
+static unsigned eat_num(const char *p)
+{
 	if (*p == '-') p++;
-	else if (*p == '+') { p++; status = 1; }
+	else if (*p == '+') { p++; G.status = EXIT_FAILURE; }
 	return xatou_sfx(p, tail_suffixes);
 }
 
@@ -75,7 +79,8 @@ int tail_main(int argc, char **argv)
 	unsigned sleep_period = 1;
 	bool from_top;
 	int header_threshhold = 1;
-	const char *str_c, *str_n, *str_s;
+	const char *str_c, *str_n;
+	USE_FEATURE_FANCY_TAIL(const char *str_s;)
 
 	char *tailbuf;
 	size_t tailbufsize;
@@ -92,13 +97,18 @@ int tail_main(int argc, char **argv)
 	if (argc >= 2 && (argv[1][0] == '+' || argv[1][0] == '-')
 	 && isdigit(argv[1][1])
 	) {
-		argv[0] = (char*)"-n";
-		argv--;
-		argc++;
+		/* replacing arg[0] with "-n" can segfault, so... */
+		argv[1] = xasprintf("-n%s", argv[1]);
+#if 0 /* If we ever decide to make tail NOFORK */
+		char *s = alloca(strlen(argv[1]) + 3);
+		sprintf(s, "-n%s", argv[1]);
+		argv[1] = s;
+#endif
 	}
 #endif
 
-	opt = getopt32(argc, argv, "fc:n:" USE_FEATURE_FANCY_TAIL("qs:v"), &str_c, &str_n, &str_s);
+	opt = getopt32(argc, argv, "fc:n:" USE_FEATURE_FANCY_TAIL("qs:v"),
+			&str_c, &str_n USE_FEATURE_FANCY_TAIL(,&str_s));
 #define FOLLOW (opt & 0x1)
 #define COUNT_BYTES (opt & 0x2)
 	//if (opt & 0x1) // -f
@@ -111,11 +121,12 @@ int tail_main(int argc, char **argv)
 #endif
 	argc -= optind;
 	argv += optind;
-	from_top = status;
+	from_top = G.status;
 
 	/* open all the files */
 	fds = xmalloc(sizeof(int) * (argc + 1));
-	status = nfiles = i = 0;
+	nfiles = i = 0;
+	G.status = EXIT_SUCCESS;
 	if (argc == 0) {
 		struct stat statbuf;
 
@@ -123,23 +134,15 @@ int tail_main(int argc, char **argv)
 			opt &= ~1; /* clear FOLLOW */
 		}
 		*argv = (char *) bb_msg_standard_input;
-		goto DO_STDIN;
 	}
-
 	do {
-		if (NOT_LONE_DASH(argv[i])) {
-			fds[nfiles] = open(argv[i], O_RDONLY);
-			if (fds[nfiles] < 0) {
-				bb_perror_msg("%s", argv[i]);
-				status = EXIT_FAILURE;
-				continue;
-			}
-		} else {
- DO_STDIN:		/* "-" */
-			fds[nfiles] = STDIN_FILENO;
+		FILE* fil = fopen_or_warn_stdin(argv[i]);
+		if (!fil) {
+			G.status = EXIT_FAILURE;
+			continue;
 		}
-		argv[nfiles] = argv[i];
-		++nfiles;
+		fds[nfiles] = fileno(fil);
+		argv[nfiles++] = argv[i];
 	} while (++i < argc);
 
 	if (!nfiles)
@@ -217,13 +220,11 @@ int tail_main(int argc, char **argv)
 					if (newline + nbuf < count) {
 						newline += nbuf;
 						taillen += nread;
-
 					} else {
 						int extra = 0;
-						if (buf[nread-1] != '\n') {
-							extra = 1;
-						}
 
+						if (buf[nread-1] != '\n')
+							extra = 1;
 						k = newline + nbuf + extra - count;
 						s = tailbuf;
 						while (k) {
@@ -232,7 +233,6 @@ int tail_main(int argc, char **argv)
 							}
 							++s;
 						}
-
 						taillen += nread - (s - tailbuf);
 						memmove(tailbuf, s, taillen);
 						newline = count - extra;
@@ -273,6 +273,8 @@ int tail_main(int argc, char **argv)
 			}
 		} while (++i < nfiles);
 	}
-
-	return status;
+	if (ENABLE_FEATURE_CLEAN_UP) {
+		free(fds);
+	}
+	return G.status;
 }

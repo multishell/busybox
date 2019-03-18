@@ -28,8 +28,8 @@
    - not true viewing if length prompt less terminal width
  */
 
-#include <sys/ioctl.h>
-#include "busybox.h"
+//#include <sys/ioctl.h>
+#include "libbb.h"
 
 
 /* FIXME: obsolete CONFIG item? */
@@ -83,11 +83,6 @@ static int num_ok_lines = 1;
 #if ENABLE_FEATURE_GETUSERNAME_AND_HOMEDIR
 static char *user_buf = (char*)"";
 static char *home_pwd_buf = (char*)"";
-#endif
-
-#if ENABLE_FEATURE_TAB_COMPLETION
-static int my_uid;
-static int my_gid;
 #endif
 
 /* Put 'command_ps[cursor]', cursor++.
@@ -953,8 +948,10 @@ static void remember_in_history(const char *str)
 	state->history[i++] = xstrdup(str);
 	state->cur_history = i;
 	state->cnt_history = i;
-	if (state->flags & SAVE_HISTORY)
+#if ENABLE_FEATURE_EDITING_SAVEHISTORY
+	if ((state->flags & SAVE_HISTORY) && state->hist_file)
 		save_history(state->hist_file);
+#endif
 	USE_FEATURE_EDITING_FANCY_PROMPT(num_ok_lines++;)
 }
 
@@ -1273,7 +1270,7 @@ int read_line_input(const char* prompt, char* command, int maxsize, line_input_t
 	/* With null flags, no other fields are ever used */
 	state = st ? st : (line_input_t*) &const_int_0;
 #if ENABLE_FEATURE_EDITING_SAVEHISTORY
-	if (state->flags & SAVE_HISTORY)
+	if ((state->flags & SAVE_HISTORY) && state->hist_file)
 		load_history(state->hist_file);
 #endif
 
@@ -1311,10 +1308,6 @@ int read_line_input(const char* prompt, char* command, int maxsize, line_input_t
 			home_pwd_buf = xstrdup(entry->pw_dir);
 		}
 	}
-#endif
-#if ENABLE_FEATURE_TAB_COMPLETION
-	my_uid = getuid();
-	my_gid = getgid();
 #endif
 	/* Print out the command prompt */
 	parse_prompt(prompt);

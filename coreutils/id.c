@@ -13,10 +13,7 @@
  * -Z option support: by Yuichi Nakamura <ynakam@hitachisoft.jp>
  */
 
-#include "busybox.h"
-#include <stdio.h>
-#include <unistd.h>
-#include <sys/types.h>
+#include "libbb.h"
 
 #define PRINT_REAL        1
 #define NAME_NOT_NUMBER   2

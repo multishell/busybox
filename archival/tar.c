@@ -25,7 +25,7 @@
 
 #include <fnmatch.h>
 #include <getopt.h>
-#include "busybox.h"
+#include "libbb.h"
 #include "unarchive.h"
 
 #if ENABLE_FEATURE_TAR_CREATE
@@ -440,9 +440,8 @@ static int writeFileToTarball(const char *fileName, struct stat *statbuf,
 	/* Is this a regular file? */
 	if (tbInfo->hlInfo == NULL && S_ISREG(statbuf->st_mode)) {
 		/* open the file we want to archive, and make sure all is well */
-		inputFileFd = open(fileName, O_RDONLY);
+		inputFileFd = open_or_warn(fileName, O_RDONLY);
 		if (inputFileFd < 0) {
-			bb_perror_msg("%s: cannot open", fileName);
 			return FALSE;
 		}
 	}
@@ -455,7 +454,7 @@ static int writeFileToTarball(const char *fileName, struct stat *statbuf,
 	/* If it was a regular file, write out the body */
 	if (inputFileFd >= 0) {
 		size_t readSize;
-		/* Wwrite the file to the archive. */
+		/* Write the file to the archive. */
 		/* We record size into header first, */
 		/* and then write out file. If file shrinks in between, */
 		/* tar will be corrupted. So we don't allow for that. */
@@ -508,8 +507,8 @@ static int writeTarFile(const int tar_fd, const int verboseFlag,
 		volatile int vfork_exec_errno = 0;
 		const char *zip_exec = (gzip == 1) ? "gzip" : "bzip2";
 
-		if (pipe(gzipDataPipe) < 0 || pipe(gzipStatusPipe) < 0)
-			bb_perror_msg_and_die("pipe");
+		xpipe(gzipDataPipe);
+		xpipe(gzipStatusPipe);
 
 		signal(SIGPIPE, SIG_IGN); /* we only want EPIPE on errors */
 
@@ -562,8 +561,9 @@ static int writeTarFile(const int tar_fd, const int verboseFlag,
 
 	/* Read the directory/files and iterate over them one at a time */
 	while (include) {
-		if (!recursive_action(include->data, TRUE, dereferenceFlag,
-				FALSE, writeFileToTarball, writeFileToTarball, &tbInfo, 0))
+		if (!recursive_action(include->data, ACTION_RECURSE |
+				(dereferenceFlag ? ACTION_FOLLOWLINKS : 0),
+				writeFileToTarball, writeFileToTarball, &tbInfo, 0))
 		{
 			errorFlag = TRUE;
 		}
@@ -676,7 +676,7 @@ static void handle_SIGCHLD(int status)
 		/* child exited with 0 */
 		return;
 	/* Cannot happen?
-	if(!WIFSIGNALED(status) && !WIFEXITED(status)) return; */
+	if (!WIFSIGNALED(status) && !WIFEXITED(status)) return; */
 	child_error = 1;
 }
 #endif
@@ -863,10 +863,9 @@ int tar_main(int argc, char **argv)
 		char *cp = last_char_is(argv[optind], '/');
 		if (cp > argv[optind])
 			*cp = '\0';
-		llist_add_to(&tar_handle->accept, argv[optind]);
+		llist_add_to_end(&tar_handle->accept, argv[optind]);
 		optind++;
 	}
-	tar_handle->accept = llist_rev(tar_handle->accept);
 
 	if (tar_handle->accept || tar_handle->reject)
 		tar_handle->filter = filter_accept_reject_list;

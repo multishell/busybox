@@ -15,6 +15,8 @@
 #include "common.h"
 
 
+const uint8_t MAC_BCAST_ADDR[6] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+
 long uptime(void)
 {
 	struct sysinfo info;
@@ -22,40 +24,27 @@ long uptime(void)
 	return info.uptime;
 }
 
-void udhcp_background(const char *pidfile)
+static void create_pidfile(const char *pidfile)
 {
-#ifdef __uClinux__
-	bb_error_msg("cannot background in uclinux (yet)");
-#else /* __uClinux__ */
-	int pid_fd;
+	if (!pidfile)
+		return;
 
-	/* hold lock during fork. */
-	pid_fd = pidfile_acquire(pidfile);
-	setsid();
-	xdaemon(0, 0);
-	logmode &= ~LOGMODE_STDIO;
-	pidfile_write_release(pid_fd);
-#endif /* __uClinux__ */
+	if (!write_pidfile(pidfile)) {
+		bb_perror_msg("cannot create pidfile %s", pidfile);
+		return;
+	}
 }
 
-void udhcp_start_log_and_pid(const char *pidfile)
+void udhcp_make_pidfile(const char *pidfile)
 {
-	int pid_fd;
-
-	/* Make sure our syslog fd isn't overwritten */
+	/* Make sure fd 0,1,2 are open */
 	bb_sanitize_stdio();
 
-	/* do some other misc startup stuff while we are here to save bytes */
-	pid_fd = pidfile_acquire(pidfile);
-	pidfile_write_release(pid_fd);
-
-	/* equivelent of doing a fflush after every \n */
+	/* Equivalent of doing a fflush after every \n */
 	setlinebuf(stdout);
 
-	if (ENABLE_FEATURE_UDHCP_SYSLOG) {
-		openlog(applet_name, LOG_PID, LOG_LOCAL0);
-		logmode |= LOGMODE_SYSLOG;
-	}
+	/* Create pidfile */
+	create_pidfile(pidfile);
 
 	bb_info_msg("%s (v%s) started", applet_name, BB_VER);
 }

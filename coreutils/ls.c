@@ -29,8 +29,11 @@
  * 1. requires lstat (BSD) - how do you do it without?
  */
 
-#include "busybox.h"
 #include <getopt.h>
+#include "libbb.h"
+
+/* This is a NOEXEC applet. Be very careful! */
+
 
 enum {
 
@@ -501,11 +504,11 @@ static struct dnode **list_dir(const char *path)
 
 		/* are we going to list the file- it may be . or .. or a hidden file */
 		if (entry->d_name[0] == '.') {
-			if ((entry->d_name[1] == 0 || (
-				entry->d_name[1] == '.'
-				&& entry->d_name[2] == 0))
-					&& !(all_fmt & DISP_DOT))
+			if ((!entry->d_name[1] || (entry->d_name[1] == '.' && !entry->d_name[2]))
+			 && !(all_fmt & DISP_DOT)
+			) {
 				continue;
+			}
 			if (!(all_fmt & DISP_HIDDEN))
 				continue;
 		}

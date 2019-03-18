@@ -7,14 +7,9 @@
  * Licensed under GPL v2 or later, see file License for details.
 */
 
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <errno.h>
-#include <stdio.h>
 #include <sys/personality.h>
 
-#include "busybox.h"
+#include "libbb.h"
 
 int setarch_main(int ATTRIBUTE_UNUSED argc, char **argv);
 int setarch_main(int ATTRIBUTE_UNUSED argc, char **argv)

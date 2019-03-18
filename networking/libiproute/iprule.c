@@ -16,16 +16,16 @@
  * initially integrated into busybox by Bernhard Fischer
  */
 
-#include "libbb.h"
 #include <syslog.h>
-#include <sys/socket.h>
+//#include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <arpa/inet.h>
 
+#include "ip_common.h"  /* #include "libbb.h" is inside */
 #include "rt_names.h"
 #include "utils.h"
-#include "ip_common.h"
+
 /*
 static void usage(void) __attribute__((noreturn));
 
@@ -41,6 +41,7 @@ static void usage(void)
 	exit(-1);
 }
 */
+
 static int print_rule(struct sockaddr_nl *who ATTRIBUTE_UNUSED,
 					struct nlmsghdr *n, void *arg)
 {
@@ -155,11 +156,12 @@ static int print_rule(struct sockaddr_nl *who ATTRIBUTE_UNUSED,
 	} else if (r->rtm_type != RTN_UNICAST)
 		fprintf(fp, "%s", rtnl_rtntype_n2a(r->rtm_type, b1, sizeof(b1)));
 
-	fprintf(fp, "\n");
+	fputc('\n', fp);
 	fflush(fp);
 	return 0;
 }
 
+/* Return value becomes exitcode. It's okay to not return at all */
 static int iprule_list(int argc, char **argv)
 {
 	struct rtnl_handle rth;
@@ -174,23 +176,16 @@ static int iprule_list(int argc, char **argv)
 		return -1;
 	}
 
-	if (rtnl_open(&rth, 0) < 0)
-		return 1;
+	xrtnl_open(&rth);
 
-	if (rtnl_wilddump_request(&rth, af, RTM_GETRULE) < 0) {
-		bb_perror_msg("Cannot send dump request");
-		return 1;
-	}
-
-	if (rtnl_dump_filter(&rth, print_rule, stdout, NULL, NULL) < 0) {
-		bb_error_msg("Dump terminated");
-		return 1;
-	}
+	xrtnl_wilddump_request(&rth, af, RTM_GETRULE);
+	xrtnl_dump_filter(&rth, print_rule, stdout);
 
 	return 0;
 }
 
 
+/* Return value becomes exitcode. It's okay to not return at all */
 static int iprule_modify(int cmd, int argc, char **argv)
 {
 	int table_ok = 0;
@@ -282,7 +277,8 @@ static int iprule_modify(int cmd, int argc, char **argv)
 			if (matches(*argv, "help") == 0)
 				bb_show_usage();
 			if (rtnl_rtntype_a2n(&type, *argv))
-				invarg("Failed to parse rule type", *argv);
+// bogus-looking error message "invalid argument 'cannot parse rule type' to '<*argv>'"
+				invarg("cannot parse rule type", *argv);
 			req.r.rtm_type = type;
 		}
 		argc--;
@@ -295,8 +291,7 @@ static int iprule_modify(int cmd, int argc, char **argv)
 	if (!table_ok && cmd == RTM_NEWRULE)
 		req.r.rtm_table = RT_TABLE_MAIN;
 
-	if (rtnl_open(&rth, 0) < 0)
-		return 1;
+	xrtnl_open(&rth);
 
 	if (rtnl_talk(&rth, &req.n, 0, 0, NULL, NULL, NULL) < 0)
 		return 2;
@@ -304,6 +299,7 @@ static int iprule_modify(int cmd, int argc, char **argv)
 	return 0;
 }
 
+/* Return value becomes exitcode. It's okay to not return at all */
 int do_iprule(int argc, char **argv)
 {
 	static const char * const ip_rule_commands[] =
@@ -331,4 +327,3 @@ int do_iprule(int argc, char **argv)
 	}
 	return iprule_modify(cmd, argc-1, argv+1);
 }
-

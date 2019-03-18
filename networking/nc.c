@@ -7,7 +7,11 @@
  *  Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include "busybox.h"
+#include "libbb.h"
+
+#if ENABLE_DESKTOP
+#include "nc_bloaty.c"
+#else
 
 /* Lots of small differences in features
  * when compared to "standard" nc
@@ -106,7 +110,7 @@ int nc_main(int argc, char **argv)
 			if (!lport) {
 				socklen_t addrlen = lsa->len;
 				getsockname(sfd, &lsa->sa, &addrlen);
-				lport = get_nport(lsa);
+				lport = get_nport(&lsa->sa);
 				fdprintf(2, "%d\n", ntohs(lport));
 			}
 			fcntl(sfd, F_SETFD, FD_CLOEXEC);
@@ -195,3 +199,4 @@ int nc_main(int argc, char **argv)
 		}
 	}
 }
+#endif

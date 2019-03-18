@@ -9,7 +9,7 @@
  * Licensed under GPL version 2, see file LICENSE in this tarball for details.
  */
 
-#include "busybox.h"
+#include "libbb.h"
 #include "xregex.h"
 
 #define DEV_PATH	"/dev"
@@ -230,8 +230,8 @@ static void find_dev(char *path)
 	closedir(dir);
 }
 
-int mdev_main(int argc, char *argv[]);
-int mdev_main(int argc, char *argv[])
+int mdev_main(int argc, char **argv);
+int mdev_main(int argc, char **argv)
 {
 	char *action;
 	char *env_path;

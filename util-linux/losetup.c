@@ -8,9 +8,8 @@
  */
 
 #include <getopt.h>
-#include <stdlib.h>
 
-#include "busybox.h"
+#include "libbb.h"
 
 int losetup_main(int argc, char **argv);
 int losetup_main(int argc, char **argv)
@@ -45,9 +44,11 @@ int losetup_main(int argc, char **argv)
 			bb_perror_nomsg_and_die();
 	} else if (argc == 1) {
 		char *s = query_loop(argv[0]);
-		if (!s) bb_perror_nomsg_and_die();
+		if (!s)
+			bb_perror_nomsg_and_die();
 		printf("%s: %s\n", argv[0], s);
-		if (ENABLE_FEATURE_CLEAN_UP) free(s);
+		if (ENABLE_FEATURE_CLEAN_UP)
+			free(s);
 	} else {
 		char dev[sizeof(LOOP_NAME"0")] = LOOP_NAME"0";
 		char c;
@@ -57,7 +58,8 @@ int losetup_main(int argc, char **argv)
 			s = query_loop(dev);
 			if (s) {
 				printf("%s: %s\n", dev, s);
-				if (ENABLE_FEATURE_CLEAN_UP) free(s);
+				if (ENABLE_FEATURE_CLEAN_UP)
+					free(s);
 			}
 		}
 	}

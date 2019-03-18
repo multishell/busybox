@@ -8,9 +8,6 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "libbb.h"
 
 typedef struct ino_dev_hash_bucket_struct {
@@ -77,7 +74,7 @@ void reset_ino_dev_hashtable(void)
 	int i;
 	ino_dev_hashtable_bucket_t *bucket;
 
-	for (i = 0; i < HASH_SIZE; i++) {
+	for (i = 0; ino_dev_hashtable && i < HASH_SIZE; i++) {
 		while (ino_dev_hashtable[i] != NULL) {
 			bucket = ino_dev_hashtable[i]->next;
 			free(ino_dev_hashtable[i]);
@@ -87,4 +84,6 @@ void reset_ino_dev_hashtable(void)
 	free(ino_dev_hashtable);
 	ino_dev_hashtable = NULL;
 }
+#else
+void reset_ino_dev_hashtable(void);
 #endif

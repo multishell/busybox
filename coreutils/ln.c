@@ -11,7 +11,10 @@
 /* BB_AUDIT GNU options missing: -d, -F, -i, and -v. */
 /* http://www.opengroup.org/onlinepubs/007904975/utilities/ln.html */
 
-#include "busybox.h"
+#include "libbb.h"
+
+/* This is a NOEXEC applet. Be very careful! */
+
 
 #define LN_SYMLINK          1
 #define LN_FORCE            2

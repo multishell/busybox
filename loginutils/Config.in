@@ -59,11 +59,28 @@ config ADDGROUP
 	help
 	  Utility for creating a new group account.
 
+config FEATURE_ADDUSER_TO_GROUP
+	bool "Support for adding users to groups"
+	default n
+	depends on ADDGROUP
+	help
+	  If  called  with two non-option arguments,
+	  addgroup will add an existing user to an
+	  existing group.
+
 config DELGROUP
 	bool "delgroup"
 	default n
 	help
 	  Utility for deleting a group account.
+
+config FEATURE_DEL_USER_FROM_GROUP
+	bool "Support for removing users from groups."
+	default n
+	depends on DELGROUP
+	help
+	  If called with two non-option arguments, deluser
+	  or delgroup will remove an user from a specified group.
 
 config ADDUSER
 	bool "adduser"
@@ -148,6 +165,12 @@ config FEATURE_PASSWD_WEAK_CHECK
 	depends on PASSWD
 	help
 	  With this option passwd will refuse new passwords which are "weak".
+
+config CRYPTPW
+	bool "cryptpw"
+	default n
+	help
+	  Applet for crypting a string.
 
 config SU
 	bool "su"

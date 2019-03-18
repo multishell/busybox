@@ -52,12 +52,21 @@ CFLAGS += $(call cc-option,-g)
 endif
 
 ifeq ($(CONFIG_STATIC),y)
-LDLIBS += -static
+LDFLAGS += -static
 endif
 
 ifeq ($(CONFIG_SELINUX),y)
 LDLIBS += -lselinux -lsepol
 endif
+
+ifeq ($(CONFIG_EFENCE),y)
+LDLIBS += -lefence
+endif
+
+ifeq ($(CONFIG_DMALLOC),y)
+LDLIBS += -ldmalloc
+endif
+
 #LDFLAGS += -nostdlib
 
 # Busybox is a stack-fatty so make sure we increase default size

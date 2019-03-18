@@ -36,7 +36,7 @@
   echo `echo hello#comment " woot` and more
 */
 
-#include "busybox.h"
+#include "libbb.h"
 
 // A single executable, its arguments, and other information we know about it.
 #define BBSH_FLAG_EXIT    1
@@ -68,7 +68,7 @@ struct pipeline {
 
 static void free_list(void *list, void (*freeit)(void *data))
 {
-	while(list) {
+	while (list) {
 		void **next = (void **)list;
 		void *list_next = *next;
 		freeit(list);
@@ -90,7 +90,7 @@ static char *parse_word(char *start, struct command **cmd)
 
 	// Grab next word.  (Add dequote and envvar logic here)
 	end = start;
-	while (*end && !isspace(*end)) end++;
+	end = skip_non_whitespace(end);
 	(*cmd)->argv[(*cmd)->argc++] = xstrndup(start, end-start);
 
 	// Allocate more space if there's no room for NULL terminator.
@@ -159,13 +159,13 @@ static int run_pipeline(struct pipeline *line)
 	// Handle local commands.  This is totally fake and plastic.
 	if (cmd->argc==2 && !strcmp(cmd->argv[0],"cd"))
 		chdir(cmd->argv[1]);
-	else if(!strcmp(cmd->argv[0],"exit"))
+	else if (!strcmp(cmd->argv[0],"exit"))
 		exit(cmd->argc>1 ? atoi(cmd->argv[1]) : 0);
 	else {
 		int status;
 		pid_t pid=fork();
-		if(!pid) {
-			run_applet_by_name(cmd->argv[0],cmd->argc,cmd->argv);
+		if (!pid) {
+			run_applet_and_exit(cmd->argv[0],cmd->argc,cmd->argv);
 			execvp(cmd->argv[0],cmd->argv);
 			printf("No %s",cmd->argv[0]);
 			exit(1);
@@ -179,7 +179,7 @@ static void free_cmd(void *data)
 {
 	struct command *cmd=(struct command *)data;
 
-	while(cmd->argc) free(cmd->argv[--cmd->argc]);
+	while (cmd->argc) free(cmd->argv[--cmd->argc]);
 }
 
 
@@ -198,8 +198,8 @@ static void handle(char *command)
 	}
 }
 
-int bbsh_main(int argc, char *argv[]);
-int bbsh_main(int argc, char *argv[])
+int bbsh_main(int argc, char **argv);
+int bbsh_main(int argc, char **argv)
 {
 	char *command=NULL;
 	FILE *f;
@@ -211,8 +211,8 @@ int bbsh_main(int argc, char *argv[])
 	else {
 		unsigned cmdlen=0;
 		for (;;) {
-			if(!f) putchar('$');
-			if(1 > getline(&command, &cmdlen,f ? : stdin)) break;
+			if (!f) putchar('$');
+			if (1 > getline(&command, &cmdlen,f ? : stdin)) break;
 
 			handle(command);
 		}

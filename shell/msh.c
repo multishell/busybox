@@ -13,12 +13,13 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
+#include <sys/times.h>
+#include <setjmp.h>
+
 #ifdef STANDALONE
 # ifndef _GNU_SOURCE
 #  define _GNU_SOURCE
 # endif
-# include <setjmp.h>
-# include <sys/times.h>
 # include <sys/types.h>
 # include <sys/stat.h>
 # include <sys/wait.h>
@@ -36,7 +37,7 @@
 # define DEFAULT_SHELL "/proc/self/exe"
 # define CONFIG_BUSYBOX_EXEC_PATH "/proc/self/exe"
 # define BB_BANNER "busybox standalone"
-# define ENABLE_FEATURE_SH_STANDALONE_SHELL 0
+# define ENABLE_FEATURE_SH_STANDALONE 0
 # define bb_msg_memory_exhausted "memory exhausted"
 # define xmalloc(size) malloc(size)
 # define msh_main(argc,argv) main(argc,argv)
@@ -48,7 +49,7 @@ static char *find_applet_by_name(const char *applet)
 {
 	return NULL;
 }
-static void utoa_to_buf(unsigned n, char *buf, unsigned buflen)
+static char *utoa_to_buf(unsigned n, char *buf, unsigned buflen)
 {
 	unsigned i, out, res;
 	assert(sizeof(unsigned) == 4);
@@ -57,33 +58,31 @@ static void utoa_to_buf(unsigned n, char *buf, unsigned buflen)
 		for (i = 1000000000; i; i /= 10) {
 			res = n / i;
 			if (res || out || i == 1) {
-	    			if (!--buflen) break;
-	    			out++;
-	    			n -= res*i;
-	    			*buf++ = '0' + res;
+				if (!--buflen) break;
+				out++;
+				n -= res*i;
+				*buf++ = '0' + res;
 			}
 		}
-		*buf = '\0';
 	}
+	return buf;
 }
-static void itoa_to_buf(int n, char *buf, unsigned buflen)
+static char *itoa_to_buf(int n, char *buf, unsigned buflen)
 {
 	if (buflen && n < 0) {
 		n = -n;
 		*buf++ = '-';
 		buflen--;
 	}
-	utoa_to_buf((unsigned)n, buf, buflen);
+	return utoa_to_buf((unsigned)n, buf, buflen);
 }
 static char local_buf[12];
 static char *itoa(int n)
 {
-	itoa_to_buf(n, local_buf, sizeof(local_buf));
+	*(itoa_to_buf(n, local_buf, sizeof(local_buf))) = '\0';
 	return local_buf;
 }
 #else
-# include <setjmp.h>
-# include <sys/times.h>
 # include "busybox.h"
 extern char **environ;
 #endif
@@ -93,21 +92,21 @@ extern char **environ;
 #ifdef MSHDEBUG
 int mshdbg = MSHDEBUG;
 
-#define DBGPRINTF(x)	if(mshdbg>0)printf x
-#define DBGPRINTF0(x)	if(mshdbg>0)printf x
-#define DBGPRINTF1(x)	if(mshdbg>1)printf x
-#define DBGPRINTF2(x)	if(mshdbg>2)printf x
-#define DBGPRINTF3(x)	if(mshdbg>3)printf x
-#define DBGPRINTF4(x)	if(mshdbg>4)printf x
-#define DBGPRINTF5(x)	if(mshdbg>5)printf x
-#define DBGPRINTF6(x)	if(mshdbg>6)printf x
-#define DBGPRINTF7(x)	if(mshdbg>7)printf x
-#define DBGPRINTF8(x)	if(mshdbg>8)printf x
-#define DBGPRINTF9(x)	if(mshdbg>9)printf x
+#define DBGPRINTF(x)	if (mshdbg>0) printf x
+#define DBGPRINTF0(x)	if (mshdbg>0) printf x
+#define DBGPRINTF1(x)	if (mshdbg>1) printf x
+#define DBGPRINTF2(x)	if (mshdbg>2) printf x
+#define DBGPRINTF3(x)	if (mshdbg>3) printf x
+#define DBGPRINTF4(x)	if (mshdbg>4) printf x
+#define DBGPRINTF5(x)	if (mshdbg>5) printf x
+#define DBGPRINTF6(x)	if (mshdbg>6) printf x
+#define DBGPRINTF7(x)	if (mshdbg>7) printf x
+#define DBGPRINTF8(x)	if (mshdbg>8) printf x
+#define DBGPRINTF9(x)	if (mshdbg>9) printf x
 
 int mshdbg_rc = 0;
 
-#define RCPRINTF(x)		if(mshdbg_rc)printf x
+#define RCPRINTF(x)	if (mshdbg_rc) printf x
 
 #else
 
@@ -153,9 +152,9 @@ int mshdbg_rc = 0;
 /*
  * values returned by wait
  */
-#define	WAITSIG(s)  ((s)&0177)
-#define	WAITVAL(s)  (((s)>>8)&0377)
-#define	WAITCORE(s) (((s)&0200)!=0)
+#define	WAITSIG(s)  ((s) & 0177)
+#define	WAITVAL(s)  (((s) >> 8) & 0377)
+#define	WAITCORE(s) (((s) & 0200) != 0)
 
 /*
  * library and system definitions
@@ -165,14 +164,10 @@ typedef void xint;				/* base type of jmp_buf, for not broken compilers */
 /*
  * shell components
  */
-
-#define	QUOTE	0200
-
 #define	NOBLOCK	((struct op *)NULL)
 #define	NOWORD	((char *)NULL)
 #define	NOWORDS	((char **)NULL)
 #define	NOPIPE	((int *)NULL)
-
 
 /*
  * redirection
@@ -253,25 +248,20 @@ static const char *const T_CMD_NAMES[] = {
 /*
  * actions determining the environment of a process
  */
-#define	BIT(i)	(1<<(i))
-#define	FEXEC	BIT(0)			/* execute without forking */
+#define FEXEC    1      /* execute without forking */
 
-#define AREASIZE	(90000)
+#define AREASIZE (90000)
 
 /*
  * flags to control evaluation of words
  */
-#define	DOSUB	 1				/* interpret $, `, and quotes */
-#define	DOBLANK	 2				/* perform blank interpretation */
-#define	DOGLOB	 4				/* interpret [?* */
-#define	DOKEY	 8				/* move words with `=' to 2nd arg. list */
-#define	DOTRIM	 16				/* trim resulting string */
+#define DOSUB    1      /* interpret $, `, and quotes */
+#define DOBLANK  2      /* perform blank interpretation */
+#define DOGLOB   4      /* interpret [?* */
+#define DOKEY    8      /* move words with `=' to 2nd arg. list */
+#define DOTRIM   16     /* trim resulting string */
 
-#define	DOALL	(DOSUB|DOBLANK|DOGLOB|DOKEY|DOTRIM)
-
-
-/* PROTOTYPES */
-static int newfile(char *s);
+#define DOALL    (DOSUB|DOBLANK|DOGLOB|DOKEY|DOTRIM)
 
 
 struct brkcon {
@@ -291,29 +281,21 @@ struct brkcon {
  * -u: unset variables net diagnostic
  */
 static char flags['z' - 'a' + 1];
-/* this looks weird, but is OK ... we index flag with 'a'...'z' */
-static char *flag = flags - 'a';
+/* this looks weird, but is OK ... we index FLAG with 'a'...'z' */
+#define FLAG (flags - 'a')
 
-static char *null;				/* null value for variable */
-static int intr;				/* interrupt pending */
-
-static char *trap[_NSIG + 1];
-static char ourtrap[_NSIG + 1];
+/* moved to G: static char *trap[_NSIG + 1]; */
+/* moved to G: static char ourtrap[_NSIG + 1]; */
 static int trapset;				/* trap pending */
-
-static int heedint;				/* heed interrupt signals */
 
 static int yynerrs;				/* yacc */
 
-static char line[LINELIM];
-static char *elinep;
+/* moved to G: static char line[LINELIM]; */
 
 #if ENABLE_FEATURE_EDITING
 static char *current_prompt;
 static line_input_t *line_input_state;
 #endif
-
-static int areanum;				/* current allocation area */
 
 
 /*
@@ -344,13 +326,13 @@ static void runtrap(int i);
 
 /* -------- area stuff -------- */
 
-#define	REGSIZE	  sizeof(struct region)
-#define GROWBY	  (256)
-/* #define	SHRINKBY   (64) */
-#undef	SHRINKBY
-#define FREE	  (32767)
-#define BUSY	  (0)
-#define	ALIGN	  (sizeof(int)-1)
+#define REGSIZE   sizeof(struct region)
+#define GROWBY    (256)
+/* #define SHRINKBY (64) */
+#undef  SHRINKBY
+#define FREE      (32767)
+#define BUSY      (0)
+#define ALIGN     (sizeof(int)-1)
 
 
 struct region {
@@ -483,27 +465,13 @@ struct io {
 #define	INSUB()	(e.iop->task == XGRAVE || e.iop->task == XDOLL)
 
 static struct ioarg temparg = { 0, 0, 0, AFID_NOBUF, 0 };	/* temporary for PUSHIO */
-static struct ioarg ioargstack[NPUSH];
+/* moved to G: static struct ioarg ioargstack[NPUSH]; */
 static struct io iostack[NPUSH];
-static struct iobuf sharedbuf = { AFID_NOBUF };
-static struct iobuf mainbuf = { AFID_NOBUF };
+/* moved to G: static struct iobuf sharedbuf = { AFID_NOBUF }; */
+/* moved to G: static struct iobuf mainbuf = { AFID_NOBUF }; */
 static unsigned bufid = AFID_ID;	/* buffer id counter */
 
-#define	PUSHIO(what,arg,gen) ((temparg.what = (arg)), pushio(&temparg,(gen)))
 #define	RUN(what,arg,gen) ((temparg.what = (arg)), run(&temparg,(gen)))
-
-
-/*
- * parsing & execution environment
- */
-static struct env {
-	char *linep;
-	struct io *iobase;
-	struct io *iop;
-	xint *errpt;				/* void * */
-	int iofd;
-	struct env *oenv;
-} e;
 
 
 /*
@@ -537,6 +505,7 @@ static void ioecho(char c);
  * IO control
  */
 static void pushio(struct ioarg *argp, int (*f) (struct ioarg *));
+#define PUSHIO(what,arg,gen) ((temparg.what = (arg)), pushio(&temparg,(gen)))
 static int remap(int fd);
 static int openpipe(int *pv);
 static void closepipe(int *pv);
@@ -599,7 +568,6 @@ static int xstrcmp(char *p1, char *p2);
 static void glob0(char *a0, unsigned a1, int a2,
 				  int (*a3) (char *, char *));
 static void readhere(char **name, char *s, int ec);
-static void pushio(struct ioarg *argp, int (*f) (struct ioarg *));
 static int xxchar(struct ioarg *ap);
 
 struct here {
@@ -635,55 +603,54 @@ struct res {
 	int r_val;
 };
 static const struct res restab[] = {
-	{"for", FOR},
-	{"case", CASE},
-	{"esac", ESAC},
-	{"while", WHILE},
-	{"do", DO},
-	{"done", DONE},
-	{"if", IF},
-	{"in", IN},
-	{"then", THEN},
-	{"else", ELSE},
-	{"elif", ELIF},
-	{"until", UNTIL},
-	{"fi", FI},
-	{";;", BREAK},
-	{"||", LOGOR},
-	{"&&", LOGAND},
-	{"{", '{'},
-	{"}", '}'},
-	{".", DOT},
-	{0, 0},
+	{ "for"  , FOR    },
+	{ "case" , CASE   },
+	{ "esac" , ESAC   },
+	{ "while", WHILE  },
+	{ "do"   , DO     },
+	{ "done" , DONE   },
+	{ "if"   , IF     },
+	{ "in"   , IN     },
+	{ "then" , THEN   },
+	{ "else" , ELSE   },
+	{ "elif" , ELIF   },
+	{ "until", UNTIL  },
+	{ "fi"   , FI     },
+	{ ";;"   , BREAK  },
+	{ "||"   , LOGOR  },
+	{ "&&"   , LOGAND },
+	{ "{"    , '{'    },
+	{ "}"    , '}'    },
+	{ "."    , DOT    },
+	{ NULL   , 0      },
 };
-
 
 struct builtincmd {
 	const char *name;
-	int (*builtinfunc) (struct op * t);
+	int (*builtinfunc)(struct op *t);
 };
 static const struct builtincmd builtincmds[] = {
-	{".", dodot},
-	{":", dolabel},
-	{"break", dobreak},
-	{"cd", dochdir},
-	{"continue", docontinue},
-	{"eval", doeval},
-	{"exec", doexec},
-	{"exit", doexit},
-	{"export", doexport},
-	{"help", dohelp},
-	{"login", dologin},
-	{"newgrp", dologin},
-	{"read", doread},
-	{"readonly", doreadonly},
-	{"set", doset},
-	{"shift", doshift},
-	{"times", dotimes},
-	{"trap", dotrap},
-	{"umask", doumask},
-	{"wait", dowait},
-	{0, 0}
+	{ "."       , dodot      },
+	{ ":"       , dolabel    },
+	{ "break"   , dobreak    },
+	{ "cd"      , dochdir    },
+	{ "continue", docontinue },
+	{ "eval"    , doeval     },
+	{ "exec"    , doexec     },
+	{ "exit"    , doexit     },
+	{ "export"  , doexport   },
+	{ "help"    , dohelp     },
+	{ "login"   , dologin    },
+	{ "newgrp"  , dologin    },
+	{ "read"    , doread     },
+	{ "readonly", doreadonly },
+	{ "set"     , doset      },
+	{ "shift"   , doshift    },
+	{ "times"   , dotimes    },
+	{ "trap"    , dotrap     },
+	{ "umask"   , doumask    },
+	{ "wait"    , dowait     },
+	{ NULL      , NULL       },
 };
 
 static struct op *scantree(struct op *);
@@ -705,9 +672,6 @@ static struct brkcon *brklist;
 static int isbreak;
 static struct wdblock *wdlist;
 static struct wdblock *iolist;
-static char *trap[_NSIG + 1];
-static char ourtrap[_NSIG + 1];
-static int trapset;				/* trap pending */
 
 #ifdef MSHDEBUG
 static struct var *mshdbg_var;
@@ -720,19 +684,18 @@ static struct var *path;		/* search path for commands */
 static struct var *shell;		/* shell to interpret command files */
 static struct var *ifs;			/* field separators */
 
-static int areanum;				/* current allocation area */
-static int intr;
+static int areanum;                     /* current allocation area */
+static int intr;                        /* interrupt pending */
 static int inparse;
-static char *null = (char*)"";
-static int heedint = 1;
-static void (*qflag) (int) = SIG_IGN;
+static char *null = (char*)"";          /* null value for variable */
+static int heedint = 1;                 /* heed interrupt signals */
+static void (*qflag)(int) = SIG_IGN;
 static int startl;
 static int peeksym;
 static int nlseen;
 static int iounit = IODEFAULT;
 static YYSTYPE yylval;
-static char *elinep = line + sizeof(line) - 5;
-
+static char *elinep; /* done in main(): = line + sizeof(line) - 5 */
 
 static struct here *inhere;     /* list of hear docs while parsing */
 static struct here *acthere;    /* list of active here documents */
@@ -742,14 +705,49 @@ static struct region *areanxt;  /* starting point of scan */
 static void *brktop;
 static void *brkaddr;
 
+/*
+ * parsing & execution environment
+ */
+struct env {
+	char *linep;
+	struct io *iobase;
+	struct io *iop;
+	xint *errpt;		/* void * */
+	int iofd;
+	struct env *oenv;
+};
+
 static struct env e = {
-	line,                   /* linep:  char ptr */
+	NULL /* set to line in main() */, /* linep:  char ptr */
 	iostack,                /* iobase:  struct io ptr */
 	iostack - 1,            /* iop:  struct io ptr */
 	(xint *) NULL,          /* errpt:  void ptr for errors? */
 	FDBASE,                 /* iofd:  file desc  */
 	(struct env *) NULL     /* oenv:  struct env ptr */
 };
+
+
+struct globals {
+	char ourtrap[_NSIG + 1];
+	char *trap[_NSIG + 1];
+	struct iobuf sharedbuf; /* in main(): set to { AFID_NOBUF } */
+	struct iobuf mainbuf; /* in main(): set to { AFID_NOBUF } */
+	struct ioarg ioargstack[NPUSH];
+	char filechar_cmdbuf[BUFSIZ];
+	char line[LINELIM];
+	char child_cmd[LINELIM];
+};
+
+#define G (*ptr_to_globals)
+#define ourtrap         (G.ourtrap        )
+#define trap            (G.trap           )
+#define sharedbuf       (G.sharedbuf      )
+#define mainbuf         (G.mainbuf        )
+#define ioargstack      (G.ioargstack     )
+#define filechar_cmdbuf (G.filechar_cmdbuf)
+#define line            (G.line           )
+#define child_cmd       (G.child_cmd      )
+
 
 #ifdef MSHDEBUG
 void print_t(struct op *t)
@@ -853,14 +851,14 @@ static void warn(const char *s)
 		exstat = -1;
 	}
 	prs("\n");
-	if (flag['e'])
+	if (FLAG['e'])
 		leave();
 }
 
 static void err(const char *s)
 {
 	warn(s);
-	if (flag['n'])
+	if (FLAG['n'])
 		return;
 	if (!interactive)
 		leave();
@@ -1191,23 +1189,22 @@ static int isassign(const char *s)
 	unsigned char c;
 	DBGPRINTF7(("ISASSIGN: enter, s=%s\n", s));
 
-	/* no isalpha() - we shouldn't use locale */
 	c = *s;
-	if (c != '_'
-	 && (unsigned)((c|0x20) - 'a') > 25 /* not letter */
-	) {
+	/* no isalpha() - we shouldn't use locale */
+	/* c | 0x20 - lowercase (Latin) letters */
+	if (c != '_' && (unsigned)((c|0x20) - 'a') > 25)
+		/* not letter */
 		return 0;
-	}
+
 	while (1) {
 		c = *++s;
-		if (c == '\0')
-			return 0;
 		if (c == '=')
 			return 1;
-		c |= 0x20; /* lowercase letters, doesn't affect numbers */
+		if (c == '\0')
+			return 0;
 		if (c != '_'
 		 && (unsigned)(c - '0') > 9  /* not number */
-		 && (unsigned)(c - 'a') > 25 /* not letter */
+		 && (unsigned)((c|0x20) - 'a') > 25 /* not letter */
 		) {
 			return 0;
 		}
@@ -1294,7 +1291,7 @@ static void setdash(void)
 
 	cp = m;
 	for (c = 'a'; c <= 'z'; c++)
-		if (flag[c])
+		if (FLAG[c])
 			*cp++ = c;
 	*cp = '\0';
 	setval(lookup("-"), m);
@@ -1309,7 +1306,7 @@ static int newfile(char *s)
 	f = 0;
 	if (NOT_LONE_DASH(s)) {
 		DBGPRINTF(("NEWFILE: s is %s\n", s));
-		f = open(s, 0);
+		f = open(s, O_RDONLY);
 		if (f < 0) {
 			prs(s);
 			err(": cannot open");
@@ -1400,7 +1397,7 @@ static void onecommand(void)
 	intr = 0;
 	execflg = 0;
 
-	if (!flag['n']) {
+	if (!FLAG['n']) {
 		DBGPRINTF(("ONECOMMAND: calling execute, t=outtree=%p\n",
 				   outtree));
 		execute(outtree, NOPIPE, NOPIPE, 0);
@@ -1518,7 +1515,7 @@ static void onintr(int s)					/* ANSI C requires a parameter */
 
 #define	CMASK	0377
 #define	QUOTE	0200
-#define	QMASK	(CMASK&~QUOTE)
+#define	QMASK	(CMASK & ~QUOTE)
 #define	NOT	'!'					/* might use ^ */
 
 static const char *cclass(const char *p, int sub)
@@ -2116,7 +2113,6 @@ static struct op *newtp(void)
 
 static struct op *namelist(struct op *t)
 {
-
 	DBGPRINTF7(("NAMELIST: enter, t=%p, type %s, iolist=%p\n", t,
 				T_CMD_NAMES[t->type], iolist));
 
@@ -2550,7 +2546,7 @@ static int execute(struct op *t, int *pin, int *pout, int act)
 				interactive = 0;
 				if (pin == NULL) {
 					close(0);
-					open(bb_dev_null, 0);
+					xopen(bb_dev_null, O_RDONLY);
 				}
 				_exit(execute(t->left, pin, pout, FEXEC));
 			}
@@ -2657,7 +2653,7 @@ static int execute(struct op *t, int *pin, int *pout, int act)
 
 	};
 
-  broken:
+ broken:
 	t->words = wp2;
 	isbreak = 0;
 	freehere(areanum);
@@ -2680,13 +2676,13 @@ static int execute(struct op *t, int *pin, int *pout, int act)
 
 typedef int (*builtin_func_ptr)(struct op *);
 
-static builtin_func_ptr inbuilt(const char *s) {
+static builtin_func_ptr inbuilt(const char *s)
+{
 	const struct builtincmd *bp;
 
-	for (bp = builtincmds; bp->name != NULL; bp++)
+	for (bp = builtincmds; bp->name; bp++)
 		if (strcmp(bp->name, s) == 0)
 			return bp->builtinfunc;
-
 	return NULL;
 }
 
@@ -2730,12 +2726,13 @@ static int forkexec(struct op *t, int *pin, int *pout, int act, char **wp)
 	resetsig = 0;
 	rv = -1;					/* system-detected error */
 	if (t->type == TCOM) {
-		while (*wp++ != NULL);
+		while (*wp++ != NULL)
+			continue;
 		cp = *wp;
 
 		/* strip all initial assignments */
 		/* not correct wrt PATH=yyy command  etc */
-		if (flag['x']) {
+		if (FLAG['x']) {
 			DBGPRINTF9(("FORKEXEC: echo'ing, cp=%p, wp=%p, owp=%p\n",
 						cp, wp, owp));
 			echo(cp ? wp : owp);
@@ -2743,7 +2740,7 @@ static int forkexec(struct op *t, int *pin, int *pout, int act, char **wp)
 
 		if (cp == NULL && t->ioact == NULL) {
 			while ((cp = *owp++) != NULL && assign(cp, COPYV))
-				/**/;
+				continue;
 			DBGPRINTF(("FORKEXEC: returning setstatus()\n"));
 			return setstatus(0);
 		}
@@ -2826,12 +2823,12 @@ static int forkexec(struct op *t, int *pin, int *pout, int act, char **wp)
 #endif
 
 	if (pin != NULL) {
-		dup2(pin[0], 0);
-		closepipe(pin);
+		xmove_fd(pin[0], 0);
+		if (pin[1] != 0) close(pin[1]);
 	}
 	if (pout != NULL) {
-		dup2(pout[1], 1);
-		closepipe(pout);
+		xmove_fd(pout[1], 1);
+		if (pout[1] != 1) close(pout[0]);
 	}
 
 	iopp = t->ioact;
@@ -2928,7 +2925,7 @@ static int iosetup(struct ioword *iop, int pipein, int pipeout)
 	}
 	switch (iop->io_flag) {
 	case IOREAD:
-		u = open(cp, 0);
+		u = open(cp, O_RDONLY);
 		break;
 
 	case IOHERE:
@@ -2938,7 +2935,7 @@ static int iosetup(struct ioword *iop, int pipein, int pipeout)
 		break;
 
 	case IOWRITE | IOCAT:
-		u = open(cp, 1);
+		u = open(cp, O_WRONLY);
 		if (u >= 0) {
 			lseek(u, (long) 0, SEEK_END);
 			break;
@@ -3060,11 +3057,10 @@ static const char *rexecve(char *c, char **v, char **envp)
 	int eacces = 0, asis = 0;
 	char *name = c;
 
-	if (ENABLE_FEATURE_SH_STANDALONE_SHELL) {
-		optind = 1;
+	if (ENABLE_FEATURE_SH_STANDALONE) {
 		if (find_applet_by_name(name)) {
 			/* We have to exec here since we vforked.  Running
-			 * run_applet_by_name() won't work and bad things
+			 * run_applet_and_exit() won't work and bad things
 			 * will happen. */
 			execve(CONFIG_BUSYBOX_EXEC_PATH, v, envp);
 		}
@@ -3181,37 +3177,33 @@ static int dohelp(struct op *t)
 	puts("\nBuilt-in commands:\n"
 	     "-------------------");
 
-	for (col = 0, x = builtincmds; x->builtinfunc != NULL; x++) {
-		if (!x->name)
-			continue;
-		col += printf("%s%s", ((col == 0) ? "\t" : " "), x->name);
+	col = 0;
+	x = builtincmds;
+	while (x->name) {
+		col += printf("%c%s", ((col == 0) ? '\t' : ' '), x->name);
 		if (col > 60) {
 			puts("");
 			col = 0;
 		}
+		x++;
 	}
-#if ENABLE_FEATURE_SH_STANDALONE_SHELL
+#if ENABLE_FEATURE_SH_STANDALONE
 	{
-		int i;
-		const struct BB_applet *applet;
+		const struct bb_applet *applet = applets;
 
-		for (i = 0, applet = applets; i < NUM_APPLETS; applet++, i++) {
-			if (!applet->name)
-				continue;
-
-			col += printf("%s%s", ((col == 0) ? "\t" : " "), applet->name);
+		while (applet->name) {
+			col += printf("%c%s", ((col == 0) ? '\t' : ' '), applet->name);
 			if (col > 60) {
 				puts("");
 				col = 0;
 			}
+			applet++;
 		}
 	}
 #endif
 	puts("\n");
 	return EXIT_SUCCESS;
 }
-
-
 
 static int dolabel(struct op *t)
 {
@@ -3347,7 +3339,7 @@ static int dodot(struct op *t)
 		for (i = 0; (*tp++ = cp[i++]) != '\0';);
 
 		/* Original code */
-		i = open(e.linep, 0);
+		i = open(e.linep, O_RDONLY);
 		if (i >= 0) {
 			exstat = 0;
 			maltmp = remap(i);
@@ -3602,18 +3594,18 @@ static int doset(struct op *t)
 		/* bad: t->words++; */
 		for (n = 0; (t->words[n] = t->words[n + 1]) != NULL; n++);
 		if (*++cp == 0)
-			flag['x'] = flag['v'] = 0;
+			FLAG['x'] = FLAG['v'] = 0;
 		else {
 			for (; *cp; cp++) {
 				switch (*cp) {
 				case 'e':
 					if (!interactive)
-						flag['e']++;
+						FLAG['e']++;
 					break;
 
 				default:
 					if (*cp >= 'a' && *cp <= 'z')
-						flag[(int) *cp]++;
+						FLAG[(int) *cp]++;
 					break;
 				}
 			}
@@ -3696,14 +3688,14 @@ static char **eval(char **ap, int f)
 	if (newenv(setjmp(errpt)) == 0) {
 		while (*ap && isassign(*ap))
 			expand(*ap++, &wb, f & ~DOGLOB);
-		if (flag['k']) {
+		if (FLAG['k']) {
 			for (wf = ap; *wf; wf++) {
 				if (isassign(*wf))
 					expand(*wf, &wb, f & ~DOGLOB);
 			}
 		}
 		for (wb = addword((char *) 0, wb); *ap; ap++) {
-			if (!flag['k'] || !isassign(*ap))
+			if (!FLAG['k'] || !isassign(*ap))
 				expand(*ap, &wb, f & ~DOKEY);
 		}
 		wb = addword((char *) 0, wb);
@@ -3996,7 +3988,7 @@ static int dollar(int quoted)
 		}
 	} else if (c == '+')
 		dolp = strsave(cp, areanum);
-	if (flag['u'] && dolp == null) {
+	if (FLAG['u'] && dolp == null) {
 		prs("unset variable: ");
 		err(s);
 		gflg++;
@@ -4012,11 +4004,12 @@ static int dollar(int quoted)
 
 static int grave(int quoted)
 {
+	/* moved to G: static char child_cmd[LINELIM]; */
+
 	const char *cp;
 	int i;
 	int j;
 	int pf[2];
-	static char child_cmd[LINELIM];
 	const char *src;
 	char *dest;
 	int count;
@@ -4173,8 +4166,13 @@ static int grave(int quoted)
 		if (ourtrap[j] && signal(j, SIG_IGN) != SIG_IGN)
 			signal(j, SIG_DFL);
 
-	dup2(pf[1], 1);
-	closepipe(pf);
+	/* Testcase where below checks are needed:
+	 * close stdout & run this script:
+	 *  files=`ls`
+	 *  echo "$files" >zz
+	 */
+	xmove_fd(pf[1], 1);
+	if (pf[0] != 1) close(pf[0]);
 
 	argument_list[0] = (char *) DEFAULT_SHELL;
 	argument_list[1] = (char *) "-c";
@@ -4381,8 +4379,7 @@ static struct wdblock *addword(char *wd, struct wdblock *wb)
 	return wb;
 }
 
-static
-char **getwords(struct wdblock *wb)
+static char **getwords(struct wdblock *wb)
 {
 	char **wd;
 	int nb;
@@ -4617,7 +4614,7 @@ static int readc(void)
 
 static void ioecho(char c)
 {
-	if (flag['v'])
+	if (FLAG['v'])
 		write(2, &c, sizeof c);
 }
 
@@ -4824,15 +4821,15 @@ static int filechar(struct ioarg *ap)
 	}
 #if ENABLE_FEATURE_EDITING
 	if (interactive && isatty(ap->afile)) {
-		static char mycommand[BUFSIZ];
+		/* moved to G: static char filechar_cmdbuf[BUFSIZ]; */
 		static int position = 0, size = 0;
 
 		while (size == 0 || position >= size) {
-			read_line_input(current_prompt, mycommand, BUFSIZ, line_input_state);
-			size = strlen(mycommand);
+			read_line_input(current_prompt, filechar_cmdbuf, BUFSIZ, line_input_state);
+			size = strlen(filechar_cmdbuf);
 			position = 0;
 		}
-		c = mycommand[position];
+		c = filechar_cmdbuf[position];
 		position++;
 		return c;
 	}
@@ -5098,7 +5095,7 @@ static int herein(char *hname, int xdoll)
 
 	DBGPRINTF7(("HEREIN: hname is %s, xdoll=%d\n", hname, xdoll));
 
-	hf = open(hname, 0);
+	hf = open(hname, O_RDONLY);
 	if (hf < 0)
 		return -1;
 
@@ -5122,7 +5119,7 @@ static int herein(char *hname, int xdoll)
 		} else
 			unlink(tname);
 		close(tf);
-		tf = open(tname, 0);
+		tf = open(tname, O_RDONLY);
 		unlink(tname);
 		return tf;
 	}
@@ -5177,6 +5174,12 @@ int msh_main(int argc, char **argv)
 	char *name, **ap;
 	int (*iof) (struct ioarg *);
 
+	PTR_TO_GLOBALS = xzalloc(sizeof(G));
+	sharedbuf.id = AFID_NOBUF;
+	mainbuf.id = AFID_NOBUF;
+	e.linep = line;
+	elinep = line + sizeof(line) - 5;
+
 #if ENABLE_FEATURE_EDITING
 	line_input_state = new_line_input_t(FOR_SHELL);
 #endif
@@ -5208,10 +5211,11 @@ int msh_main(int argc, char **argv)
 
 	path = lookup("PATH");
 	if (path->value == null) {
+		/* Can be merged with same string elsewhere in bbox */
 		if (geteuid() == 0)
-			setval(path, "/sbin:/bin:/usr/sbin:/usr/bin");
+			setval(path, "/sbin:/usr/sbin:/bin:/usr/bin");
 		else
-			setval(path, "/bin:/usr/bin");
+			setval(path, "/sbin:/usr/sbin:/bin:/usr/bin" + sizeof("/sbin:/usr/sbin"));
 	}
 	export(path);
 
@@ -5275,7 +5279,7 @@ int msh_main(int argc, char **argv)
 					interactive++;
 				default:
 					if (*s >= 'a' && *s <= 'z')
-						flag[(int) *s]++;
+						FLAG[(int) *s]++;
 				}
 		} else {
 			argv--;
@@ -5323,10 +5327,10 @@ int msh_main(int argc, char **argv)
 	signal(SIGQUIT, qflag);
 	if (name && name[0] == '-') {
 		interactive++;
-		f = open(".profile", 0);
+		f = open(".profile", O_RDONLY);
 		if (f >= 0)
 			next(remap(f));
-		f = open("/etc/profile", 0);
+		f = open("/etc/profile", O_RDONLY);
 		if (f >= 0)
 			next(remap(f));
 	}

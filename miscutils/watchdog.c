@@ -8,7 +8,7 @@
  * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
-#include "busybox.h"
+#include "libbb.h"
 
 #define OPT_FOREGROUND 0x01
 #define OPT_TIMER      0x02
@@ -29,27 +29,21 @@ int watchdog_main(int argc, char **argv)
 	unsigned timer_duration = 30; /* Userspace timer duration, in seconds */
 	char *t_arg;
 
+	opt_complementary = "=1"; /* must have 1 argument */
 	opts = getopt32(argc, argv, "Ft:", &t_arg);
 
 	if (opts & OPT_TIMER)
 		timer_duration = xatou(t_arg);
 
-	/* We're only interested in the watchdog device .. */
-	if (optind < argc - 1 || argc == 1)
-		bb_show_usage();
-
-#ifdef BB_NOMMU
-	if (!(opts & OPT_FOREGROUND))
-		vfork_daemon_rexec(0, 1, argc, argv, "-F");
-#else
-	xdaemon(0, 1);
-#endif
+	if (!(opts & OPT_FOREGROUND)) {
+		bb_daemonize_or_rexec(DAEMON_CHDIR_ROOT, argv);
+	}
 
 	signal(SIGHUP, watchdog_shutdown);
 	signal(SIGINT, watchdog_shutdown);
 
 	/* Use known fd # - avoid needing global 'int fd' */
-	dup2(xopen(argv[argc - 1], O_WRONLY), 3);
+	xmove_fd(xopen(argv[argc - 1], O_WRONLY), 3);
 
 	while (1) {
 		/*
@@ -61,6 +55,5 @@ int watchdog_main(int argc, char **argv)
 	}
 
 	watchdog_shutdown(0);
-
 	/* return EXIT_SUCCESS; */
 }

@@ -19,7 +19,7 @@
  * (C) 2006 Jac Goudsmit added -o option
  */
 
-#include "busybox.h"
+#include "libbb.h"
 #include "xregex.h"
 
 /* options */
@@ -336,9 +336,9 @@ static int grep_dir(const char *dir)
 {
 	int matched = 0;
 	recursive_action(dir,
-		/* recurse= */ 1,
-		/* followLinks= */ 0,
-		/* depthFirst= */ 1,
+		/* recurse=yes */ ACTION_RECURSE |
+		/* followLinks=no */
+		/* depthFirst=yes */ ACTION_DEPTHFIRST,
 		/* fileAction= */ file_action_grep,
 		/* dirAction= */ NULL,
 		/* userData= */ &matched,
@@ -396,7 +396,7 @@ int grep_main(int argc, char **argv)
 	invert_search = ((option_mask32 & OPT_v) != 0); /* 0 | 1 */
 
 	if (pattern_head != NULL) {
-		/* convert char *argv[] to grep_list_data_t */
+		/* convert char **argv to grep_list_data_t */
 		llist_t *cur;
 
 		for (cur = pattern_head; cur; cur = cur->link)
@@ -493,6 +493,7 @@ int grep_main(int argc, char **argv)
 				free(gl->pattern);
 			if ((gl->flg_mem_alocated_compiled & COMPILED))
 				regfree(&(gl->preg));
+			free(gl);
 			free(pattern_head_ptr);
 		}
 	}

@@ -23,7 +23,7 @@
  * 4) Fixed busybox bug #1284 involving long overflow with human_readable.
  */
 
-#include "busybox.h"
+#include "libbb.h"
 
 #if ENABLE_FEATURE_HUMAN_READABLE
 # if ENABLE_FEATURE_DU_DEFAULT_BLOCKSIZE_1K
@@ -235,10 +235,8 @@ int du_main(int argc, char **argv)
 		total += du(*argv);
 		slink_depth = slink_depth_save;
 	} while (*++argv);
-#if ENABLE_FEATURE_CLEAN_UP
-	reset_ino_dev_hashtable();
-#endif
-
+	if (ENABLE_FEATURE_CLEAN_UP)
+		reset_ino_dev_hashtable();
 	if (print_final_total) {
 		print(total, "total");
 	}

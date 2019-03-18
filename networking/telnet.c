@@ -24,7 +24,7 @@
 #include <termios.h>
 #include <arpa/telnet.h>
 #include <netinet/in.h>
-#include "busybox.h"
+#include "libbb.h"
 
 #ifdef DOTRACE
 #define TRACE(x, y) do { if (x) printf y; } while (0)
@@ -188,7 +188,7 @@ static void handlenetoutput(int len)
 		else if (*p == 0x0d)
 			outbuf[j++] = 0x00;
 	}
-	if (j > 0 )
+	if (j > 0)
 		write(G.netfd, outbuf, j);
 }
 

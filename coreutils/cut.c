@@ -9,7 +9,10 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include "busybox.h"
+#include "libbb.h"
+
+/* This is a NOEXEC applet. Be very careful! */
+
 
 /* option vars */
 static const char optstring[] = "b:c:f:d:sn";

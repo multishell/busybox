@@ -46,7 +46,10 @@
  */
 
 #include <fnmatch.h>
-#include "busybox.h"
+#include "libbb.h"
+
+/* This is a NOEXEC applet. Be very careful! */
+
 
 USE_FEATURE_FIND_XDEV(static dev_t *xdev_dev;)
 USE_FEATURE_FIND_XDEV(static int xdev_count;)
@@ -56,7 +59,7 @@ typedef int (*action_fp)(const char *fileName, struct stat *statbuf, void *);
 typedef struct {
 	action_fp f;
 #if ENABLE_FEATURE_FIND_NOT
-	smallint invert;
+	bool invert;
 #endif
 } action;
 #define ACTS(name, arg...) typedef struct { action a; arg; } action_##name;
@@ -70,20 +73,23 @@ USE_FEATURE_FIND_MTIME( ACTS(mtime, char mtime_char; unsigned mtime_days;))
 USE_FEATURE_FIND_MMIN(  ACTS(mmin,  char mmin_char; unsigned mmin_mins;))
 USE_FEATURE_FIND_NEWER( ACTS(newer, time_t newer_mtime;))
 USE_FEATURE_FIND_INUM(  ACTS(inum,  ino_t inode_num;))
-USE_FEATURE_FIND_EXEC(  ACTS(exec,  char **exec_argv; unsigned int *subst_count; int exec_argc;))
-USE_FEATURE_FIND_USER(  ACTS(user,  int uid;))
-USE_DESKTOP(            ACTS(paren, action ***subexpr;))
-USE_DESKTOP(            ACTS(size,  off_t size;))
-USE_DESKTOP(            ACTS(prune))
+USE_FEATURE_FIND_EXEC(  ACTS(exec,  char **exec_argv; unsigned *subst_count; int exec_argc;))
+USE_FEATURE_FIND_USER(  ACTS(user,  uid_t uid;))
+USE_FEATURE_FIND_GROUP( ACTS(group, gid_t gid;))
+USE_FEATURE_FIND_PAREN( ACTS(paren, action ***subexpr;))
+USE_FEATURE_FIND_SIZE(  ACTS(size,  off_t size;))
+USE_FEATURE_FIND_PRUNE( ACTS(prune))
+USE_FEATURE_FIND_DELETE(ACTS(delete))
+USE_FEATURE_FIND_PATH(  ACTS(path, const char *pattern;))
 
 static action ***actions;
-static smalluint need_print = 1;
-
+static bool need_print = 1;
+static int recurse_flags = ACTION_RECURSE;
 
 #if ENABLE_FEATURE_FIND_EXEC
-static unsigned int count_subst(const char *str)
+static unsigned count_subst(const char *str)
 {
-	unsigned int count = 0;
+	unsigned count = 0;
 	while ((str = strstr(str, "{}"))) {
 		count++;
 		str++;
@@ -92,10 +98,10 @@ static unsigned int count_subst(const char *str)
 }
 
 
-static char* subst(const char *src, unsigned int count, const char* filename)
+static char* subst(const char *src, unsigned count, const char* filename)
 {
 	char *buf, *dst, *end;
-	int flen = strlen(filename);
+	size_t flen = strlen(filename);
 	/* we replace each '{}' with filename: growth by strlen-2 */
 	buf = dst = xmalloc(strlen(src) + count*(flen-2) + 1);
 	while ((end = strstr(src, "{}"))) {
@@ -110,34 +116,52 @@ static char* subst(const char *src, unsigned int count, const char* filename)
 }
 #endif
 
+/* Return values of ACTFs ('action functions') are a bit mask:
+ * bit 1=1: prune (use SKIP constant for setting it)
+ * bit 0=1: matched successfully (TRUE)
+ */
 
 static int exec_actions(action ***appp, const char *fileName, struct stat *statbuf)
 {
 	int cur_group;
 	int cur_action;
-	int rc = TRUE;
+	int rc = 0;
 	action **app, *ap;
+
+	/* "action group" is a set of actions ANDed together.
+	 * groups are ORed together.
+	 * We simply evaluate each group until we find one in which all actions
+	 * succeed. */
+
+	/* -prune is special: if it is encountered, then we won't
+	 * descend into current directory. It doesn't matter whether
+	 * action group (in which -prune sits) will succeed or not:
+	 * find * -prune -name 'f*' -o -name 'm*' -- prunes every dir
+	 * find * -name 'f*' -o -prune -name 'm*' -- prunes all dirs
+	 *     not starting with 'f' */
+
+	/* We invert TRUE bit (bit 0). Now 1 there means 'failure'.
+	 * and bitwise OR in "rc |= TRUE ^ ap->f()" will:
+	 * (1) make SKIP (-prune) bit stick; and (2) detect 'failure'.
+	 * On return, bit is restored.  */
 
 	cur_group = -1;
 	while ((app = appp[++cur_group])) {
+		rc &= ~TRUE; /* 'success' so far, clear TRUE bit */
 		cur_action = -1;
 		while (1) {
 			ap = app[++cur_action];
-			if (!ap) {
-				/* all actions in group were successful */
-				return rc;
-			}
-			rc = ap->f(fileName, statbuf, ap);
+			if (!ap) /* all actions in group were successful */
+				return rc ^ TRUE; /* restore TRUE bit */
+			rc |= TRUE ^ ap->f(fileName, statbuf, ap);
 #if ENABLE_FEATURE_FIND_NOT
-			if (ap->invert) rc = !rc;
+			if (ap->invert) rc ^= TRUE;
 #endif
-			if (!rc) {
-				/* current group failed, try next */
+			if (rc & TRUE) /* current group failed, try next */
 				break;
-			}
 		}
 	}
-	return rc;
+	return rc ^ TRUE; /* restore TRUE bit */
 }
 
 
@@ -146,8 +170,16 @@ ACTF(name)
 	const char *tmp = strrchr(fileName, '/');
 	if (tmp == NULL)
 		tmp = fileName;
-	else
+	else {
 		tmp++;
+		if (!*tmp) { /* "foo/bar/". Oh no... go back to 'b' */
+			tmp--;
+			while (tmp != fileName && *--tmp != '/')
+				continue;
+			if (*tmp == '/')
+				tmp++;
+		}
+	}
 	return fnmatch(ap->pattern, tmp, FNM_PERIOD) == 0;
 }
 #if ENABLE_FEATURE_FIND_TYPE
@@ -211,16 +243,19 @@ ACTF(inum)
 ACTF(exec)
 {
 	int i, rc;
-	char *argv[ap->exec_argc+1];
+	char *argv[ap->exec_argc + 1];
 	for (i = 0; i < ap->exec_argc; i++)
 		argv[i] = subst(ap->exec_argv[i], ap->subst_count[i], fileName);
 	argv[i] = NULL; /* terminate the list */
-	rc = wait4pid(spawn(argv));
-	if (rc)
+
+	rc = spawn_and_wait(argv);
+	if (rc < 0)
 		bb_perror_msg("%s", argv[0]);
-	for (i = 0; i < ap->exec_argc; i++)
-		free(argv[i]);
-	return rc == 0; /* return 1 if success */
+
+	i = 0;
+	while (argv[i])
+		free(argv[i++]);
+	return rc == 0; /* return 1 if exitcode 0 */
 }
 #endif
 
@@ -228,6 +263,13 @@ ACTF(exec)
 ACTF(user)
 {
 	return (statbuf->st_uid == ap->uid);
+}
+#endif
+
+#if ENABLE_FEATURE_FIND_GROUP
+ACTF(group)
+{
+	return (statbuf->st_gid == ap->gid);
 }
 #endif
 
@@ -245,12 +287,14 @@ ACTF(print)
 	return TRUE;
 }
 
-#if ENABLE_DESKTOP
+#if ENABLE_FEATURE_FIND_PAREN
 ACTF(paren)
 {
 	return exec_actions(ap->subexpr, fileName, statbuf);
 }
+#endif
 
+#if ENABLE_FEATURE_FIND_PRUNE
 /*
  * -prune: if -depth is not given, return true and do not descend
  * current dir; if -depth is given, return false with no effect.
@@ -259,9 +303,33 @@ ACTF(paren)
  */
 ACTF(prune)
 {
-	return SKIP;
+	return SKIP + TRUE;
 }
+#endif
 
+#if ENABLE_FEATURE_FIND_DELETE
+ACTF(delete)
+{
+	int rc;
+	if (S_ISDIR(statbuf->st_mode)) {
+		rc = rmdir(fileName);
+	} else {
+		rc = unlink(fileName);
+	}
+	if (rc < 0)
+		bb_perror_msg("%s", fileName);
+	return TRUE;
+}
+#endif
+
+#if ENABLE_FEATURE_FIND_PATH
+ACTF(path)
+{
+	return fnmatch(ap->pattern, fileName, 0) == 0;
+}
+#endif
+
+#if ENABLE_FEATURE_FIND_SIZE
 ACTF(size)
 {
 	return statbuf->st_size == ap->size;
@@ -271,23 +339,22 @@ ACTF(size)
 
 static int fileAction(const char *fileName, struct stat *statbuf, void* junk, int depth)
 {
-	int rc;
-#ifdef CONFIG_FEATURE_FIND_XDEV
+	int i;
+#if ENABLE_FEATURE_FIND_XDEV
 	if (S_ISDIR(statbuf->st_mode) && xdev_count) {
-		int i;
 		for (i = 0; i < xdev_count; i++) {
 			if (xdev_dev[i] != statbuf->st_dev)
 				return SKIP;
 		}
 	}
 #endif
-	rc = exec_actions(actions, fileName, statbuf);
+	i = exec_actions(actions, fileName, statbuf);
 	/* Had no explicit -print[0] or -exec? then print */
-	if (rc && need_print)
+	if ((i & TRUE) && need_print)
 		puts(fileName);
 	/* Cannot return 0: our caller, recursive_action(),
 	 * will perror() and skip dirs (if called on dir) */
-	return rc == 0 ? TRUE : rc;
+	return (i & SKIP) ? SKIP : TRUE;
 }
 
 
@@ -296,31 +363,22 @@ static int find_type(const char *type)
 {
 	int mask = 0;
 
-	switch (type[0]) {
-	case 'b':
+	if (*type == 'b')
 		mask = S_IFBLK;
-		break;
-	case 'c':
+	else if (*type == 'c')
 		mask = S_IFCHR;
-		break;
-	case 'd':
+	else if (*type == 'd')
 		mask = S_IFDIR;
-		break;
-	case 'p':
+	else if (*type == 'p')
 		mask = S_IFIFO;
-		break;
-	case 'f':
+	else if (*type == 'f')
 		mask = S_IFREG;
-		break;
-	case 'l':
+	else if (*type == 'l')
 		mask = S_IFLNK;
-		break;
-	case 's':
+	else if (*type == 's')
 		mask = S_IFSOCK;
-		break;
-	}
 
-	if (mask == 0 || type[1] != '\0')
+	if (mask == 0 || *(type + 1) != '\0')
 		bb_error_msg_and_die(bb_msg_invalid_arg, type, "-type");
 
 	return mask;
@@ -339,11 +397,71 @@ static const char* plus_minus_num(const char* str)
 
 static action*** parse_params(char **argv)
 {
+	enum {
+	                        PARM_a         ,
+	                        PARM_o         ,
+	USE_FEATURE_FIND_NOT(	PARM_char_not  ,)
+	                        PARM_print     ,
+	USE_FEATURE_FIND_PRINT0(PARM_print0    ,)
+	                        PARM_name      ,
+	USE_FEATURE_FIND_TYPE(  PARM_type      ,)
+	USE_FEATURE_FIND_PERM(  PARM_perm      ,)
+	USE_FEATURE_FIND_MTIME( PARM_mtime     ,)
+	USE_FEATURE_FIND_MMIN(  PARM_mmin      ,)
+	USE_FEATURE_FIND_NEWER( PARM_newer     ,)
+	USE_FEATURE_FIND_INUM(  PARM_inum      ,)
+	USE_FEATURE_FIND_EXEC(  PARM_exec      ,)
+	USE_FEATURE_FIND_USER(  PARM_user      ,)
+	USE_FEATURE_FIND_GROUP( PARM_group     ,)
+	USE_FEATURE_FIND_DEPTH( PARM_depth     ,)
+	USE_FEATURE_FIND_PAREN( PARM_char_brace,)
+	USE_FEATURE_FIND_SIZE(  PARM_size      ,)
+	USE_FEATURE_FIND_PRUNE( PARM_prune     ,)
+	USE_FEATURE_FIND_DELETE(PARM_delete    ,)
+	USE_FEATURE_FIND_PATH(  PARM_path      ,)
+#if ENABLE_DESKTOP
+	                        PARM_and       ,
+	                        PARM_or        ,
+	USE_FEATURE_FIND_NOT(   PARM_not       ,)
+#endif
+	};
+
+	static const char *const params[] = {
+	                        "-a"     ,
+	                        "-o"     ,
+	USE_FEATURE_FIND_NOT(   "!"      ,)
+	                        "-print" ,
+	USE_FEATURE_FIND_PRINT0("-print0",)
+	                        "-name"  ,
+	USE_FEATURE_FIND_TYPE(  "-type"  ,)
+	USE_FEATURE_FIND_PERM(  "-perm"  ,)
+	USE_FEATURE_FIND_MTIME( "-mtime" ,)
+	USE_FEATURE_FIND_MMIN(  "-mmin"  ,)
+	USE_FEATURE_FIND_NEWER( "-newer" ,)
+	USE_FEATURE_FIND_INUM(  "-inum"  ,)
+	USE_FEATURE_FIND_EXEC(  "-exec"  ,)
+	USE_FEATURE_FIND_USER(  "-user"  ,)
+	USE_FEATURE_FIND_GROUP( "-group" ,)
+	USE_FEATURE_FIND_DEPTH( "-depth" ,)
+	USE_FEATURE_FIND_PAREN( "("      ,)
+	USE_FEATURE_FIND_SIZE(  "-size"  ,)
+	USE_FEATURE_FIND_PRUNE( "-prune" ,)
+	USE_FEATURE_FIND_DELETE("-delete",)
+	USE_FEATURE_FIND_PATH(  "-path"  ,)
+#if ENABLE_DESKTOP
+	                        "-and"   ,
+	                        "-or"    ,
+	USE_FEATURE_FIND_NOT(	"-not"   ,)
+#endif
+	                        NULL
+	};
+
 	action*** appp;
 	unsigned cur_group = 0;
 	unsigned cur_action = 0;
-	USE_FEATURE_FIND_NOT( smallint invert_flag = 0; )
+	USE_FEATURE_FIND_NOT( bool invert_flag = 0; )
 
+	/* 'static' doesn't work here! (gcc 4.1.2) */
 	action* alloc_action(int sizeof_struct, action_fp f)
 	{
 		action *ap;
@@ -355,37 +473,34 @@ static action*** parse_params(char **argv)
 		USE_FEATURE_FIND_NOT( invert_flag = 0; )
 		return ap;
 	}
+
 #define ALLOC_ACTION(name) (action_##name*)alloc_action(sizeof(action_##name), (action_fp) func_##name)
 
 	appp = xzalloc(2 * sizeof(appp[0])); /* appp[0],[1] == NULL */
 
-// Actions have side effects and return a true or false value
-// We implement: -print, -print0, -exec
-
-// The rest are tests.
-
-// Tests and actions are grouped by operators
-// ( expr )              Force precedence
-// ! expr                True if expr is false
-// -not expr             Same as ! expr
-// expr1 [-a[nd]] expr2  And; expr2 is not evaluated if expr1 is false
-// expr1 -o[r] expr2     Or; expr2 is not evaluated if expr1 is true
-// expr1 , expr2         List; both expr1 and expr2 are always evaluated
-// We implement: (), -a, -o
-
-//XXX: TODO: Use index_in_str_array here
+/* Actions have side effects and return a true or false value
+ * We implement: -print, -print0, -exec
+ *
+ * The rest are tests.
+ *
+ * Tests and actions are grouped by operators
+ * ( expr )              Force precedence
+ * ! expr                True if expr is false
+ * -not expr             Same as ! expr
+ * expr1 [-a[nd]] expr2  And; expr2 is not evaluated if expr1 is false
+ * expr1 -o[r] expr2     Or; expr2 is not evaluated if expr1 is true
+ * expr1 , expr2         List; both expr1 and expr2 are always evaluated
+ * We implement: (), -a, -o
+ */
 	while (*argv) {
 		const char *arg = argv[0];
 		const char *arg1 = argv[1];
+		int parm = index_in_str_array(params, arg);
 	/* --- Operators --- */
-		if (strcmp(arg, "-a") == 0
-		    USE_DESKTOP(|| strcmp(arg, "-and") == 0)
-		) {
+		if (parm == PARM_a USE_DESKTOP(|| parm == PARM_and)) {
 			/* no further special handling required */
 		}
-		else if (strcmp(arg, "-o") == 0
-		         USE_DESKTOP(|| strcmp(arg, "-or") == 0)
-		) {
+		else if (parm == PARM_o USE_DESKTOP(|| parm == PARM_or)) {
 			/* start new OR group */
 			cur_group++;
 			appp = xrealloc(appp, (cur_group+2) * sizeof(*appp));
@@ -394,29 +509,27 @@ static action*** parse_params(char **argv)
 			cur_action = 0;
 		}
 #if ENABLE_FEATURE_FIND_NOT
-		else if (LONE_CHAR(arg, '!')
-		         USE_DESKTOP(|| strcmp(arg, "-not") == 0)
-		) {
+		else if (parm == PARM_char_not USE_DESKTOP(|| parm == PARM_not)) {
 			/* also handles "find ! ! -name 'foo*'" */
 			invert_flag ^= 1;
 		}
 #endif
 
 	/* --- Tests and actions --- */
-		else if (strcmp(arg, "-print") == 0) {
+		else if (parm == PARM_print) {
 			need_print = 0;
 			/* GNU find ignores '!' here: "find ! -print" */
 			USE_FEATURE_FIND_NOT( invert_flag = 0; )
 			(void) ALLOC_ACTION(print);
 		}
 #if ENABLE_FEATURE_FIND_PRINT0
-		else if (strcmp(arg, "-print0") == 0) {
+		else if (parm == PARM_print0) {
 			need_print = 0;
 			USE_FEATURE_FIND_NOT( invert_flag = 0; )
 			(void) ALLOC_ACTION(print0);
 		}
 #endif
-		else if (strcmp(arg, "-name") == 0) {
+		else if (parm == PARM_name) {
 			action_name *ap;
 			if (!*++argv)
 				bb_error_msg_and_die(bb_msg_requires_arg, arg);
@@ -424,7 +537,7 @@ static action*** parse_params(char **argv)
 			ap->pattern = arg1;
 		}
 #if ENABLE_FEATURE_FIND_TYPE
-		else if (strcmp(arg, "-type") == 0) {
+		else if (parm == PARM_type) {
 			action_type *ap;
 			if (!*++argv)
 				bb_error_msg_and_die(bb_msg_requires_arg, arg);
@@ -433,13 +546,12 @@ static action*** parse_params(char **argv)
 		}
 #endif
 #if ENABLE_FEATURE_FIND_PERM
-/* TODO:
- * -perm mode   File's permission bits are exactly mode (octal or symbolic).
+/* -perm mode   File's permission bits are exactly mode (octal or symbolic).
  *              Symbolic modes use mode 0 as a point of departure.
  * -perm -mode  All of the permission bits mode are set for the file.
  * -perm +mode  Any of the permission bits mode are set for the file.
  */
-		else if (strcmp(arg, "-perm") == 0) {
+		else if (parm == PARM_perm) {
 			action_perm *ap;
 			if (!*++argv)
 				bb_error_msg_and_die(bb_msg_requires_arg, arg);
@@ -452,7 +564,7 @@ static action*** parse_params(char **argv)
 		}
 #endif
 #if ENABLE_FEATURE_FIND_MTIME
-		else if (strcmp(arg, "-mtime") == 0) {
+		else if (parm == PARM_mtime) {
 			action_mtime *ap;
 			if (!*++argv)
 				bb_error_msg_and_die(bb_msg_requires_arg, arg);
@@ -462,7 +574,7 @@ static action*** parse_params(char **argv)
 		}
 #endif
 #if ENABLE_FEATURE_FIND_MMIN
-		else if (strcmp(arg, "-mmin") == 0) {
+		else if (parm == PARM_mmin) {
 			action_mmin *ap;
 			if (!*++argv)
 				bb_error_msg_and_die(bb_msg_requires_arg, arg);
@@ -472,7 +584,7 @@ static action*** parse_params(char **argv)
 		}
 #endif
 #if ENABLE_FEATURE_FIND_NEWER
-		else if (strcmp(arg, "-newer") == 0) {
+		else if (parm == PARM_newer) {
 			action_newer *ap;
 			struct stat stat_newer;
 			if (!*++argv)
@@ -483,7 +595,7 @@ static action*** parse_params(char **argv)
 		}
 #endif
 #if ENABLE_FEATURE_FIND_INUM
-		else if (strcmp(arg, "-inum") == 0) {
+		else if (parm == PARM_inum) {
 			action_inum *ap;
 			if (!*++argv)
 				bb_error_msg_and_die(bb_msg_requires_arg, arg);
@@ -492,7 +604,7 @@ static action*** parse_params(char **argv)
 		}
 #endif
 #if ENABLE_FEATURE_FIND_EXEC
-		else if (strcmp(arg, "-exec") == 0) {
+		else if (parm == PARM_exec) {
 			int i;
 			action_exec *ap;
 			need_print = 0;
@@ -501,7 +613,7 @@ static action*** parse_params(char **argv)
 			ap->exec_argv = ++argv; /* first arg after -exec */
 			ap->exec_argc = 0;
 			while (1) {
-				if (!*argv) /* did not see ';' till end */
+				if (!*argv) /* did not see ';' until end */
 					bb_error_msg_and_die(bb_msg_requires_arg, arg);
 				if (LONE_CHAR(argv[0], ';'))
 					break;
@@ -517,7 +629,7 @@ static action*** parse_params(char **argv)
 		}
 #endif
 #if ENABLE_FEATURE_FIND_USER
-		else if (strcmp(arg, "-user") == 0) {
+		else if (parm == PARM_user) {
 			action_user *ap;
 			if (!*++argv)
 				bb_error_msg_and_die(bb_msg_requires_arg, arg);
@@ -527,8 +639,24 @@ static action*** parse_params(char **argv)
 				ap->uid = xuname2uid(arg1);
 		}
 #endif
-#if ENABLE_DESKTOP
-		else if (LONE_CHAR(arg, '(')) {
+#if ENABLE_FEATURE_FIND_GROUP
+		else if (parm == PARM_group) {
+			action_group *ap;
+			if (!*++argv)
+				bb_error_msg_and_die(bb_msg_requires_arg, arg);
+			ap = ALLOC_ACTION(group);
+			ap->gid = bb_strtou(arg1, NULL, 10);
+			if (errno)
+				ap->gid = xgroup2gid(arg1);
+		}
+#endif
+#if ENABLE_FEATURE_FIND_DEPTH
+		else if (parm == PARM_depth) {
+			recurse_flags |= ACTION_DEPTHFIRST;
+		}
+#endif
+#if ENABLE_FEATURE_FIND_PAREN
+		else if (parm == PARM_char_brace) {
 			action_paren *ap;
 			char **endarg;
 			unsigned nested = 1;
@@ -549,11 +677,31 @@ static action*** parse_params(char **argv)
 			*endarg = (char*) ")"; /* restore NULLed parameter */
 			argv = endarg;
 		}
-		else if (strcmp(arg, "-prune") == 0) {
+#endif
+#if ENABLE_FEATURE_FIND_PRUNE
+		else if (parm == PARM_prune) {
 			USE_FEATURE_FIND_NOT( invert_flag = 0; )
 			(void) ALLOC_ACTION(prune);
 		}
-		else if (strcmp(arg, "-size") == 0) {
+#endif
+#if ENABLE_FEATURE_FIND_DELETE
+		else if (parm == PARM_delete) {
+			need_print = 0;
+			recurse_flags |= ACTION_DEPTHFIRST;
+			(void) ALLOC_ACTION(delete);
+		}
+#endif
+#if ENABLE_FEATURE_FIND_PATH
+		else if (parm == PARM_path) {
+			action_path *ap;
+			if (!*++argv)
+				bb_error_msg_and_die(bb_msg_requires_arg, arg);
+			ap = ALLOC_ACTION(path);
+			ap->pattern = arg1;
+		}
+#endif
+#if ENABLE_FEATURE_FIND_SIZE
+		else if (parm == PARM_size) {
 			action_size *ap;
 			if (!*++argv)
 				bb_error_msg_and_die(bb_msg_requires_arg, arg);
@@ -565,7 +713,6 @@ static action*** parse_params(char **argv)
 			bb_show_usage();
 		argv++;
 	}
-
 	return appp;
 #undef ALLOC_ACTION
 }
@@ -574,7 +721,12 @@ static action*** parse_params(char **argv)
 int find_main(int argc, char **argv);
 int find_main(int argc, char **argv)
 {
-	int dereference = FALSE;
+	static const char * const options[] = {
+		"-follow",
+USE_FEATURE_FIND_XDEV( "-xdev", )
+		NULL
+	};
+
 	char *arg;
 	char **argp;
 	int i, firstopt, status = EXIT_SUCCESS;
@@ -584,7 +736,7 @@ int find_main(int argc, char **argv)
 			break;
 		if (ENABLE_FEATURE_FIND_NOT && LONE_CHAR(argv[firstopt], '!'))
 			break;
-#if ENABLE_DESKTOP
+#if ENABLE_FEATURE_FIND_PAREN
 		if (LONE_CHAR(argv[firstopt], '('))
 			break;
 #endif
@@ -595,21 +747,22 @@ int find_main(int argc, char **argv)
 		firstopt++;
 	}
 
-// All options always return true. They always take effect,
-// rather than being processed only when their place in the
-// expression is reached
-// We implement: -follow, -xdev
-
+/* All options always return true. They always take effect
+ * rather than being processed only when their place in the
+ * expression is reached.
+ * We implement: -follow, -xdev
+ */
 	/* Process options, and replace then with -a */
 	/* (-a will be ignored by recursive parser later) */
 	argp = &argv[firstopt];
 	while ((arg = argp[0])) {
-		if (strcmp(arg, "-follow") == 0) {
-			dereference = TRUE;
+		i = index_in_str_array(options, arg);
+		if (i == 0) { /* -follow */
+			recurse_flags |= ACTION_FOLLOWLINKS;
 			argp[0] = (char*)"-a";
 		}
 #if ENABLE_FEATURE_FIND_XDEV
-		else if (strcmp(arg, "-xdev") == 0) {
+		else if (i == 1) { /* -xdev */
 			struct stat stbuf;
 			if (!xdev_count) {
 				xdev_count = firstopt - 1;
@@ -632,13 +785,11 @@ int find_main(int argc, char **argv)
 
 	for (i = 1; i < firstopt; i++) {
 		if (!recursive_action(argv[i],
-				TRUE,           // recurse
-				dereference,    // follow links
-				FALSE,          // depth first
-				fileAction,     // file action
-				fileAction,     // dir action
-				NULL,           // user data
-				0))             // depth
+				recurse_flags,  /* flags */
+				fileAction,     /* file action */
+				fileAction,     /* dir action */
+				NULL,           /* user data */
+				0))             /* depth */
 			status = EXIT_FAILURE;
 	}
 	return status;

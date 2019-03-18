@@ -155,7 +155,7 @@
  *                      setuid()
  */
 
-#include "busybox.h"
+#include "libbb.h"
 #include <syslog.h>
 #include <sys/un.h>
 
@@ -172,9 +172,10 @@
 #include <rpc/pmap_clnt.h>
 #endif
 
-#define _PATH_INETDCONF "/etc/inetd.conf"
-#define _PATH_INETDPID  "/var/run/inetd.pid"
+extern char **environ;
 
+
+#define _PATH_INETDPID  "/var/run/inetd.pid"
 
 #define CNT_INTVL       60              /* servers in CNT_INTVL sec. */
 #define RETRYTIME       (60*10)         /* retry after bind or server fail */
@@ -327,10 +328,9 @@ static int timingout;
 static struct servent *sp;
 static uid_t uid;
 
-static const char *CONFIG = _PATH_INETDCONF;
+static const char *config_filename = "/etc/inetd.conf";
 
 static FILE *fconfig;
-static char line[1024];
 static char *defhost;
 
 /* xstrdup(NULL) returns NULL, but this one
@@ -350,7 +350,7 @@ static int setconfig(void)
 		fseek(fconfig, 0L, SEEK_SET);
 		return 1;
 	}
-	fconfig = fopen(CONFIG, "r");
+	fconfig = fopen(config_filename, "r");
 	return (fconfig != NULL);
 }
 
@@ -511,6 +511,8 @@ static void setup(servtab_t *sep)
 
 static char *nextline(void)
 {
+#define line bb_common_bufsiz1
+
 	char *cp;
 	FILE *fd = fconfig;
 
@@ -534,17 +536,19 @@ static char *skip(char **cpp) /* int report; */
 		return NULL;
 	}
 
-again:
+ again:
 	while (*cp == ' ' || *cp == '\t')
 		cp++;
 	if (*cp == '\0') {
 		int c;
 
 		c = getc(fconfig);
-		(void) ungetc(c, fconfig);
-		if (c == ' ' || c == '\t')
-			if ((cp = nextline()))
+		ungetc(c, fconfig);
+		if (c == ' ' || c == '\t') {
+			cp = nextline();
+			if (cp)
 				goto again;
+		}
 		*cpp = NULL;
 		/* goto erp; */
 		return NULL;
@@ -687,7 +691,7 @@ static servtab_t *getconfigent(void)
 			*p++ = '\0';
 			l = strtol(p, &ccp, 0);
 			if (ccp == p || l < 0 || l > INT_MAX) {
-			badafterall:
+ badafterall:
 				bb_error_msg("%s/%s: bad rpc version", sep->se_service, p);
 				goto more;
 			}
@@ -823,7 +827,7 @@ static servtab_t *getconfigent(void)
 			}
 		}
 /* XXX BUG?: is this skip: label supposed to remain? */
-	skip:
+ skip:
 		nsep = nsep->se_next;
 	}
 
@@ -924,7 +928,7 @@ static void config(int sig ATTRIBUTE_UNUSED)
 	char protoname[10];
 
 	if (!setconfig()) {
-		bb_perror_msg("%s", CONFIG);
+		bb_perror_msg("%s", config_filename);
 		return;
 	}
 	for (sep = servtab; sep; sep = sep->se_next)
@@ -1094,7 +1098,7 @@ static void config(int sig ATTRIBUTE_UNUSED)
 			break;
 #endif /* FEATURE_IPV6 */
 		}
-	serv_unknown:
+ serv_unknown:
 		if (cp->se_next != NULL) {
 			servtab_t *tmp = cp;
 
@@ -1210,7 +1214,7 @@ static void goaway(int sig ATTRIBUTE_UNUSED)
 		}
 		(void) close(sep->se_fd);
 	}
-	(void) unlink(_PATH_INETDPID);
+	remove_pidfile(_PATH_INETDPID);
 	exit(0);
 }
 
@@ -1246,8 +1250,8 @@ inetd_setproctitle(char *a, int s)
 #endif
 
 
-int inetd_main(int argc, char *argv[]);
-int inetd_main(int argc, char *argv[])
+int inetd_main(int argc, char **argv);
+int inetd_main(int argc, char **argv)
 {
 	servtab_t *sep;
 	struct passwd *pwd;
@@ -1261,7 +1265,6 @@ int inetd_main(int argc, char *argv[])
 	sigset_t omask, wait_mask;
 
 #ifdef INETD_SETPROCTITLE
-	extern char **environ;
 	char **envp = environ;
 
 	Argv = argv;
@@ -1272,30 +1275,24 @@ int inetd_main(int argc, char *argv[])
 	LastArg = envp[-1] + strlen(envp[-1]);
 #endif
 
-	opt = getopt32(argc, argv, "R:f", &stoomany);
-	if(opt & 1) {
-		toomany = xatoi_u(stoomany);
-	}
-	argc -= optind;
-	argv += optind;
-
 	uid = getuid();
 	if (uid != 0)
-		CONFIG = NULL;
-	if (argc > 0)
-		CONFIG = argv[0];
-	if (CONFIG == NULL)
+		config_filename = NULL;
+
+	opt = getopt32(argc, argv, "R:f", &stoomany);
+	if (opt & 1)
+		toomany = xatoi_u(stoomany);
+	argv += optind;
+	argc -= optind;
+	if (argc)
+		config_filename = argv[0];
+	if (config_filename == NULL)
 		bb_error_msg_and_die("non-root must specify a config file");
 
-#ifdef BB_NOMMU
-	if (!(opt & 2)) {
-		/* reexec for vfork() do continue parent */
-		vfork_daemon_rexec(0, 0, argc, argv, "-f");
-	}
-	bb_sanitize_stdio();
-#else
-	bb_sanitize_stdio_maybe_daemonize(!(opt & 2));
-#endif
+	if (!(opt & 2))
+		bb_daemonize_or_rexec(0, argv - optind);
+	else
+		bb_sanitize_stdio();
 	openlog(applet_name, LOG_PID | LOG_NOWAIT, LOG_DAEMON);
 	logmode = LOGMODE_SYSLOG;
 
@@ -1305,13 +1302,7 @@ int inetd_main(int argc, char *argv[])
 		setgroups(1, &gid);
 	}
 
-	{
-		FILE *fp = fopen(_PATH_INETDPID, "w");
-		if (fp != NULL) {
-			fprintf(fp, "%u\n", getpid());
-			fclose(fp);
-		}
-	}
+	write_pidfile(_PATH_INETDPID);
 
 	if (getrlimit(RLIMIT_NOFILE, &rlim_ofile) < 0) {
 		bb_perror_msg("getrlimit");
@@ -1509,7 +1500,7 @@ int inetd_main(int argc, char *argv[])
 					sigaction(SIGPIPE, &sapipe, NULL);
 					execv(sep->se_server, sep->se_argv);
 					bb_perror_msg("execv %s", sep->se_server);
-do_exit1:
+ do_exit1:
 					if (sep->se_socktype != SOCK_STREAM)
 						recv(0, buf, sizeof(buf), 0);
 					_exit(1);

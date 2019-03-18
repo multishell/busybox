@@ -18,13 +18,9 @@
  * the command line.  Properly round *-blocks, Used, and Available quantities.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
 #include <mntent.h>
 #include <sys/vfs.h>
-#include "busybox.h"
+#include "libbb.h"
 
 #ifndef CONFIG_FEATURE_HUMAN_READABLE
 static long kscale(long b, long bs)

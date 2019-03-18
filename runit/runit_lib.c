@@ -61,34 +61,6 @@ int coe(int fd)
 }
 
 
-/*** fd_copy.c ***/
-
-int fd_copy(int to,int from)
-{
-	if (to == from)
-		return 0;
-	if (fcntl(from,F_GETFL,0) == -1)
-		return -1;
-	close(to);
-	if (fcntl(from,F_DUPFD,to) == -1)
-		return -1;
-	return 0;
-}
-
-
-/*** fd_move.c ***/
-
-int fd_move(int to,int from)
-{
-	if (to == from)
-		return 0;
-	if (fd_copy(to,from) == -1)
-		return -1;
-	close(from);
-	return 0;
-}
-
-
 /*** fmt_ptime.c ***/
 
 void fmt_ptime30nul(char *s, struct taia *ta) {
@@ -413,56 +385,9 @@ int seek_set(int fd,seek_pos pos)
 #endif
 
 
-/*** sig_block.c ***/
-
-void sig_block(int sig)
-{
-	sigset_t ss;
-	sigemptyset(&ss);
-	sigaddset(&ss, sig);
-	sigprocmask(SIG_BLOCK, &ss, NULL);
-}
-
-void sig_unblock(int sig)
-{
-	sigset_t ss;
-	sigemptyset(&ss);
-	sigaddset(&ss, sig);
-	sigprocmask(SIG_UNBLOCK, &ss, NULL);
-}
-
-void sig_blocknone(void)
-{
-	sigset_t ss;
-	sigemptyset(&ss);
-	sigprocmask(SIG_SETMASK, &ss, NULL);
-}
-
-
-/*** sig_catch.c ***/
-
-void sig_catch(int sig,void (*f)(int))
-{
-	struct sigaction sa;
-	sa.sa_handler = f;
-	sa.sa_flags = 0;
-	sigemptyset(&sa.sa_mask);
-	sigaction(sig,&sa, NULL);
-}
-
-
-/*** sig_pause.c ***/
-
-void sig_pause(void)
-{
-	sigset_t ss;
-	sigemptyset(&ss);
-	sigsuspend(&ss);
-}
-
-
 /*** str_chr.c ***/
 
+// strchrnul?
 unsigned str_chr(const char *s,int c)
 {
 	char ch;
@@ -476,25 +401,4 @@ unsigned str_chr(const char *s,int c)
 		++t;
 	}
 	return t - s;
-}
-
-
-/*** wait_nohang.c ***/
-
-int wait_nohang(int *wstat)
-{
-	return waitpid(-1, wstat, WNOHANG);
-}
-
-
-/*** wait_pid.c ***/
-
-int wait_pid(int *wstat, int pid)
-{
-	int r;
-
-	do
-		r = waitpid(pid, wstat, 0);
-	while ((r == -1) && (errno == EINTR));
-	return r;
 }

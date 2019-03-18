@@ -82,15 +82,15 @@ int xconnect_tcp_v4(struct sockaddr_in *s_addr)
 /* "New" networking API */
 
 
-int get_nport(const len_and_sockaddr *lsa)
+int get_nport(const struct sockaddr *sa)
 {
 #if ENABLE_FEATURE_IPV6
-	if (lsa->sa.sa_family == AF_INET6) {
-		return lsa->sin6.sin6_port;
+	if (sa->sa_family == AF_INET6) {
+		return ((struct sockaddr_in6*)sa)->sin6_port;
 	}
 #endif
-	if (lsa->sa.sa_family == AF_INET) {
-		return lsa->sin.sin_port;
+	if (sa->sa_family == AF_INET) {
+		return ((struct sockaddr_in*)sa)->sin_port;
 	}
 	/* What? UNIX socket? IPX?? :) */
 	return -1;
@@ -166,7 +166,7 @@ USE_FEATURE_IPV6(sa_family_t af,)
 	if (rc || !result) {
 		bb_error_msg("bad address '%s'", org_host);
 		if (ai_flags & DIE_ON_ERROR)
-			sleep_and_die();
+			xfunc_die();
 		goto ret;
 	}
 	r = xmalloc(offsetof(len_and_sockaddr, sa) + result->ai_addrlen);
@@ -208,7 +208,7 @@ len_and_sockaddr* xdotted2sockaddr(const char *host, int port)
 	return str2sockaddr(host, port, AF_UNSPEC, AI_NUMERICHOST | DIE_ON_ERROR);
 }
 
-int xsocket_stream(len_and_sockaddr **lsap)
+int xsocket_type(len_and_sockaddr **lsap, int sock_type)
 {
 	len_and_sockaddr *lsa;
 	int fd;
@@ -216,14 +216,14 @@ int xsocket_stream(len_and_sockaddr **lsap)
 	int family = AF_INET;
 
 #if ENABLE_FEATURE_IPV6
-	fd = socket(AF_INET6, SOCK_STREAM, 0);
+	fd = socket(AF_INET6, sock_type, 0);
 	if (fd >= 0) {
 		len = sizeof(struct sockaddr_in6);
 		family = AF_INET6;
 	} else
 #endif
 	{
-		fd = xsocket(AF_INET, SOCK_STREAM, 0);
+		fd = xsocket(AF_INET, sock_type, 0);
 	}
 	lsa = xzalloc(offsetof(len_and_sockaddr, sa) + len);
 	lsa->len = len;
@@ -232,7 +232,12 @@ int xsocket_stream(len_and_sockaddr **lsap)
 	return fd;
 }
 
-int create_and_bind_stream_or_die(const char *bindaddr, int port)
+int xsocket_stream(len_and_sockaddr **lsap)
+{
+	return xsocket_type(lsap, SOCK_STREAM);
+}
+
+static int create_and_bind_or_die(const char *bindaddr, int port, int sock_type)
 {
 	int fd;
 	len_and_sockaddr *lsa;
@@ -240,9 +245,9 @@ int create_and_bind_stream_or_die(const char *bindaddr, int port)
 	if (bindaddr && bindaddr[0]) {
 		lsa = xdotted2sockaddr(bindaddr, port);
 		/* user specified bind addr dictates family */
-		fd = xsocket(lsa->sa.sa_family, SOCK_STREAM, 0);
+		fd = xsocket(lsa->sa.sa_family, sock_type, 0);
 	} else {
-		fd = xsocket_stream(&lsa);
+		fd = xsocket_type(&lsa, sock_type);
 		set_nport(lsa, htons(port));
 	}
 	setsockopt_reuseaddr(fd);
@@ -250,6 +255,17 @@ int create_and_bind_stream_or_die(const char *bindaddr, int port)
 	free(lsa);
 	return fd;
 }
+
+int create_and_bind_stream_or_die(const char *bindaddr, int port)
+{
+	return create_and_bind_or_die(bindaddr, port, SOCK_STREAM);
+}
+
+int create_and_bind_dgram_or_die(const char *bindaddr, int port)
+{
+	return create_and_bind_or_die(bindaddr, port, SOCK_DGRAM);
+}
+
 
 int create_and_connect_stream_or_die(const char *peer, int port)
 {
@@ -308,12 +324,10 @@ char* xmalloc_sockaddr2host(const struct sockaddr *sa, socklen_t salen)
 	return sockaddr2str(sa, salen, 0);
 }
 
-/* Unused
 char* xmalloc_sockaddr2host_noport(const struct sockaddr *sa, socklen_t salen)
 {
 	return sockaddr2str(sa, salen, IGNORE_PORT);
 }
-*/
 
 char* xmalloc_sockaddr2hostonly_noport(const struct sockaddr *sa, socklen_t salen)
 {

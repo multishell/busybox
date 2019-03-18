@@ -15,8 +15,9 @@
  * Size reduction.
  */
 
-#include <unistd.h>
-#include "busybox.h"
+#include "libbb.h"
+
+/* This is a NOFORK applet. Be very careful! */
 
 int rm_main(int argc, char **argv);
 int rm_main(int argc, char **argv)
@@ -27,18 +28,19 @@ int rm_main(int argc, char **argv)
 
 	opt_complementary = "f-i:i-f";
 	opt = getopt32(argc, argv, "fiRr");
-	if(opt & 1)
-				flags |= FILEUTILS_FORCE;
-	if(opt & 2)
+	argv += optind;
+	if (opt & 1)
+		flags |= FILEUTILS_FORCE;
+	if (opt & 2)
 		flags |= FILEUTILS_INTERACTIVE;
-	if(opt & 12)
+	if (opt & 12)
 		flags |= FILEUTILS_RECUR;
 
-	if (*(argv += optind) != NULL) {
+	if (*argv != NULL) {
 		do {
 			const char *base = bb_get_last_path_component(*argv);
 
-			if ((base[0] == '.') && (!base[1] || ((base[1] == '.') && !base[2]))) {
+			if (DOT_OR_DOTDOT(base)) {
 				bb_error_msg("cannot remove '.' or '..'");
 			} else if (remove_file(*argv, flags) >= 0) {
 				continue;

@@ -6,7 +6,7 @@
  * Licensed under GPL version 2, see file LICENSE in this tarball for details.
  */
 
-#include "busybox.h"
+#include "libbb.h"
 #include <sys/vfs.h>
 
 
@@ -24,7 +24,7 @@
 #define MS_MOVE			8192
 #endif
 
-dev_t rootdev;
+static dev_t rootdev;
 
 // Recursively delete contents of rootfs.
 
@@ -39,12 +39,13 @@ static void delete_contents(const char *directory)
 
 	// Recursively delete the contents of directories.
 	if (S_ISDIR(st.st_mode)) {
-		if((dir = opendir(directory))) {
+		dir = opendir(directory);
+		if (dir) {
 			while ((d = readdir(dir))) {
-				char *newdir=d->d_name;
+				char *newdir = d->d_name;
 
 				// Skip . and ..
-				if(*newdir=='.' && (!newdir[1] || (newdir[1]=='.' && !newdir[2])))
+				if (*newdir=='.' && (!newdir[1] || (newdir[1]=='.' && !newdir[2])))
 					continue;
 
 				// Recurse to delete contents
@@ -63,10 +64,10 @@ static void delete_contents(const char *directory)
 	} else unlink(directory);
 }
 
-int switch_root_main(int argc, char *argv[]);
-int switch_root_main(int argc, char *argv[])
+int switch_root_main(int argc, char **argv);
+int switch_root_main(int argc, char **argv)
 {
-	char *newroot, *console=NULL;
+	char *newroot, *console = NULL;
 	struct stat st1, st2;
 	struct statfs stfs;
 
@@ -74,21 +75,21 @@ int switch_root_main(int argc, char *argv[])
 
 	opt_complementary = "-2";
 	getopt32(argc, argv, "c:", &console);
+	argv += optind;
 
 	// Change to new root directory and verify it's a different fs.
 
-	newroot=argv[optind++];
+	newroot = *argv++;
 
-	if (chdir(newroot) || lstat(".", &st1) || lstat("/", &st2) ||
-		st1.st_dev == st2.st_dev)
-	{
+	xchdir(newroot);
+	if (lstat(".", &st1) || lstat("/", &st2) || st1.st_dev == st2.st_dev) {
 		bb_error_msg_and_die("bad newroot %s", newroot);
 	}
-	rootdev=st2.st_dev;
+	rootdev = st2.st_dev;
 
 	// Additional sanity checks: we're about to rm -rf /,  so be REALLY SURE
 	// we mean it.  (I could make this a CONFIG option, but I would get email
-	// from all the people who WILL eat their filesystemss.)
+	// from all the people who WILL eat their filesystems.)
 
 	if (lstat("/init", &st1) || !S_ISREG(st1.st_mode) || statfs("/", &stfs) ||
 		(stfs.f_type != RAMFS_MAGIC && stfs.f_type != TMPFS_MAGIC) ||
@@ -104,20 +105,20 @@ int switch_root_main(int argc, char *argv[])
 	// Overmount / with newdir and chroot into it.  The chdir is needed to
 	// recalculate "." and ".." links.
 
-	if (mount(".", "/", NULL, MS_MOVE, NULL) || chroot(".") || chdir("/"))
-		bb_error_msg_and_die("moving root");
+	if (mount(".", "/", NULL, MS_MOVE, NULL) || chroot("."))
+		bb_error_msg_and_die("error moving root");
+	xchdir("/");
 
 	// If a new console specified, redirect stdin/stdout/stderr to that.
 
 	if (console) {
 		close(0);
-		if(open(console, O_RDWR) < 0)
-			bb_error_msg_and_die("bad console '%s'", console);
+		xopen(console, O_RDWR);
 		dup2(0, 1);
 		dup2(0, 2);
 	}
 
 	// Exec real init.  (This is why we must be pid 1.)
-	execv(argv[optind], argv+optind);
-	bb_error_msg_and_die("bad init '%s'", argv[optind]);
+	execv(argv[0], argv);
+	bb_perror_msg_and_die("bad init %s", argv[0]);
 }

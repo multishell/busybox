@@ -13,7 +13,7 @@
  * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
-#include "busybox.h"
+#include "libbb.h"
 #include <paths.h>
 #include <sys/un.h>
 
@@ -519,6 +519,7 @@ static void do_syslogd(void)
 	signal(SIGALRM, do_mark);
 	alarm(G.markInterval);
 #endif
+	remove_pidfile("/var/run/syslogd.pid");
 
 	memset(&sunx, 0, sizeof(sunx));
 	sunx.sun_family = AF_UNIX;
@@ -642,13 +643,10 @@ int syslogd_main(int argc, char **argv)
 	}
 
 	if (!(option_mask32 & OPT_nofork)) {
-#ifdef BB_NOMMU
-		vfork_daemon_rexec(0, 1, argc, argv, "-n");
-#else
-		bb_daemonize();
-#endif
+		bb_daemonize_or_rexec(DAEMON_CHDIR_ROOT, argv);
 	}
 	umask(0);
+	write_pidfile("/var/run/syslogd.pid");
 	do_syslogd();
 	/* return EXIT_SUCCESS; */
 }

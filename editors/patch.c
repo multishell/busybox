@@ -20,10 +20,8 @@
  */
 
 #include <getopt.h>
-#include <string.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include "busybox.h"
+
+#include "libbb.h"
 
 static unsigned int copy_lines(FILE *src_stream, FILE *dest_stream, const unsigned int lines_count)
 {
@@ -62,7 +60,9 @@ static char *extract_filename(char *line, int patch_level)
 
 	/* skip over (patch_level) number of leading directories */
 	for (i = 0; i < patch_level; i++) {
-		if(!(temp = strchr(filename_start_ptr, '/'))) break;
+		temp = strchr(filename_start_ptr, '/');
+		if (!temp)
+			break;
 		filename_start_ptr = temp + 1;
 	}
 
@@ -260,12 +260,9 @@ int patch_main(int argc, char **argv)
 			}
 			if ((dest_cur_line == 0) || (dest_beg_line == 0)) {
 				/* The new patched file is empty, remove it */
-				if (unlink(new_filename) == -1) {
-					bb_perror_msg_and_die("cannot remove file %s", new_filename);
-				}
-				if (unlink(original_filename) == -1) {
-					bb_perror_msg_and_die("cannot remove original file %s", new_filename);
-				}
+				xunlink(new_filename);
+				if (strcmp(new_filename, original_filename) != 0)
+					xunlink(original_filename);
 			}
 		}
 	}

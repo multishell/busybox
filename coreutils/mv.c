@@ -15,12 +15,9 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <unistd.h>
 #include <dirent.h>
-#include <errno.h>
-#include <stdlib.h>
 #include <getopt.h> /* struct option */
-#include "busybox.h"
+#include "libbb.h"
 #include "libcoreutils/coreutils.h"
 
 #if ENABLE_FEATURE_MV_LONG_OPTIONS

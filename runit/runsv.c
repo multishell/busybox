@@ -30,7 +30,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <sys/poll.h>
 #include <sys/file.h>
-#include "busybox.h"
+#include "libbb.h"
 #include "runit_lib.h"
 
 static int selfpipe[2];
@@ -251,7 +251,7 @@ static unsigned custom(struct svdir *s, char c)
 				return 0;
 			}
 			if (!pid) {
-				if (haslog && fd_copy(1, logpipe[1]) == -1)
+				if (haslog && dup2(logpipe[1], 1) == -1)
 					warn_cannot("setup stdout for control/?");
 				prog[0] = a;
 				prog[1] = NULL;
@@ -303,7 +303,8 @@ static void startservice(struct svdir *s)
 	}
 	run[1] = NULL;
 
-	if (s->pid != 0) stopservice(s); /* should never happen */
+	if (s->pid != 0)
+		stopservice(s); /* should never happen */
 	while ((p = fork()) == -1) {
 		warn_cannot("fork, sleeping");
 		sleep(5);
@@ -312,22 +313,22 @@ static void startservice(struct svdir *s)
 		/* child */
 		if (haslog) {
 			if (s->islog) {
-				if (fd_copy(0, logpipe[0]) == -1)
+				if (dup2(logpipe[0], 0) == -1)
 					fatal_cannot("setup filedescriptor for ./log/run");
 				close(logpipe[1]);
 				if (chdir("./log") == -1)
 					fatal_cannot("change directory to ./log");
 			} else {
-				if (fd_copy(1, logpipe[1]) == -1)
+				if (dup2(logpipe[1], 1) == -1)
 					fatal_cannot("setup filedescriptor for ./run");
 				close(logpipe[0]);
 			}
 		}
-		sig_uncatch(SIGCHLD);
+		signal(SIGCHLD, SIG_DFL);
+		signal(SIGTERM, SIG_DFL);
 		sig_unblock(SIGCHLD);
-		sig_uncatch(SIGTERM);
 		sig_unblock(SIGTERM);
-		execve(*run, run, environ);
+		execvp(*run, run);
 		fatal2_cannot(s->islog ? "start log/" : "start ", *run);
 	}
 	if (s->state != S_FINISH) {
@@ -419,7 +420,7 @@ int runsv_main(int argc, char **argv)
 	if (!argv[1] || argv[2]) usage();
 	dir = argv[1];
 
-	if (pipe(selfpipe) == -1) fatal_cannot("create selfpipe");
+	xpipe(selfpipe);
 	coe(selfpipe[0]);
 	coe(selfpipe[1]);
 	ndelay_on(selfpipe[0]);
@@ -455,8 +456,7 @@ int runsv_main(int argc, char **argv)
 			taia_now(&svd[1].start);
 			if (stat("log/down", &s) != -1)
 				svd[1].want = W_DOWN;
-			if (pipe(logpipe) == -1)
-				fatal_cannot("create log pipe");
+			xpipe(logpipe);
 			coe(logpipe[0]);
 			coe(logpipe[1]);
 		}

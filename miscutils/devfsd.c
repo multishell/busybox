@@ -54,26 +54,15 @@
       Richard Gooch, c/o ATNF, P. O. Box 76, Epping, N.S.W., 2121, Australia.
 */
 
-#include "busybox.h"
-#include "xregex.h"
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdarg.h>
-#include <string.h>
-#include <ctype.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
+//#include <sys/wait.h>
+//#include <sys/ioctl.h>
+//#include <sys/socket.h>
 #include <sys/un.h>
 #include <dirent.h>
-#include <fcntl.h>
 #include <syslog.h>
-#include <signal.h>
-#include <errno.h>
 #include <sys/sysmacros.h>
+#include "libbb.h"
+#include "xregex.h"
 
 
 /* Various defines taken from linux/major.h */
@@ -1369,7 +1358,7 @@ static void dir_operation(int type, const char * dir_name, int var, unsigned lon
 	while ( (de = readdir (dp) ) != NULL )
 	{
 
-		if(de->d_name && *de->d_name == '.' && (!de->d_name[1] || (de->d_name[1] == '.' && !de->d_name[2])))
+		if(de->d_name && DOT_OR_DOTDOT(de->d_name))
 			continue;
 		snprintf (path, sizeof (path), "%s/%s", dir_name, de->d_name);
 		debug_msg_logger(LOG_ERR, "%s: %s", __FUNCTION__, path);

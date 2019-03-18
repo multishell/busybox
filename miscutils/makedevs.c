@@ -7,7 +7,7 @@
  * known bugs: can't deal with alpha ranges
  */
 
-#include "busybox.h"
+#include "libbb.h"
 
 #ifdef CONFIG_FEATURE_MAKEDEVS_LEAF
 int makedevs_main(int argc, char **argv);
@@ -48,7 +48,7 @@ int makedevs_main(int argc, char **argv)
 		int sz;
 
 		sz = snprintf(buf, sizeof(buf), "%s%d", basedev, S);
-		if(sz<0 || sz>=sizeof(buf))  /* libc different */
+		if (sz < 0 || sz >= sizeof(buf))  /* libc different */
 			bb_error_msg_and_die("%s too large", basedev);
 
 	/* if mode != S_IFCHR and != S_IFBLK third param in mknod() ignored */

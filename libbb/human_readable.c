@@ -26,7 +26,6 @@
  *      and "#if 0"'d below.
  */
 
-#include <stdio.h>
 #include "libbb.h"
 
 const char *make_human_readable_str(unsigned long long size,
@@ -72,8 +71,8 @@ const char *make_human_readable_str(unsigned long long size,
 		}
 #if 0
 		/* Sample code to omit decimal point and tenths digit. */
-		if ( /* no_tenths */ 1 ) {
-			if ( frac >= 5 ) {
+		if (/* no_tenths */ 1) {
+			if (frac >= 5) {
 				++val;
 			}
 			f = "%llu%*c" /* fmt_no_tenths */ ;

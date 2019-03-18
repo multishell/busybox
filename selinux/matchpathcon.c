@@ -4,7 +4,7 @@
  * Port to busybox: KaiGai Kohei <kaigai@kaigai.gr.jp>
  *
  */
-#include "busybox.h"
+#include "libbb.h"
 
 static int print_matchpathcon(char *path, int noprint)
 {
@@ -53,7 +53,7 @@ int matchpathcon_main(int argc, char **argv)
 			bb_perror_msg_and_die("error while processing %s", prefix);
 	}
 
-	while((path = *argv++) != NULL) {
+	while ((path = *argv++) != NULL) {
 		security_context_t con;
 		int rc;
 

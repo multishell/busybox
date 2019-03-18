@@ -58,7 +58,7 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include "busybox.h"
+#include "libbb.h"
 #include <libgen.h>
 #include <sys/utsname.h>
 
@@ -280,7 +280,7 @@ extern int insmod_ng_main( int argc, char **argv);
 #endif
 
 /* v850e */
-#if defined (__v850e__)
+#if defined(__v850e__)
 #define MATCH_MACHINE(x) ((x) == EM_V850 || (x) == EM_CYGNUS_V850)
 #define SHT_RELM	SHT_RELA
 #define Elf32_RelM	Elf32_Rela
@@ -496,7 +496,6 @@ int delete_module(const char *);
 
 /* The relocatable object is manipulated using elfin types.  */
 
-#include <stdio.h>
 #include <elf.h>
 #include <endian.h>
 
@@ -598,7 +597,7 @@ static unsigned long obj_elf_hash(const char *);
 
 static unsigned long obj_elf_hash_n(const char *, unsigned long len);
 
-static struct obj_symbol *obj_find_symbol (struct obj_file *f,
+static struct obj_symbol *obj_find_symbol(struct obj_file *f,
 					 const char *name);
 
 static ElfW(Addr) obj_symbol_final_value(struct obj_file *f,
@@ -610,23 +609,23 @@ static void obj_set_symbol_compare(struct obj_file *f,
 			    unsigned long (*hash)(const char *));
 #endif
 
-static struct obj_section *obj_find_section (struct obj_file *f,
+static struct obj_section *obj_find_section(struct obj_file *f,
 					   const char *name);
 
-static void obj_insert_section_load_order (struct obj_file *f,
+static void obj_insert_section_load_order(struct obj_file *f,
 				    struct obj_section *sec);
 
-static struct obj_section *obj_create_alloced_section (struct obj_file *f,
+static struct obj_section *obj_create_alloced_section(struct obj_file *f,
 						const char *name,
 						unsigned long align,
 						unsigned long size);
 
-static struct obj_section *obj_create_alloced_section_first (struct obj_file *f,
+static struct obj_section *obj_create_alloced_section_first(struct obj_file *f,
 						      const char *name,
 						      unsigned long align,
 						      unsigned long size);
 
-static void *obj_extend_section (struct obj_section *sec, unsigned long more);
+static void *obj_extend_section(struct obj_section *sec, unsigned long more);
 
 static int obj_string_patch(struct obj_file *f, int secidx, ElfW(Addr) offset,
 		     const char *string);
@@ -638,29 +637,29 @@ static int obj_check_undefineds(struct obj_file *f);
 
 static void obj_allocate_commons(struct obj_file *f);
 
-static unsigned long obj_load_size (struct obj_file *f);
+static unsigned long obj_load_size(struct obj_file *f);
 
-static int obj_relocate (struct obj_file *f, ElfW(Addr) base);
+static int obj_relocate(struct obj_file *f, ElfW(Addr) base);
 
 static struct obj_file *obj_load(FILE *f, int loadprogbits);
 
-static int obj_create_image (struct obj_file *f, char *image);
+static int obj_create_image(struct obj_file *f, char *image);
 
 /* Architecture specific manipulation routines.  */
 
-static struct obj_file *arch_new_file (void);
+static struct obj_file *arch_new_file(void);
 
-static struct obj_section *arch_new_section (void);
+static struct obj_section *arch_new_section(void);
 
-static struct obj_symbol *arch_new_symbol (void);
+static struct obj_symbol *arch_new_symbol(void);
 
-static enum obj_reloc arch_apply_relocation (struct obj_file *f,
+static enum obj_reloc arch_apply_relocation(struct obj_file *f,
 				      struct obj_section *targsec,
 				      struct obj_section *symsec,
 				      struct obj_symbol *sym,
 				      ElfW(RelM) *rel, ElfW(Addr) value);
 
-static void arch_create_got (struct obj_file *f);
+static void arch_create_got(struct obj_file *f);
 #if ENABLE_FEATURE_CHECK_TAINTED_MODULE
 static int obj_gpl_license(struct obj_file *f, const char **license);
 #endif /* FEATURE_CHECK_TAINTED_MODULE */
@@ -982,7 +981,7 @@ arch_apply_relocation(struct obj_file *f,
 			*loc += v - got;
 			break;
 
-#elif defined (__microblaze__)
+#elif defined(__microblaze__)
 		case R_MICROBLAZE_NONE:
 		case R_MICROBLAZE_64_NONE:
 		case R_MICROBLAZE_32_SYM_OP_SYM:
@@ -1540,7 +1539,7 @@ arch_apply_relocation(struct obj_file *f,
 			}
 # endif /* __SH5__ */
 
-#elif defined (__v850e__)
+#elif defined(__v850e__)
 
 		case R_V850_NONE:
 			break;
@@ -1663,7 +1662,7 @@ bb_use_plt:
 				ip[2] = 0x7d6903a6;			      /* mtctr r11 */
 				ip[3] = 0x4e800420;			      /* bctr */
 #endif
-#if defined (__v850e__)
+#if defined(__v850e__)
 				/* We have to trash a register, so we assume that any control
 				   transfer more than 21-bits away must be a function call
 				   (so we can use a call-clobbered register).  */
@@ -1676,15 +1675,15 @@ bb_use_plt:
 			/* relative distance to target */
 			v -= dot;
 			/* if the target is too far away.... */
-#if defined (__arm__) || defined (__powerpc__)
+#if defined(__arm__) || defined(__powerpc__)
 			if ((int)v < -0x02000000 || (int)v >= 0x02000000)
-#elif defined (__v850e__)
+#elif defined(__v850e__)
 				if ((ElfW(Sword))v > 0x1fffff || (ElfW(Sword))v < (ElfW(Sword))-0x200000)
 #endif
 					/* go via the plt */
 					v = plt + pe->offset - dot;
 
-#if defined (__v850e__)
+#if defined(__v850e__)
 			if (v & 1)
 #else
 				if (v & 3)
@@ -1701,7 +1700,7 @@ bb_use_plt:
 #if defined(__powerpc__)
 			*loc = (*loc & ~0x03fffffc) | (v & 0x03fffffc);
 #endif
-#if defined (__v850e__)
+#if defined(__v850e__)
 			/* We write two shorts instead of a long because even 32-bit insns
 			   only need half-word alignment, but the 32-bit data write needs
 			   to be long-word aligned.  */
@@ -1895,7 +1894,7 @@ static void arch_create_got(struct obj_file *f)
 				got_needed = 1;
 				continue;
 
-#elif defined (__v850e__)
+#elif defined(__v850e__)
 			case R_V850_22_PCREL:
 				plt_needed = 1;
 				break;
@@ -2313,13 +2312,13 @@ add_symbols_from( struct obj_file *f,
 		   kernel exports `C names', but module object files
 		   reference `linker names').  */
 		size_t extra = sizeof SYMBOL_PREFIX;
-		size_t name_size = strlen (name) + extra;
+		size_t name_size = strlen(name) + extra;
 		if (name_size > name_alloced_size) {
 			name_alloced_size = name_size * 2;
-			name_buf = alloca (name_alloced_size);
+			name_buf = alloca(name_alloced_size);
 		}
-		strcpy (name_buf, SYMBOL_PREFIX);
-		strcpy (name_buf + extra - 1, name);
+		strcpy(name_buf, SYMBOL_PREFIX);
+		strcpy(name_buf + extra - 1, name);
 		name = name_buf;
 #endif /* SYMBOL_PREFIX */
 
@@ -2327,8 +2326,8 @@ add_symbols_from( struct obj_file *f,
 		if (sym && !(ELF_ST_BIND(sym->info) == STB_LOCAL)) {
 #ifdef SYMBOL_PREFIX
 			/* Put NAME_BUF into more permanent storage.  */
-			name = xmalloc (name_size);
-			strcpy (name, name_buf);
+			name = xmalloc(name_size);
+			strcpy(name, name_buf);
 #endif
 			sym = obj_add_symbol(f, name, -1,
 					ELF_ST_INFO(STB_GLOBAL,
@@ -2351,10 +2350,14 @@ static void add_kernel_symbols(struct obj_file *f)
 
 	/* Add module symbols first.  */
 
-	for (i = 0, m = ext_modules; i < n_ext_modules; ++i, ++m)
+	for (i = 0, m = ext_modules; i < n_ext_modules; ++i, ++m) {
 		if (m->nsyms
-				&& add_symbols_from(f, SHN_HIRESERVE + 2 + i, m->syms,
-					m->nsyms)) m->used = 1, ++nused;
+		 && add_symbols_from(f, SHN_HIRESERVE + 2 + i, m->syms, m->nsyms)
+		) {
+			m->used = 1;
+			++nused;
+		}
+	}
 
 	n_ext_modules_used = nused;
 
@@ -2423,9 +2426,9 @@ new_process_module_arguments(struct obj_file *f, int argc, char **argv)
 		}
 
 #ifdef SYMBOL_PREFIX
-		sym_name = alloca (strlen (key) + sizeof SYMBOL_PREFIX);
-		strcpy (sym_name, SYMBOL_PREFIX);
-		strcat (sym_name, key);
+		sym_name = alloca(strlen(key) + sizeof SYMBOL_PREFIX);
+		strcpy(sym_name, SYMBOL_PREFIX);
+		strcat(sym_name, key);
 #else
 		sym_name = key;
 #endif
@@ -2549,7 +2552,7 @@ new_process_module_arguments(struct obj_file *f, int argc, char **argv)
 					obj_string_patch(f, sym->secidx, loc - contents, str);
 					loc += tgt_sizeof_char_p;
 				} else {
-					/* Array of chars (in fact, matrix !) */
+					/* Array of chars (in fact, matrix!) */
 					unsigned long charssize;	/* size of each member */
 
 					/* Get the size of each member */
@@ -3406,7 +3409,7 @@ static struct obj_file *obj_load(FILE * fp, int loadprogbits)
 		sec->header = section_headers[i];
 		sec->idx = i;
 
-		if(sec->header.sh_size) {
+		if (sec->header.sh_size) {
 			switch (sec->header.sh_type) {
 			case SHT_NULL:
 			case SHT_NOTE:
@@ -4044,7 +4047,7 @@ int insmod_main( int argc, char **argv)
 				module_dir = tmdn;
 			else
 				module_dir = real_module_dir;
-			recursive_action(module_dir, TRUE, FALSE, FALSE,
+			recursive_action(module_dir, ACTION_RECURSE,
 					check_module_name_match, 0, m_fullName, 0);
 			free(tmdn);
 		}
@@ -4059,7 +4062,7 @@ int insmod_main( int argc, char **argv)
 				strcpy(module_dir, _PATH_MODULES);
 			/* No module found under /lib/modules/`uname -r`, this
 			 * time cast the net a bit wider.  Search /lib/modules/ */
-			if (!recursive_action(module_dir, TRUE, FALSE, FALSE,
+			if (!recursive_action(module_dir, ACTION_RECURSE,
 						    check_module_name_match, 0, m_fullName, 0)
 			) {
 				if (m_filename == 0
@@ -4215,17 +4218,17 @@ int insmod_main( int argc, char **argv)
 		goto out;
 	}
 
-	if(flag_print_load_map)
+	if (flag_print_load_map)
 		print_load_map(f);
 
 	exit_status = EXIT_SUCCESS;
 
 out:
 #if ENABLE_FEATURE_CLEAN_UP
-	if(fp)
+	if (fp)
 		fclose(fp);
 	free(tmp1);
-	if(!tmp1)
+	if (!tmp1)
 		free(m_name);
 	free(m_filename);
 #endif

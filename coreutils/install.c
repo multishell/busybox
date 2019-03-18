@@ -9,10 +9,11 @@
  *           owner/group, will probably modify bb_make_directory(...)
  */
 
-#include "busybox.h"
-#include "libcoreutils/coreutils.h"
 #include <libgen.h>
 #include <getopt.h> /* struct option */
+
+#include "libbb.h"
+#include "libcoreutils/coreutils.h"
 
 #if ENABLE_FEATURE_INSTALL_LONG_OPTIONS
 static const struct option install_long_options[] = {
@@ -35,7 +36,8 @@ static const struct option install_long_options[] = {
 #if ENABLE_SELINUX
 static bool use_default_selinux_context = 1;
 
-static void setdefaultfilecon(const char *path) {
+static void setdefaultfilecon(const char *path)
+{
 	struct stat s;
 	security_context_t scontext = NULL;
 

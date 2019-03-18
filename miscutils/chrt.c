@@ -6,10 +6,9 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include "busybox.h"
-#include <unistd.h>
 #include <sched.h>
 #include <getopt.h> /* optind */
+#include "libbb.h"
 #ifndef _POSIX_PRIORITY_SCHEDULING
 #warning your system may be foobared
 #endif
@@ -22,7 +21,8 @@ static const struct {
 	{SCHED_RR, "SCHED_RR"}
 };
 
-static void show_min_max(int pol) {
+static void show_min_max(int pol)
+{
 	const char *fmt = "%s min/max priority\t: %d/%d\n\0%s not supported?\n";
 	int max, min;
 	max = sched_get_priority_max(pol);

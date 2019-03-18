@@ -17,7 +17,10 @@
  *
  */
 
-#include "busybox.h"
+#include "libbb.h"
+
+/* This is a NOEXEC applet. Be very careful! */
+
 
 /* COMPAT:  SYSV version defaults size (and has a max value of) to 470.
    We try to make it as large as possible. */
@@ -30,17 +33,17 @@
 
 
 #ifdef TEST
-# ifndef CONFIG_FEATURE_XARGS_SUPPORT_CONFIRMATION
-#  define CONFIG_FEATURE_XARGS_SUPPORT_CONFIRMATION
+# ifndef ENABLE_FEATURE_XARGS_SUPPORT_CONFIRMATION
+#  define ENABLE_FEATURE_XARGS_SUPPORT_CONFIRMATION 1
 # endif
-# ifndef CONFIG_FEATURE_XARGS_SUPPORT_QUOTES
-#  define CONFIG_FEATURE_XARGS_SUPPORT_QUOTES
+# ifndef ENABLE_FEATURE_XARGS_SUPPORT_QUOTES
+#  define ENABLE_FEATURE_XARGS_SUPPORT_QUOTES 1
 # endif
-# ifndef CONFIG_FEATURE_XARGS_SUPPORT_TERMOPT
-#  define CONFIG_FEATURE_XARGS_SUPPORT_TERMOPT
+# ifndef ENABLE_FEATURE_XARGS_SUPPORT_TERMOPT
+#  define ENABLE_FEATURE_XARGS_SUPPORT_TERMOPT 1
 # endif
-# ifndef CONFIG_FEATURE_XARGS_SUPPORT_ZERO_TERM
-#  define CONFIG_FEATURE_XARGS_SUPPORT_ZERO_TERM
+# ifndef ENABLE_FEATURE_XARGS_SUPPORT_ZERO_TERM
+#  define ENABLE_FEATURE_XARGS_SUPPORT_ZERO_TERM 1
 # endif
 #endif
 
@@ -48,66 +51,51 @@
    This function has special algorithm.
    Don't use fork and include to main!
 */
-static int xargs_exec(char *const *args)
+static int xargs_exec(char **args)
 {
-	pid_t p;
-	volatile int exec_errno = 0;    /* shared vfork stack */
 	int status;
 
-	p = vfork();
-	if (p < 0)
-		bb_perror_msg_and_die("vfork");
-
-	if (p == 0) {
-		/* vfork -- child */
-		BB_EXECVP(args[0], args);
-		exec_errno = errno;     /* set error to shared stack */
-		_exit(1);
-	}
-
-	/* vfork -- parent */
-	while (wait(&status) == (pid_t) -1)
-		if (errno != EINTR)
-			break;
-	if (exec_errno) {
-		errno = exec_errno;
+	status = spawn_and_wait(args);
+	if (status < 0) {
 		bb_perror_msg("%s", args[0]);
-		return exec_errno == ENOENT ? 127 : 126;
+		return errno == ENOENT ? 127 : 126;
 	}
-	if (WEXITSTATUS(status) == 255) {
+	if (status == 255) {
 		bb_error_msg("%s: exited with status 255; aborting", args[0]);
 		return 124;
 	}
+/* Huh? I think we won't see this, ever. We don't wait with WUNTRACED!
 	if (WIFSTOPPED(status)) {
 		bb_error_msg("%s: stopped by signal %d",
 			args[0], WSTOPSIG(status));
 		return 125;
 	}
-	if (WIFSIGNALED(status)) {
+*/
+	if (status >= 1000) {
 		bb_error_msg("%s: terminated by signal %d",
-			args[0], WTERMSIG(status));
+			args[0], status - 1000);
 		return 125;
 	}
-	if (WEXITSTATUS(status))
+	if (status)
 		return 123;
 	return 0;
 }
 
 
-typedef struct xlist_s {
-	char *data;
-	size_t lenght;
-	struct xlist_s *link;
+typedef struct xlist_t {
+	struct xlist_t *link;
+	size_t length;
+	char xstr[1];
 } xlist_t;
 
-static int eof_stdin_detected;
+static smallint eof_stdin_detected;
 
 #define ISBLANK(c) ((c) == ' ' || (c) == '\t')
 #define ISSPACE(c) (ISBLANK(c) || (c) == '\n' || (c) == '\r' \
 		    || (c) == '\f' || (c) == '\v')
 
-#ifdef CONFIG_FEATURE_XARGS_SUPPORT_QUOTES
-static xlist_t *process_stdin(xlist_t * list_arg,
+#if ENABLE_FEATURE_XARGS_SUPPORT_QUOTES
+static xlist_t *process_stdin(xlist_t *list_arg,
 	const char *eof_str, size_t mc, char *buf)
 {
 #define NORM      0
@@ -117,7 +105,7 @@ static xlist_t *process_stdin(xlist_t * list_arg,
 
 	char *s = NULL;         /* start word */
 	char *p = NULL;         /* pointer to end word */
-	char q = 0;             /* quote char */
+	char q = '\0';          /* quote char */
 	char state = NORM;
 	char eof_str_detected = 0;
 	size_t line_l = 0;      /* size loaded args line */
@@ -125,16 +113,18 @@ static xlist_t *process_stdin(xlist_t * list_arg,
 	xlist_t *cur;
 	xlist_t *prev;
 
-	for (prev = cur = list_arg; cur; cur = cur->link) {
-		line_l += cur->lenght;  /* previous allocated */
-		if (prev != cur)
-			prev = prev->link;
+	prev = cur = list_arg;
+	while (1) {
+		if (!cur) break;
+		prev = cur;
+		line_l += cur->length;
+		cur = cur->link;
 	}
 
 	while (!eof_stdin_detected) {
 		c = getchar();
 		if (c == EOF) {
-			eof_stdin_detected++;
+			eof_stdin_detected = 1;
 			if (s)
 				goto unexpected_eof;
 			break;
@@ -145,19 +135,16 @@ static xlist_t *process_stdin(xlist_t * list_arg,
 			state = NORM;
 			goto set;
 		} else if (state == QUOTE) {
-			if (c == q) {
-				q = 0;
-				state = NORM;
-			} else {
+			if (c != q)
 				goto set;
-			}
-		} else { /* if(state == NORM) */
-
+			q = '\0';
+			state = NORM;
+		} else { /* if (state == NORM) */
 			if (ISSPACE(c)) {
 				if (s) {
-unexpected_eof:
+ unexpected_eof:
 					state = SPACE;
-					c = 0;
+					c = '\0';
 					goto set;
 				}
 			} else {
@@ -169,7 +156,7 @@ unexpected_eof:
 					q = c;
 					state = QUOTE;
 				} else {
-set:
+ set:
 					if ((size_t)(p - buf) >= mc)
 						bb_error_msg_and_die("argument line too long");
 					*p++ = c;
@@ -183,22 +170,22 @@ set:
 			}
 			/* word loaded */
 			if (eof_str) {
-				eof_str_detected = strcmp(s, eof_str) == 0;
+				eof_str_detected = (strcmp(s, eof_str) == 0);
 			}
 			if (!eof_str_detected) {
-				size_t lenght = (p - buf);
-
-				cur = xmalloc(sizeof(xlist_t) + lenght);
-				cur->data = memcpy(cur + 1, s, lenght);
-				cur->lenght = lenght;
+				size_t length = (p - buf);
+				/* Dont xzalloc - it can be quite big */
+				cur = xmalloc(offsetof(xlist_t, xstr) + length);
 				cur->link = NULL;
+				cur->length = length;
+				memcpy(cur->xstr, s, length);
 				if (prev == NULL) {
 					list_arg = cur;
 				} else {
 					prev->link = cur;
 				}
 				prev = cur;
-				line_l += lenght;
+				line_l += length;
 				if (line_l > mc) {
 					/* stop memory usage :-) */
 					break;
@@ -212,28 +199,30 @@ set:
 }
 #else
 /* The variant does not support single quotes, double quotes or backslash */
-static xlist_t *process_stdin(xlist_t * list_arg,
-	const char *eof_str, size_t mc, char *buf)
+static xlist_t *process_stdin(xlist_t *list_arg,
+		const char *eof_str, size_t mc, char *buf)
 {
 
 	int c;                  /* current char */
-	int eof_str_detected = 0;
+	char eof_str_detected = 0;
 	char *s = NULL;         /* start word */
 	char *p = NULL;         /* pointer to end word */
 	size_t line_l = 0;      /* size loaded args line */
 	xlist_t *cur;
 	xlist_t *prev;
 
-	for (prev = cur = list_arg; cur; cur = cur->link) {
-		line_l += cur->lenght;  /* previous allocated */
-		if (prev != cur)
-			prev = prev->link;
+	prev = cur = list_arg;
+	while (1) {
+		if (!cur) break;
+		prev = cur;
+		line_l += cur->length;
+		cur = cur->link;
 	}
 
 	while (!eof_stdin_detected) {
 		c = getchar();
 		if (c == EOF) {
-			eof_stdin_detected++;
+			eof_stdin_detected = 1;
 		}
 		if (eof_str_detected)
 			continue;
@@ -246,26 +235,26 @@ static xlist_t *process_stdin(xlist_t * list_arg,
 			s = p = buf;
 		if ((p - buf) >= mc)
 			bb_error_msg_and_die("argument line too long");
-		*p++ = c == EOF ? 0 : c;
+		*p++ = (c == EOF ? '\0' : c);
 		if (c == EOF) { /* word's delimiter or EOF detected */
 			/* word loaded */
 			if (eof_str) {
-				eof_str_detected = strcmp(s, eof_str) == 0;
+				eof_str_detected = (strcmp(s, eof_str) == 0);
 			}
 			if (!eof_str_detected) {
-				size_t lenght = (p - buf);
-
-				cur = xmalloc(sizeof(xlist_t) + lenght);
-				cur->data = memcpy(cur + 1, s, lenght);
-				cur->lenght = lenght;
+				size_t length = (p - buf);
+				/* Dont xzalloc - it can be quite big */
+				cur = xmalloc(offsetof(xlist_t, xstr) + length);
 				cur->link = NULL;
+				cur->length = length;
+				memcpy(cur->xstr, s, length);
 				if (prev == NULL) {
 					list_arg = cur;
 				} else {
 					prev->link = cur;
 				}
 				prev = cur;
-				line_l += lenght;
+				line_l += length;
 				if (line_l > mc) {
 					/* stop memory usage :-) */
 					break;
@@ -276,39 +265,34 @@ static xlist_t *process_stdin(xlist_t * list_arg,
 	}
 	return list_arg;
 }
-#endif /* CONFIG_FEATURE_XARGS_SUPPORT_QUOTES */
+#endif /* FEATURE_XARGS_SUPPORT_QUOTES */
 
 
-#ifdef CONFIG_FEATURE_XARGS_SUPPORT_CONFIRMATION
+#if ENABLE_FEATURE_XARGS_SUPPORT_CONFIRMATION
 /* Prompt the user for a response, and
    if the user responds affirmatively, return true;
-   otherwise, return false. Used "/dev/tty", not stdin. */
+   otherwise, return false. Uses "/dev/tty", not stdin. */
 static int xargs_ask_confirmation(void)
 {
-	static FILE *tty_stream;
+	FILE *tty_stream;
 	int c, savec;
 
-	if (!tty_stream) {
-		tty_stream = xfopen(CURRENT_TTY, "r");
-		/* pranoidal security by vodz */
-		fcntl(fileno(tty_stream), F_SETFD, FD_CLOEXEC);
-	}
+	tty_stream = xfopen(CURRENT_TTY, "r");
 	fputs(" ?...", stderr);
 	fflush(stderr);
 	c = savec = getc(tty_stream);
 	while (c != EOF && c != '\n')
 		c = getc(tty_stream);
-	if (savec == 'y' || savec == 'Y')
-		return 1;
-	return 0;
+	fclose(tty_stream);
+	return (savec == 'y' || savec == 'Y');
 }
 #else
 # define xargs_ask_confirmation() 1
-#endif /* CONFIG_FEATURE_XARGS_SUPPORT_CONFIRMATION */
+#endif /* FEATURE_XARGS_SUPPORT_CONFIRMATION */
 
-#ifdef CONFIG_FEATURE_XARGS_SUPPORT_ZERO_TERM
-static xlist_t *process0_stdin(xlist_t * list_arg, const char *eof_str ATTRIBUTE_UNUSED,
-							   size_t mc, char *buf)
+#if ENABLE_FEATURE_XARGS_SUPPORT_ZERO_TERM
+static xlist_t *process0_stdin(xlist_t *list_arg,
+		const char *eof_str ATTRIBUTE_UNUSED, size_t mc, char *buf)
 {
 	int c;                  /* current char */
 	char *s = NULL;         /* start word */
@@ -317,40 +301,42 @@ static xlist_t *process0_stdin(xlist_t * list_arg, const char *eof_str ATTRIBUTE
 	xlist_t *cur;
 	xlist_t *prev;
 
-	for (prev = cur = list_arg; cur; cur = cur->link) {
-		line_l += cur->lenght;  /* previous allocated */
-		if (prev != cur)
-			prev = prev->link;
+	prev = cur = list_arg;
+	while (1) {
+		if (!cur) break;
+		prev = cur;
+		line_l += cur->length;
+		cur = cur->link;
 	}
 
 	while (!eof_stdin_detected) {
 		c = getchar();
 		if (c == EOF) {
-			eof_stdin_detected++;
+			eof_stdin_detected = 1;
 			if (s == NULL)
 				break;
-			c = 0;
+			c = '\0';
 		}
 		if (s == NULL)
 			s = p = buf;
 		if ((size_t)(p - buf) >= mc)
 			bb_error_msg_and_die("argument line too long");
 		*p++ = c;
-		if (c == 0) {   /* word's delimiter or EOF detected */
+		if (c == '\0') {   /* word's delimiter or EOF detected */
 			/* word loaded */
-			size_t lenght = (p - buf);
-
-			cur = xmalloc(sizeof(xlist_t) + lenght);
-			cur->data = memcpy(cur + 1, s, lenght);
-			cur->lenght = lenght;
+			size_t length = (p - buf);
+			/* Dont xzalloc - it can be quite big */
+			cur = xmalloc(offsetof(xlist_t, xstr) + length);
 			cur->link = NULL;
+			cur->length = length;
+			memcpy(cur->xstr, s, length);
 			if (prev == NULL) {
 				list_arg = cur;
 			} else {
 				prev->link = cur;
 			}
 			prev = cur;
-			line_l += lenght;
+			line_l += length;
 			if (line_l > mc) {
 				/* stop memory usage :-) */
 				break;
@@ -360,7 +346,7 @@ static xlist_t *process0_stdin(xlist_t * list_arg, const char *eof_str ATTRIBUTE
 	}
 	return list_arg;
 }
-#endif /* CONFIG_FEATURE_XARGS_SUPPORT_ZERO_TERM */
+#endif /* FEATURE_XARGS_SUPPORT_ZERO_TERM */
 
 /* Correct regardless of combination of CONFIG_xxx */
 enum {
@@ -413,8 +399,8 @@ int xargs_main(int argc, char **argv)
 	if (opt & OPT_ZEROTERM)
 		USE_FEATURE_XARGS_SUPPORT_ZERO_TERM(read_args = process0_stdin);
 
-	argc -= optind;
 	argv += optind;
+	argc -= optind;
 	if (!argc) {
 		/* default behavior is to echo all the filenames */
 		*argv = (char*)"echo";
@@ -458,9 +444,9 @@ int xargs_main(int argc, char **argv)
 		opt |= OPT_NO_EMPTY;
 		n = 0;
 		n_chars = 0;
-#ifdef CONFIG_FEATURE_XARGS_SUPPORT_TERMOPT
+#if ENABLE_FEATURE_XARGS_SUPPORT_TERMOPT
 		for (cur = list; cur;) {
-			n_chars += cur->lenght;
+			n_chars += cur->length;
 			n++;
 			cur = cur->link;
 			if (n_chars > n_max_chars || (n == n_max_arg && cur)) {
@@ -471,13 +457,13 @@ int xargs_main(int argc, char **argv)
 		}
 #else
 		for (cur = list; cur; cur = cur->link) {
-			n_chars += cur->lenght;
+			n_chars += cur->length;
 			n++;
 			if (n_chars > n_max_chars || n == n_max_arg) {
 				break;
 			}
 		}
-#endif /* CONFIG_FEATURE_XARGS_SUPPORT_TERMOPT */
+#endif /* FEATURE_XARGS_SUPPORT_TERMOPT */
 
 		/* allocate pointers for execvp:
 		   argc*arg, n*arg from stdin, NULL */
@@ -489,7 +475,7 @@ int xargs_main(int argc, char **argv)
 			args[i] = argv[i];
 		/* (taken from stdin) */
 		for (cur = list; n; cur = cur->link) {
-			args[i++] = cur->data;
+			args[i++] = cur->xstr;
 			n--;
 		}
 
@@ -517,7 +503,8 @@ int xargs_main(int argc, char **argv)
 			break;
 		}
 	}
-	if (ENABLE_FEATURE_CLEAN_UP) free(max_chars);
+	if (ENABLE_FEATURE_CLEAN_UP)
+		free(max_chars);
 	return child_error;
 }
 

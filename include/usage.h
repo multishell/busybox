@@ -12,9 +12,9 @@
 #define __BB_USAGE_H__
 
 #define addgroup_trivial_usage \
-       "[-g GID] group_name [user_name]"
+       "[-g GID]"USE_FEATURE_ADDUSER_TO_GROUP(" [user_name]")" group_name"
 #define addgroup_full_usage \
-       "Add a group to the system" \
+       "Add a group to the system"USE_FEATURE_ADDUSER_TO_GROUP(" or add an user to a group") \
        "\n\nOptions:\n" \
        "	-g GID	Specify gid"
 
@@ -37,7 +37,7 @@
        "Read and optionally set system timebase parameters.\n" \
        "See adjtimex(2)." \
        "\n\nOptions:\n" \
-       "	-q		Quiet mode - do not print\n" \
+       "	-q		Quiet\n" \
        "	-o offset	Time offset, microseconds\n" \
        "	-f frequency	Frequency adjust, integer kernel units (65536 is 1ppm)\n" \
        "			(positive values make the system clock run fast)\n" \
@@ -53,7 +53,7 @@
        "	-p	Extract to stdout\n" \
        "	-t	List\n" \
        "	-x	Extract\n" \
-       "	-v	Verbosely list files processed"
+       "	-v	Verbose"
 
 #define arp_trivial_usage \
        "\n" \
@@ -81,7 +81,7 @@
        "Ping hosts by ARP requests/replies" \
        "\n\nOptions:\n" \
        "	-f		Quit on first ARP reply\n" \
-       "	-q		Be quiet\n" \
+       "	-q		Quiet\n" \
        "	-b		Keep broadcasting, don't go unicast\n" \
        "	-D		Duplicated address detection mode\n" \
        "	-U		Unsolicited ARP mode, update your neighbours\n" \
@@ -383,7 +383,7 @@
        "\n\nOptions:\n" \
        "	-l	Write the byte numbers (decimal) and values (octal)\n" \
        "		for all differing bytes\n" \
-       "	-s	Quiet mode - do not print"
+       "	-s	Quiet"
 
 #define comm_trivial_usage \
        "[-123] FILE1 FILE2"
@@ -474,6 +474,13 @@
        "	-d [user]    delete crontab for user\n" \
        "	-c dir       specify crontab directory"
 
+#define cryptpw_trivial_usage \
+       "[-a des|md5] [string]"
+#define cryptpw_full_usage \
+       "Outputs crypted string.\n" \
+       "If string isn't supplied on cmdline, reads it from stdin.\n" \
+       "\nOptions:" \
+       "\n	-a	Algorithm to use (default: md5)"
 
 #define cut_trivial_usage \
        "[OPTION]... [FILE]..."
@@ -571,9 +578,10 @@
        "Deallocate unused virtual terminal /dev/ttyN"
 
 #define delgroup_trivial_usage \
-       "GROUP"
+	USE_FEATURE_DEL_USER_FROM_GROUP("[USER] ")"GROUP"
 #define delgroup_full_usage \
-       "Delete group GROUP from the system"
+       "Delete group GROUP from the system" \
+	USE_FEATURE_DEL_USER_FROM_GROUP(" or user USER from group GROUP")
 
 #define deluser_trivial_usage \
        "USER"
@@ -673,7 +681,7 @@
        "	-c	Config filename\n" \
        "	-t	TTL in seconds\n" \
        "	-p	Listening port\n" \
-       "	-i	Listening iface ip (default all)\n" \
+       "	-i	Listening ip (default all)\n" \
        "	-d	Daemonize"
 
 #define dos2unix_trivial_usage \
@@ -777,7 +785,7 @@
        "	-y		Assume 'yes' to all questions\n" \
        "	-c		Check for bad blocks and add them to the badblock list\n" \
        "	-f		Force checking even if filesystem is marked clean\n" \
-       "	-v		Be verbose\n" \
+       "	-v		Verbose\n" \
        "	-b superblock	Use alternative superblock\n" \
        "	-B blocksize	Force blocksize when looking for superblock\n" \
        "	-j journal	Set location of the external journal\n" \
@@ -958,10 +966,22 @@
 	) USE_FEATURE_FIND_EXEC( \
        "\n	-exec CMD	Execute CMD with all instances of {} replaced by the" \
        "\n			files matching EXPRESSION" \
-	) USE_DESKTOP( \
+	) USE_FEATURE_FIND_USER( \
+       "\n	-user NAME	File is owned by user NAME (numeric user ID allowed)" \
+	) USE_FEATURE_FIND_GROUP( \
+       "\n	-group NAME	File belongs to group NAME (numeric group ID allowed)" \
+       ) USE_FEATURE_FIND_DEPTH( \
+       "\n	-depth		Process directory after traversing it" \
+	) USE_FEATURE_FIND_SIZE( \
        "\n	-size N		File size is N" \
+	) USE_FEATURE_FIND_PRUNE( \
        "\n	-prune		Stop traversing current subtree" \
-       "\n	(expr)		Group" \
+	) USE_FEATURE_FIND_DELETE( \
+       "\n	-delete		Delete files; Turns on -depth option" \
+	) USE_FEATURE_FIND_PATH( \
+       "\n	-path		Path matches PATTERN" \
+	) USE_FEATURE_FIND_PAREN( \
+       "\n	(EXPR)		Group an expression" \
 	)
 
 #define find_example_usage \
@@ -1131,7 +1151,7 @@
        "\n	-l	List names of files that match" \
        "\n	-L	List names of files that do not match" \
        "\n	-n	Print line number with output lines" \
-       "\n	-q	Be quiet. Returns 0 if PATTERN was found, 1 otherwise" \
+       "\n	-q	Quiet. Returns 0 if PATTERN was found, 1 otherwise" \
        "\n	-v	Select non-matching lines" \
        "\n	-s	Suppress file open/read error messages" \
        "\n	-c	Only print count of matching lines" \
@@ -1548,8 +1568,8 @@
        "\n\nOptions:\n" \
        "	-f	Force module to load into the wrong kernel version\n" \
        "	-k	Make module autoclean-able\n" \
-       "	-v	Verbose output\n"  \
-       "	-q	Quiet output\n" \
+       "	-v	Verbose\n"  \
+       "	-q	Quiet\n" \
        "	-L	Lock to prevent simultaneous loads of a module\n" \
 	USE_FEATURE_INSMOD_LOAD_MAP( \
        "	-m	Output load map to stdout\n") \
@@ -1571,12 +1591,24 @@
 	USE_SELINUX( \
        "\n	-Z	Set security context of copy" \
 	)
-
+/* would need to make the " | " optional depending on more than one selected */
 #define ip_trivial_usage \
-       "[OPTIONS] {address | link | route | tunnel | rule} {COMMAND}"
+       "[OPTIONS] {" \
+	USE_FEATURE_IP_ADDRESS("address | ") \
+	USE_FEATURE_IP_ROUTE("route | ") \
+	USE_FEATURE_IP_LINK("link | ") \
+	USE_FEATURE_IP_TUNNEL("tunnel | ") \
+	USE_FEATURE_IP_RULE("rule") \
+	"} {COMMAND}"
 #define ip_full_usage \
        "ip [OPTIONS] OBJECT {COMMAND}\n" \
-       "where  OBJECT := {link | addr | route | tunnel |rule}\n" \
+       "where  OBJECT := {" \
+	USE_FEATURE_IP_ADDRESS("address | ") \
+	USE_FEATURE_IP_ROUTE("route | ") \
+	USE_FEATURE_IP_LINK("link | ") \
+	USE_FEATURE_IP_TUNNEL("tunnel | ") \
+	USE_FEATURE_IP_RULE("rule") \
+	"}\n" \
        "OPTIONS := { -f[amily] { inet | inet6 | link } | -o[neline] }"
 
 #define ipaddr_trivial_usage \
@@ -1757,6 +1789,10 @@
        "$ ln -s BusyBox /tmp/ls\n" \
        "$ ls -l /tmp/ls\n" \
        "lrwxrwxrwx    1 root     root            7 Apr 12 18:39 ls -> BusyBox*\n"
+
+#define load_policy_trivial_usage \
+       "[FILE]"
+#define load_policy_full_usage
 
 #define loadfont_trivial_usage \
        "< font"
@@ -2065,11 +2101,11 @@
        "	-N num		Number of inodes to create\n" \
        "	-o os		Set the 'creator os' field\n" \
        "	-O features	Dir_index/filetype/has_journal/journal_dev/sparse_super\n" \
-       "	-q		Quiet execution\n" \
+       "	-q		Quiet\n" \
        "	-r rev		Set filesystem revision\n" \
        "	-S		Write superblock and group descriptors only\n" \
        "	-T fs-type	Set usage type (news/largefile/largefile4)\n" \
-       "	-v		Verbose execution"
+       "	-v		Verbose"
 
 #define mkfifo_trivial_usage \
        "[OPTIONS] name"
@@ -2140,10 +2176,10 @@
        "Options:\n" \
        "	-k	Make module autoclean-able\n" \
        "	-n	Just show what would be done\n" \
-       "	-q	Quiet output\n" \
+       "	-q	Quiet\n" \
        "	-r	Remove module (stacks) or do autoclean\n" \
        "	-s	Report via syslog instead of stderr\n" \
-       "	-v	Verbose output"
+       "	-v	Verbose"
 #define modprobe_notes_usage \
 "modprobe can (un)load a stack of modules, passing each module options (when\n" \
 "loading). modprobe uses a configuration file to determine what option(s) to\n" \
@@ -2265,7 +2301,7 @@
 #define mountpoint_full_usage \
        "mountpoint checks if the directory is a mountpoint" \
        "\n\nOptions:\n"  \
-       "	-q	Be more quiet\n" \
+       "	-q	Quiet\n" \
        "	-d	Print major/minor device number of the filesystem\n" \
        "	-x	Print major/minor device number of the blockdevice"
 #define mountpoint_example_usage \
@@ -2307,6 +2343,8 @@
        "$ nameif -s dmz0 00:A0:C9:8C:F6:3F\n" \
        " or\n" \
        "$ nameif -c /etc/my_mactab_file\n" \
+
+#if !ENABLE_DESKTOP
 
 #if ENABLE_NC_SERVER || ENABLE_NC_EXTRA
 #define NC_OPTIONS_STR "\n\nOptions:"
@@ -2350,20 +2388,51 @@
        "quit\n" \
        "221 foobar closing connection\n"
 
+#else /* DESKTOP nc - much more compatible with nc 1.10 */
+
+#define nc_trivial_usage \
+	"[-options] hostname port  - connect" \
+	USE_NC_SERVER("\nnc [-options] -l -p port [hostname] [port]  - listen")
+#define nc_full_usage \
+	USE_NC_SERVER( \
+       "-l		Listen mode, for inbound connects\n" \
+	) \
+       "-n		Do not do DNS resolution" \
+     "\n-s addr		Local address" \
+     "\n-p port		Local port" \
+     "\n-u		UDP mode" \
+     "\n-v		Verbose (cumulative: -vv)" \
+     "\n-w secs		Timeout for connects and final net reads" \
+	USE_NC_EXTRA( \
+     "\n-i sec		Delay interval for lines sent" /* ", ports scanned" */ \
+     "\n-o file		Hex dump of traffic" \
+     "\n-z		Zero-I/O mode (scanning)" \
+	) \
+     "\n-e prog [args]	Program to exec after connect (must be last)" \
+/*   "\n-r		Randomize local and remote ports" */
+/*   "\n-g gateway	Source-routing hop point[s], up to 8" */
+/*   "\n-G num		Source-routing pointer: 4, 8, 12, ..." */
+/*   "\nport numbers can be individual or ranges: lo-hi [inclusive]" */
+
+#endif
+
 #define netstat_trivial_usage \
-       "[-laenrtuwx]"
+       "[-laentuwxr"USE_FEATURE_NETSTAT_WIDE("W")"]"
 #define netstat_full_usage \
        "Display networking information" \
-       "\n\nOptions:\n" \
-       "	-l	Display listening server sockets\n" \
-       "	-a	Display all sockets (default: connected)\n" \
-       "	-e	Display other/more information\n" \
-       "	-n	Don't resolve names\n" \
-       "	-r	Display routing table\n" \
-       "	-t	Tcp sockets\n" \
-       "	-u	Udp sockets\n" \
-       "	-w	Raw sockets\n" \
-       "	-x	Unix sockets"
+     "\n\nOptions:" \
+     "\n	-l	Display listening server sockets" \
+     "\n	-a	Display all sockets (default: connected)" \
+     "\n	-e	Display other/more information" \
+     "\n	-n	Don't resolve names" \
+     "\n	-t	Tcp sockets" \
+     "\n	-u	Udp sockets" \
+     "\n	-w	Raw sockets" \
+     "\n	-x	Unix sockets" \
+     "\n	-r	Display routing table" \
+	USE_FEATURE_NETSTAT_WIDE( \
+     "\n	-W	Display with no column truncation" \
+	)
 
 #define nice_trivial_usage \
        "[-n ADJUST] [COMMAND [ARG] ...]"
@@ -2496,7 +2565,7 @@
        "	-c CNT		Send only CNT pings\n" \
        "	-s SIZE		Send SIZE data bytes in packets (default=56)\n" \
        "	-I iface/IP	Use interface or IP address as source\n" \
-       "	-q		Quiet mode, only displays output at start\n" \
+       "	-q		Quiet, only displays output at start\n" \
        "			and when finished"
 #define ping6_trivial_usage \
        "[OPTION]... host"
@@ -2506,7 +2575,7 @@
        "	-c CNT		Send only CNT pings\n" \
        "	-s SIZE		Send SIZE data bytes in packets (default=56)\n" \
        "	-I iface/IP	Use interface or IP address as source\n" \
-       "	-q		Quiet mode, only displays output at start\n" \
+       "	-q		Quiet, only displays output at start\n" \
        "			and when finished"
 #endif
 #define ping_example_usage \
@@ -2645,7 +2714,7 @@
        "	-p <profile>	(Default: /proc/profile)\n" \
        "	-M <mult>	Set the profiling multiplier to <mult>\n" \
        "	-i		Print only info about the sampling step\n" \
-       "	-v		Print verbose data\n" \
+       "	-v		Verbose\n" \
        "	-a		Print all symbols, even if count is 0\n" \
        "	-b		Print individual histogram-bin counts\n" \
        "	-s		Print individual counters within functions\n" \
@@ -2756,13 +2825,28 @@
        "	-l, --range=RNG	Levelrange" \
 
 #define run_parts_trivial_usage \
-       "[-t] [-a ARG] [-u MASK] DIRECTORY"
+       "[-t] "USE_FEATURE_RUN_PARTS_FANCY("[-l] ")"[-a ARG] [-u MASK] DIRECTORY"
 #define run_parts_full_usage \
        "Run a bunch of scripts in a directory" \
        "\n\nOptions:\n" \
        "	-t	Prints what would be run, but does not actually run anything\n" \
        "	-a ARG	Pass ARG as an argument for every program invoked\n" \
-       "	-u MASK	Set the umask to MASK before executing every program"
+       "	-u MASK	Set the umask to MASK before executing every program" \
+USE_FEATURE_RUN_PARTS_FANCY("\n	-l	Prints names of all matching files even when they are not executable")
+
+#define run_parts_example_usage \
+	"$ run-parts -a start /etc/init.d\n" \
+	"$ run-parts -a stop=now /etc/init.d\n\n" \
+	"Let's assume you have a script foo/dosomething:\n" \
+	"#!/bin/sh\n" \
+	"for i in $*; do eval $i; done ; unset i\n" \
+	"case \"$1\" in\n" \
+	"start*) echo starting something ;;\n" \
+	"stop*) set -x ; shutdown -h $stop ;;\n" \
+	"esac\n\n" \
+	"Running this yields:\n" \
+	"$run-parts -a stop=+4m foo/\n" \
+	"+ shutdown -h +4m"
 
 #define runlevel_trivial_usage \
        "[utmp]"
@@ -2948,6 +3032,17 @@
 	) \
        ""
 
+#define split_trivial_usage \
+	"[OPTION] [INPUT [PREFIX]]"
+#define split_full_usage \
+	"Options:" \
+	"\n	-b n[k|m] Split by bytes" \
+	"\n	-l n      Split by lines" \
+	"\n	-a n      Use n letters as suffix"
+#define split_example_usage \
+	"$ split TODO foo\n" \
+	"$ cat TODO | split -a 2 -l 2 TODO_\n"
+
 #define start_stop_daemon_trivial_usage \
        "[OPTIONS] [--start|--stop] ... [-- arguments...]"
 #define start_stop_daemon_full_usage \
@@ -2962,10 +3057,10 @@
        "\n	-m|--make-pidfile		Create the -p file and enter pid in it" \
        "\n	-n|--name <process-name>	Stop processes with this name" \
        "\n	-p|--pidfile <pid-file>		Save or load pid using a pid-file" \
-       "\n	-q|--quiet			Be quiet" \
+       "\n	-q|--quiet			Quiet" \
 	USE_FEATURE_START_STOP_DAEMON_FANCY( \
        "\n	-o|--oknodo			Exit status 0 if nothing done" \
-       "\n	-v|--verbose			Be verbose" \
+       "\n	-v|--verbose			Verbose" \
        "\n	-N|--nicelevel <N>		Add N to process's nice level" \
 	) \
        "\n	-s|--signal <signal>		Signal to send (default TERM)" \
@@ -3024,7 +3119,7 @@
        " %i	File System ID in hex\n" \
        " %l	Maximum length of filenames\n" \
        " %n	File name\n" \
-       " %s	Block size (for faster transfers)\n" \
+       " %s	Block size (for faster transfer)\n" \
        " %S	Fundamental block size (for block counts)\n" \
        " %t	Type in hex\n" \
        " %T	Type in human readable form" \
@@ -3208,7 +3303,7 @@
        "	exclude	File to exclude\n" \
        "	X	File with names to exclude\n") \
        "	C	Change to directory DIR before operation\n" \
-       "	v	Verbosely list files processed"
+       "	v	Verbose"
 #define tar_example_usage \
        "$ zcat /tmp/tarball.tar.gz | tar -xf -\n" \
        "$ tar -cf /tmp/tarball.tar /usr/local\n"
@@ -3295,6 +3390,45 @@
        "$ echo $?\n" \
        "1\n"
 
+#define tcpsvd_trivial_usage \
+       "[-hEv] [-c n] [-C n:msg] [-b n] [-u user] [-l name] ip port prog..."
+/* with not-implemented options: */
+/*     "[-hpEvv] [-c n] [-C n:msg] [-b n] [-u user] [-l name] [-i dir|-x cdb] [ -t sec] ip port prog..." */
+#define tcpsvd_full_usage \
+       "Creates TCP socket, binds it to ip:port and listens on it\n" \
+       "for incoming connections. For each connection it runs prog." \
+     "\n" \
+     "\nip		IP to listen on. '0' = all" \
+     "\nport		Port to listen on" \
+     "\nprog [arg]	Program to run" \
+     "\n-l name		Local hostname (else looks up local hostname in DNS)" \
+     "\n-u user[:group]	Change to user/group after bind" \
+     "\n-c n		Handle up to n connections simultaneously" \
+     "\n-b n		Allow a backlog of approximately n TCP SYNs" \
+     "\n-C n[:msg]	Allow only up to n connections from the same IP" \
+     "\n		New connections from this IP address are closed" \
+     "\n		immediately. 'msg' is written to the peer before close" \
+     "\n-h		Look up peer's hostname" \
+     "\n-E		Do not set up environment variables" \
+     "\n-v		Verbose"
+
+#define udpsvd_trivial_usage \
+       "[-hEv] [-c n] [-u user] [-l name] ip port prog"
+#define udpsvd_full_usage \
+       "Creates UDP socket, binds it to ip:port and listens on it\n" \
+       "for incoming packets. For each packet it runs prog\n" \
+       "(redirecting all further packets with same peer ip:port to it)." \
+     "\n" \
+     "\nip		IP to listen on. '0' = all" \
+     "\nport		Port to listen on" \
+     "\nprog [arg]	Program to run" \
+     "\n-l name		Local hostname (else looks up local hostname in DNS)" \
+     "\n-u user[:group]	Change to user/group after bind" \
+     "\n-c n		Handle up to n connections simultaneously" \
+     "\n-h		Look up peer's hostname" \
+     "\n-E		Do not set up environment variables" \
+     "\n-v		Verbose"
+
 #define tftp_trivial_usage \
        "[OPTION]... HOST [PORT]"
 #define tftp_full_usage \
@@ -3317,7 +3451,7 @@
        "Run the program COMMAND with arguments ARGS.  When COMMAND finishes,\n" \
        "COMMAND's resource usage information is displayed." \
        "\n\nOptions:\n" \
-       "	-v	Display verbose resource usage information"
+       "	-v	Verbose"
 
 #define top_trivial_usage \
        "[-b] [-n count] [-d seconds]"
@@ -3365,18 +3499,16 @@
        "	-d	Set SO_DEBUG options to socket\n" \
        "	-n	Print hop addresses numerically rather than symbolically\n" \
        "	-r	Bypass the normal routing tables and send directly to a host\n" \
-       "	-v	Verbose output\n" \
-       "	-m max_ttl	Set the max time-to-live (max number of hops)\n" \
-       "	-p port#	Set the base UDP port number used in probes\n" \
+       "	-v	Verbose\n" \
+       "	-m max_ttl	Max time-to-live (max number of hops)\n" \
+       "	-p port#	Base UDP port number used in probes\n" \
        "			(default is 33434)\n" \
-       "	-q nqueries	Set the number of probes per 'ttl' to nqueries\n" \
-       "			(default is 3)\n" \
-       "	-s src_addr	Use the following IP address as the source address\n" \
-       "	-t tos		Set the type-of-service in probe packets to the following value\n" \
-       "			(default 0)\n" \
-       "	-w wait		Set the time (in seconds) to wait for a response to a probe\n" \
+       "	-q nqueries	Number of probes per 'ttl' (default 3)\n" \
+       "	-s src_addr	IP address to use as the source address\n" \
+       "	-t tos		Type-of-service in probe packets (default 0)\n" \
+       "	-w wait		Time in seconds to wait for a response to a probe\n" \
        "			(default 3 sec)\n" \
-       "	-g		Specify a loose source route gateway (8 maximum)"
+       "	-g		Specify a loose source route gateway (8 max)"
 
 
 #define true_trivial_usage \
@@ -3497,7 +3629,7 @@
 #define unix2dos_full_usage \
        "Convert FILE from unix format to dos format.  When no option\n" \
        "is given, the input is converted to the opposite output format.\n" \
-       "When no file is given, use stdin for input and stdout for output." \
+       "When no file is given, use stdin/stdout." \
        "\n\nOptions:\n" \
        "	-u	Output will be in UNIX format\n" \
        "	-d	Output will be in DOS format"
@@ -3511,7 +3643,7 @@
        "	-n	Never overwrite existing files (default)\n" \
        "	-o	Overwrite files without prompting\n" \
        "	-p	Send output to stdout\n" \
-       "	-q	Be quiet\n" \
+       "	-q	Quiet\n" \
        "	-x	Exclude these files\n" \
        "	-d	Extract files into this directory"
 
@@ -3617,14 +3749,15 @@
        "     31      46    1365 /etc/passwd\n"
 
 #define wget_trivial_usage \
-       "[-c|--continue] [-q|--quiet] [-O|--output-document file]\n" \
+       "[-c|--continue] [-s|--spider] [-q|--quiet] [-O|--output-document file]\n" \
        "		[--header 'header: value'] [-Y|--proxy on/off] [-P DIR]\n" \
        "		[-U|--user-agent agent] url"
 #define wget_full_usage \
        "Retrieve files via HTTP or FTP" \
        "\n\nOptions:\n" \
-       "	-c	Continue retrieval of aborted transfers\n" \
-       "	-q	Quiet mode - do not print\n" \
+       "	-s	Spider mode - only check file existence\n" \
+       "	-c	Continue retrieval of aborted transfer\n" \
+       "	-q	Quiet\n" \
        "	-P	Set directory prefix to DIR\n" \
        "	-O	Save to filename ('-' for stdout)\n" \
        "	-U	Adjust 'User-Agent' field\n" \

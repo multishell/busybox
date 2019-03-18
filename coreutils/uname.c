@@ -30,14 +30,8 @@
  * Now does proper error checking on i/o.  Plus some further space savings.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stddef.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
 #include <sys/utsname.h>
-#include "busybox.h"
+#include "libbb.h"
 
 typedef struct {
 	struct utsname name;

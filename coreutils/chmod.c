@@ -14,7 +14,10 @@
 /* BB_AUDIT GNU defects - unsupported long options. */
 /* http://www.opengroup.org/onlinepubs/007904975/utilities/chmod.html */
 
-#include "busybox.h"
+#include "libbb.h"
+
+/* This is a NOEXEC applet. Be very careful! */
+
 
 #define OPT_RECURSE (option_mask32 & 1)
 #define OPT_VERBOSE (USE_DESKTOP(option_mask32 & 2) SKIP_DESKTOP(0))
@@ -101,8 +104,6 @@ int chmod_main(int argc, char **argv)
 	do {
 		if (!recursive_action(*argv,
 			OPT_RECURSE,    // recurse
-			FALSE,          // follow links: coreutils doesn't
-			FALSE,          // depth first
 			fileAction,     // file action
 			fileAction,     // dir action
 			smode,          // user data

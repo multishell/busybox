@@ -7,7 +7,8 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include "busybox.h"
+#include <getopt.h>
+#include "libbb.h"
 
 #if ENABLE_FEATURE_SETCONSOLE_LONG_OPTIONS
 static const struct option setconsole_long_options[] = {

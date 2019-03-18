@@ -30,7 +30,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <sys/poll.h>
 #include <sys/file.h>
-#include "busybox.h"
+#include "libbb.h"
 #include "runit_lib.h"
 
 static unsigned verbose;
@@ -92,7 +92,8 @@ static void fatalx(const char *m0)
 {
 	bb_error_msg_and_die(FATAL"%s", m0);
 }
-static void warn(const char *m0) {
+static void warn(const char *m0)
+{
 	bb_perror_msg(WARNING"%s", m0);
 }
 static void warn2(const char *m0, const char *m1)
@@ -143,9 +144,9 @@ static unsigned processorstart(struct logdir *ld)
 		int fd;
 
 		/* child */
-		sig_uncatch(SIGTERM);
-		sig_uncatch(SIGALRM);
-		sig_uncatch(SIGHUP);
+		signal(SIGTERM, SIG_DFL);
+		signal(SIGALRM, SIG_DFL);
+		signal(SIGHUP, SIG_DFL);
 		sig_unblock(SIGTERM);
 		sig_unblock(SIGALRM);
 		sig_unblock(SIGHUP);
@@ -153,12 +154,10 @@ static unsigned processorstart(struct logdir *ld)
 		if (verbose)
 			bb_error_msg(INFO"processing: %s/%s", ld->name, ld->fnsave);
 		fd = xopen(ld->fnsave, O_RDONLY|O_NDELAY);
-		if (fd_move(0, fd) == -1)
-			bb_perror_msg_and_die(FATAL"cannot %s processor %s", "move filedescriptor for", ld->name);
+		xmove_fd(fd, 0);
 		ld->fnsave[26] = 't';
 		fd = xopen(ld->fnsave, O_WRONLY|O_NDELAY|O_TRUNC|O_CREAT);
-		if (fd_move(1, fd) == -1)
-			bb_perror_msg_and_die(FATAL"cannot %s processor %s", "move filedescriptor for", ld->name);
+		xmove_fd(fd, 1);
 		fd = open_read("state");
 		if (fd == -1) {
 			if (errno != ENOENT)
@@ -166,17 +165,15 @@ static unsigned processorstart(struct logdir *ld)
 			close(xopen("state", O_WRONLY|O_NDELAY|O_TRUNC|O_CREAT));
 			fd = xopen("state", O_RDONLY|O_NDELAY);
 		}
-		if (fd_move(4, fd) == -1)
-			bb_perror_msg_and_die(FATAL"cannot %s processor %s", "move filedescriptor for", ld->name);
+		xmove_fd(fd, 4);
 		fd = xopen("newstate", O_WRONLY|O_NDELAY|O_TRUNC|O_CREAT);
-		if (fd_move(5, fd) == -1)
-			bb_perror_msg_and_die(FATAL"cannot %s processor %s", "move filedescriptor for", ld->name);
+		xmove_fd(fd, 5);
 
 // getenv("SHELL")?
 		prog[0] = (char*)"sh";
 		prog[1] = (char*)"-c";
 		prog[2] = ld->processor;
-		prog[3] = '\0';
+		prog[3] = NULL;
 		execve("/bin/sh", prog, environ);
 		bb_perror_msg_and_die(FATAL"cannot %s processor %s", "run", ld->name);
 	}
@@ -645,9 +642,11 @@ static int buffer_pread(int fd, char *s, unsigned len, struct taia *now)
 				trotate = dir[i].trotate;
 		}
 
-	while (1) {
+	do {
 		sigprocmask(SIG_UNBLOCK, blocked_sigset, NULL);
 		iopause(&input, 1, &trotate, now);
+// TODO: do not unblock/block, but use sigpending after iopause
+// to see whether there was any sig? (one syscall less...)
 		sigprocmask(SIG_BLOCK, blocked_sigset, NULL);
 		i = ndelay_read(fd, s, len);
 		if (i >= 0) break;
@@ -656,7 +655,7 @@ static int buffer_pread(int fd, char *s, unsigned len, struct taia *now)
 			break;
 		}
 		/* else: EAGAIN - normal, repeat silently */
-	}
+	} while (!exitasap);
 
 	if (i > 0) {
 		int cnt;
@@ -787,12 +786,12 @@ int svlogd_main(int argc, char **argv)
 	////if (buflen <= linemax) usage();
 	fdwdir = xopen(".", O_RDONLY|O_NDELAY);
 	coe(fdwdir);
-	dir = xmalloc(dirn * sizeof(struct logdir));
+	dir = xzalloc(dirn * sizeof(struct logdir));
 	for (i = 0; i < dirn; ++i) {
 		dir[i].fddir = -1;
 		dir[i].fdcur = -1;
 		////dir[i].btmp = xmalloc(buflen);
-		dir[i].ppid = 0;
+		/*dir[i].ppid = 0;*/
 	}
 	/* line = xmalloc(linemax + (timestamp ? 26 : 0)); */
 	fndir = argv;

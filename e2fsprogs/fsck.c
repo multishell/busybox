@@ -37,7 +37,7 @@
  * It doesn't guess filesystem types from on-disk format.
  */
 
-#include "busybox.h"
+#include "libbb.h"
 
 #define EXIT_OK          0
 #define EXIT_NONDESTRUCT 1
@@ -396,7 +396,6 @@ static void load_fs_info(const char *filename)
 
 	f = fopen_or_warn(filename, "r");
 	if (f == NULL) {
-		/*bb_perror_msg("WARNING: cannot open %s", filename);*/
 		return;
 	}
 	while (1) {
@@ -509,12 +508,7 @@ static struct fsck_instance *wait_one(int flags)
 		goto ret_inst;
 	}
 
-	/*
-	 * gcc -Wall fails saving throw against stupidity
-	 * (inst and prev are thought to be uninitialized variables)
-	 */
-	inst = prev = NULL;
-
+	inst = prev = NULL; /* for gcc */
 	do {
 		pid = waitpid(-1, &status, flags);
 		kill_all_if_cancel_requested();
@@ -667,19 +661,9 @@ static void execute(const char *type, const char *device, const char *mntpt,
 	/* Fork and execute the correct program. */
 	pid = -1;
 	if (!noexecute) {
-		pid = fork(); /* TODO: NOMMU friendly way (vfork)? */
+		pid = spawn(argv);
 		if (pid < 0)
-			bb_perror_msg_and_die("fork");
-		if (pid == 0) {
-			/* Child */
-			if (!interactive) {
-				/* NB: e2fsck will complain because of this!
-				 * Use "fsck -s" to avoid... */
-				close(0);
-			}
-			BB_EXECVP(argv[0], argv);
-			bb_perror_msg_and_die("%s", argv[0]);
-		}
+			bb_perror_msg("%s", argv[0]);
 	}
 
 	for (i = num_args+1; i < argc; i++)
@@ -1047,7 +1031,7 @@ static void compile_fs_type(char *fs_type)
 	}
 }
 
-static void parse_args(int argc, char *argv[])
+static void parse_args(int argc, char **argv)
 {
 	int i, j;
 	char *arg, *tmp;
@@ -1173,8 +1157,8 @@ static void signal_cancel(int sig ATTRIBUTE_UNUSED)
 	cancel_requested = 1;
 }
 
-int fsck_main(int argc, char *argv[]);
-int fsck_main(int argc, char *argv[])
+int fsck_main(int argc, char **argv);
+int fsck_main(int argc, char **argv)
 {
 	int i, status = 0;
 	int interactive;

@@ -25,11 +25,12 @@
  * remove ridiculous amounts of bloat.
  */
 
-#include "busybox.h"
-#include "inet_common.h"
 #include <getopt.h>
 #include <net/route.h>
 #include <net/if.h>
+
+#include "libbb.h"
+#include "inet_common.h"
 
 
 #ifndef RTF_UP
@@ -49,7 +50,7 @@
 #define RTF_REJECT      0x0200	/* Reject route                 */
 #endif
 
-#if defined (SIOCADDRTOLD) || defined (RTF_IRTT)	/* route */
+#if defined(SIOCADDRTOLD) || defined(RTF_IRTT)	/* route */
 #define HAVE_NEW_ADDRT 1
 #endif
 
@@ -174,7 +175,7 @@ static void INET_setroute(int action, char **args)
 
 		/* recognize x.x.x.x/mask format. */
 		prefix = strchr(target, '/');
-		if(prefix) {
+		if (prefix) {
 			int prefix_len;
 
 			prefix_len = xatoul_range(prefix+1, 0, 32);
@@ -193,7 +194,7 @@ static void INET_setroute(int action, char **args)
 		if (isnet < 0) {
 			bb_error_msg_and_die("resolving %s", target);
 		}
-		if(prefix) {
+		if (prefix) {
 			/* do not destroy prefix for process args */
 			*prefix = '/';
 		}
@@ -478,7 +479,7 @@ static void set_flags(char *flagstr, int flags)
 void bb_displayroutes(int noresolve, int netstatfmt)
 {
 	char devname[64], flags[16], sdest[16], sgw[16];
-	unsigned long int d, g, m;
+	unsigned long d, g, m;
 	int flgs, ref, use, metric, mtu, win, ir;
 	struct sockaddr_in s_addr;
 	struct in_addr mask;

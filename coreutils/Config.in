@@ -536,6 +536,21 @@ config FEATURE_SORT_BIG
 	  The SuSv3 sort standard is available at:
 	  http://www.opengroup.org/onlinepubs/007904975/utilities/sort.html
 
+config SPLIT
+	bool "split"
+	default n
+	help
+	  split a file into pieces.
+
+config FEATURE_SPLIT_FANCY
+	bool "fancy extensions"
+	default n
+	depends on SPLIT
+	help
+	  Add support for features not required by SUSv3.
+	  Supports additional suffixes 'b' for 512 bytes,
+	  'g' for 1GiB for the -b option.
+
 config STAT
 	bool "stat"
 	default n

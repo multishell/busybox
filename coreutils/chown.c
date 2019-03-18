@@ -11,7 +11,10 @@
 /* BB_AUDIT GNU defects - unsupported long options. */
 /* http://www.opengroup.org/onlinepubs/007904975/utilities/chown.html */
 
-#include "busybox.h"
+#include "libbb.h"
+
+/* This is a NOEXEC applet. Be very careful! */
+
 
 #define OPT_STR     ("Rh" USE_DESKTOP("vcfLHP"))
 #define BIT_RECURSE 1
@@ -92,13 +95,12 @@ int chown_main(int argc, char **argv)
 		}
 
 		if (!recursive_action(arg,
-				OPT_RECURSE,    // recurse
-				OPT_TRAVERSE,   // follow links if -L
-				FALSE,          // depth first
-				fileAction,     // file action
-				fileAction,     // dir action
-				chown_func,     // user data
-				0)              // depth
+				(OPT_RECURSE ? ACTION_RECURSE : 0) | /* recurse */
+				(OPT_TRAVERSE ? ACTION_FOLLOWLINKS : 0),/* follow links if -L */
+				fileAction,     /* file action */
+				fileAction,     /* dir action */
+				chown_func,     /* user data */
+				0)              /* depth */
 		) {
 			retval = EXIT_FAILURE;
 		}

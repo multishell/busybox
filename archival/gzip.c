@@ -39,7 +39,7 @@ gzip: bogus: No such file or directory
 aa:      85.1% -- replaced with aa.gz
 */
 
-#include "busybox.h"
+#include "libbb.h"
 
 
 /* ===========================================================================
@@ -47,7 +47,7 @@ aa:      85.1% -- replaced with aa.gz
 //#define DEBUG 1
 /* Diagnostic functions */
 #ifdef DEBUG
-#  define Assert(cond,msg) {if(!(cond)) bb_error_msg(msg);}
+#  define Assert(cond,msg) { if (!(cond)) bb_error_msg(msg); }
 #  define Trace(x) fprintf x
 #  define Tracev(x) {if (verbose) fprintf x ;}
 #  define Tracevv(x) {if (verbose > 1) fprintf x ;}
@@ -2079,7 +2079,7 @@ int gzip_main(int argc, char **argv)
 	ALLOC(ush, G1.prev, 1L << BITS);
 
 	/* Initialise the CRC32 table */
-	G1.crc_32_tab = crc32_filltable(0);
+	G1.crc_32_tab = crc32_filltable(NULL, 0);
 
 	return bbunpack(argv, make_new_name_gzip, pack_gzip);
 }

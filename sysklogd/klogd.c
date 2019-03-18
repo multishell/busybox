@@ -17,7 +17,7 @@
  * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
-#include "busybox.h"
+#include "libbb.h"
 #include <sys/syslog.h>
 #include <sys/klog.h>
 
@@ -50,11 +50,7 @@ int klogd_main(int argc, char **argv)
 	}
 
 	if (!(option_mask32 & OPT_FOREGROUND)) {
-#ifdef BB_NOMMU
-		vfork_daemon_rexec(0, 1, argc, argv, "-n");
-#else
-		bb_daemonize();
-#endif
+		bb_daemonize_or_rexec(DAEMON_CHDIR_ROOT, argv);
 	}
 
 	openlog("kernel", 0, LOG_KERN);

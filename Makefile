@@ -1,6 +1,6 @@
 VERSION = 1
-PATCHLEVEL = 5
-SUBLEVEL = 2
+PATCHLEVEL = 6
+SUBLEVEL = 0
 EXTRAVERSION =
 NAME = Unnamed
 
@@ -435,6 +435,7 @@ libs-y		:= \
 		editors/ \
 		findutils/ \
 		init/ \
+		ipsvd/ \
 		libbb/ \
 		libpwdgrp/ \
 		loginutils/ \

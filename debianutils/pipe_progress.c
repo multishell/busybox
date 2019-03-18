@@ -7,11 +7,7 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include "busybox.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <time.h>
+#include "libbb.h"
 
 #define PIPE_PROGRESS_SIZE 4096
 

@@ -70,7 +70,7 @@
 #include <netinet/ether.h>
 #include <linux/if.h>
 
-#include "busybox.h"
+#include "libbb.h"
 
 /* Note: PF_INET, SOCK_DGRAM, IPPROTO_UDP would allow SIOCGIFHWADDR to
  * work as non-root, but we need SOCK_PACKET to specify the Ethernet
@@ -97,23 +97,95 @@ void bb_debug_dump_packet(unsigned char *outpack, int pktsize)
 	printf("\n\n");
 }
 #else
-# define bb_debug_msg(fmt, args...)
-# define bb_debug_dump_packet(outpack, pktsize)
+# define bb_debug_msg(fmt, args...)             ((void)0)
+# define bb_debug_dump_packet(outpack, pktsize) ((void)0)
 #endif
 
-static inline void get_dest_addr(const char *arg, struct ether_addr *eaddr);
-static inline int get_fill(unsigned char *pkt, struct ether_addr *eaddr, int broadcast);
-static inline int get_wol_pw(const char *ethoptarg, unsigned char *wol_passwd);
+/* Convert the host ID string to a MAC address.
+ * The string may be a:
+ *    Host name
+ *    IP address string
+ *    MAC address string
+*/
+static void get_dest_addr(const char *hostid, struct ether_addr *eaddr)
+{
+	struct ether_addr *eap;
 
-int ether_wake_main(int argc, char *argv[]);
-int ether_wake_main(int argc, char *argv[])
+	eap = ether_aton(hostid);
+	if (eap) {
+		*eaddr = *eap;
+		bb_debug_msg("The target station address is %s\n\n", ether_ntoa(eaddr));
+#if !defined(__UCLIBC__)
+	} else if (ether_hostton(hostid, eaddr) == 0) {
+		bb_debug_msg("Station address for hostname %s is %s\n\n", hostid, ether_ntoa(eaddr));
+#endif
+	} else
+		bb_show_usage();
+}
+
+static int get_fill(unsigned char *pkt, struct ether_addr *eaddr, int broadcast)
+{
+	int i;
+	unsigned char *station_addr = eaddr->ether_addr_octet;
+
+	memset(pkt, 0xff, 6);
+	if (!broadcast)
+		memcpy(pkt, station_addr, 6);
+	pkt += 6;
+
+	memcpy(pkt, station_addr, 6); /* 6 */
+	pkt += 6;
+
+	*pkt++ = 0x08; /* 12 */ /* Or 0x0806 for ARP, 0x8035 for RARP */
+	*pkt++ = 0x42; /* 13 */
+
+	memset(pkt, 0xff, 6); /* 14 */
+
+	for (i = 0; i < 16; ++i) {
+		pkt += 6;
+		memcpy(pkt, station_addr, 6); /* 20,26,32,... */
+	}
+
+	return 20 + 16*6; /* length of packet */
+}
+
+static int get_wol_pw(const char *ethoptarg, unsigned char *wol_passwd)
+{
+	unsigned passwd[6];
+	int byte_cnt, i;
+
+	/* handle MAC format */
+	byte_cnt = sscanf(ethoptarg, "%2x:%2x:%2x:%2x:%2x:%2x",
+	                  &passwd[0], &passwd[1], &passwd[2],
+	                  &passwd[3], &passwd[4], &passwd[5]);
+	/* handle IP format */
+// FIXME: why < 4?? should it be < 6?
+	if (byte_cnt < 4)
+		byte_cnt = sscanf(ethoptarg, "%u.%u.%u.%u",
+		                  &passwd[0], &passwd[1], &passwd[2], &passwd[3]);
+	if (byte_cnt < 4) {
+		bb_error_msg("cannot read Wake-On-LAN pass");
+		return 0;
+	}
+// TODO: check invalid numbers >255??
+	for (i = 0; i < byte_cnt; ++i)
+		wol_passwd[i] = passwd[i];
+
+	bb_debug_msg("password: %2.2x %2.2x %2.2x %2.2x (%d)\n\n",
+	             wol_passwd[0], wol_passwd[1], wol_passwd[2], wol_passwd[3],
+	             byte_cnt);
+
+	return byte_cnt;
+}
+
+int ether_wake_main(int argc, char **argv);
+int ether_wake_main(int argc, char **argv)
 {
 	const char *ifname = "eth0";
-	char *pass = NULL;
-	unsigned long flags;
+	char *pass;
+	unsigned flags;
 	unsigned char wol_passwd[6];
 	int wol_passwd_sz = 0;
-
 	int s;						/* Raw socket */
 	int pktsize;
 	unsigned char outpack[1000];
@@ -122,23 +194,23 @@ int ether_wake_main(int argc, char *argv[])
 	struct whereto_t whereto;	/* who to wake up */
 
 	/* handle misc user options */
+	opt_complementary = "=1";
 	flags = getopt32(argc, argv, "bi:p:", &ifname, &pass);
-	if (optind == argc)
-		bb_show_usage();
-	if (pass)
+	if (flags & 4) /* -p */
 		wol_passwd_sz = get_wol_pw(pass, wol_passwd);
+	flags &= 1; /* we further interested only in -b [bcast] flag */
 
 	/* create the raw socket */
 	s = make_socket();
 
 	/* now that we have a raw socket we can drop root */
-	xsetuid(getuid());
+	/* xsetuid(getuid()); - but save on code size... */
 
 	/* look up the dest mac address */
 	get_dest_addr(argv[optind], &eaddr);
 
 	/* fill out the header of the packet */
-	pktsize = get_fill(outpack, &eaddr, flags /*& 1 [OPT_BROADCAST]*/);
+	pktsize = get_fill(outpack, &eaddr, flags /* & 1 OPT_BROADCAST */);
 
 	bb_debug_dump_packet(outpack, pktsize);
 
@@ -148,7 +220,7 @@ int ether_wake_main(int argc, char *argv[])
 		struct ifreq if_hwaddr;
 
 		strncpy(if_hwaddr.ifr_name, ifname, sizeof(if_hwaddr.ifr_name));
-		if (ioctl(s, SIOCGIFHWADDR, &if_hwaddr) < 0)
+		if (ioctl(s, SIOCGIFHWADDR, &if_hwaddr) != 0)
 			bb_perror_msg_and_die("SIOCGIFHWADDR on %s failed", ifname);
 
 		memcpy(outpack+6, if_hwaddr.ifr_hwaddr.sa_data, 6);
@@ -176,8 +248,8 @@ int ether_wake_main(int argc, char *argv[])
 	bb_debug_dump_packet(outpack, pktsize);
 
 	/* This is necessary for broadcasts to work */
-	if (flags /*& 1 [OPT_BROADCAST]*/) {
-		if (setsockopt_broadcast(s) < 0)
+	if (flags /* & 1 OPT_BROADCAST */) {
+		if (setsockopt_broadcast(s) != 0)
 			bb_perror_msg("SO_BROADCAST");
 	}
 
@@ -185,7 +257,7 @@ int ether_wake_main(int argc, char *argv[])
 	{
 		struct ifreq ifr;
 		strncpy(ifr.ifr_name, ifname, sizeof(ifr.ifr_name));
-		if (ioctl(s, SIOCGIFINDEX, &ifr) == -1)
+		if (ioctl(s, SIOCGIFINDEX, &ifr) != 0)
 			bb_perror_msg_and_die("SIOCGIFINDEX");
 		memset(&whereto, 0, sizeof(whereto));
 		whereto.sll_family = AF_PACKET;
@@ -199,86 +271,8 @@ int ether_wake_main(int argc, char *argv[])
 	whereto.sa_family = 0;
 	strcpy(whereto.sa_data, ifname);
 #endif
-
-	if (sendto(s, outpack, pktsize, 0, (struct sockaddr *)&whereto, sizeof(whereto)) < 0)
-		bb_perror_msg(bb_msg_write_error);
-
-	close(s);
-
+	xsendto(s, outpack, pktsize, (struct sockaddr *)&whereto, sizeof(whereto));
+	if (ENABLE_FEATURE_CLEAN_UP)
+		close(s);
 	return EXIT_SUCCESS;
-}
-
-/* Convert the host ID string to a MAC address.
- * The string may be a:
- *    Host name
- *    IP address string
- *    MAC address string
-*/
-static inline void get_dest_addr(const char *hostid, struct ether_addr *eaddr)
-{
-	struct ether_addr *eap;
-
-	eap = ether_aton(hostid);
-	if (eap) {
-		*eaddr = *eap;
-		bb_debug_msg("The target station address is %s\n\n", ether_ntoa(eaddr));
-#if !defined(__UCLIBC__)
-	} else if (ether_hostton(hostid, eaddr) == 0) {
-		bb_debug_msg("Station address for hostname %s is %s\n\n", hostid, ether_ntoa(eaddr));
-#endif
-	} else
-		bb_show_usage();
-}
-
-static inline int get_fill(unsigned char *pkt, struct ether_addr *eaddr, int broadcast)
-{
-	int offset, i;
-	unsigned char *station_addr = eaddr->ether_addr_octet;
-
-	if (broadcast)
-		memset(pkt+0, 0xff, 6);
-	else
-		memcpy(pkt, station_addr, 6);
-	memcpy(pkt+6, station_addr, 6);
-	pkt[12] = 0x08;				/* Or 0x0806 for ARP, 0x8035 for RARP */
-	pkt[13] = 0x42;
-	offset = 14;
-
-	memset(pkt+offset, 0xff, 6);
-	offset += 6;
-
-	for (i = 0; i < 16; ++i) {
-		memcpy(pkt+offset, station_addr, 6);
-		offset += 6;
-	}
-
-	return offset;
-}
-
-static inline int get_wol_pw(const char *ethoptarg, unsigned char *wol_passwd)
-{
-	int passwd[6];
-	int byte_cnt, i;
-
-	/* handle MAC format */
-	byte_cnt = sscanf(ethoptarg, "%2x:%2x:%2x:%2x:%2x:%2x",
-	                  &passwd[0], &passwd[1], &passwd[2],
-	                  &passwd[3], &passwd[4], &passwd[5]);
-	/* handle IP format */
-	if (byte_cnt < 4)
-		byte_cnt = sscanf(ethoptarg, "%d.%d.%d.%d",
-		                  &passwd[0], &passwd[1], &passwd[2], &passwd[3]);
-	if (byte_cnt < 4) {
-		bb_error_msg("cannot read Wake-On-LAN pass");
-		return 0;
-	}
-
-	for (i = 0; i < byte_cnt; ++i)
-		wol_passwd[i] = passwd[i];
-
-	bb_debug_msg("password: %2.2x %2.2x %2.2x %2.2x (%d)\n\n",
-	             wol_passwd[0], wol_passwd[1], wol_passwd[2], wol_passwd[3],
-	             byte_cnt);
-
-	return byte_cnt;
 }

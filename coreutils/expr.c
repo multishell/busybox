@@ -25,7 +25,7 @@
 
 /* no getopt needed */
 
-#include "busybox.h"
+#include "libbb.h"
 #include "xregex.h"
 
 /* The kinds of value we can have.  */
@@ -62,40 +62,14 @@ struct valinfo {
 typedef struct valinfo VALUE;
 
 /* The arguments given to the program, minus the program name.  */
-static char **args;
+struct globals {
+	char **args;
+};
+#define G (*(struct globals*)&bb_common_bufsiz1)
 
-static VALUE *docolon(VALUE * sv, VALUE * pv);
+/* forward declarations */
 static VALUE *eval(void);
-static VALUE *int_value(arith_t i);
-static VALUE *str_value(const char *s);
-static int nextarg(const char *str);
-static int null(VALUE * v);
-static int toarith(VALUE * v);
-static void freev(VALUE * v);
-static void tostring(VALUE * v);
 
-int expr_main(int argc, char **argv);
-int expr_main(int argc, char **argv)
-{
-	VALUE *v;
-
-	if (argc == 1) {
-		bb_error_msg_and_die("too few arguments");
-	}
-
-	args = argv + 1;
-
-	v = eval();
-	if (*args)
-		bb_error_msg_and_die("syntax error");
-
-	if (v->type == integer)
-		printf("%" PF_REZ "d\n", PF_REZ_TYPE v->u.i);
-	else
-		puts(v->u.s);
-
-	fflush_stdout_and_exit(null(v));
-}
 
 /* Return a VALUE for I.  */
 
@@ -152,7 +126,7 @@ static void tostring(VALUE * v)
 
 /* Coerce V to an integer value.  Return 1 on success, 0 on failure.  */
 
-static int toarith(VALUE * v)
+static bool toarith(VALUE * v)
 {
 	if (v->type == string) {
 		arith_t i;
@@ -173,11 +147,11 @@ static int toarith(VALUE * v)
 /* Return nonzero if the next token matches STR exactly.
    STR must not be NULL.  */
 
-static int nextarg(const char *str)
+static bool nextarg(const char *str)
 {
-	if (*args == NULL)
+	if (*G.args == NULL)
 		return 0;
-	return strcmp(*args, str) == 0;
+	return strcmp(*G.args, str) == 0;
 }
 
 /* The comparison operator handling functions.  */
@@ -245,15 +219,14 @@ static VALUE *docolon(VALUE * sv, VALUE * pv)
 	tostring(pv);
 
 	if (pv->u.s[0] == '^') {
-		fprintf(stderr, "\
+		bb_error_msg("\
 warning: unportable BRE: `%s': using `^' as the first character\n\
 of a basic regular expression is not portable; it is being ignored", pv->u.s);
 	}
 
 	memset(&re_buffer, 0, sizeof(re_buffer));
 	memset(re_regs, 0, sizeof(*re_regs));
-	if (regcomp(&re_buffer, pv->u.s, 0) != 0)
-		bb_error_msg_and_die("invalid regular expression");
+	xregcomp(&re_buffer, pv->u.s, 0);
 
 	/* expr uses an anchored pattern match, so check that there was a
 	 * match and that the match starts at offset 0. */
@@ -272,6 +245,7 @@ of a basic regular expression is not portable; it is being ignored", pv->u.s);
 		else
 			v = int_value(0);
 	}
+//FIXME: sounds like here is a bit missing: regfree(&re_buffer);
 	return v;
 }
 
@@ -281,53 +255,57 @@ static VALUE *eval7(void)
 {
 	VALUE *v;
 
-	if (!*args)
+	if (!*G.args)
 		bb_error_msg_and_die("syntax error");
 
 	if (nextarg("(")) {
-		args++;
+		G.args++;
 		v = eval();
 		if (!nextarg(")"))
 			bb_error_msg_and_die("syntax error");
-		args++;
+		G.args++;
 		return v;
 	}
 
 	if (nextarg(")"))
 		bb_error_msg_and_die("syntax error");
 
-	return str_value(*args++);
+	return str_value(*G.args++);
 }
 
 /* Handle match, substr, index, length, and quote keywords.  */
 
 static VALUE *eval6(void)
 {
-	VALUE *l, *r, *v, *i1, *i2;
+	VALUE *l, *r, *v = NULL /* silence gcc */, *i1, *i2;
+	static const char * const keywords[] = {
+		"quote", "length", "match", "index", "substr", NULL
+	};
 
-	if (nextarg("quote")) {
-		args++;
-		if (!*args)
+	smalluint key = *G.args ? index_in_str_array(keywords, *G.args) + 1 : 0;
+	if (key == 0) /* not a keyword */
+		return eval7();
+	G.args++; /* We have a valid token, so get the next argument.  */
+	if (key == 1) { /* quote */
+		if (!*G.args)
 			bb_error_msg_and_die("syntax error");
-		return str_value(*args++);
-	} else if (nextarg("length")) {
-		args++;
+		return str_value(*G.args++);
+	}
+	if (key == 2) { /* length */
 		r = eval6();
 		tostring(r);
 		v = int_value(strlen(r->u.s));
 		freev(r);
-		return v;
-	} else if (nextarg("match")) {
-		args++;
+	} else
 		l = eval6();
+
+	if (key == 3) { /* match */
 		r = eval6();
 		v = docolon(l, r);
 		freev(l);
 		freev(r);
-		return v;
-	} else if (nextarg("index")) {
-		args++;
-		l = eval6();
+	}
+	if (key == 4) { /* index */
 		r = eval6();
 		tostring(l);
 		tostring(r);
@@ -336,10 +314,8 @@ static VALUE *eval6(void)
 			v->u.i = 0;
 		freev(l);
 		freev(r);
-		return v;
-	} else if (nextarg("substr")) {
-		args++;
-		l = eval6();
+	}
+	if (key == 5) { /* substr */
 		i1 = eval6();
 		i2 = eval6();
 		tostring(l);
@@ -355,9 +331,9 @@ static VALUE *eval6(void)
 		freev(l);
 		freev(i1);
 		freev(i2);
-		return v;
-	} else
-		return eval7();
+	}
+	return v;
+
 }
 
 /* Handle : operator (pattern matching).
@@ -369,7 +345,7 @@ static VALUE *eval5(void)
 
 	l = eval6();
 	while (nextarg(":")) {
-		args++;
+		G.args++;
 		r = eval6();
 		v = docolon(l, r);
 		freev(l);
@@ -397,7 +373,7 @@ static VALUE *eval4(void)
 			op = '%';
 		else
 			return l;
-		args++;
+		G.args++;
 		r = eval5();
 		val = arithmetic_common(l, r, op);
 		freev(l);
@@ -422,7 +398,7 @@ static VALUE *eval3(void)
 			op = '-';
 		else
 			return l;
-		args++;
+		G.args++;
 		r = eval4();
 		val = arithmetic_common(l, r, op);
 		freev(l);
@@ -455,7 +431,7 @@ static VALUE *eval2(void)
 			op = '>';
 		else
 			return l;
-		args++;
+		G.args++;
 		r = eval3();
 		toarith(l);
 		toarith(r);
@@ -474,7 +450,7 @@ static VALUE *eval1(void)
 
 	l = eval2();
 	while (nextarg("&")) {
-		args++;
+		G.args++;
 		r = eval2();
 		if (null(l) || null(r)) {
 			freev(l);
@@ -494,7 +470,7 @@ static VALUE *eval(void)
 
 	l = eval1();
 	while (nextarg("|")) {
-		args++;
+		G.args++;
 		r = eval1();
 		if (null(l)) {
 			freev(l);
@@ -504,3 +480,28 @@ static VALUE *eval(void)
 	}
 	return l;
 }
+
+int expr_main(int argc, char **argv);
+int expr_main(int argc, char **argv)
+{
+	VALUE *v;
+
+	if (argc == 1) {
+		bb_error_msg_and_die("too few arguments");
+	}
+
+	G.args = argv + 1;
+
+	v = eval();
+	if (*G.args)
+		bb_error_msg_and_die("syntax error");
+
+	if (v->type == integer)
+		printf("%" PF_REZ "d\n", PF_REZ_TYPE v->u.i);
+	else
+		puts(v->u.s);
+
+	fflush_stdout_and_exit(null(v));
+}
+
+

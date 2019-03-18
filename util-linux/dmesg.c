@@ -9,12 +9,11 @@
  * Licensed under GPLv2, see file LICENSE in this tarball for details.
  */
 
-#include "busybox.h"
-#include <unistd.h>
 #include <sys/klog.h>
+#include "libbb.h"
 
-int dmesg_main(int argc, char *argv[]);
-int dmesg_main(int argc, char *argv[])
+int dmesg_main(int argc, char **argv);
+int dmesg_main(int argc, char **argv)
 {
 	char *size, *level;
 	int flags = getopt32(argc, argv, "cs:n:", &size, &level);

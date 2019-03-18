@@ -153,7 +153,7 @@ Exit Codes
 
 #include <sys/poll.h>
 #include <sys/file.h>
-#include "busybox.h"
+#include "libbb.h"
 #include "runit_lib.h"
 
 static const char *acts;
@@ -183,23 +183,28 @@ static void out(const char *p, const char *m1)
 #define WARN    "warning: "
 #define OK      "ok: "
 
-static void fail(const char *m1) {
+static void fail(const char *m1)
+{
 	++rc;
 	out("fail: ", m1);
 }
-static void failx(const char *m1) {
+static void failx(const char *m1)
+{
 	errno = 0;
 	fail(m1);
 }
-static void warn_cannot(const char *m1) {
+static void warn_cannot(const char *m1)
+{
 	++rc;
 	out("warning: cannot ", m1);
 }
-static void warnx_cannot(const char *m1) {
+static void warnx_cannot(const char *m1)
+{
 	errno = 0;
 	warn_cannot(m1);
 }
-static void ok(const char *m1) {
+static void ok(const char *m1)
+{
 	errno = 0;
 	out(OK, m1);
 }
@@ -310,21 +315,16 @@ static int checkscript(void)
 		return 0;
 	}
 	/* if (!(s.st_mode & S_IXUSR)) return 1; */
-	if ((pid = fork()) == -1) {
-		bb_perror_msg(WARN"cannot fork for %s/check", *service);
+	prog[0] = (char*)"./check";
+	prog[1] = NULL;
+	pid = spawn(prog);
+	if (pid <= 0) {
+		bb_perror_msg(WARN"cannot %s child %s/check", "run", *service);
 		return 0;
-	}
-	if (!pid) {
-		prog[0] = (char*)"./check";
-		prog[1] = NULL;
-		close(1);
-		execve("check", prog, environ);
-		bb_perror_msg(WARN"cannot run %s/check", *service);
-		_exit(0);
 	}
 	while (wait_pid(&w, pid) == -1) {
 		if (errno == EINTR) continue;
-		bb_perror_msg(WARN"cannot wait for child %s/check", *service);
+		bb_perror_msg(WARN"cannot %s child %s/check", "wait for", *service);
 		return 0;
 	}
 	return !wait_exitcode(w);

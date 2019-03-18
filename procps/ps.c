@@ -7,7 +7,7 @@
  * Licensed under the GPL version 2, see the file LICENSE in this tarball.
  */
 
-#include "busybox.h"
+#include "libbb.h"
 
 #if ENABLE_DESKTOP
 
@@ -29,94 +29,116 @@ static void func_args(char *buf, int size, const procps_status_t *ps)
 	if (ps->cmd)
 		safe_strncpy(buf, ps->cmd, size+1);
 	else if (size >= 2)
-		snprintf(buf, size+1, "[%.*s]", size-2, ps->comm);
+		sprintf(buf, "[%.*s]", size-2, ps->comm);
 }
 
 static void func_pid(char *buf, int size, const procps_status_t *ps)
 {
-	snprintf(buf, size+1, "%*u", size, ps->pid);
+	sprintf(buf, "%*u", size, ps->pid);
 }
 
 static void func_ppid(char *buf, int size, const procps_status_t *ps)
 {
-	snprintf(buf, size+1, "%*u", size, ps->ppid);
+	sprintf(buf, "%*u", size, ps->ppid);
 }
 
 static void func_pgid(char *buf, int size, const procps_status_t *ps)
 {
-	snprintf(buf, size+1, "%*u", size, ps->pgid);
+	sprintf(buf, "%*u", size, ps->pgid);
+}
+
+static void put_u(char *buf, int size, unsigned u)
+{
+	char buf5[5];
+	smart_ulltoa5( ((unsigned long long)u) << 10, buf5);
+	sprintf(buf, "%.*s", size, buf5);
 }
 
 static void func_vsz(char *buf, int size, const procps_status_t *ps)
 {
-	char buf5[5];
-	smart_ulltoa5( ((unsigned long long)ps->vsz) << 10, buf5);
-	snprintf(buf, size+1, "%.*s", size, buf5);
+	put_u(buf, size, ps->vsz);
 }
 
+static void func_rss(char *buf, int size, const procps_status_t *ps)
+{
+	put_u(buf, size, ps->rss);
+}
+
+static void func_tty(char *buf, int size, const procps_status_t *ps)
+{
+	safe_strncpy(buf, ps->tty_str, size+1);
+}
 /*
-void func_nice(char *buf, int size, const procps_status_t *ps)
+static void func_nice(char *buf, int size, const procps_status_t *ps)
 {
 	ps->???
 }
 
-void func_etime(char *buf, int size, const procps_status_t *ps)
+static void func_etime(char *buf, int size, const procps_status_t *ps)
 {
 	elapled time [[dd-]hh:]mm:ss
 }
 
-void func_time(char *buf, int size, const procps_status_t *ps)
+static void func_time(char *buf, int size, const procps_status_t *ps)
 {
 	cumulative time [[dd-]hh:]mm:ss
 }
 
-void func_pcpu(char *buf, int size, const procps_status_t *ps)
-{
-}
-
-void func_tty(char *buf, int size, const procps_status_t *ps)
+static void func_pcpu(char *buf, int size, const procps_status_t *ps)
 {
 }
 */
 
 typedef struct {
-	char name[8];
+	uint16_t width;
+	char name[6];
 	const char *header;
 	void (*f)(char *buf, int size, const procps_status_t *ps);
 	int ps_flags;
-	int width;
 } ps_out_t;
 
 static const ps_out_t out_spec[] = {
 // Mandated by POSIX:
-	{ "user"  ,"USER"   ,func_user  ,PSSCAN_UIDGID,8                   },
-	{ "comm"  ,"COMMAND",func_comm  ,PSSCAN_COMM  ,16                  },
-	{ "args"  ,"COMMAND",func_args  ,PSSCAN_CMD|PSSCAN_COMM,256        },
-	{ "pid"   ,"PID"    ,func_pid   ,PSSCAN_PID   ,5                   },
-	{ "ppid"  ,"PPID"   ,func_ppid  ,PSSCAN_PPID  ,5                   },
-	{ "pgid"  ,"PGID"   ,func_pgid  ,PSSCAN_PGID  ,5                   },
-//	{ "etime" ,"ELAPSED",func_etime ,PSSCAN_      ,sizeof("ELAPSED")-1 },
-//	{ "group" ,"GROUP"  ,func_group ,PSSCAN_UIDGID,sizeof("GROUP"  )-1 },
-//	{ "nice"  ,"NI"     ,func_nice  ,PSSCAN_      ,sizeof("NI"     )-1 },
-//	{ "pcpu"  ,"%CPU"   ,func_pcpu  ,PSSCAN_      ,sizeof("%CPU"   )-1 },
-//	{ "rgroup","RGROUP" ,func_rgroup,PSSCAN_UIDGID,sizeof("RGROUP" )-1 },
-//	{ "ruser" ,"RUSER"  ,func_ruser ,PSSCAN_UIDGID,sizeof("RUSER"  )-1 },
-//	{ "time"  ,"TIME"   ,func_time  ,PSSCAN_      ,sizeof("TIME"   )-1 },
-//	{ "tty"   ,"TT"     ,func_tty   ,PSSCAN_      ,sizeof("TT"     )-1 },
-	{ "vsz"   ,"VSZ"    ,func_vsz   ,PSSCAN_VSZ   ,4                   },
-// Not mandated by POSIX:
-//	{ "rss"   ,"RSS"    ,func_rss   ,PSSCAN_RSS   ,4                   },
+	{ 8                  , "user"  ,"USER"   ,func_user  ,PSSCAN_UIDGID          },
+	{ 16                 , "comm"  ,"COMMAND",func_comm  ,PSSCAN_COMM            },
+	{ 256                , "args"  ,"COMMAND",func_args  ,PSSCAN_CMD|PSSCAN_COMM },
+	{ 5                  , "pid"   ,"PID"    ,func_pid   ,PSSCAN_PID             },
+	{ 5                  , "ppid"  ,"PPID"   ,func_ppid  ,PSSCAN_PPID            },
+	{ 5                  , "pgid"  ,"PGID"   ,func_pgid  ,PSSCAN_PGID            },
+//	{ sizeof("ELAPSED")-1, "etime" ,"ELAPSED",func_etime ,PSSCAN_                },
+//	{ sizeof("GROUP"  )-1, "group" ,"GROUP"  ,func_group ,PSSCAN_UIDGID          },
+//	{ sizeof("NI"     )-1, "nice"  ,"NI"     ,func_nice  ,PSSCAN_                },
+//	{ sizeof("%CPU"   )-1, "pcpu"  ,"%CPU"   ,func_pcpu  ,PSSCAN_                },
+//	{ sizeof("RGROUP" )-1, "rgroup","RGROUP" ,func_rgroup,PSSCAN_UIDGID          },
+//	{ sizeof("RUSER"  )-1, "ruser" ,"RUSER"  ,func_ruser ,PSSCAN_UIDGID          },
+//	{ sizeof("TIME"   )-1, "time"  ,"TIME"   ,func_time  ,PSSCAN_                },
+	{ 6                  , "tty"   ,"TT"     ,func_tty   ,PSSCAN_TTY             },
+	{ 4                  , "vsz"   ,"VSZ"    ,func_vsz   ,PSSCAN_VSZ             },
+// Not mandated by POSIX, but useful:
+	{ 4                  , "rss"   ,"RSS"    ,func_rss   ,PSSCAN_RSS             },
 };
 
 #define VEC_SIZE(v) ( sizeof(v) / sizeof((v)[0]) )
 
-static ps_out_t* out;
-static int out_cnt;
-static int print_header;
-static int ps_flags;
-static char *buffer;
-static unsigned terminal_width;
+#define DEFAULT_O_STR "pid,user" /* TODO: ,vsz,stat */ ",args"
 
+struct globals {
+	ps_out_t* out;
+	int out_cnt;
+	int print_header;
+	int need_flags;
+	char *buffer;
+	unsigned terminal_width;
+	char default_o[sizeof(DEFAULT_O_STR)];
+};
+#define G (*(struct globals*)&bb_common_bufsiz1)
+#define out            (G.out           )
+#define out_cnt        (G.out_cnt       )
+#define print_header   (G.print_header  )
+#define need_flags     (G.need_flags    )
+#define buffer         (G.buffer        )
+#define terminal_width (G.terminal_width)
+#define default_o      (G.default_o     )
 
 static ps_out_t* new_out_t(void)
 {
@@ -152,6 +174,8 @@ static void parse_o(char* opt)
 		}
 		break;
 	}
+	// opt points to last spec in comma separated list.
+	// This one can have =HEADER part.
 	new = new_out_t();
 	if (equal)
 		*equal = '\0';
@@ -177,7 +201,7 @@ static void post_process(void)
 	int i;
 	int width = 0;
 	for (i = 0; i < out_cnt; i++) {
-		ps_flags |= out[i].ps_flags;
+		need_flags |= out[i].ps_flags;
 		if (out[i].header[0]) {
 			print_header = 1;
 		}
@@ -190,9 +214,11 @@ static void format_header(void)
 {
 	int i;
 	ps_out_t* op;
-	char *p = buffer;
+	char *p;
+
 	if (!print_header)
 		return;
+	p = buffer;
 	i = 0;
 	if (out_cnt) {
 		while (1) {
@@ -230,14 +256,14 @@ static void format_process(const procps_status_t *ps)
 	printf("%.*s\n", terminal_width, buffer);
 }
 
-/* Cannot be const: parse_o() will choke */
-static char default_o[] = "pid,user" /* TODO: ,vsz,stat */ ",args";
-
 int ps_main(int argc, char **argv);
 int ps_main(int argc, char **argv)
 {
 	procps_status_t *p;
 	llist_t* opt_o = NULL;
+
+	/* Cannot be const: parse_o() will choke */
+	strcpy(default_o, DEFAULT_O_STR);
 
 	// POSIX:
 	// -a  Write information for all processes associated with terminals
@@ -248,12 +274,11 @@ int ps_main(int argc, char **argv)
 	// -f  Generate a full listing
 	// -l  Generate a long listing
 	// -o col1,col2,col3=header
-	//     Select which columns to distplay
+	//     Select which columns to display
 	/* We allow (and ignore) most of the above. FIXME */
 	opt_complementary = "o::";
 	getopt32(argc, argv, "o:aAdefl", &opt_o);
 	if (opt_o) {
-		opt_o = llist_rev(opt_o);
 		do {
 			parse_o(opt_o->data);
 			opt_o = opt_o->link;
@@ -272,7 +297,7 @@ int ps_main(int argc, char **argv)
 	format_header();
 
 	p = NULL;
-	while ((p = procps_scan(p, ps_flags))) {
+	while ((p = procps_scan(p, need_flags))) {
 		format_process(p);
 	}
 
@@ -361,7 +386,7 @@ int ps_main(int argc, char **argv)
 				len = printf("%5u %-8s        %s ",
 					p->pid, user, p->state);
 			else
-				len = printf("%5u %-8s %6ld %s ",
+				len = printf("%5u %-8s %6u %s ",
 					p->pid, user, p->vsz, p->state);
 		}
 

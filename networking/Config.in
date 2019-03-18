@@ -24,13 +24,13 @@ config ARP
 	bool "arp"
 	default n
 	help
-	  Manipulate the system ARP cache
+	  Manipulate the system ARP cache.
 
 config ARPING
 	bool "arping"
 	default n
 	help
-	  Ping hosts by ARP packets
+	  Ping hosts by ARP packets.
 
 config DNSD
 	bool "dnsd"
@@ -75,7 +75,7 @@ config HOSTNAME
 	bool "hostname"
 	default n
 	help
-	  Show or set the system's host name
+	  Show or set the system's host name.
 
 config HTTPD
 	bool "httpd"
@@ -140,7 +140,7 @@ config FEATURE_HTTPD_CONFIG_WITH_SCRIPT_INTERPR
 	help
 	  This option enables support for running scripts through an
 	  interpreter. Turn this on if you want PHP scripts to work
-	  properly. You need to supply an addition line in your httpd
+	  properly. You need to supply an additional line in your httpd
 	  config file:
 	  *.php:/path/to/your/php
 
@@ -223,8 +223,7 @@ config IFUPDOWN
 	  of support questions on the mailing list), I do not force you to
 	  enable these additional options.  It is up to you to supply either
 	  "ifconfig", "route" and "run-parts" or the "ip" command, either
-	  via busybox or via
-	  standalone utilities.
+	  via busybox or via standalone utilities.
 
 config FEATURE_IFUPDOWN_IP
 	bool "Use ip applet"
@@ -267,7 +266,7 @@ config FEATURE_IFUPDOWN_IPV4
 	default y
 	depends on IFUPDOWN
 	help
-	  If you want busybox to talk IPv4, leave this on.
+	  If you want ifup/ifdown to talk IPv4, leave this on.
 
 config FEATURE_IFUPDOWN_IPV6
 	bool "Enable support for IPv6"
@@ -276,13 +275,14 @@ config FEATURE_IFUPDOWN_IPV6
 	help
 	  If you need support for IPv6, turn this option on.
 
-config FEATURE_IFUPDOWN_IPX
-	bool "Enable support for IPX"
-	default n
-	depends on IFUPDOWN
-	help
-	  If this option is selected you can use busybox to work with IPX
-	  networks.
+### UNUSED
+### config FEATURE_IFUPDOWN_IPX
+### 	bool "Enable support for IPX"
+### 	default n
+### 	depends on IFUPDOWN
+### 	help
+### 	  If this option is selected you can use busybox to work with IPX
+### 	  networks.
 
 config FEATURE_IFUPDOWN_MAPPING
 	bool "Enable mapping support"
@@ -291,6 +291,16 @@ config FEATURE_IFUPDOWN_MAPPING
 	help
 	  This enables support for the "mapping" stanza, unless you have
 	  a weird network setup you don't need it.
+
+config FEATURE_IFUPDOWN_EXTERNAL_DHCP
+	bool "Enable support for external dhcp clients"
+	default n
+	depends on IFUPDOWN
+	help
+	  This enables support for the external dhcp clients. Clients are
+	  tried in the following order: dhcpcd, dhclient, pump and udhcpc.
+	  Otherwise, if udhcpc applet is enabled, it is used.
+	  Otherwise, ifup/ifdown will have no support for DHCP.
 
 config INETD
 	bool "inetd"
@@ -468,7 +478,7 @@ config NC
 	  connections.
 
 config NC_SERVER
-	bool "Netcat server options (-lp)"
+	bool "Netcat server options (-l)"
 	default n
 	depends on NC
 	help
@@ -488,6 +498,14 @@ config NETSTAT
 	default n
 	help
 	  netstat prints information about the Linux networking subsystem.
+
+config FEATURE_NETSTAT_WIDE
+	bool "  Enable wide netstat output"
+	default n
+	depends on NETSTAT
+	help
+	  Add support for wide columns. Useful when displaying IPv6 addresses
+	  (-W option).
 
 config NSLOOKUP
 	bool "nslookup"

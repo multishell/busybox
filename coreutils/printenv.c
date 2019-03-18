@@ -8,15 +8,12 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include "busybox.h"
+#include "libbb.h"
+extern char **environ;
 
 int printenv_main(int argc, char **argv);
 int printenv_main(int argc, char **argv)
 {
-	extern char **environ;
 	int e = 0;
 
 	/* no variables specified, show whole env */

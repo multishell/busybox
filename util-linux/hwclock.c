@@ -7,11 +7,10 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
 */
 
-
-#include <sys/ioctl.h>
+//#include <sys/ioctl.h>
 #include <sys/utsname.h>
 #include <getopt.h>
-#include "busybox.h"
+#include "libbb.h"
 
 /* Copied from linux/rtc.h to eliminate the kernel dependency */
 struct linux_rtc_time {
@@ -61,7 +60,7 @@ static time_t read_rtc(int utc)
 	int rtc = xopen_rtc(O_RDONLY);
 
 	memset(&tm, 0, sizeof(struct tm));
-	if (ioctl(rtc, RTC_RD_TIME, &tm) < 0 )
+	if (ioctl(rtc, RTC_RD_TIME, &tm) < 0)
 		bb_perror_msg_and_die("cannot read time from RTC");
 	tm.tm_isdst = -1; /* not known */
 
@@ -165,7 +164,7 @@ static int check_utc(void)
 
 			buffer[len] = 0;
 
-			if (strncmp(buffer, "UTC", 3) == 0 ) {
+			if (strncmp(buffer, "UTC", 3) == 0) {
 				utc = 1;
 				break;
 			}

@@ -9,6 +9,7 @@
  */
 
 #include <getopt.h>
+#include <syslog.h>
 
 #include "common.h"
 #include "dhcpd.h"
@@ -16,22 +17,23 @@
 #include "options.h"
 
 
-static int state;
 /* Something is definitely wrong here. IPv4 addresses
  * in variables of type long?? BTW, we use inet_ntoa()
  * in the code. Manpage says that struct in_addr has a member of type long (!)
  * which holds IPv4 address, and the struct is passed by value (!!)
  */
+static unsigned long timeout;
 static unsigned long requested_ip; /* = 0 */
 static uint32_t server_addr;
-static unsigned long timeout;
 static int packet_num; /* = 0 */
-static int fd = -1;
+static int sockfd = -1;
 
 #define LISTEN_NONE 0
 #define LISTEN_KERNEL 1
 #define LISTEN_RAW 2
-static int listen_mode;
+static smallint listen_mode;
+
+static smallint state;
 
 struct client_config_t client_config;
 
@@ -41,8 +43,10 @@ static void change_mode(int new_mode)
 {
 	DEBUG("entering %s listen mode",
 		new_mode ? (new_mode == 1 ? "kernel" : "raw") : "none");
-	if (fd >= 0) close(fd);
-	fd = -1;
+	if (sockfd >= 0) {
+		close(sockfd);
+		sockfd = -1;
+	}
 	listen_mode = new_mode;
 }
 
@@ -103,7 +107,20 @@ static void perform_release(void)
 
 static void client_background(void)
 {
-	udhcp_background(client_config.pidfile);
+#ifdef __uClinux__
+	bb_error_msg("cannot background in uclinux (yet)");
+/* ... mainly because udhcpc calls client_background()
+ * in _the _middle _of _udhcpc _run_, not at the start!
+ * If that will be properly disabled for NOMMU, client_background()
+ * will work on NOMMU too */
+#else
+// chdir(/) is problematic. Imagine that e.g. pidfile name is RELATIVE! what will unlink do then, eh?
+	bb_daemonize(DAEMON_CHDIR_ROOT);
+	/* rewrite pidfile, as our pid is different now */
+	if (client_config.pidfile)
+		write_pidfile(client_config.pidfile);
+	logmode &= ~LOGMODE_STDIO;
+#endif
 	client_config.foreground = 1; /* Do not fork again. */
 	client_config.background_if_no_lease = 0;
 }
@@ -122,8 +139,8 @@ static uint8_t* alloc_dhcp_option(int code, const char *str, int extra)
 }
 
 
-int udhcpc_main(int argc, char *argv[]);
-int udhcpc_main(int argc, char *argv[])
+int udhcpc_main(int argc, char **argv);
+int udhcpc_main(int argc, char **argv)
 {
 	uint8_t *temp, *message;
 	char *str_c, *str_V, *str_h, *str_F, *str_r, *str_T, *str_t;
@@ -246,12 +263,17 @@ int udhcpc_main(int argc, char *argv[])
 		return 0;
 	}
 
-	/* Start the log, sanitize fd's, and write a pid file */
-	udhcp_start_log_and_pid(client_config.pidfile);
+	if (ENABLE_FEATURE_UDHCP_SYSLOG) {
+		openlog(applet_name, LOG_PID, LOG_LOCAL0);
+		logmode |= LOGMODE_SYSLOG;
+	}
 
 	if (read_interface(client_config.interface, &client_config.ifindex,
 			   NULL, client_config.arp) < 0)
 		return 1;
+
+	/* Sanitize fd's and write pidfile */
+	udhcp_make_pidfile(client_config.pidfile);
 
 	/* if not set, and not suppressed, setup the default client ID */
 	if (!client_config.clientid && !no_clientid) {
@@ -274,13 +296,13 @@ int udhcpc_main(int argc, char *argv[])
 		tv.tv_sec = timeout - uptime();
 		tv.tv_usec = 0;
 
-		if (listen_mode != LISTEN_NONE && fd < 0) {
+		if (listen_mode != LISTEN_NONE && sockfd < 0) {
 			if (listen_mode == LISTEN_KERNEL)
-				fd = listen_socket(INADDR_ANY, CLIENT_PORT, client_config.interface);
+				sockfd = listen_socket(INADDR_ANY, CLIENT_PORT, client_config.interface);
 			else
-				fd = raw_socket(client_config.ifindex);
+				sockfd = raw_socket(client_config.ifindex);
 		}
-		max_fd = udhcp_sp_fd_set(&rfds, fd);
+		max_fd = udhcp_sp_fd_set(&rfds, sockfd);
 
 		if (tv.tv_sec > 0) {
 			DEBUG("Waiting on select...");
@@ -308,7 +330,8 @@ int udhcpc_main(int argc, char *argv[])
 						client_background();
 					} else if (client_config.abort_if_no_lease) {
 						bb_info_msg("No lease, failing");
-						return 1;
+						retval = 1;
+						goto ret;
 					}
 					/* wait to try again */
 					packet_num = 0;
@@ -327,7 +350,8 @@ int udhcpc_main(int argc, char *argv[])
 					packet_num++;
 				} else {
 					/* timed out, go back to init state */
-					if (state == RENEW_REQUESTED) udhcp_run_script(NULL, "deconfig");
+					if (state == RENEW_REQUESTED)
+						udhcp_run_script(NULL, "deconfig");
 					state = INIT_SELECTING;
 					timeout = now;
 					packet_num = 0;
@@ -378,12 +402,12 @@ int udhcpc_main(int argc, char *argv[])
 				timeout = 0x7fffffff;
 				break;
 			}
-		} else if (retval > 0 && listen_mode != LISTEN_NONE && FD_ISSET(fd, &rfds)) {
+		} else if (retval > 0 && listen_mode != LISTEN_NONE && FD_ISSET(sockfd, &rfds)) {
 			/* a packet is ready, read it */
 
 			if (listen_mode == LISTEN_KERNEL)
-				len = udhcp_get_packet(&packet, fd);
-			else len = get_raw_packet(&packet, fd);
+				len = udhcp_get_packet(&packet, sockfd);
+			else len = get_raw_packet(&packet, sockfd);
 
 			if (len == -1 && errno != EINTR) {
 				DEBUG("error on read, %s, reopening socket", strerror(errno));
@@ -403,7 +427,8 @@ int udhcpc_main(int argc, char *argv[])
 				continue;
 			}
 
-			if ((message = get_option(&packet, DHCP_MESSAGE_TYPE)) == NULL) {
+			message = get_option(&packet, DHCP_MESSAGE_TYPE);
+			if (message == NULL) {
 				bb_error_msg("cannot get option from packet - ignoring");
 				continue;
 			}
@@ -462,7 +487,7 @@ int udhcpc_main(int argc, char *argv[])
 					if (client_config.quit_after_lease) {
 						if (client_config.release_on_quit)
 							perform_release();
-						return 0;
+						goto ret0;
 					}
 					if (!client_config.foreground)
 						client_background();
@@ -495,7 +520,7 @@ int udhcpc_main(int argc, char *argv[])
 				bb_info_msg("Received SIGTERM");
 				if (client_config.release_on_quit)
 					perform_release();
-				return 0;
+				goto ret0;
 			}
 		} else if (retval == -1 && errno == EINTR) {
 			/* a signal was caught */
@@ -503,7 +528,11 @@ int udhcpc_main(int argc, char *argv[])
 			/* An error occured */
 			bb_perror_msg("select");
 		}
-
-	}
-	return 0;
+	} /* for (;;) */
+ ret0:
+	retval = 0;
+ ret:
+	if (client_config.pidfile)
+		remove_pidfile(client_config.pidfile);
+	return retval;
 }

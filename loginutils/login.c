@@ -3,16 +3,15 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include "busybox.h"
+#include "libbb.h"
 #include <utmp.h>
 #include <sys/resource.h>
 #include <syslog.h>
 
-#ifdef CONFIG_SELINUX
+#if ENABLE_SELINUX
 #include <selinux/selinux.h>  /* for is_selinux_enabled()  */
 #include <selinux/get_context_list.h> /* for get_default_context() */
 #include <selinux/flask.h> /* for security class definitions  */
-#include <errno.h>
 #endif
 
 enum {
@@ -22,8 +21,7 @@ enum {
 	TTYNAME_SIZE = 32,
 };
 
-static char full_tty[TTYNAME_SIZE];
-static char* short_tty = full_tty;
+static char* short_tty;
 
 #if ENABLE_FEATURE_UTMP
 /* vv  Taken from tinylogin utmp.c  vv */
@@ -41,9 +39,7 @@ static char* short_tty = full_tty;
  *	command line flags.
  */
 
-static struct utmp utent;
-
-static void read_or_build_utent(int picky)
+static void read_or_build_utent(struct utmp *utptr, int picky)
 {
 	struct utmp *ut;
 	pid_t pid = getpid();
@@ -58,23 +54,23 @@ static void read_or_build_utent(int picky)
 
 	/* If there is one, just use it, otherwise create a new one.  */
 	if (ut) {
-		utent = *ut;
+		*utptr = *ut;
 	} else {
 		if (picky)
 			bb_error_msg_and_die("no utmp entry found");
 
-		memset(&utent, 0, sizeof(utent));
-		utent.ut_type = LOGIN_PROCESS;
-		utent.ut_pid = pid;
-		strncpy(utent.ut_line, short_tty, sizeof(utent.ut_line));
+		memset(utptr, 0, sizeof(*utptr));
+		utptr->ut_type = LOGIN_PROCESS;
+		utptr->ut_pid = pid;
+		strncpy(utptr->ut_line, short_tty, sizeof(utptr->ut_line));
 		/* This one is only 4 chars wide. Try to fit something
 		 * remotely meaningful by skipping "tty"... */
-		strncpy(utent.ut_id, short_tty + 3, sizeof(utent.ut_id));
-		strncpy(utent.ut_user, "LOGIN", sizeof(utent.ut_user));
-		utent.ut_time = time(NULL);
+		strncpy(utptr->ut_id, short_tty + 3, sizeof(utptr->ut_id));
+		strncpy(utptr->ut_user, "LOGIN", sizeof(utptr->ut_user));
+		utptr->ut_time = time(NULL);
 	}
 	if (!picky)	/* root login */
-		memset(utent.ut_host, 0, sizeof(utent.ut_host));
+		memset(utptr->ut_host, 0, sizeof(utptr->ut_host));
 }
 
 /*
@@ -83,25 +79,25 @@ static void read_or_build_utent(int picky)
  *	write_utent changes the type of the current utmp entry to
  *	USER_PROCESS.  the wtmp file will be updated as well.
  */
-static void write_utent(const char *username)
+static void write_utent(struct utmp *utptr, const char *username)
 {
-	utent.ut_type = USER_PROCESS;
-	strncpy(utent.ut_user, username, sizeof(utent.ut_user));
-	utent.ut_time = time(NULL);
+	utptr->ut_type = USER_PROCESS;
+	strncpy(utptr->ut_user, username, sizeof(utptr->ut_user));
+	utptr->ut_time = time(NULL);
 	/* other fields already filled in by read_or_build_utent above */
 	setutent();
-	pututline(&utent);
+	pututline(utptr);
 	endutent();
 #if ENABLE_FEATURE_WTMP
 	if (access(bb_path_wtmp_file, R_OK|W_OK) == -1) {
 		close(creat(bb_path_wtmp_file, 0664));
 	}
-	updwtmp(bb_path_wtmp_file, &utent);
+	updwtmp(bb_path_wtmp_file, utptr);
 #endif
 }
 #else /* !ENABLE_FEATURE_UTMP */
-static inline void read_or_build_utent(int ATTRIBUTE_UNUSED picky) {}
-static inline void write_utent(const char ATTRIBUTE_UNUSED *username) {}
+#define read_or_build_utent(utptr, picky) ((void)0)
+#define write_utent(utptr, username) ((void)0)
 #endif /* !ENABLE_FEATURE_UTMP */
 
 static void die_if_nologin_and_non_root(int amroot)
@@ -184,20 +180,14 @@ prompt:
 
 static void motd(void)
 {
-	FILE *fp;
-	int c;
+	int fd;
 
-	fp = fopen(bb_path_motd_file, "r");
-	if (fp) {
-		while ((c = getc(fp)) != EOF)
-			putchar(c);
-		fclose(fp);
+	fd = open(bb_path_motd_file, O_RDONLY);
+	if (fd) {
+		fflush(stdout);
+		bb_copyfd_eof(fd, STDOUT_FILENO);
+		close(fd);
 	}
-}
-
-static void nonblock(int fd)
-{
-	fcntl(fd, F_SETFL, O_NONBLOCK | fcntl(fd, F_GETFL));
 }
 
 static void alarm_handler(int sig ATTRIBUTE_UNUSED)
@@ -205,9 +195,9 @@ static void alarm_handler(int sig ATTRIBUTE_UNUSED)
 	/* This is the escape hatch!  Poor serial line users and the like
 	 * arrive here when their connection is broken.
 	 * We don't want to block here */
-	nonblock(1);
-	nonblock(2);
-	bb_info_msg("\r\nLogin timed out after %d seconds\r", TIMEOUT);
+	ndelay_on(1);
+	ndelay_on(2);
+	printf("\r\nLogin timed out after %d seconds\r\n", TIMEOUT);
 	exit(EXIT_SUCCESS);
 }
 
@@ -228,12 +218,21 @@ int login_main(int argc, char **argv)
 	struct passwd *pw;
 	char *opt_host = NULL;
 	char *opt_user = NULL;
+	char full_tty[TTYNAME_SIZE];
 	USE_SELINUX(security_context_t user_sid = NULL;)
+	USE_FEATURE_UTMP(struct utmp utent;)
 
+	short_tty = full_tty;
 	username[0] = '\0';
 	amroot = (getuid() == 0);
 	signal(SIGALRM, alarm_handler);
 	alarm(TIMEOUT);
+
+	/* Mandatory paranoia for suid applet:
+	 * ensure that fd# 0,1,2 are opened (at least to /dev/null)
+	 * and any extra open fd's are closed.
+	 * (The name of the function is misleading. Not daemonizing here.) */
+	bb_daemonize_or_rexec(DAEMON_ONLY_SANITIZE | DAEMON_CLOSE_EXTRA_FDS, NULL);
 
 	opt = getopt32(argc, argv, "f:h:p", &opt_user, &opt_host);
 	if (opt & LOGIN_OPT_f) {
@@ -255,7 +254,7 @@ int login_main(int argc, char **argv)
 			short_tty = full_tty + 5;
 	}
 
-	read_or_build_utent(!amroot);
+	read_or_build_utent(&utent, !amroot);
 
 	if (opt_host) {
 		USE_FEATURE_UTMP(
@@ -263,11 +262,11 @@ int login_main(int argc, char **argv)
 		)
 		snprintf(fromhost, sizeof(fromhost)-1, " on '%.100s' from "
 					"'%.200s'", short_tty, opt_host);
-	}
-	else
+	} else
 		snprintf(fromhost, sizeof(fromhost)-1, " on '%.100s'", short_tty);
 
-	bb_setpgrp;
+	// Was breaking "login <username>" from shell command line:
+	// bb_setpgrp();
 
 	openlog(applet_name, LOG_PID | LOG_CONS | LOG_NOWAIT, LOG_AUTH);
 
@@ -298,7 +297,7 @@ int login_main(int argc, char **argv)
 		if (correct_password(pw))
 			break;
 
-auth_failed:
+ auth_failed:
 		opt &= ~LOGIN_OPT_f;
 		bb_do_delay(FAIL_DELAY);
 		puts("Login incorrect");
@@ -313,7 +312,7 @@ auth_failed:
 	alarm(0);
 	die_if_nologin_and_non_root(pw->pw_uid == 0);
 
-	write_utent(username);
+	write_utent(&utent, username);
 
 #ifdef CONFIG_SELINUX
 	if (is_selinux_enabled()) {
@@ -343,25 +342,20 @@ auth_failed:
 	fchown(0, pw->pw_uid, pw->pw_gid);
 	fchmod(0, 0600);
 
-	/* TODO: be nommu-friendly, use spawn? */
 	if (ENABLE_LOGIN_SCRIPTS) {
-		char *script = getenv("LOGIN_PRE_SUID_SCRIPT");
-		if (script) {
-			char *t_argv[2] = { script, NULL };
-			switch (fork()) {
-			case -1: break;
-			case 0: /* child */
-				xchdir("/");
-				setenv("LOGIN_TTY", full_tty, 1);
-				setenv("LOGIN_USER", pw->pw_name, 1);
-				setenv("LOGIN_UID", utoa(pw->pw_uid), 1);
-				setenv("LOGIN_GID", utoa(pw->pw_gid), 1);
-				setenv("LOGIN_SHELL", pw->pw_shell, 1);
-				BB_EXECVP(script, t_argv);
-				exit(1);
-			default: /* parent */
-				wait(NULL);
-			}
+		char *t_argv[2];
+
+		t_argv[0] = getenv("LOGIN_PRE_SUID_SCRIPT");
+		if (t_argv[0]) {
+			t_argv[1] = NULL;
+			xsetenv("LOGIN_TTY", full_tty);
+			xsetenv("LOGIN_USER", pw->pw_name);
+			xsetenv("LOGIN_UID", utoa(pw->pw_uid));
+			xsetenv("LOGIN_GID", utoa(pw->pw_gid));
+			xsetenv("LOGIN_SHELL", pw->pw_shell);
+			xspawn(t_argv); /* NOMMU-friendly */
+			/* All variables are unset by setup_environment */
+			wait(NULL);
 		}
 	}
 
@@ -386,6 +380,9 @@ auth_failed:
 	// setsid();
 	// /* TIOCSCTTY: steal tty from other process group */
 	// if (ioctl(0, TIOCSCTTY, 1)) error_msg...
+	// BBox login used to do this (see above):
+	// bb_setpgrp();
+	// If this stuff is really needed, add it and explain why!
 
 	/* set signals to defaults */
 	signal(SIGALRM, SIG_DFL);

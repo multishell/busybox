@@ -30,7 +30,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <sys/poll.h>
 #include <sys/file.h>
-#include "busybox.h"
+#include "libbb.h"
 #include "runit_lib.h"
 
 #define MAXSERVICES 1000
@@ -97,9 +97,10 @@ static void runsv(int no, const char *name)
 		prog[0] = (char*)"runsv";
 		prog[1] = (char*)name;
 		prog[2] = NULL;
-		sig_uncatch(SIGHUP);
-		sig_uncatch(SIGTERM);
-		if (pgrp) setsid();
+		if (pgrp)
+			setsid();
+		signal(SIGHUP, SIG_DFL);
+		signal(SIGTERM, SIG_DFL);
 		BB_EXECVP(prog[0], prog);
 		//pathexec_run(*prog, prog, (char* const*)environ);
 		fatal2_cannot("start runsv ", name);
@@ -183,7 +184,7 @@ static int setup_log(void)
 		warnx("log must have at least seven characters");
 		return 0;
 	}
-	if (pipe(logpipe) == -1) {
+	if (pipe(logpipe)) {
 		warnx("cannot create pipe for log");
 		return -1;
 	}
@@ -191,7 +192,7 @@ static int setup_log(void)
 	coe(logpipe[0]);
 	ndelay_on(logpipe[0]);
 	ndelay_on(logpipe[1]);
-	if (fd_copy(2, logpipe[1]) == -1) {
+	if (dup2(logpipe[1], 2) == -1) {
 		warnx("cannot set filedescriptor for log");
 		return -1;
 	}

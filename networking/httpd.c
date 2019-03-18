@@ -91,7 +91,7 @@
  *
 */
 
-#include "busybox.h"
+#include "libbb.h"
 
 /* amount of buffering in a pipe */
 #ifndef PIPE_BUF
@@ -765,10 +765,9 @@ static void setenv_long(const char *name, long value)
  ****************************************************************************/
 static void decodeBase64(char *Data)
 {
-
 	const unsigned char *in = (const unsigned char *)Data;
 	// The decoded size will be at most 3/4 the size of the encoded
-	unsigned long ch = 0;
+	unsigned ch = 0;
 	int i = 0;
 
 	while (*in) {
@@ -798,7 +797,7 @@ static void decodeBase64(char *Data)
 			i = 0;
 		}
 	}
-	*Data = 0;
+	*Data = '\0';
 }
 #endif
 
@@ -986,7 +985,7 @@ static int sendCgi(const char *url,
  *    since httpd is run from inetd (and it can't run standalone
  *    in uClinux).
  */
-#ifdef BB_NOMMU
+#if !BB_MMU
 	pid = vfork();
 #else
 	pid = fork();
@@ -1573,7 +1572,7 @@ static void handleIncoming(void)
 		}
 
 		/* algorithm stolen from libbb bb_simplify_path(),
-			 but don't strdup and reducing trailing slash and protect out root */
+		 * but don't strdup and reducing trailing slash and protect out root */
 		purl = test = url;
 		do {
 			if (*purl == '/') {
@@ -1583,18 +1582,18 @@ static void handleIncoming(void)
 				}
 				if (*test == '.') {
 					/* skip extra '.' */
-					if (test[1] == '/' || test[1] == 0) {
+					if (test[1] == '/' || !test[1]) {
 						continue;
-					} else
+					}
 					/* '..': be careful */
-					if (test[1] == '.' && (test[2] == '/' || test[2] == 0)) {
+					if (test[1] == '.' && (test[2] == '/' || !test[2])) {
 						++test;
 						if (purl == url) {
 							/* protect out root */
 							goto BAD_REQUEST;
 						}
 						while (*--purl != '/') /* omit previous dir */;
-						continue;
+							continue;
 					}
 				}
 			}
@@ -1938,16 +1937,9 @@ enum {
 	OPT_FOREGROUND  = 1 << p_opt_foreground,
 };
 
-static const char httpd_opts[] = "c:d:h:"
-	USE_FEATURE_HTTPD_ENCODE_URL_STR("e:")
-	USE_FEATURE_HTTPD_BASIC_AUTH("r:")
-	USE_FEATURE_HTTPD_AUTH_MD5("m:")
-	USE_FEATURE_HTTPD_SETUID("u:")
-	"p:if";
 
-
-int httpd_main(int argc, char *argv[]);
-int httpd_main(int argc, char *argv[])
+int httpd_main(int argc, char **argv);
+int httpd_main(int argc, char **argv)
 {
 	unsigned opt;
 	const char *home_httpd = home;
@@ -1970,7 +1962,12 @@ int httpd_main(int argc, char *argv[])
 	config->port = 80;
 	config->ContentLength = -1;
 
-	opt = getopt32(argc, argv, httpd_opts,
+	opt = getopt32(argc, argv, "c:d:h:"
+			USE_FEATURE_HTTPD_ENCODE_URL_STR("e:")
+			USE_FEATURE_HTTPD_BASIC_AUTH("r:")
+			USE_FEATURE_HTTPD_AUTH_MD5("m:")
+			USE_FEATURE_HTTPD_SETUID("u:")
+			"p:if",
 			&(config->configFile), &url_for_decode, &home_httpd
 			USE_FEATURE_HTTPD_ENCODE_URL_STR(, &url_for_encode)
 			USE_FEATURE_HTTPD_BASIC_AUTH(, &(config->realm))
@@ -2044,6 +2041,6 @@ int httpd_main(int argc, char *argv[])
 		return miniHttpd_inetd();
 
 	if (!(opt & OPT_FOREGROUND))
-		xdaemon(1, 0);     /* don't change current directory */
+		bb_daemonize(0);     /* don't change current directory */
 	return miniHttpd(config->server_socket);
 }

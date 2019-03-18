@@ -14,7 +14,7 @@
  *
  */
 
-#include "busybox.h"
+#include "libbb.h"
 
 /*
  *    Function Prototypes
@@ -202,7 +202,8 @@ int sysctl_write_setting(const char *setting, int output)
 	while ((cptr = strchr(outname, '/')) != NULL)
 		*cptr = '.';
 
-	if ((fd = open(tmpname, O_WRONLY | O_CREAT | O_TRUNC, 0666)) < 0) {
+	fd = open(tmpname, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+	if (fd < 0) {
 		switch (errno) {
 		case ENOENT:
 			bb_error_msg(ERR_INVALID_KEY, outname);
@@ -300,14 +301,16 @@ int sysctl_display_all(const char *path, int output, int show_table)
 	char *tmpdir;
 	struct stat ts;
 
-	if (!(dp = opendir(path))) {
+	dp = opendir(path);
+	if (!dp) {
 		retval = -1;
 	} else {
 		while ((de = readdir(dp)) != NULL) {
 			tmpdir = concat_subpath_file(path, de->d_name);
-			if(tmpdir == NULL)
+			if (tmpdir == NULL)
 				continue;
-			if ((retval2 = stat(tmpdir, &ts)) != 0)
+			retval2 = stat(tmpdir, &ts);
+			if (retval2 != 0)
 				bb_perror_msg(tmpdir);
 			else {
 				if (S_ISDIR(ts.st_mode)) {

@@ -3,11 +3,7 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include <stdlib.h>
-#include <unistd.h>
-
 #include "libbb.h"
-
 #include "unarchive.h"
 
 /* transformer(), more than meets the eye */
@@ -17,9 +13,7 @@ int open_transformer(int src_fd,
 	int fd_pipe[2];
 	int pid;
 
-	if (pipe(fd_pipe) != 0) {
-		bb_perror_msg_and_die("can't create pipe");
-	}
+	xpipe(fd_pipe);
 
 	pid = fork();
 	if (pid == -1) {

@@ -12,7 +12,10 @@
  * http://www.opengroup.org/onlinepubs/007904975/utilities/sort.html
  */
 
-#include "busybox.h"
+#include "libbb.h"
+
+/* This is a NOEXEC applet. Be very careful! */
+
 
 /*
 	sort [-m][-o output][-bdfinru][-t char][-k keydef]... [file...]
@@ -296,7 +299,6 @@ int sort_main(int argc, char **argv)
 		key_separator = str_t[0];
 	}
 	/* parse sort key */
-	lst_k = llist_rev(lst_k);
 	while (lst_k) {
 		enum {
 			FLAG_allowed_for_k =

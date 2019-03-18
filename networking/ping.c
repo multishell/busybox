@@ -27,7 +27,7 @@
 
 #include <net/if.h>
 #include <netinet/ip_icmp.h>
-#include "busybox.h"
+#include "libbb.h"
 
 #if ENABLE_PING6
 #include <netinet/icmp6.h>
@@ -101,14 +101,8 @@ static void ping4(len_and_sockaddr *lsa)
 	pkt->icmp_type = ICMP_ECHO;
 	pkt->icmp_cksum = in_cksum((unsigned short *) pkt, sizeof(packet));
 
-	c = sendto(pingsock, packet, DEFDATALEN + ICMP_MINLEN, 0,
+	c = xsendto(pingsock, packet, DEFDATALEN + ICMP_MINLEN,
 			   (struct sockaddr *) &pingaddr, sizeof(pingaddr));
-
-	if (c < 0) {
-		if (ENABLE_FEATURE_CLEAN_UP)
-			close(pingsock);
-		bb_perror_msg_and_die("sendto");
-	}
 
 	/* listen for replies */
 	while (1) {
@@ -153,14 +147,8 @@ static void ping6(len_and_sockaddr *lsa)
 	sockopt = offsetof(struct icmp6_hdr, icmp6_cksum);
 	setsockopt(pingsock, SOL_RAW, IPV6_CHECKSUM, &sockopt, sizeof(sockopt));
 
-	c = sendto(pingsock, packet, DEFDATALEN + sizeof (struct icmp6_hdr), 0,
+	c = xsendto(pingsock, packet, DEFDATALEN + sizeof (struct icmp6_hdr),
 			   (struct sockaddr *) &pingaddr, sizeof(pingaddr));
-
-	if (c < 0) {
-		if (ENABLE_FEATURE_CLEAN_UP)
-			close(pingsock);
-		bb_perror_msg_and_die("sendto");
-	}
 
 	/* listen for replies */
 	while (1) {
@@ -261,7 +249,7 @@ static unsigned datalen; /* intentionally uninitialized to work around gcc bug *
 static int if_index;
 
 static unsigned long ntransmitted, nreceived, nrepeats, pingcount;
-static int myid;
+static uint16_t myid;
 static unsigned tmin = UINT_MAX, tmax;
 static unsigned long tsum;
 static char rcvd_tbl[MAX_DUP_CHK / 8];
@@ -306,15 +294,12 @@ static void sendping_tail(void (*sp)(int), const void *pkt, int size_pkt)
 
 	/* sizeof(pingaddr) can be larger than real sa size, but I think
 	 * it doesn't matter */
-	sz = sendto(pingsock, pkt, size_pkt, 0,	&pingaddr.sa, sizeof(pingaddr));
-	if (sz < 0)
-		bb_perror_msg_and_die("sendto");
+	sz = xsendto(pingsock, pkt, size_pkt, &pingaddr.sa, sizeof(pingaddr));
 	if (sz != size_pkt)
-		bb_error_msg_and_die("ping wrote %d chars; %d expected", sz,
-			size_pkt);
+		bb_error_msg_and_die(bb_msg_write_error);
 
 	signal(SIGALRM, sp);
-	if (pingcount == 0 || ntransmitted < pingcount) {	/* schedule next in 1s */
+	if (pingcount == 0 || ntransmitted < pingcount) { /* schedule next in 1s */
 		alarm(PINGINTERVAL);
 	} else { /* done, wait for the last ping to come back */
 		/* todo, don't necessarily need to wait so long... */
@@ -682,7 +667,7 @@ int ping_main(int argc, char **argv)
 			source_lsa = xdotted2sockaddr(opt_I, 0);
 		}
 	}
-	myid = (int16_t) getpid();
+	myid = (uint16_t) getpid();
 	hostname = argv[optind];
 #if ENABLE_PING6
 	if (option_mask32 & OPT_IPV4)

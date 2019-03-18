@@ -15,8 +15,11 @@
  * Size reduction.
  */
 
-#include "busybox.h"
+#include "libbb.h"
 #include "libcoreutils/coreutils.h"
+
+/* This is a NOEXEC applet. Be very careful! */
+
 
 int cp_main(int argc, char **argv);
 int cp_main(int argc, char **argv)

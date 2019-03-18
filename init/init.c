@@ -9,11 +9,11 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include "busybox.h"
+#include "libbb.h"
 #include <paths.h>
-#include <signal.h>
-#include <sys/ioctl.h>
-#include <sys/wait.h>
+//#include <signal.h>
+//#include <sys/ioctl.h>
+//#include <sys/wait.h>
 #include <sys/reboot.h>
 
 #if ENABLE_FEATURE_INIT_SYSLOG
@@ -843,7 +843,7 @@ static void parse_inittab(void)
 		for (a = actions; a->name != 0; a++) {
 			if (strcmp(a->name, action) == 0) {
 				if (*id != '\0') {
-					if(strncmp(id, "/dev/", 5) == 0)
+					if (strncmp(id, "/dev/", 5) == 0)
 						id += 5;
 					strcpy(tmpConsole, "/dev/");
 					safe_strncpy(tmpConsole + 5, id,
@@ -880,8 +880,7 @@ static void reload_signal(int sig ATTRIBUTE_UNUSED)
 	/* remove unused entrys */
 	for (a = init_action_list; a; a = tmp) {
 		tmp = a->next;
-		if (a->action & (ONCE | SYSINIT | WAIT ) &&
-				a->pid == 0 ) {
+		if ((a->action & (ONCE | SYSINIT | WAIT)) && a->pid == 0) {
 			delete_init_action(a);
 		}
 	}

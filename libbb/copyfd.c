@@ -7,27 +7,23 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include <errno.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-
 #include "libbb.h"
-
 
 #if BUFSIZ < 4096
 #undef BUFSIZ
 #define BUFSIZ 4096
 #endif
 
+/* Used by NOFORK applets (e.g. cat) - must not use xmalloc */
 
 static off_t bb_full_fd_action(int src_fd, int dst_fd, off_t size)
 {
 	int status = -1;
 	off_t total = 0;
-	RESERVE_CONFIG_BUFFER(buffer, BUFSIZ);
+	char buffer[BUFSIZ];
 
-	if (src_fd < 0) goto out;
+	if (src_fd < 0)
+		goto out;
 
 	if (!size) {
 		size = BUFSIZ;
@@ -66,7 +62,6 @@ static off_t bb_full_fd_action(int src_fd, int dst_fd, off_t size)
 		}
 	}
  out:
-	RELEASE_CONFIG_BUFFER(buffer);
 	return status ? -1 : total;
 }
 
@@ -77,7 +72,7 @@ void complain_copyfd_and_die(off_t sz)
 	if (sz != -1)
 		bb_error_msg_and_die("short read");
 	/* if sz == -1, bb_copyfd_XX already complained */
-	exit(xfunc_error_retval);
+	xfunc_die();
 }
 #endif
 
@@ -97,7 +92,7 @@ void bb_copyfd_exact_size(int fd1, int fd2, off_t size)
 	if (sz != -1)
 		bb_error_msg_and_die("short read");
 	/* if sz == -1, bb_copyfd_XX already complained */
-	exit(xfunc_error_retval);
+	xfunc_die();
 }
 
 off_t bb_copyfd_eof(int fd1, int fd2)

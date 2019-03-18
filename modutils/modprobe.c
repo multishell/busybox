@@ -11,7 +11,7 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
 */
 
-#include "busybox.h"
+#include "libbb.h"
 #include <sys/utsname.h>
 #include <fnmatch.h>
 
@@ -669,7 +669,8 @@ static int mod_process(const struct mod_list_t *list, int do_insert)
  * Check the matching between a pattern and a module name.
  * We need this as *_* is equivalent to *-*, even in pattern matching.
  */
-static int check_pattern(const char* pat_src, const char* mod_src) {
+static int check_pattern(const char* pat_src, const char* mod_src)
+{
 	int ret;
 
 	if (ENABLE_FEATURE_MODPROBE_FANCY_ALIAS) {
@@ -677,8 +678,8 @@ static int check_pattern(const char* pat_src, const char* mod_src) {
 		char* mod;
 		char* p;
 
-		pat = xstrdup (pat_src);
-		mod = xstrdup (mod_src);
+		pat = xstrdup(pat_src);
+		mod = xstrdup(mod_src);
 
 		for (p = pat; (p = strchr(p, '-')); *p++ = '_');
 		for (p = mod; (p = strchr(p, '-')); *p++ = '_');
@@ -686,8 +687,8 @@ static int check_pattern(const char* pat_src, const char* mod_src) {
 		ret = fnmatch(pat, mod, 0);
 
 		if (ENABLE_FEATURE_CLEAN_UP) {
-			free (pat);
-			free (mod);
+			free(pat);
+			free(mod);
 		}
 
 		return ret;

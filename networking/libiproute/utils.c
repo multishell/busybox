@@ -12,10 +12,6 @@
  */
 
 #include "libbb.h"
-
-#include <string.h>
-#include <unistd.h>
-
 #include "utils.h"
 #include "inet_common.h"
 
@@ -32,7 +28,7 @@ int get_integer(int *val, char *arg, int base)
 	*val = res;
 	return 0;
 }
-
+//XXX: FIXME: use some libbb function instead
 int get_unsigned(unsigned *val, char *arg, int base)
 {
 	unsigned long res;
@@ -197,7 +193,7 @@ int get_prefix_1(inet_prefix * dst, char *arg, int family)
 			dst->bitlen = plen;
 		}
 	}
-  done:
+ done:
 	if (slash)
 		*slash = '/';
 	return err;

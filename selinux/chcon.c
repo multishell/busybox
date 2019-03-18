@@ -5,9 +5,10 @@
  *
  * Copyright (C) 2006 - 2007 KaiGai Kohei <kaigai@kaigai.gr.jp>
  */
-#include "busybox.h"
 #include <getopt.h>
 #include <selinux/context.h>
+
+#include "libbb.h"
 
 #define OPT_RECURSIVE		(1<<0)	/* 'R' */
 #define OPT_CHANHES		(1<<1)	/* 'c' */
@@ -120,8 +121,8 @@ static struct option chcon_options[] = {
 };
 #endif
 
-int chcon_main(int argc, char *argv[]);
-int chcon_main(int argc, char *argv[])
+int chcon_main(int argc, char **argv);
+int chcon_main(int argc, char **argv)
 {
 	char *reference_file;
 	char *fname;
@@ -163,9 +164,7 @@ int chcon_main(int argc, char *argv[])
 		fname[fname_len] = '\0';
 
 		if (recursive_action(fname,
-				     option_mask32 & OPT_RECURSIVE,
-				     FALSE,	/* followLinks */
-				     FALSE,	/* depthFirst */
+				     1<<option_mask32 & OPT_RECURSIVE,
 				     change_filedir_context,
 				     change_filedir_context,
 				     NULL, 0) != TRUE)

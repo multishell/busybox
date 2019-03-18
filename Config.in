@@ -141,6 +141,13 @@ config FEATURE_CLEAN_UP
 	  Don't enable this unless you have a really good reason to clean
 	  things up manually.
 
+config FEATURE_PIDFILE
+	bool "Support writing pidfiles"
+	default n
+	help
+	  This option makes some applets (crond, syslogd and inetd) write
+	  a pidfile in /var/run. Some applications rely on them
+
 config FEATURE_SUID
 	bool "Support for SUID/SGID handling"
 	default n
@@ -231,13 +238,19 @@ config SELINUX
 
 	  Most people will leave this set to 'N'.
 
-config FEATURE_EXEC_PREFER_APPLETS
+config FEATURE_PREFER_APPLETS
 	bool "exec prefers applets"
 	default n
 	help
 	  This is an experimental option which directs applets about to
 	  call 'exec' to try and find an applicable busybox applet before
-	  searching the executable path for a binary or symlink to execute.
+	  searching the PATH. This is typically done by exec'ing
+	  /proc/self/exe.
+	  This may affect shell, find -exec, xargs and similar applets.
+	  They will use applets even if /bin/<applet> -> busybox link
+	  is missing (or is not a link to busybox). However, this causes
+	  problems in chroot jails without mounted /proc and with ps/top
+	  (command name can be shown as 'exe' for applets started this way).
 
 config BUSYBOX_EXEC_PATH
 	string "Path to BusyBox executable"
@@ -375,7 +388,6 @@ config WERROR
 choice
 	prompt "Additional debugging library"
 	default NO_DEBUG_LIB
-	depends on DEBUG
 	help
 	  Using an additional debugging library will make BusyBox become
 	  considerable larger and will cause it to run more slowly.  You
@@ -455,10 +467,10 @@ config INSTALL_APPLET_HARDLINKS
 
 config INSTALL_APPLET_DONT
 	bool "not installed"
-	depends on FEATURE_INSTALLER || FEATURE_SH_STANDALONE_SHELL || FEATURE_EXEC_PREFER_APPLETS
+	depends on FEATURE_INSTALLER || FEATURE_SH_STANDALONE || FEATURE_PREFER_APPLETS
 	help
 	  Do not install applet links. Useful when using the -install feature
-	  or a standalone shell for rescue pruposes.
+	  or a standalone shell for rescue purposes.
 
 endchoice
 
@@ -494,3 +506,4 @@ source shell/Config.in
 source sysklogd/Config.in
 source runit/Config.in
 source selinux/Config.in
+source ipsvd/Config.in

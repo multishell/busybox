@@ -10,6 +10,7 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
+#include <syslog.h>
 #include "common.h"
 #include "dhcpd.h"
 #include "options.h"
@@ -20,8 +21,8 @@ struct dhcpOfferedAddr *leases;
 struct server_config_t server_config;
 
 
-int udhcpd_main(int argc, char *argv[]);
-int udhcpd_main(int argc, char *argv[])
+int udhcpd_main(int argc, char **argv);
+int udhcpd_main(int argc, char **argv)
 {
 	fd_set rfds;
 	struct timeval tv;
@@ -33,16 +34,30 @@ int udhcpd_main(int argc, char *argv[])
 	struct option_set *option;
 	struct dhcpOfferedAddr *lease, static_lease;
 
+//Huh, dhcpd don't have --foreground, --syslog options?? TODO
+
+	if (!ENABLE_FEATURE_UDHCP_DEBUG) {
+		bb_daemonize_or_rexec(DAEMON_CHDIR_ROOT, argv);
+		logmode &= ~LOGMODE_STDIO;
+	}
+
+	if (ENABLE_FEATURE_UDHCP_SYSLOG) {
+		openlog(applet_name, LOG_PID, LOG_LOCAL0);
+		logmode |= LOGMODE_SYSLOG;
+	}
+
+	/* Would rather not do read_config before daemonization -
+	 * otherwise NOMMU machines will parse config twice */
 	read_config(argc < 2 ? DHCPD_CONF_FILE : argv[1]);
 
-	/* Start the log, sanitize fd's, and write a pid file */
-	udhcp_start_log_and_pid(server_config.pidfile);
+	udhcp_make_pidfile(server_config.pidfile);
 
-	if ((option = find_option(server_config.options, DHCP_LEASE_TIME))) {
+	option = find_option(server_config.options, DHCP_LEASE_TIME);
+	server_config.lease = LEASE_TIME;
+	if (option) {
 		memcpy(&server_config.lease, option->data + 2, 4);
 		server_config.lease = ntohl(server_config.lease);
 	}
-	else server_config.lease = LEASE_TIME;
 
 	/* Sanity check */
 	num_ips = ntohl(server_config.end) - ntohl(server_config.start) + 1;
@@ -57,11 +72,10 @@ int udhcpd_main(int argc, char *argv[])
 	read_leases(server_config.lease_file);
 
 	if (read_interface(server_config.interface, &server_config.ifindex,
-			   &server_config.server, server_config.arp) < 0)
-		return 1;
-
-	if (!ENABLE_FEATURE_UDHCP_DEBUG)
-		udhcp_background(server_config.pidfile); /* hold lock during fork. */
+			   &server_config.server, server_config.arp) < 0) {
+		retval = 1;
+		goto ret;
+	}
 
 	/* Setup the signal pipe */
 	udhcp_sp_setup();
@@ -70,7 +84,8 @@ int udhcpd_main(int argc, char *argv[])
 	while (1) { /* loop until universe collapses */
 
 		if (server_socket < 0) {
-			server_socket = listen_socket(INADDR_ANY, SERVER_PORT, server_config.interface);
+			server_socket = listen_socket(INADDR_ANY, SERVER_PORT,
+					server_config.interface);
 		}
 
 		max_sock = udhcp_sp_fd_set(&rfds, server_socket);
@@ -78,16 +93,17 @@ int udhcpd_main(int argc, char *argv[])
 			tv.tv_sec = timeout_end - time(0);
 			tv.tv_usec = 0;
 		}
+		retval = 0;
 		if (!server_config.auto_time || tv.tv_sec > 0) {
 			retval = select(max_sock + 1, &rfds, NULL, NULL,
 					server_config.auto_time ? &tv : NULL);
-		} else retval = 0; /* If we already timed out, fall through */
-
+		}
 		if (retval == 0) {
 			write_leases();
 			timeout_end = time(0) + server_config.auto_time;
 			continue;
-		} else if (retval < 0 && errno != EINTR) {
+		}
+		if (retval < 0 && errno != EINTR) {
 			DEBUG("error on select");
 			continue;
 		}
@@ -101,12 +117,13 @@ int udhcpd_main(int argc, char *argv[])
 			continue;
 		case SIGTERM:
 			bb_info_msg("Received a SIGTERM");
-			return 0;
+			goto ret0;
 		case 0: break;		/* no signal */
 		default: continue;	/* signal or error (probably EINTR) */
 		}
 
-		if ((bytes = udhcp_get_packet(&packet, server_socket)) < 0) { /* this waits for a packet - idle */
+		bytes = udhcp_get_packet(&packet, server_socket); /* this waits for a packet - idle */
+		if (bytes < 0) {
 			if (bytes == -1 && errno != EINTR) {
 				DEBUG("error on read, %s, reopening socket", strerror(errno));
 				close(server_socket);
@@ -115,7 +132,8 @@ int udhcpd_main(int argc, char *argv[])
 			continue;
 		}
 
-		if ((state = get_option(&packet, DHCP_MESSAGE_TYPE)) == NULL) {
+		state = get_option(&packet, DHCP_MESSAGE_TYPE);
+		if (state == NULL) {
 			bb_error_msg("cannot get option from packet, ignoring");
 			continue;
 		}
@@ -131,7 +149,6 @@ int udhcpd_main(int argc, char *argv[])
 			static_lease.expires = 0;
 
 			lease = &static_lease;
-
 		} else {
 			lease = find_lease_by_chaddr(packet.chaddr);
 		}
@@ -157,25 +174,23 @@ int udhcpd_main(int argc, char *argv[])
 				if (server_id) {
 					/* SELECTING State */
 					DEBUG("server_id = %08x", ntohl(server_id_align));
-					if (server_id_align == server_config.server && requested &&
-					    requested_align == lease->yiaddr) {
+					if (server_id_align == server_config.server && requested
+					 && requested_align == lease->yiaddr
+					) {
 						sendACK(&packet, lease->yiaddr);
 					}
+				} else if (requested) {
+					/* INIT-REBOOT State */
+					if (lease->yiaddr == requested_align)
+						sendACK(&packet, lease->yiaddr);
+					else
+						sendNAK(&packet);
+				} else if (lease->yiaddr == packet.ciaddr) {
+					/* RENEWING or REBINDING State */
+					sendACK(&packet, lease->yiaddr);
 				} else {
-					if (requested) {
-						/* INIT-REBOOT State */
-						if (lease->yiaddr == requested_align)
-							sendACK(&packet, lease->yiaddr);
-						else sendNAK(&packet);
-					} else {
-						/* RENEWING or REBINDING State */
-						if (lease->yiaddr == packet.ciaddr)
-							sendACK(&packet, lease->yiaddr);
-						else {
-							/* don't know what to do!!!! */
-							sendNAK(&packet);
-						}
-					}
+					/* don't know what to do!!!! */
+					sendNAK(&packet);
 				}
 
 			/* what to do if we have no record of the client */
@@ -184,19 +199,22 @@ int udhcpd_main(int argc, char *argv[])
 
 			} else if (requested) {
 				/* INIT-REBOOT State */
-				if ((lease = find_lease_by_yiaddr(requested_align))) {
+				lease = find_lease_by_yiaddr(requested_align);
+				if (lease) {
 					if (lease_expired(lease)) {
 						/* probably best if we drop this lease */
 						memset(lease->chaddr, 0, 16);
 					/* make some contention for this address */
-					} else sendNAK(&packet);
-				} else if (requested_align < server_config.start ||
-					   requested_align > server_config.end) {
+					} else
+						sendNAK(&packet);
+				} else if (requested_align < server_config.start
+				        || requested_align > server_config.end
+				) {
 					sendNAK(&packet);
 				} /* else remain silent */
 
 			} else {
-				 /* RENEWING or REBINDING State */
+				/* RENEWING or REBINDING State */
 			}
 			break;
 		case DHCPDECLINE:
@@ -208,7 +226,8 @@ int udhcpd_main(int argc, char *argv[])
 			break;
 		case DHCPRELEASE:
 			DEBUG("Received RELEASE");
-			if (lease) lease->expires = time(0);
+			if (lease)
+				lease->expires = time(0);
 			break;
 		case DHCPINFORM:
 			DEBUG("Received INFORM");
@@ -218,6 +237,10 @@ int udhcpd_main(int argc, char *argv[])
 			bb_info_msg("Unsupported DHCP message (%02x) - ignoring", state[0]);
 		}
 	}
-
-	return 0;
+ ret0:
+	retval = 0;
+ ret:
+	if (server_config.pidfile)
+		remove_pidfile(server_config.pidfile);
+	return retval;
 }

@@ -10,12 +10,8 @@
  */
 
 #include <sys/param.h>  /* MAXHOSTNAMELEN */
-#include <stdio.h>
-#include <unistd.h>
-#include "libbb.h"
-
 #include <sys/utsname.h>
-#include <time.h>
+#include "libbb.h"
 
 #define LOGIN " login: "
 
@@ -43,7 +39,7 @@ void print_login_issue(const char *issue_file, const char *tty)
 		outbuf = buf;
 		buf[0] = c;
 		buf[1] = '\0';
-		if(c == '\n') {
+		if (c == '\n') {
 			buf[1] = '\r';
 			buf[2] = '\0';
 		}

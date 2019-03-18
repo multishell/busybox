@@ -8,8 +8,11 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include "busybox.h"
 #include <signal.h>  /* For FEATURE_DD_SIGNAL_HANDLING */
+#include "libbb.h"
+
+/* This is a NOEXEC applet. Be very careful! */
+
 
 static const struct suffix_mult dd_suffixes[] = {
 	{ "c", 1 },
@@ -17,7 +20,7 @@ static const struct suffix_mult dd_suffixes[] = {
 	{ "b", 512 },
 	{ "kD", 1000 },
 	{ "k", 1024 },
-	{ "K", 1024 },	// compat with coreutils dd
+	{ "K", 1024 },	/* compat with coreutils dd */
 	{ "MD", 1000000 },
 	{ "M", 1048576 },
 	{ "GD", 1000000000 },
@@ -25,23 +28,39 @@ static const struct suffix_mult dd_suffixes[] = {
 	{ NULL, 0 }
 };
 
-static off_t out_full, out_part, in_full, in_part;
+struct globals {
+	off_t out_full, out_part, in_full, in_part;
+};
+#define G (*(struct globals*)&bb_common_bufsiz1)
 
 static void dd_output_status(int ATTRIBUTE_UNUSED cur_signal)
 {
 	fprintf(stderr, "%"OFF_FMT"d+%"OFF_FMT"d records in\n"
 			"%"OFF_FMT"d+%"OFF_FMT"d records out\n",
-			in_full, in_part,
-			out_full, out_part);
+			G.in_full, G.in_part,
+			G.out_full, G.out_part);
 }
 
 static ssize_t full_write_or_warn(int fd, const void *buf, size_t len,
-		const char* filename)
+	const char * const filename)
 {
 	ssize_t n = full_write(fd, buf, len);
 	if (n < 0)
 		bb_perror_msg("writing '%s'", filename);
 	return n;
+}
+
+static bool write_and_stats(int fd, const void *buf, size_t len, size_t obs,
+	const char * const filename)
+{
+	ssize_t n = full_write_or_warn(fd, buf, len, filename);
+	if (n < 0)
+		return 1;
+	if (n == obs)
+		G.out_full++;
+	else if (n) /* > 0 */
+		G.out_part++;
+	return 0;
 }
 
 #if ENABLE_LFS
@@ -54,18 +73,43 @@ int dd_main(int argc, char **argv);
 int dd_main(int argc, char **argv)
 {
 	enum {
-		sync_flag    = 1 << 0,
-		noerror      = 1 << 1,
-		trunc_flag   = 1 << 2,
-		twobufs_flag = 1 << 3,
+		SYNC_FLAG    = 1 << 0,
+		NOERROR      = 1 << 1,
+		TRUNC_FLAG   = 1 << 2,
+		TWOBUFS_FLAG = 1 << 3,
 	};
-	int flags = trunc_flag;
+	static const char * const keywords[] = {
+		"bs=", "count=", "seek=", "skip=", "if=", "of=",
+#if ENABLE_FEATURE_DD_IBS_OBS
+		"ibs=", "obs=", "conv=", "notrunc", "sync", "noerror",
+#endif
+		NULL
+	};
+	enum {
+		OP_bs = 1,
+		OP_count,
+		OP_seek,
+		OP_skip,
+		OP_if,
+		OP_of,
+#if ENABLE_FEATURE_DD_IBS_OBS
+		OP_ibs,
+		OP_obs,
+		OP_conv,
+		OP_conv_notrunc,
+		OP_conv_sync,
+		OP_conv_noerror,
+#endif
+	};
+	int flags = TRUNC_FLAG;
 	size_t oc = 0, ibs = 512, obs = 512;
 	ssize_t n, w;
 	off_t seek = 0, skip = 0, count = OFF_T_MAX;
-	int oflag, ifd, ofd;
+	int ifd, ofd;
 	const char *infile = NULL, *outfile = NULL;
 	char *ibuf, *obuf;
+
+	memset(&G, 0, sizeof(G)); /* because of NOEXEC */
 
 	if (ENABLE_FEATURE_DD_SIGNAL_HANDLING) {
 		struct sigaction sa;
@@ -78,70 +122,104 @@ int dd_main(int argc, char **argv)
 	}
 
 	for (n = 1; n < argc; n++) {
+		smalluint key_len;
+		smalluint what;
+		char *key;
 		char *arg = argv[n];
-		/* Must fit into positive ssize_t */
-		if (ENABLE_FEATURE_DD_IBS_OBS && !strncmp("ibs=", arg, 4))
-			ibs = xatoul_range_sfx(arg+4, 0, ((size_t)-1L)/2, dd_suffixes);
-		else if (ENABLE_FEATURE_DD_IBS_OBS && !strncmp("obs=", arg, 4))
-			obs = xatoul_range_sfx(arg+4, 0, ((size_t)-1L)/2, dd_suffixes);
-		else if (!strncmp("bs=", arg, 3))
-			ibs = obs = xatoul_range_sfx(arg+3, 0, ((size_t)-1L)/2, dd_suffixes);
-		/* These can be large: */
-		else if (!strncmp("count=", arg, 6))
-			count = XATOU_SFX(arg+6, dd_suffixes);
-		else if (!strncmp("seek=", arg, 5))
-			seek = XATOU_SFX(arg+5, dd_suffixes);
-		else if (!strncmp("skip=", arg, 5))
-			skip = XATOU_SFX(arg+5, dd_suffixes);
 
-		else if (!strncmp("if=", arg, 3))
-			infile = arg+3;
-		else if (!strncmp("of=", arg, 3))
-			outfile = arg+3;
-		else if (ENABLE_FEATURE_DD_IBS_OBS && !strncmp("conv=", arg, 5)) {
-			arg += 5;
-			while (1) {
-				if (!strncmp("notrunc", arg, 7)) {
-					flags &= ~trunc_flag;
-					arg += 7;
-				} else if (!strncmp("sync", arg, 4)) {
-					flags |= sync_flag;
-					arg += 4;
-				} else if (!strncmp("noerror", arg, 7)) {
-					flags |= noerror;
-					arg += 7;
-				} else {
-					bb_error_msg_and_die(bb_msg_invalid_arg, arg, "conv");
-				}
-				if (arg[0] == '\0') break;
-				if (*arg++ != ',') bb_show_usage();
-			}
-		} else
+//XXX:FIXME: we reject plain "dd --" This would cost ~20 bytes, so..
+//if (*arg == '-' && *++arg == '-' && !*++arg) continue;
+		key = strstr(arg, "=");
+		if (key == NULL)
 			bb_show_usage();
+		key_len = key - arg + 1;
+		key = xstrndup(arg, key_len);
+		what = index_in_str_array(keywords, key) + 1;
+		if (ENABLE_FEATURE_CLEAN_UP)
+			free(key);
+		if (what == 0)
+			bb_show_usage();
+		arg += key_len;
+		/* Must fit into positive ssize_t */
+#if ENABLE_FEATURE_DD_IBS_OBS
+			if (what == OP_ibs) {
+				ibs = xatoul_range_sfx(arg, 1, ((size_t)-1L)/2, dd_suffixes);
+				continue;
+			}
+			if (what == OP_obs) {
+				obs = xatoul_range_sfx(arg, 1, ((size_t)-1L)/2, dd_suffixes);
+				continue;
+			}
+			if (what == OP_conv) {
+				while (1) {
+					/* find ',', replace them with nil so we can use arg for
+					 * index_in_str_array without copying.
+					 * We rely on arg being non-null, else strchr would fault.
+					 */
+					key = strchr(arg, ',');
+					if (key)
+						*key = '\0';
+					what = index_in_str_array(keywords, arg) + 1;
+					if (what < OP_conv_notrunc)
+						bb_error_msg_and_die(bb_msg_invalid_arg, arg, "conv");
+					if (what == OP_conv_notrunc)
+						flags &= ~TRUNC_FLAG;
+					if (what == OP_conv_sync)
+						flags |= SYNC_FLAG;
+					if (what == OP_conv_noerror)
+						flags |= NOERROR;
+					if (!key) /* no ',' left, so this was the last specifier */
+						break;
+					arg = key + 1; /* skip this keyword and ',' */
+				}
+				continue;
+			}
+#endif
+		if (what == OP_bs) {
+			ibs = obs = xatoul_range_sfx(arg, 1, ((size_t)-1L)/2, dd_suffixes);
+			continue;
+		}
+		/* These can be large: */
+		if (what == OP_count) {
+			count = XATOU_SFX(arg, dd_suffixes);
+			continue;
+		}
+		if (what == OP_seek) {
+			seek = XATOU_SFX(arg, dd_suffixes);
+			continue;
+		}
+		if (what == OP_skip) {
+			skip = XATOU_SFX(arg, dd_suffixes);
+			continue;
+		}
+		if (what == OP_if) {
+			infile = arg;
+			continue;
+		}
+		if (what == OP_of)
+			outfile = arg;
 	}
-
+//XXX:FIXME for huge ibs or obs, malloc'ing them isn't the brightest idea ever
 	ibuf = obuf = xmalloc(ibs);
 	if (ibs != obs) {
-		flags |= twobufs_flag;
+		flags |= TWOBUFS_FLAG;
 		obuf = xmalloc(obs);
 	}
-
 	if (infile != NULL)
 		ifd = xopen(infile, O_RDONLY);
 	else {
 		ifd = STDIN_FILENO;
 		infile = bb_msg_standard_input;
 	}
-
 	if (outfile != NULL) {
-		oflag = O_WRONLY | O_CREAT;
+		int oflag = O_WRONLY | O_CREAT;
 
-		if (!seek && (flags & trunc_flag))
+		if (!seek && (flags & TRUNC_FLAG))
 			oflag |= O_TRUNC;
 
 		ofd = xopen(outfile, oflag);
 
-		if (seek && (flags & trunc_flag)) {
+		if (seek && (flags & TRUNC_FLAG)) {
 			if (ftruncate(ofd, seek * obs) < 0) {
 				struct stat st;
 
@@ -154,50 +232,45 @@ int dd_main(int argc, char **argv)
 		ofd = STDOUT_FILENO;
 		outfile = bb_msg_standard_output;
 	}
-
 	if (skip) {
 		if (lseek(ifd, skip * ibs, SEEK_CUR) < 0) {
 			while (skip-- > 0) {
 				n = safe_read(ifd, ibuf, ibs);
 				if (n < 0)
-					bb_perror_msg_and_die("%s", infile);
+					goto die_infile;
 				if (n == 0)
 					break;
 			}
 		}
 	}
-
 	if (seek) {
 		if (lseek(ofd, seek * obs, SEEK_CUR) < 0)
 			goto die_outfile;
 	}
 
-	while (in_full + in_part != count) {
-		if (flags & noerror) {
-			/* Pre-zero the buffer when doing the noerror thing */
+	while (G.in_full + G.in_part != count) {
+		if (flags & NOERROR) /* Pre-zero the buffer when for NOERROR */
 			memset(ibuf, '\0', ibs);
-		}
-
 		n = safe_read(ifd, ibuf, ibs);
 		if (n == 0)
 			break;
 		if (n < 0) {
-			if (flags & noerror) {
+			if (flags & NOERROR) {
 				n = ibs;
 				bb_perror_msg("%s", infile);
 			} else
-				bb_perror_msg_and_die("%s", infile);
+				goto die_infile;
 		}
 		if ((size_t)n == ibs)
-			in_full++;
+			G.in_full++;
 		else {
-			in_part++;
-			if (flags & sync_flag) {
+			G.in_part++;
+			if (flags & SYNC_FLAG) {
 				memset(ibuf + n, '\0', ibs - n);
 				n = ibs;
 			}
 		}
-		if (flags & twobufs_flag) {
+		if (flags & TWOBUFS_FLAG) {
 			char *tmp = ibuf;
 			while (n) {
 				size_t d = obs - oc;
@@ -209,40 +282,31 @@ int dd_main(int argc, char **argv)
 				tmp += d;
 				oc += d;
 				if (oc == obs) {
-					w = full_write_or_warn(ofd, obuf, obs, outfile);
-					if (w < 0) goto out_status;
-					if (w == obs)
-						out_full++;
-					else if (w > 0)
-						out_part++;
+					if (write_and_stats(ofd, obuf, obs, obs, outfile))
+						goto out_status;
 					oc = 0;
 				}
 			}
-		} else {
-			w = full_write_or_warn(ofd, ibuf, n, outfile);
-			if (w < 0) goto out_status;
-			if (w == obs)
-				out_full++;
-			else if (w > 0)
-				out_part++;
-		}
+		} else if (write_and_stats(ofd, ibuf, n, obs, outfile))
+			goto out_status;
 	}
 
 	if (ENABLE_FEATURE_DD_IBS_OBS && oc) {
 		w = full_write_or_warn(ofd, obuf, oc, outfile);
 		if (w < 0) goto out_status;
 		if (w > 0)
-			out_part++;
+			G.out_part++;
 	}
 	if (close(ifd) < 0) {
+die_infile:
 		bb_perror_msg_and_die("%s", infile);
 	}
 
 	if (close(ofd) < 0) {
- die_outfile:
+die_outfile:
 		bb_perror_msg_and_die("%s", outfile);
 	}
- out_status:
+out_status:
 	dd_output_status(0);
 
 	return EXIT_SUCCESS;

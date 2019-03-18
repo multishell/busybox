@@ -10,15 +10,16 @@
 /* BB_AUDIT SUSv3 compliant */
 /* http://www.opengroup.org/onlinepubs/007904975/utilities/uniq.html */
 
-#include "busybox.h"
+#include "libbb.h"
 
-static const char uniq_opts[] = "f:s:" "cdu\0\1\2\4";
+static const char uniq_opts[] = "cdu" "f:s:" "cdu\0\1\2\4";
 
 static FILE *xgetoptfile_uniq_s(char **argv, int read0write2)
 {
 	const char *n;
 
-	if ((n = *argv) != NULL) {
+	n = *argv;
+	if (n != NULL) {
 		if ((*n != '-') || n[1]) {
 			return xfopen(n, "r\0w" + read0write2);
 		}
@@ -30,28 +31,28 @@ int uniq_main(int argc, char **argv);
 int uniq_main(int argc, char **argv)
 {
 	FILE *in, *out;
-	unsigned long dups, skip_fields, skip_chars, i, uniq_flags;
+	unsigned long dups, skip_fields, skip_chars, i;
 	const char *s0, *e0, *s1, *e1, *input_filename;
-	int opt;
+	unsigned opt;
 
-	uniq_flags = skip_fields = skip_chars = 0;
+	enum {
+		OPT_c = 0x1,
+		OPT_d = 0x2,
+		OPT_u = 0x4,
+		OPT_f = 0x8,
+		OPT_s = 0x10,
+	};
 
-	while ((opt = getopt(argc, argv, uniq_opts)) > 0) {
-		if ((opt == 'f') || (opt == 's')) {
-			unsigned long t = xatoul(optarg);
-			if (opt == 'f') {
-				skip_fields = t;
-			} else {
-				skip_chars = t;
-			}
-		} else if ((s0 = strchr(uniq_opts, opt)) != NULL) {
-			uniq_flags |= s0[4];
-		} else {
-			bb_show_usage();
-		}
-	}
+	skip_fields = skip_chars = 0;
 
-	input_filename = *(argv += optind);
+	opt = getopt32(argc, argv, "cduf:s:", &s0, &s1);
+	if (opt & OPT_f)
+		skip_fields = xatoul(s0);
+	if (opt & OPT_s)
+		skip_chars = xatoul(s1);
+	argv += optind;
+
+	input_filename = *argv;
 
 	in = xgetoptfile_uniq_s(argv, 0);
 	if (*argv) {
@@ -74,9 +75,7 @@ int uniq_main(int argc, char **argv)
 			e1 = s1;
 			for (i = skip_fields; i; i--) {
 				e1 = skip_whitespace(e1);
-				while (*e1 && !isspace(*e1)) {
-					++e1;
-				}
+				e1 = skip_non_whitespace(e1);
 			}
 			for (i = skip_chars; *e1 && i; i--) {
 				++e1;
@@ -90,8 +89,8 @@ int uniq_main(int argc, char **argv)
 		}
 
 		if (s0) {
-			if (!(uniq_flags & (2 << !!dups))) {
-				fprintf(out, "\0%d " + (uniq_flags & 1), dups + 1);
+			if (!(opt & (OPT_d << !!dups))) { /* (if dups, opt & OPT_e) */
+				fprintf(out, "\0%d " + (opt & 1), dups + 1);
 				fprintf(out, "%s\n", s0);
 			}
 			free((void *)s0);

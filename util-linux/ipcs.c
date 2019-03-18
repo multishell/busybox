@@ -8,12 +8,6 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include "busybox.h"
-#include <errno.h>
-#include <time.h>
-#include <pwd.h>
-#include <grp.h>
-
 /* X/OPEN tells us to use <sys/{types,ipc,sem}.h> for semctl() */
 /* X/OPEN tells us to use <sys/{types,ipc,msg}.h> for msgctl() */
 /* X/OPEN tells us to use <sys/{types,ipc,shm}.h> for shmctl() */
@@ -23,7 +17,7 @@
 #include <sys/msg.h>
 #include <sys/shm.h>
 
-
+#include "libbb.h"
 
 /*-------------------------------------------------------------------*/
 /* SHM_DEST and SHM_LOCKED are defined in kernel headers,
@@ -67,7 +61,7 @@ struct shm_info {
 /* The last arg of semctl is a union semun, but where is it defined?
    X/OPEN tells us to define it ourselves, but until recently
    Linux include files would also define it. */
-#if defined (__GNU_LIBRARY__) && !defined(_SEM_SEMUN_UNDEFINED)
+#if defined(__GNU_LIBRARY__) && !defined(_SEM_SEMUN_UNDEFINED)
 /* union semun is defined by including <sys/sem.h> */
 #else
 /* according to X/OPEN we have to define it ourselves */
@@ -84,7 +78,7 @@ union semun {
    <linux/ipc.h>, which defines a struct ipc_perm with such fields.
    glibc-1.09 has no support for sysv ipc.
    glibc 2 uses __key, __seq */
-#if defined (__GNU_LIBRARY__) && __GNU_LIBRARY__ > 1
+#if defined(__GNU_LIBRARY__) && __GNU_LIBRARY__ > 1
 #define KEY __key
 #else
 #define KEY key

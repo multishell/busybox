@@ -54,8 +54,14 @@
 # define ATTRIBUTE_ALIGNED(m) __attribute__ ((__aligned__(m)))
 # if __GNUC_PREREQ (3,0)
 #  define ATTRIBUTE_ALWAYS_INLINE __attribute__ ((always_inline)) inline
+#  if !ENABLE_WERROR
+#   define ATTRIBUTE_DEPRECATED __attribute__ ((__deprecated__))
+#  else
+#   define ATTRIBUTE_DEPRECATED /* n/a */
+#  endif
 # else
 #  define ATTRIBUTE_ALWAYS_INLINE inline
+#  define ATTRIBUTE_DEPRECATED /* n/a */
 # endif
 
 /* -fwhole-program makes all symbols local. The attribute externally_visible
@@ -171,13 +177,13 @@ __extension__ typedef unsigned long long __u64;
 #else
 /* Largest integral types.  */
 #if __BIG_ENDIAN__
-typedef long int                intmax_t;
-typedef unsigned long int       uintmax_t;
+typedef long                intmax_t;
+typedef unsigned long       uintmax_t;
 #else
 __extension__
-typedef long long int           intmax_t;
+typedef long long           intmax_t;
 __extension__
-typedef unsigned long long int  uintmax_t;
+typedef unsigned long long  uintmax_t;
 #endif
 #endif
 
@@ -210,7 +216,15 @@ typedef unsigned smalluint;
  */
 #if defined __UCLIBC__ && __UCLIBC_MAJOR__ >= 0 && __UCLIBC_MINOR__ >= 9 && \
     __UCLIBC_SUBLEVEL__ > 28 && !defined __ARCH_USE_MMU__
-#define BB_NOMMU
+#define BB_MMU 0
+#define BB_NOMMU 1
+#define USE_FOR_NOMMU(...) __VA_ARGS__
+#define USE_FOR_MMU(...)
+#else
+#define BB_MMU 1
+/* BB_NOMMU is not defined in this case! */
+#define USE_FOR_NOMMU(...)
+#define USE_FOR_MMU(...) __VA_ARGS__
 #endif
 
 /* Platforms that haven't got dprintf need to implement fdprintf() in
@@ -224,13 +238,14 @@ typedef unsigned smalluint;
 #endif
 
 #if defined(__dietlibc__)
-static ATTRIBUTE_ALWAYS_INLINE char* strchrnul(const char *s, char c) {
+static ATTRIBUTE_ALWAYS_INLINE char* strchrnul(const char *s, char c)
+{
 	while (*s && *s != c) ++s;
 	return (char*)s;
 }
 #endif
 
-/* Don't use lchown with glibc older than 2.1.x ... uC-libc lacks it */
+/* Don't use lchown with glibc older than 2.1.x ... uClibc lacks it */
 #if (defined __GLIBC__ && __GLIBC__ <= 2 && __GLIBC_MINOR__ < 1) || \
     defined __UC_LIBC__
 # define lchown chown
@@ -249,8 +264,8 @@ static ATTRIBUTE_ALWAYS_INLINE char* strchrnul(const char *s, char c) {
 #define HAVE_INTTYPES_H
 #define PRIu32 "u"
 
-/* use legacy setpgrp(pidt_,pid_t) for now.  move to platform.c */
-#define bb_setpgrp do { pid_t __me = getpid(); setpgrp(__me,__me); } while (0)
+/* use legacy setpgrp(pid_t,pid_t) for now.  move to platform.c */
+#define bb_setpgrp() do { pid_t __me = getpid(); setpgrp(__me,__me); } while (0)
 
 #if !defined ADJ_OFFSET_SINGLESHOT && defined MOD_CLKA && defined MOD_OFFSET
 #define ADJ_OFFSET_SINGLESHOT (MOD_CLKA | MOD_OFFSET)
@@ -266,7 +281,7 @@ static ATTRIBUTE_ALWAYS_INLINE char* strchrnul(const char *s, char c) {
 #endif
 
 #else
-#define bb_setpgrp setpgrp()
+#define bb_setpgrp() setpgrp()
 #endif
 
 #if defined(__linux__)

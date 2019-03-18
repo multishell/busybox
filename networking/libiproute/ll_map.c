@@ -11,15 +11,13 @@
  *
  */
 
-#include "libbb.h"
-#include <string.h>
+//#include <sys/socket.h>	/* socket() */
+#include <net/if.h>	/* struct ifreq and co. */
+//#include <sys/ioctl.h>	/* ioctl() & SIOCGIFINDEX */
 
+#include "libbb.h"
 #include "libnetlink.h"
 #include "ll_map.h"
-
-#include <sys/socket.h>	/* socket() */
-#include <net/if.h>	/* struct ifreq and co. */
-#include <sys/ioctl.h>	/* ioctl() & SIOCGIFINDEX */
 
 struct idxmap {
 	struct idxmap * next;
@@ -54,7 +52,7 @@ int ll_remember_index(struct sockaddr_nl *who, struct nlmsghdr *n, void *arg)
 
 	h = ifi->ifi_index&0xF;
 
-	for (imp=&idxmap[h]; (im=*imp)!=NULL; imp = &im->next)
+	for (imp = &idxmap[h]; (im = *imp) != NULL; imp = &im->next)
 		if (im->index == ifi->ifi_index)
 			break;
 
@@ -87,7 +85,7 @@ const char *ll_idx_n2a(int idx, char *buf)
 
 	if (idx == 0)
 		return "*";
-	for (im = idxmap[idx&0xF]; im; im = im->next)
+	for (im = idxmap[idx & 0xF]; im; im = im->next)
 		if (im->index == idx)
 			return im->name;
 	snprintf(buf, 16, "if%d", idx);
@@ -108,7 +106,7 @@ int ll_index_to_type(int idx)
 
 	if (idx == 0)
 		return -1;
-	for (im = idxmap[idx&0xF]; im; im = im->next)
+	for (im = idxmap[idx & 0xF]; im; im = im->next)
 		if (im->index == idx)
 			return im->type;
 	return -1;
@@ -121,30 +119,36 @@ unsigned ll_index_to_flags(int idx)
 	if (idx == 0)
 		return 0;
 
-	for (im = idxmap[idx&0xF]; im; im = im->next)
+	for (im = idxmap[idx & 0xF]; im; im = im->next)
 		if (im->index == idx)
 			return im->flags;
 	return 0;
 }
 
-int ll_name_to_index(char *name)
+// TODO: caching is not warranted - no users which repeatedly call it
+int xll_name_to_index(const char * const name)
 {
 	static char ncache[16];
 	static int icache;
+
 	struct idxmap *im;
 	int sock_fd;
 	int i;
+	int ret = 0;
 
 	if (name == NULL)
-		return 0;
-	if (icache && strcmp(name, ncache) == 0)
-		return icache;
-	for (i=0; i<16; i++) {
+		goto out;
+	if (icache && strcmp(name, ncache) == 0) {
+		ret = icache;
+		goto out;
+	}
+	for (i = 0; i < 16; i++) {
 		for (im = idxmap[i]; im; im = im->next) {
 			if (strcmp(im->name, name) == 0) {
 				icache = im->index;
 				strcpy(ncache, name);
-				return im->index;
+				ret = im->index;
+				goto out;
 			}
 		}
 	}
@@ -158,29 +162,26 @@ int ll_name_to_index(char *name)
 	sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sock_fd) {
 		struct ifreq ifr;
-		int ret;
+		int tmp;
 		strncpy(ifr.ifr_name, name, IFNAMSIZ);
 		ifr.ifr_ifindex = -1;
-		ret = ioctl(sock_fd, SIOCGIFINDEX, &ifr);
+		tmp = ioctl(sock_fd, SIOCGIFINDEX, &ifr);
 		close(sock_fd);
-		if (ret >= 0)
+		if (tmp >= 0)
 			/* In theory, we should redump the interface list
 			 * to update our cache, this is left as an exercise
 			 * to the reader... Jean II */
-			return ifr.ifr_ifindex;
+			ret = ifr.ifr_ifindex;
 	}
-
-	return 0;
+out:
+	if (ret <= 0)
+		bb_error_msg_and_die("cannot find device \"%s\"", name);
+	return ret;
 }
 
 int ll_init_map(struct rtnl_handle *rth)
 {
-	if (rtnl_wilddump_request(rth, AF_UNSPEC, RTM_GETLINK) < 0) {
-		bb_perror_msg_and_die("cannot send dump request");
-	}
-
-	if (rtnl_dump_filter(rth, ll_remember_index, &idxmap, NULL, NULL) < 0) {
-		bb_error_msg_and_die("dump terminated");
-	}
+	xrtnl_wilddump_request(rth, AF_UNSPEC, RTM_GETLINK);
+	xrtnl_dump_filter(rth, ll_remember_index, &idxmap);
 	return 0;
 }

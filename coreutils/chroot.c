@@ -9,7 +9,7 @@
 
 /* BB_AUDIT SUSv3 N/A -- Matches GNU behavior. */
 
-#include "busybox.h"
+#include "libbb.h"
 
 int chroot_main(int argc, char **argv);
 int chroot_main(int argc, char **argv)
@@ -27,8 +27,9 @@ int chroot_main(int argc, char **argv)
 	++argv;
 	if (argc == 2) {
 		argv -= 2;
-		if (!(*argv = getenv("SHELL"))) {
-			*argv = (char *) DEFAULT_SHELL;
+		argv[0] = getenv("SHELL");
+		if (!argv[0]) {
+			argv[0] = (char *) DEFAULT_SHELL;
 		}
 		argv[1] = (char *) "-i";
 	}

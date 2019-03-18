@@ -10,8 +10,8 @@
 /* http://www.unix.org/version2/whatsnew/lfs20mar.html */
 #define _LARGEFILE64_SOURCE 1
 
-#include "busybox.h"
 #include <getopt.h>	/* for struct option */
+#include "libbb.h"
 
 struct host_info {
 	// May be used if we ever will want to free() all xstrdup()s...
@@ -34,7 +34,7 @@ static off_t beg_range;          /* Range at which continue begins */
 #if ENABLE_FEATURE_WGET_STATUSBAR
 static off_t transferred;        /* Number of bytes transferred so far */
 #endif
-static int chunked;                     /* chunked transfer encoding */
+static bool chunked;                     /* chunked transfer encoding */
 #if ENABLE_FEATURE_WGET_STATUSBAR
 static void progressmeter(int flag);
 static const char *curfile;             /* Name of current file being transferred */
@@ -76,9 +76,7 @@ static char *safe_fgets(char *s, int size, FILE *stream)
 }
 
 #if ENABLE_FEATURE_WGET_AUTHENTICATION
-/*
- *  Base64-encode character string and return the string.
- */
+/* Base64-encode character string and return the string.  */
 static char *base64enc(unsigned char *p, char *buf, int len)
 {
 	bb_uuencode(p, buf, len, bb_uuenc_tbl_base64);
@@ -96,7 +94,7 @@ int wget_main(int argc, char **argv)
 	int port;
 	int try = 5;
 	unsigned opt;
-	char *s;
+	char *str;
 	char *proxy = 0;
 	char *dir_prefix = NULL;
 #if ENABLE_FEATURE_WGET_LONG_OPTIONS
@@ -104,34 +102,36 @@ int wget_main(int argc, char **argv)
 	llist_t *headers_llist = NULL;
 #endif
 
-	/* server.allocated = target.allocated = NULL; */
-
 	FILE *sfp = NULL;               /* socket to web/ftp server         */
 	FILE *dfp = NULL;               /* socket to ftp server (data)      */
 	char *fname_out = NULL;         /* where to direct output (-O)      */
-	int got_clen = 0;               /* got content-length: from server  */
+	bool got_clen = 0;               /* got content-length: from server  */
 	int output_fd = -1;
-	int use_proxy = 1;              /* Use proxies if env vars are set  */
+	bool use_proxy = 1;              /* Use proxies if env vars are set  */
 	const char *proxy_flag = "on";  /* Use proxies if env vars are set  */
-	const char *user_agent = "Wget";/* Content of the "User-Agent" header field */
-
-	/*
-	 * Crack command line.
-	 */
+	const char *user_agent = "Wget";/* "User-Agent" header field        */
+	static const char * const keywords[] = {
+		"content-length", "transfer-encoding", "chunked", "location", NULL
+	};
+	enum {
+		KEY_content_length = 1, KEY_transfer_encoding, KEY_chunked, KEY_location
+	};
 	enum {
 		WGET_OPT_CONTINUE   = 0x1,
-		WGET_OPT_QUIET      = 0x2,
-		WGET_OPT_OUTNAME    = 0x4,
-		WGET_OPT_PREFIX     = 0x8,
-		WGET_OPT_PROXY      = 0x10,
-		WGET_OPT_USER_AGENT = 0x20,
-		WGET_OPT_PASSIVE    = 0x40,
-		WGET_OPT_HEADER     = 0x80,
+		WGET_OPT_SPIDER	    = 0x2,
+		WGET_OPT_QUIET      = 0x4,
+		WGET_OPT_OUTNAME    = 0x8,
+		WGET_OPT_PREFIX     = 0x10,
+		WGET_OPT_PROXY      = 0x20,
+		WGET_OPT_USER_AGENT = 0x40,
+		WGET_OPT_PASSIVE    = 0x80,
+		WGET_OPT_HEADER     = 0x100,
 	};
 #if ENABLE_FEATURE_WGET_LONG_OPTIONS
 	static const struct option wget_long_options[] = {
-		// name, has_arg, flag, val
+		/* name, has_arg, flag, val */
 		{ "continue",         no_argument, NULL, 'c' },
+		{ "spider",           no_argument, NULL, 's' },
 		{ "quiet",            no_argument, NULL, 'q' },
 		{ "output-document",  required_argument, NULL, 'O' },
 		{ "directory-prefix", required_argument, NULL, 'P' },
@@ -143,21 +143,22 @@ int wget_main(int argc, char **argv)
 	};
 	applet_long_options = wget_long_options;
 #endif
+	/* server.allocated = target.allocated = NULL; */
 	opt_complementary = "-1" USE_FEATURE_WGET_LONG_OPTIONS(":\xfe::");
-	opt = getopt32(argc, argv, "cqO:P:Y:U:",
+	opt = getopt32(argc, argv, "csqO:P:Y:U:",
 				&fname_out, &dir_prefix,
 				&proxy_flag, &user_agent
 				USE_FEATURE_WGET_LONG_OPTIONS(, &headers_llist)
 				);
 	if (strcmp(proxy_flag, "off") == 0) {
-		/* Use the proxy if necessary. */
+		/* Use the proxy if necessary */
 		use_proxy = 0;
 	}
 #if ENABLE_FEATURE_WGET_LONG_OPTIONS
 	if (headers_llist) {
 		int size = 1;
 		char *cp;
-		llist_t *ll = headers_llist = llist_rev(headers_llist);
+		llist_t *ll = headers_llist;
 		while (ll) {
 			size += strlen(ll->data) + 2;
 			ll = ll->link;
@@ -174,9 +175,7 @@ int wget_main(int argc, char **argv)
 	server.host = target.host;
 	server.port = target.port;
 
-	/*
-	 * Use the proxy if necessary.
-	 */
+	/* Use the proxy if necessary */
 	if (use_proxy) {
 		proxy = getenv(target.is_ftp ? "ftp_proxy" : "http_proxy");
 		if (proxy && *proxy) {
@@ -215,9 +214,7 @@ int wget_main(int argc, char **argv)
 	if ((opt & WGET_OPT_CONTINUE) && !fname_out)
 		bb_error_msg_and_die("cannot specify continue (-c) without a filename (-O)"); */
 
-	/*
-	 * Determine where to start transfer.
-	 */
+	/* Determine where to start transfer */
 	if (LONE_DASH(fname_out)) {
 		output_fd = 1;
 		opt &= ~WGET_OPT_CONTINUE;
@@ -251,15 +248,11 @@ int wget_main(int argc, char **argv)
 			if (!--try)
 				bb_error_msg_and_die("too many redirections");
 
-			/*
-			 * Open socket to http server
-			 */
+			/* Open socket to http server */
 			if (sfp) fclose(sfp);
 			sfp = open_socket(lsa);
 
-			/*
-			 * Send HTTP request.
-			 */
+			/* Send HTTP request.  */
 			if (use_proxy) {
 				fprintf(sfp, "GET %stp://%s/%s HTTP/1.1\r\n",
 					target.is_ftp ? "f" : "ht", target.host,
@@ -297,12 +290,12 @@ int wget_main(int argc, char **argv)
 			if (fgets(buf, sizeof(buf), sfp) == NULL)
 				bb_error_msg_and_die("no response from server");
 
-			s = buf;
-			while (*s != '\0' && !isspace(*s)) ++s;
-			s = skip_whitespace(s);
+			str = buf;
+			str = skip_non_whitespace(str);
+			str = skip_whitespace(str);
 			// FIXME: no error check
 			// xatou wouldn't work: "200 OK"
-			status = atoi(s);
+			status = atoi(str);
 			switch (status) {
 			case 0:
 			case 100:
@@ -329,26 +322,28 @@ int wget_main(int argc, char **argv)
 			/*
 			 * Retrieve HTTP headers.
 			 */
-			while ((s = gethdr(buf, sizeof(buf), sfp, &n)) != NULL) {
-				if (strcasecmp(buf, "content-length") == 0) {
-					content_len = BB_STRTOOFF(s, NULL, 10);
+			while ((str = gethdr(buf, sizeof(buf), sfp, &n)) != NULL) {
+				/* gethdr did already convert the "FOO:" string to lowercase */
+				smalluint key = index_in_str_array(keywords, *&buf) + 1;
+				if (key == KEY_content_length) {
+					content_len = BB_STRTOOFF(str, NULL, 10);
 					if (errno || content_len < 0) {
-						bb_error_msg_and_die("content-length %s is garbage", s);
+						bb_error_msg_and_die("content-length %s is garbage", str);
 					}
 					got_clen = 1;
 					continue;
 				}
-				if (strcasecmp(buf, "transfer-encoding") == 0) {
-					if (strcasecmp(s, "chunked") != 0)
-						bb_error_msg_and_die("server wants to do %s transfer encoding", s);
+				if (key == KEY_transfer_encoding) {
+					if (index_in_str_array(keywords, str_tolower(str)) + 1 != KEY_chunked)
+						bb_error_msg_and_die("server wants to do %s transfer encoding", str);
 					chunked = got_clen = 1;
 				}
-				if (strcasecmp(buf, "location") == 0) {
-					if (s[0] == '/')
+				if (key == KEY_location) {
+					if (str[0] == '/')
 						/* free(target.allocated); */
-						target.path = /* target.allocated = */ xstrdup(s+1);
+						target.path = /* target.allocated = */ xstrdup(str+1);
 					else {
-						parse_url(s, &target);
+						parse_url(str, &target);
 						if (use_proxy == 0) {
 							server.host = target.host;
 							server.port = target.port;
@@ -379,14 +374,14 @@ int wget_main(int argc, char **argv)
 		 * Splitting username:password pair,
 		 * trying to log in
 		 */
-		s = strchr(target.user, ':');
-		if (s)
-			*(s++) = '\0';
+		str = strchr(target.user, ':');
+		if (str)
+			*(str++) = '\0';
 		switch (ftpcmd("USER ", target.user, sfp, buf)) {
 		case 230:
 			break;
 		case 331:
-			if (ftpcmd("PASS ", s, sfp, buf) == 230)
+			if (ftpcmd("PASS ", str, sfp, buf) == 230)
 				break;
 			/* FALLTHRU (failed login) */
 		default:
@@ -416,15 +411,15 @@ int wget_main(int argc, char **argv)
 		// Response is "227 garbageN1,N2,N3,N4,P1,P2[)garbage]
 		// Server's IP is N1.N2.N3.N4 (we ignore it)
 		// Server's port for data connection is P1*256+P2
-		s = strrchr(buf, ')');
-		if (s) s[0] = '\0';
-		s = strrchr(buf, ',');
-		if (!s) goto pasv_error;
-		port = xatou_range(s+1, 0, 255);
-		*s = '\0';
-		s = strrchr(buf, ',');
-		if (!s) goto pasv_error;
-		port += xatou_range(s+1, 0, 255) * 256;
+		str = strrchr(buf, ')');
+		if (str) str[0] = '\0';
+		str = strrchr(buf, ',');
+		if (!str) goto pasv_error;
+		port = xatou_range(str+1, 0, 255);
+		*str = '\0';
+		str = strrchr(buf, ',');
+		if (!str) goto pasv_error;
+		port += xatou_range(str+1, 0, 255) * 256;
 		set_nport(lsa, htons(port));
 		dfp = open_socket(lsa);
 
@@ -437,7 +432,11 @@ int wget_main(int argc, char **argv)
 		if (ftpcmd("RETR ", target.path, sfp, buf) > 150)
 			bb_error_msg_and_die("bad response to RETR: %s", buf);
 	}
-
+	if (opt & WGET_OPT_SPIDER) {
+		if (ENABLE_FEATURE_CLEAN_UP)
+			fclose(sfp);
+		goto done;
+	}
 
 	/*
 	 * Retrieve file
@@ -499,6 +498,7 @@ int wget_main(int argc, char **argv)
 			bb_error_msg_and_die("ftp error: %s", buf+4);
 		ftpcmd("QUIT", NULL, sfp, buf);
 	}
+done:
 	exit(EXIT_SUCCESS);
 }
 

@@ -7,7 +7,7 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include "busybox.h"
+#include "libbb.h"
 #include "unarchive.h"
 
 #define RPM_HEADER_MAGIC        "\216\255\350"
@@ -185,7 +185,8 @@ int rpm_main(int argc, char **argv)
 	return 0;
 }
 
-static void extract_cpio_gz(int fd) {
+static void extract_cpio_gz(int fd)
+{
 	archive_handle_t *archive_handle;
 	unsigned char magic[2];
 

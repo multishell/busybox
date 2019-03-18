@@ -16,6 +16,14 @@
 void fflush_stdout_and_exit(int retval)
 {
 	if (fflush(stdout))
-		sleep_and_die();
+		xfunc_die();
+
+	if (ENABLE_FEATURE_PREFER_APPLETS && die_sleep < 0) {
+		/* We are in NOFORK applet. Do not exit() directly,
+		 * but use xfunc_die() */
+		xfunc_error_retval = retval;
+		xfunc_die();
+	}
+
 	exit(retval);
 }

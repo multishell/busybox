@@ -10,7 +10,7 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
 */
 
-#include "busybox.h"
+#include "libbb.h"
 
 /* This 'date' command supports only 2 time setting formats,
    all the GNU strftime stuff (its in libc, lets use it),
@@ -32,10 +32,16 @@
 #define DATE_OPT_TIMESPEC	0x20
 #define DATE_OPT_HINT		0x40
 
+static void xputenv(char *s)
+{
+	if (putenv(s) != 0)
+		bb_error_msg_and_die(bb_msg_memory_exhausted);
+}
+
 static void maybe_set_utc(int opt)
 {
 	if (opt & DATE_OPT_UTC)
-		putenv((char*)"TZ=UTC0");
+		xputenv((char*)"TZ=UTC0");
 }
 
 int date_main(int argc, char **argv);
@@ -63,15 +69,15 @@ int date_main(int argc, char **argv)
 		if (!isofmt_arg) {
 			ifmt = 0; /* default is date */
 		} else {
-			const char * const isoformats[] =
-				{"date", "hours", "minutes", "seconds"};
+			static const char * const isoformats[] =
+				{ "date", "hours", "minutes", "seconds" };
 
 			for (ifmt = 0; ifmt < 4; ifmt++)
-				if (!strcmp(isofmt_arg, isoformats[ifmt])) {
-					break;
-				}
-			if (ifmt == 4) /* parse error */
-				bb_show_usage();
+				if (!strcmp(isofmt_arg, isoformats[ifmt]))
+					goto found;
+			/* parse error */
+			bb_show_usage();
+ found: ;
 		}
 	}
 
@@ -201,7 +207,7 @@ int date_main(int argc, char **argv)
 					date_fmt[i++] = '%';
 					date_fmt[i++] = 'S';
 				}
-format_utc:
+ format_utc:
 				date_fmt[i++] = '%';
 				date_fmt[i] = (opt & DATE_OPT_UTC) ? 'Z' : 'z';
 			}
