@@ -59,4 +59,4 @@ int delgroup_main(int argc, char **argv)
 	return (EXIT_SUCCESS);
 }
 
-/* $Id: delgroup.c,v 1.2 2003/07/14 21:50:51 andersen Exp $ */
+/* $Id: delgroup.c,v 1.1 2003/07/14 20:20:45 andersen Exp $ */

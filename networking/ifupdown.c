@@ -1,7 +1,7 @@
 /* vi: set sw=4 ts=4: */
 /*
  *  ifupdown for busybox
- *  Copyright (c) 2002 Glenn McGrath <bug1@optushome.com.au>
+ *  Copyright (c) 2002 Glenn McGrath <bug1@iinet.net.au>
  *  Copyright (c) 2003-2004 Erik Andersen <andersen@codepoet.org>
  *
  *  Based on ifupdown v 0.6.4 by Anthony Towns
@@ -545,6 +545,15 @@ static int dhcp_up(struct interface_defn_t *ifd, execfn *exec)
 	return(0);
 }
 
+static int bootp_down(struct interface_defn_t *ifd, execfn *exec)
+{
+#ifdef CONFIG_FEATURE_IFUPDOWN_IP
+	return(execute("ip link set %iface% down", ifd, exec));
+#else
+	return(execute("ifconfig %iface% down", ifd, exec));
+#endif
+}
+
 static int dhcp_down(struct interface_defn_t *ifd, execfn *exec)
 {
 	int result = 0;
@@ -565,15 +574,6 @@ static int bootp_up(struct interface_defn_t *ifd, execfn *exec)
 	return( execute("bootpc [[--bootfile %bootfile%]] --dev %iface% "
 				"[[--server %server%]] [[--hwaddr %hwaddr%]] "
 				"--returniffail --serverbcast", ifd, exec));
-}
-
-static int bootp_down(struct interface_defn_t *ifd, execfn *exec)
-{
-#ifdef CONFIG_FEATURE_IFUPDOWN_IP
-	return(execute("ip link set %iface% down", ifd, exec));
-#else
-	return(execute("ifconfig %iface% down", ifd, exec));
-#endif
 }
 
 static int ppp_up(struct interface_defn_t *ifd, execfn *exec)
@@ -799,13 +799,13 @@ static struct interfaces_file_t *read_interfaces(char *filename)
 
 				currif->address_family = get_address_family(addr_fams, address_family_name);
 				if (!currif->address_family) {
-					bb_error_msg("unknown address type \"%s\"", buf);
+					bb_error_msg("unknown address type \"%s\"", address_family_name);
 					return NULL;
 				}
 
 				currif->method = get_method(currif->address_family, method_name);
 				if (!currif->method) {
-					bb_error_msg("unknown method \"%s\"", buf);
+					bb_error_msg("unknown method \"%s\"", method_name);
 					return NULL;
 				}
 

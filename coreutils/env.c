@@ -34,8 +34,8 @@
  */
 
 /*
- * Modified by Vladimir Oleynik <andersen@codepoet.org> (C) 2003
- * - corretion "-" option usage
+ * Modified by Vladimir Oleynik <dzo@simtreas.ru> (C) 2003
+ * - correct "-" option usage
  * - multiple "-u unsetenv" support
  * - GNU long option support
  * - save errno after exec failed before bb_perror_msg()

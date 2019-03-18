@@ -434,15 +434,13 @@
 	"\t-u\tUnpack a package, but dont configure it"
 
 #define dpkg_deb_trivial_usage \
-	"[-cefItxX] FILE [argument]"
+	"[-cefxX] FILE [argument]"
 #define dpkg_deb_full_usage \
 	"Perform actions on Debian packages (.debs)\n\n" \
 	"Options:\n" \
 	"\t-c\tList contents of filesystem tree\n" \
 	"\t-e\tExtract control files to [argument] directory\n" \
 	"\t-f\tDisplay control field name starting with [argument]\n" \
-	"\t-I\tDisplay the control filenamed [argument]\n" \
-	"\t-t\tExtract filesystem tree to stdout in tar format\n" \
 	"\t-x\tExtract packages filesystem tree to directory\n" \
 	"\t-X\tVerbose extract"
 #define dpkg_deb_example_usage \
@@ -1003,15 +1001,17 @@
 	USAGE_HTTPD_SETUID(" [-u user]") \
 	USAGE_HTTPD_BASIC_AUTH(" [-r <realm>]") \
 	USAGE_HTTPD_AUTH_MD5(" [-m pass]") \
+	" [-h home]" \
 	" [-d/-e <string>]"
 #define httpd_full_usage \
        "Listens for incoming http server requests.\n\n"\
        "Options:\n" \
        "\t-c FILE\t\tSpecifies configuration file. (default httpd.conf)\n" \
        USAGE_HTTPD_STANDALONE("\t-p PORT\tServer port (default 80)\n") \
-       USAGE_HTTPD_SETUID("\t-u USER\tSet uid to USER after listening privilegies port\n") \
+       USAGE_HTTPD_SETUID("\t-u USER\tSet uid to USER after listening privileges port\n") \
        USAGE_HTTPD_BASIC_AUTH("\t-r REALM\tAuthentication Realm for Basic Authentication\n") \
        USAGE_HTTPD_AUTH_MD5("\t-m PASS\t\tCrypt PASS with md5 algorithm\n") \
+       "\t-h HOME  \tSpecifies http HOME directory (default ./)\n" \
        "\t-e STRING\tHtml encode STRING\n" \
        "\t-d STRING\tURL decode STRING"
 
@@ -1591,11 +1591,6 @@
 	"\ty\tAllow write access to your terminal.\n" \
 	"\tn\tDisallow write access to your terminal.\n"
 
-#define minit_trivial_usage \
-	"[-spPrRC]"
-#define minit_full_usage \
-	"A small replacement for SysV init"
-
 #define mkdir_trivial_usage \
 	"[OPTION] DIRECTORY..."
 #define mkdir_full_usage \
@@ -1726,25 +1721,6 @@
 	"$ mount /dev/fd0 /mnt -t msdos -o ro\n" \
 	"$ mount /tmp/diskimage /opt -t ext2 -o loop\n"
 
-#define msvc_trivial_usage \
-	"-[udorspchaitkx] service"
-#define msvc_full_usage \
-	"[option] service\n" \
-	"Where option is one of\n" \
-	"\t-u\tUp.  If the service is not running, start it.  If the service stops, restart it.\n" \
-	"\t-d\tDown.  If the service is running, stop it, do not restart it.\n" \
-	"\t-o\tOnce.  If the service is not running, start it.  Do not restart it if it stops.\n" \
-	"\t-r\tTell supervise that the service is normally running; this affects status messages.\n" \
-	"\t-s\tTell supervise that the service is normally stopped; this affects status messages.\n" \
-	"\t-p\tPause.  Send the service a STOP signal.\n" \
-	"\t-c\tContinue.  Send the service a CONT signal.\n" \
-	"\t-h\tHangup.  Send the service a HUP signal.\n" \
-	"\t-a\tAlarm.  Send the service an ALRM signal.\n" \
-	"\t-i\tInterrupt.  Send the service an INT signal.\n" \
-	"\t-t\tTerminate.  Send the service a TERM signal.\n" \
-	"\t-k\tKill.  Send the service a KILL signal.\n" \
-	"\t-x\tExit.  supervise will quit as soon as the service is down."
-
 #define mt_trivial_usage \
 	"[-f device] opcode value"
 #define mt_full_usage \
@@ -1860,11 +1836,6 @@
 	"[-p<num>]"
 #define patch_example_usage \
 	"$ patch -p1 <example.diff"
-
-#define pidfilehack_trivial_usage \
-	"[daemon.pid] [daemon]"
-#define pidfilehack_full_usage \
-	"service /var/run/daemon.pid /usr/sbin/daemon args...\n"
 
 #define pidof_trivial_usage \
 	"process-name [process-name ...]"
@@ -2095,14 +2066,15 @@
 	"$ rx /tmp/foo\n"
 
 #define sed_trivial_usage \
-	"[-nef] pattern [files...]"
+	"[-efinr] pattern [files...]"
 #define sed_full_usage \
 	"Options:\n" \
-	"\t-n\t\tsuppress automatic printing of pattern space\n" \
 	"\t-e script\tadd the script to the commands to be executed\n" \
 	"\t-f scriptfile\tadd script-file contents to the\n" \
 	    "\t\t\tcommands to be executed\n" \
-	"\t-i\t\tEdit files in-place\n" \
+	"\t-i\t\tedit files in-place\n" \
+	"\t-n\t\tsuppress automatic printing of pattern space\n" \
+	"\t-r\t\tuse extended regular expression syntax\n" \
 	"\n" \
 	"If no -e or -f is given, the first non-option argument is taken as the sed\n"\
 	"script to interpret. All remaining arguments are names of input files; if no\n"\

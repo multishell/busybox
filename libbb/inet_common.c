@@ -4,7 +4,7 @@
  *
  * Heavily modified by Manuel Novoa III       Mar 12, 2001
  *
- * Version:     $Id: inet_common.c,v 1.8 2004/03/10 07:42:38 mjn3 Exp $
+ * Version:     $Id: inet_common.c,v 1.7 2003/07/14 21:20:55 andersen Exp $
  *
  */
 

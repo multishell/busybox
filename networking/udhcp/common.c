@@ -4,7 +4,7 @@
  * simple helper functions.
  *
  * Russ Dill <Russ.Dill@asu.edu> 2001-2003
- * Rewrited by Vladimir Oleynik <dzo@simtreas.ru> (C) 2003
+ * Rewritten by Vladimir Oleynik <dzo@simtreas.ru> (C) 2003
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,6 +37,13 @@
 
 static int daemonized;
 
+long uptime(void)
+{
+	struct sysinfo info;
+	sysinfo(&info);
+	return info.uptime;
+}
+
 
 /*
  * This function makes sure our first socket calls
@@ -60,13 +67,13 @@ void background(const char *pidfile)
 	int pid_fd;
 
 	/* hold lock during fork. */
-	if (pidfile) pid_fd = pidfile_acquire(pidfile);
+	pid_fd = pidfile_acquire(pidfile);
 	if (daemon(0, 0) == -1) {
 		perror("fork");
 		exit(1);
 	}
 	daemonized++;
-	if (pidfile) pidfile_write_release(pid_fd);
+	pidfile_write_release(pid_fd);
 #endif /* __uClinux__ */
 }
 
@@ -96,10 +103,8 @@ void start_log_and_pid(const char *client_server, const char *pidfile)
 	sanitize_fds();
 
 	/* do some other misc startup stuff while we are here to save bytes */
-	if (pidfile) {
-		pid_fd = pidfile_acquire(pidfile);
-		pidfile_write_release(pid_fd);
-	}
+	pid_fd = pidfile_acquire(pidfile);
+	pidfile_write_release(pid_fd);
 
 	/* equivelent of doing a fflush after every \n */
 	setlinebuf(stdout);

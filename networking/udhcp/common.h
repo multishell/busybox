@@ -1,7 +1,7 @@
 /* common.h
  *
- * Russ Dill <Russ.Dill@asu.edu> Soptember 2001
- * Rewrited by Vladimir Oleynik <dzo@simtreas.ru> (C) 2003
+ * Russ Dill <Russ.Dill@asu.edu> September 2001
+ * Rewritten by Vladimir Oleynik <dzo@simtreas.ru> (C) 2003
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -39,6 +39,7 @@ enum syslog_levels {
 #include <syslog.h>
 #endif
 
+long uptime(void);
 void background(const char *pidfile);
 void start_log_and_pid(const char *client_server, const char *pidfile);
 void background(const char *pidfile);

@@ -12,7 +12,7 @@
  * command line handling.
  *
  * General cleanup to better adhere to the style guide and make use of standard
- * busybox functions by Glenn McGrath <bug1@optushome.com.au>
+ * busybox functions by Glenn McGrath <bug1@iinet.net.au>
  *
  * read_gz interface + associated hacking by Laurence Anderson
  *
@@ -892,7 +892,7 @@ static int inflate_get_next_window(void)
 	/* Doesnt get here */
 }
 
-/* Initialise bytebuffer, be carefull not to overfill the buffer */
+/* Initialise bytebuffer, be careful not to overfill the buffer */
 extern void inflate_init(unsigned int bufsize)
 {
 	/* Set the bytebuffer size, default is same as gunzip_wsize */

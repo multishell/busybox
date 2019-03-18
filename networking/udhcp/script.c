@@ -132,7 +132,7 @@ static void fill_options(char *dest, uint8_t *option, struct dhcp_option *type_p
 }
 
 
-/* put all the paramaters into an environment */
+/* put all the parameters into an environment */
 static char **fill_envp(struct dhcpMessage *packet)
 {
 	int num_options = 0;
@@ -206,21 +206,22 @@ static char **fill_envp(struct dhcpMessage *packet)
 void run_script(struct dhcpMessage *packet, const char *name)
 {
 	int pid;
-	char **envp;
+	char **envp, **curr;
 
 	if (client_config.script == NULL)
 		return;
 
 	DEBUG(LOG_INFO, "vforking and execle'ing %s", client_config.script);
 
+	envp = fill_envp(packet);
 	/* call script */
 	pid = vfork();
 	if (pid) {
 		waitpid(pid, NULL, 0);
+		for (curr = envp; *curr; curr++) free(*curr);
+		free(envp);
 		return;
 	} else if (pid == 0) {
-		envp = fill_envp(packet);
-
 		/* close fd's? */
 
 		/* exec script */

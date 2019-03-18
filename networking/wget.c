@@ -816,7 +816,7 @@ progressmeter(int flag)
 #endif
 
 /* Original copyright notice which applies to the CONFIG_FEATURE_WGET_STATUSBAR stuff,
- * much of which was blatently stolen from openssh.  */
+ * much of which was blatantly stolen from openssh.  */
 
 /*-
  * Copyright (c) 1992, 1993

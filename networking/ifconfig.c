@@ -15,7 +15,7 @@
  * Foundation;  either  version 2 of the License, or  (at
  * your option) any later version.
  *
- * $Id: ifconfig.c,v 1.30 2004/03/31 11:30:08 andersen Exp $
+ * $Id: ifconfig.c,v 1.29 2004/03/15 08:28:48 andersen Exp $
  *
  */
 

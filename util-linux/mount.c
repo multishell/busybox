@@ -31,7 +31,7 @@
  *              major adjustments to option parsing, and some serious
  *              dieting all around.
  *
- * 1999-11-06	mtab suppport is back - andersee
+ * 1999-11-06	mtab support is back - andersee
  *
  * 2000-01-12   Ben Collins <bcollins@debian.org>, Borrowed utils-linux's
  *              mount to add loop support.
@@ -75,6 +75,7 @@ enum {
 	MS_NOATIME = 1024,	/* Do not update access times. */
 	MS_NODIRATIME = 2048,	/* Do not update directory access times */
 	MS_BIND = 4096,		/* Use the new linux 2.4.x "mount --bind" feature */
+	MS_MOVE = 8192,		/* Use the new linux 2.4.x "mount --move" feature */
 };
 
 
@@ -117,6 +118,7 @@ static const struct mount_options mount_options[] = {
 	{"suid", ~MS_NOSUID, 0},
 	{"sync", ~0, MS_SYNCHRONOUS},
 	{"bind", ~0, MS_BIND},
+	{"move", ~0, MS_MOVE},
 	{0, 0, 0}
 };
 

@@ -35,6 +35,7 @@
 #include <paths.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <time.h>
 #include <string.h>
 #include <unistd.h>
@@ -59,7 +60,7 @@ static char lfile[MAXPATHLEN];
 static const char *logFilePath = __LOG_FILE;
 
 #ifdef CONFIG_FEATURE_ROTATE_LOGFILE
-/* max size of message file bevor being rotated */
+/* max size of message file before being rotated */
 static int logFileSize = 200 * 1024;
 
 /* number of rotated message files */
@@ -87,6 +88,9 @@ static int RemotePort = 514;
 static int doRemoteLog = FALSE;
 static int local_logging = FALSE;
 #endif
+
+/* Make loging output smaller. */
+static bool small = false;
 
 
 #define MAXLINE         1024	/* maximum line length */
@@ -428,8 +432,13 @@ static void logMessage(int pri, char *msg)
 	}
 	if (local_logging == TRUE)
 #endif
+	{
 		/* now spew out the message to wherever it is supposed to go */
-		message("%s %s %s %s\n", timestamp, LocalHostName, res, msg);
+		if (small)
+			message("%s %s\n", timestamp, msg);
+		else
+			message("%s %s %s %s\n", timestamp, LocalHostName, res, msg);
+	}
 }
 
 static void quit_signal(int sig)
@@ -622,7 +631,7 @@ extern int syslogd_main(int argc, char **argv)
 	char *p;
 
 	/* do normal option parsing */
-	while ((opt = getopt(argc, argv, "m:nO:s:b:R:LC::")) > 0) {
+	while ((opt = getopt(argc, argv, "m:nO:s:Sb:R:LC::")) > 0) {
 		switch (opt) {
 		case 'm':
 			MarkInterval = atoi(optarg) * 60;
@@ -666,6 +675,9 @@ extern int syslogd_main(int argc, char **argv)
 			circular_logging = TRUE;
 			break;
 #endif
+		case 'S':
+			small = true;
+			break;
 		default:
 			bb_show_usage();
 		}

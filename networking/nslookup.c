@@ -200,4 +200,4 @@ int nslookup_main(int argc, char **argv)
 	return EXIT_SUCCESS;
 }
 
-/* $Id: nslookup.c,v 1.32 2004/03/15 08:28:48 andersen Exp $ */
+/* $Id: nslookup.c,v 1.31 2004/01/30 22:40:05 andersen Exp $ */

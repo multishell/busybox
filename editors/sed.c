@@ -5,7 +5,7 @@
  * Copyright (C) 1999,2000,2001 by Lineo, inc. and Mark Whitley
  * Copyright (C) 1999,2000,2001 by Mark Whitley <markw@codepoet.org>
  * Copyright (C) 2002  Matt Kraai
- * Copyright (C) 2003 by Glenn McGrath <bug1@optushome.com.au>
+ * Copyright (C) 2003 by Glenn McGrath <bug1@iinet.net.au>
  * Copyright (C) 2003,2004 by Rob Landley <rob@landley.net>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -112,7 +112,7 @@ typedef struct sed_cmd_s {
 
 /* globals */
 /* options */
-static int be_quiet = 0, in_place=0;
+static int be_quiet = 0, in_place=0, regex_type=0;
 FILE *nonstdout;
 char *outname;
 
@@ -210,7 +210,7 @@ static char *copy_parsing_slashn(const char *string, int len)
 /*
  * index_of_next_unescaped_regexp_delim - walks left to right through a string
  * beginning at a specified index and returns the index of the next regular
- * expression delimiter (typically a forward * slash ('/')) not preceeded by
+ * expression delimiter (typically a forward * slash ('/')) not preceded by
  * a backslash ('\').
  */
 static int index_of_next_unescaped_regexp_delim(const char delimiter,
@@ -298,7 +298,7 @@ static int get_address(char *my_str, int *linenum, regex_t ** regex)
 
 		temp=copy_parsing_slashn(pos,next);
 		*regex = (regex_t *) xmalloc(sizeof(regex_t));
-		xregcomp(*regex, temp, REG_NEWLINE);
+		xregcomp(*regex, temp, regex_type|REG_NEWLINE);
 		free(temp);
 		/* Move position to next character after last delimiter */
 		pos+=(next+1);
@@ -326,7 +326,7 @@ static int parse_file_cmd(sed_cmd_t * sed_cmd, const char *filecmdstr, char **re
 
 static int parse_subst_cmd(sed_cmd_t * const sed_cmd, char *substr)
 {
-	int cflags = 0;
+	int cflags = regex_type;
 	char *match;
 	int idx = 0;
 
@@ -1096,7 +1096,9 @@ static void add_cmd_block(char *cmdstr)
 
 extern int sed_main(int argc, char **argv)
 {
-	int opt, status = EXIT_SUCCESS;
+	int status = EXIT_SUCCESS;
+	int opt;
+	uint8_t getpat = 1;
 
 #ifdef CONFIG_FEATURE_CLEAN_UP
 	/* destroy command strings on exit */
@@ -1113,17 +1115,21 @@ extern int sed_main(int argc, char **argv)
 #endif
 
 	/* do normal option parsing */
-	while ((opt = getopt(argc, argv, "ine:f:")) > 0) {
+	while ((opt = getopt(argc, argv, "irne:f:")) > 0) {
 		switch (opt) {
 		case 'i':
 			in_place++;
 			atexit(cleanup_outname);
+			break;
+		case 'r':
+			regex_type|=REG_EXTENDED;
 			break;
 		case 'n':
 			be_quiet++;
 			break;
 		case 'e':
 			add_cmd_block(optarg);
+			getpat=0;
 			break;
 		case 'f':
 		{
@@ -1135,6 +1141,7 @@ extern int sed_main(int argc, char **argv)
 			while ((line = bb_get_chomped_line_from_file(cmdfile))
 				 != NULL) {
 				add_cmd(line);
+				getpat=0;
 				free(line);
 			}
 			bb_xprint_and_close_file(cmdfile);
@@ -1148,7 +1155,7 @@ extern int sed_main(int argc, char **argv)
 
 	/* if we didn't get a pattern from a -e and no command file was specified,
 	 * argv[optind] should be the pattern. no pattern, no worky */
-	if (sed_cmd_head.next == NULL) {
+	if(getpat) {
 		if (argv[optind] == NULL)
 			bb_show_usage();
 		else
@@ -1189,7 +1196,7 @@ extern int sed_main(int argc, char **argv)
 						nonstdout=bb_wfopen(outname,"w");
 						/* Set permissions of output file */
 						fstat(fileno(file),&statbuf);
-						fchmod(fileno(file),statbuf.st_mode);
+						fchmod(fileno(nonstdout),statbuf.st_mode);
 						atexit(cleanup_outname);
 					}
 					process_file(file);

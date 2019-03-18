@@ -1707,7 +1707,6 @@ static int hw_null_address(struct hwtype *hw, void *ap)
 	return 1;
 }
 
-#warning devel code
 static const char TRext[] = "\0\0\0Ki\0Mi\0Gi\0Ti";
 
 static void print_bytes_scaled(unsigned long long ull, const char *end)

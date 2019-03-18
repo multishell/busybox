@@ -20,8 +20,8 @@
  *
  */
 /*
- * Jun 2003 by Vladimir Oleynik <dzo@simtreas.ru> -
- * correction "-e pattern1 -e -e pattern2" logic and more optimizations.
+ * Apr 2004 by Vladimir Oleynik <dzo@simtreas.ru> -
+ * correction "-e pattern1 -e pattern2" logic and more optimizations.
 */
 
 #include <stdio.h>
@@ -34,36 +34,38 @@
 
 
 /* options */
-#define GREP_OPTS "lnqvscFiHhe:f:"
-#define GREP_OPT_l 1
+#define GREP_OPTS "lnqvscFiHhe:f:L"
+#define GREP_OPT_l (1<<0)
 static char print_files_with_matches;
-#define GREP_OPT_n 2
+#define GREP_OPT_n (1<<1)
 static char print_line_num;
-#define GREP_OPT_q 4
+#define GREP_OPT_q (1<<2)
 static char be_quiet;
-#define GREP_OPT_v 8
+#define GREP_OPT_v (1<<3)
 typedef char invert_search_t;
 static invert_search_t invert_search;
-#define GREP_OPT_s 16
+#define GREP_OPT_s (1<<4)
 static char suppress_err_msgs;
-#define GREP_OPT_c 32
+#define GREP_OPT_c (1<<5)
 static char print_match_counts;
-#define GREP_OPT_F 64
+#define GREP_OPT_F (1<<6)
 static char fgrep_flag;
-#define GREP_OPT_i 128
-#define GREP_OPT_H 256
-#define GREP_OPT_h 512
-#define GREP_OPT_e 1024
-#define GREP_OPT_f 2048
+#define GREP_OPT_i (1<<7)
+#define GREP_OPT_H (1<<8)
+#define GREP_OPT_h (1<<9)
+#define GREP_OPT_e (1<<10)
+#define GREP_OPT_f (1<<11)
+#define GREP_OPT_L (1<<12)
+static char print_files_without_matches;
 #ifdef CONFIG_FEATURE_GREP_CONTEXT
 #define GREP_OPT_CONTEXT "A:B:C"
-#define GREP_OPT_A 4096
-#define GREP_OPT_B 8192
-#define GREP_OPT_C 16384
-#define GREP_OPT_E 32768U
+#define GREP_OPT_A (1<<13)
+#define GREP_OPT_B (1<<14)
+#define GREP_OPT_C (1<<15)
+#define GREP_OPT_E (1<<16)
 #else
 #define GREP_OPT_CONTEXT ""
-#define GREP_OPT_E 4096
+#define GREP_OPT_E (1<<13)
 #endif
 #ifdef CONFIG_FEATURE_GREP_EGREP_ALIAS
 # define OPT_EGREP "E"
@@ -89,7 +91,7 @@ static char *cur_file;          /* the current file we are reading */
 static void print_line(const char *line, int linenum, char decoration)
 {
 #ifdef CONFIG_FEATURE_GREP_CONTEXT
-	/* possibly print the little '--' seperator */
+	/* possibly print the little '--' separator */
 	if ((lines_before || lines_after) && last_line_printed &&
 			last_line_printed < linenum - 1) {
 		puts("--");
@@ -135,11 +137,9 @@ static int grep_file(FILE *file)
 				 */
 				regex_t regex;
 				xregcomp(&regex, pattern_ptr->data, reflags);
-				ret = regexec(&regex, line, 0, NULL, 0) == 0;
+				ret |= regexec(&regex, line, 0, NULL, 0) == 0;
 				regfree(&regex);
 			}
-			if (!ret)
-				break;
 			pattern_ptr = pattern_ptr->link;
 		} /* while (pattern_ptr) */
 
@@ -149,7 +149,7 @@ static int grep_file(FILE *file)
 				free(line);
 
 			/* if we found a match but were told to be quiet, stop here */
-				if (be_quiet)
+				if (be_quiet || print_files_without_matches)
 				return -1;
 
 				/* keep track of matches */
@@ -229,6 +229,11 @@ static int grep_file(FILE *file)
 		puts(cur_file);
 	}
 
+	/* grep -L: print just the filename, but only if we didn't grep the line in the file  */
+	if (print_files_without_matches && nmatches == 0) {
+		puts(cur_file);
+	}
+
 	return nmatches;
 }
 
@@ -292,7 +297,7 @@ extern int grep_main(int argc, char **argv)
 					bb_error_msg_and_die("invalid context length argument");
 		}
 	/* sanity checks after parse may be invalid numbers ;-) */
-	if ((opt & (GREP_OPT_c|GREP_OPT_q|GREP_OPT_l))) {
+	if ((opt & (GREP_OPT_c|GREP_OPT_q|GREP_OPT_l|GREP_OPT_L))) {
 		opt &= ~GREP_OPT_n;
 		lines_before = 0;
 		lines_after = 0;
@@ -307,6 +312,7 @@ extern int grep_main(int argc, char **argv)
 
 #endif
 	print_files_with_matches = opt & GREP_OPT_l;
+	print_files_without_matches = (opt & GREP_OPT_L) != 0;
 	print_line_num = opt & GREP_OPT_n;
 	be_quiet = opt & GREP_OPT_q;
 	invert_search = (opt & GREP_OPT_v) != 0;        /* 0 | 1 */
