@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * read.c - read the blkid cache from disk, to avoid scanning all devices
  *
@@ -97,31 +98,6 @@ static char *strip_line(char *line)
 
 	return line;
 }
-
-#if 0
-static char *parse_word(char **buf)
-{
-	char *word, *next;
-
-	word = *buf;
-	if (*word == '\0')
-		return NULL;
-
-	word = skip_over_blank(word);
-	next = skip_over_word(word);
-	if (*next) {
-		char *end = next - 1;
-		if (*end == '"' || *end == '\'')
-			*end = '\0';
-		*next++ = '\0';
-	}
-	*buf = next;
-
-	if (*word == '"' || *word == '\'')
-		word++;
-	return word;
-}
-#endif
 
 /*
  * Start parsing a new line from the cache.
@@ -456,12 +432,12 @@ static void debug_dump_dev(blkid_dev dev)
 	list_for_each(p, &dev->bid_tags) {
 		blkid_tag tag = list_entry(p, struct blkid_struct_tag, bit_tags);
 		if (tag)
-			printf("    tag: %s=\"%s\"\n", tag->bit_name, 
+			printf("    tag: %s=\"%s\"\n", tag->bit_name,
 			       tag->bit_val);
 		else
 			printf("    tag: NULL\n");
 	}
-	printf("\n");
+	puts("");
 }
 
 int main(int argc, char**argv)

@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * uuid_time.c --- Interpret the time field from a uuid.  This program
  *	violates the UUID abstraction barrier by reaching into the guts
@@ -146,7 +147,7 @@ main(int argc, char **argv)
 		printf(" (random)\n");
 		break;
 	default:
-		printf("\n");
+		puts("");
 	}
 	if (type != 1) {
 		printf("Warning: not a time-based UUID, so UUID time "

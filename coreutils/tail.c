@@ -42,21 +42,25 @@ static const struct suffix_mult tail_suffixes[] = {
 
 static int status;
 
-static void tail_xprint_header(const char *fmt, const char *filename)
-{
-	/* If we get an output error, there is really no sense in continuing. */
-	if (dprintf(STDOUT_FILENO, fmt, filename) < 0) {
-		bb_perror_nomsg_and_die();
-	}
-}
-
-/* len should probably be size_t */
 static void tail_xbb_full_write(const char *buf, size_t len)
 {
 	/* If we get a write error, there is really no sense in continuing. */
-	if (bb_full_write(STDOUT_FILENO, buf, len) < 0) {
+	if (full_write(STDOUT_FILENO, buf, len) < 0)
+		bb_perror_nomsg_and_die();
+}
+
+static void tail_xprint_header(const char *fmt, const char *filename)
+{
+#if defined __GLIBC__
+	if (dprintf(STDOUT_FILENO, fmt, filename) < 0) {
 		bb_perror_nomsg_and_die();
 	}
+#else
+	int hdr_len = strlen(fmt) + strlen(filename);
+	char *hdr = xzalloc(hdr_len);
+	sprintf(hdr, filename, filename);
+	tail_xbb_full_write(hdr, hdr_len);
+#endif
 }
 
 static ssize_t tail_read(int fd, char *buf, size_t count)
@@ -89,7 +93,7 @@ static const char header_fmt[] = "\n==> %s <==\n";
 int tail_main(int argc, char **argv)
 {
 	long count = 10;
-	unsigned int sleep_period = 1;
+	unsigned sleep_period = 1;
 	int from_top = 0;
 	int follow = 0;
 	int header_threshhold = 1;
@@ -106,10 +110,9 @@ int tail_main(int argc, char **argv)
 
 #if !ENABLE_DEBUG_YANK_SUSv2 || ENABLE_FEATURE_FANCY_TAIL
 	/* Allow legacy syntax of an initial numeric option without -n. */
-	if (argc >=2 && ((argv[1][0] == '+') || ((argv[1][0] == '-')
-			/* && (isdigit)(argv[1][1]) */
-			&& (((unsigned int)(argv[1][1] - '0')) <= 9))))
-	{
+	if (argc >= 2 && (argv[1][0] == '+' || argv[1][0] == '-')
+	 && isdigit(argv[1][1])
+	) {
 		optind = 2;
 		optarg = argv[1];
 		goto GET_COUNT;
@@ -128,7 +131,7 @@ int tail_main(int argc, char **argv)
 #if !ENABLE_DEBUG_YANK_SUSv2 || ENABLE_FEATURE_FANCY_TAIL
 			GET_COUNT:
 #endif
-				count = bb_xgetlarg10_sfx(optarg, tail_suffixes);
+				count = xatol_sfx(optarg, tail_suffixes);
 				/* Note: Leading whitespace is an error trapped above. */
 				if (*optarg == '+') {
 					from_top = 1;
@@ -144,7 +147,7 @@ int tail_main(int argc, char **argv)
 				header_threshhold = INT_MAX;
 				break;
 			case 's':
-				sleep_period =bb_xgetularg10_bnd(optarg, 0, UINT_MAX);
+				sleep_period = xatou(optarg);
 				break;
 			case 'v':
 				header_threshhold = 0;

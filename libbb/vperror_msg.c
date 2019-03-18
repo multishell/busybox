@@ -7,17 +7,9 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include <stdio.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
 #include "libbb.h"
 
 void bb_vperror_msg(const char *s, va_list p)
 {
-	int err=errno;
-	if(s == 0) s = "";
-	bb_verror_msg(s, p);
-	if (*s) s = ": ";
-	fprintf(stderr, "%s%s\n", s, strerror(err));
+	bb_verror_msg(s, p, strerror(errno));
 }

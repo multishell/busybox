@@ -7,12 +7,12 @@
  * Copyright (C) 2005 Bernhard Fischer
  * Copyright (C) 2006 Rob Landley <rob@landley.net>
  *
- * Licensed under the GPL v2, see the file LICENSE in this tarball.
+ * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
+
 #include <stdlib.h>
 #include "libbb.h"
 
-#ifdef L_llist_add_to
 /* Add data to the start of the linked list.  */
 void llist_add_to(llist_t **old_head, void *data)
 {
@@ -21,9 +21,7 @@ void llist_add_to(llist_t **old_head, void *data)
 	new_head->link = *old_head;
 	*old_head = new_head;
 }
-#endif
 
-#ifdef L_llist_add_to_end
 /* Add data to the end of the linked list.  */
 void llist_add_to_end(llist_t **list_head, void *data)
 {
@@ -38,9 +36,7 @@ void llist_add_to_end(llist_t **list_head, void *data)
 		tail->link = new_item;
 	}
 }
-#endif
 
-#ifdef L_llist_pop
 /* Remove first element from the list and return it */
 void *llist_pop(llist_t **head)
 {
@@ -56,9 +52,7 @@ void *llist_pop(llist_t **head)
 
 	return data;
 }
-#endif
 
-#ifdef L_llist_free
 /* Recursively free all elements in the linked list.  If freeit != NULL
  * call it on each datum in the list */
 void llist_free(llist_t *elm, void (*freeit)(void *data))
@@ -68,4 +62,17 @@ void llist_free(llist_t *elm, void (*freeit)(void *data))
 		if (freeit) freeit(data);
 	}
 }
-#endif
+
+/* Reverse list order. Useful since getopt32 saves option params
+ * in reverse order */
+llist_t* rev_llist(llist_t *list)
+{
+	llist_t *new = NULL;
+	while (list) {
+		llist_t *next = list->link;
+		list->link = new;
+		new = list;
+		list = next;
+	}
+	return new;
+}

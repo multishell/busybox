@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * ll_proto.c
  *
@@ -15,7 +16,7 @@
 #include "rt_names.h"
 #include "utils.h"
 
-#if __GLIBC__ >=2 && __GLIBC_MINOR >= 1
+#if __GLIBC__ >=2 && __GLIBC_MINOR__ >= 1
 #include <net/ethernet.h>
 #else
 #include <linux/if_ether.h>

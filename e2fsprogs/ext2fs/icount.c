@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * icount.c --- an efficient inode count abstraction
  *
@@ -112,10 +113,6 @@ errcode_t ext2fs_create_icount2(ext2_filsys fs, int flags, unsigned int size,
 	}
 
 	bytes = (size_t) (icount->size * sizeof(struct ext2_icount_el));
-#if 0
-	printf("Icount allocated %d entries, %d bytes.\n",
-	       icount->size, bytes);
-#endif
 	retval = ext2fs_get_mem(bytes, &icount->list);
 	if (retval)
 		goto errout;
@@ -142,7 +139,7 @@ errcode_t ext2fs_create_icount2(ext2_filsys fs, int flags, unsigned int size,
 
 errout:
 	ext2fs_free_icount(icount);
-	return(retval);
+	return retval;
 }
 
 errcode_t ext2fs_create_icount(ext2_filsys fs, int flags,
@@ -172,9 +169,6 @@ static struct ext2_icount_el *insert_icount_el(ext2_icount_t icount,
 		}
 		if (new_size < (icount->size + 100))
 			new_size = icount->size + 100;
-#if 0
-		printf("Reallocating icount %d entries...\n", new_size);
-#endif
 		retval = ext2fs_resize_mem((size_t) icount->size *
 					   sizeof(struct ext2_icount_el),
 					   (size_t) new_size *
@@ -224,15 +218,9 @@ static struct ext2_icount_el *get_icount_el(ext2_icount_t icount,
 		icount->cursor = 0;
 	if (ino == icount->list[icount->cursor].ino)
 		return &icount->list[icount->cursor++];
-#if 0
-	printf("Non-cursor get_icount_el: %u\n", ino);
-#endif
 	low = 0;
 	high = (int) icount->count-1;
 	while (low <= high) {
-#if 0
-		mid = (low+high)/2;
-#else
 		if (low == high)
 			mid = low;
 		else {
@@ -249,7 +237,6 @@ static struct ext2_icount_el *get_icount_el(ext2_icount_t icount,
 					(highval - lowval);
 			mid = low + ((int) (range * (high-low)));
 		}
-#endif
 		if (ino == icount->list[mid].ino) {
 			icount->cursor = mid+1;
 			return &icount->list[mid];

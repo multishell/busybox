@@ -14,20 +14,7 @@
  * General cleanup to better adhere to the style guide and make use of standard
  * busybox functions by Glenn McGrath <bug1@iinet.net.au>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  *
  * gzip (GNU zip) -- compress files with zip algorithm and 'compress' interface
  * Copyright (C) 1992-1993 Jean-loup Gailly
@@ -40,33 +27,6 @@
  * See the file algorithm.doc for the compression algorithms and file formats.
  */
 
-#if 0
-static char *license_msg[] = {
-	"   Copyright (C) 1992-1993 Jean-loup Gailly",
-	"   This program is free software; you can redistribute it and/or modify",
-	"   it under the terms of the GNU General Public License as published by",
-	"   the Free Software Foundation; either version 2, or (at your option)",
-	"   any later version.",
-	"",
-	"   This program is distributed in the hope that it will be useful,",
-	"   but WITHOUT ANY WARRANTY; without even the implied warranty of",
-	"   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the",
-	"   GNU General Public License for more details.",
-	"",
-	"   You should have received a copy of the GNU General Public License",
-	"   along with this program; if not, write to the Free Software",
-	"   Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.",
-	0
-};
-#endif
-
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-
 #include "busybox.h"
 #include "unarchive.h"
 
@@ -74,22 +34,24 @@ static char *license_msg[] = {
 #define GUNZIP_OPT_FORCE	2
 #define GUNZIP_OPT_TEST		4
 #define GUNZIP_OPT_DECOMPRESS	8
+#define GUNZIP_OPT_VERBOSE	0x10
 
 int gunzip_main(int argc, char **argv)
 {
-	char status = EXIT_SUCCESS;
-	unsigned long opt;
+	USE_DESKTOP(long long) int status;
+	int exitcode = 0;
+	unsigned opt;
 
-	opt = bb_getopt_ulflags(argc, argv, "cftd");
+	opt = getopt32(argc, argv, "cftdv");
 	/* if called as zcat */
-	if (strcmp(bb_applet_name, "zcat") == 0) {
+	if (strcmp(applet_name, "zcat") == 0) {
 		opt |= GUNZIP_OPT_STDOUT;
 	}
 
 	do {
 		struct stat stat_buf;
-		const char *old_path = argv[optind];
-		const char *delete_path = NULL;
+		char *old_path = argv[optind];
+		char *delete_path = NULL;
 		char *new_path = NULL;
 		int src_fd;
 		int dst_fd;
@@ -99,28 +61,29 @@ int gunzip_main(int argc, char **argv)
 		if (old_path == NULL || strcmp(old_path, "-") == 0) {
 			src_fd = STDIN_FILENO;
 			opt |= GUNZIP_OPT_STDOUT;
+			USE_DESKTOP(opt &= ~GUNZIP_OPT_VERBOSE;)
+			optind = argc; /* we don't handle "gunzip - a.gz b.gz" */
 		} else {
-			src_fd = bb_xopen(old_path, O_RDONLY);
-
+			src_fd = xopen(old_path, O_RDONLY);
 			/* Get the time stamp on the input file. */
-			xstat(old_path, &stat_buf);
+			fstat(src_fd, &stat_buf);
 		}
 
 		/* Check that the input is sane.  */
-		if (isatty(src_fd) && ((opt & GUNZIP_OPT_FORCE) == 0)) {
+		if (isatty(src_fd) && !(opt & GUNZIP_OPT_FORCE)) {
 			bb_error_msg_and_die
-				("compressed data not read from terminal.  Use -f to force it.");
+				("compressed data not read from terminal, use -f to force it");
 		}
 
 		/* Set output filename and number */
 		if (opt & GUNZIP_OPT_TEST) {
-			dst_fd = bb_xopen(bb_dev_null, O_WRONLY);	/* why does test use filenum 2 ? */
+			dst_fd = xopen(bb_dev_null, O_WRONLY);	/* why does test use filenum 2 ? */
 		} else if (opt & GUNZIP_OPT_STDOUT) {
 			dst_fd = STDOUT_FILENO;
 		} else {
 			char *extension;
 
-			new_path = bb_xstrdup(old_path);
+			new_path = xstrdup(old_path);
 
 			extension = strrchr(new_path, '.');
 #ifdef CONFIG_FEATURE_GUNZIP_UNCOMPRESS
@@ -134,40 +97,46 @@ int gunzip_main(int argc, char **argv)
 				extension[2] = 'a';
 				extension[3] = 'r';
 			} else {
-				bb_error_msg_and_die("Invalid extension");
+				// FIXME: should we die or just skip to next?
+				bb_error_msg_and_die("invalid extension");
 			}
 
 			/* Open output file (with correct permissions) */
-			dst_fd = bb_xopen3(new_path, O_WRONLY | O_CREAT, stat_buf.st_mode);
+			dst_fd = xopen3(new_path, O_WRONLY | O_CREAT | O_TRUNC,
+					stat_buf.st_mode);
 
 			/* If unzip succeeds remove the old file */
 			delete_path = old_path;
 		}
 
+		status = -1;
 		/* do the decompression, and cleanup */
-		if (bb_xread_char(src_fd) == 0x1f) {
+		if (xread_char(src_fd) == 0x1f) {
 			unsigned char magic2;
 
-			magic2 = bb_xread_char(src_fd);
-#ifdef CONFIG_FEATURE_GUNZIP_UNCOMPRESS
-			if (magic2 == 0x9d) {
+			magic2 = xread_char(src_fd);
+			if (ENABLE_FEATURE_GUNZIP_UNCOMPRESS && magic2 == 0x9d) {
 				status = uncompress(src_fd, dst_fd);
-			} else
-#endif
-				if (magic2 == 0x8b) {
-					check_header_gzip(src_fd);
-					status = inflate_gunzip(src_fd, dst_fd);
-					if (status != 0) {
-						bb_error_msg_and_die("Error inflating");
-					}
-				} else {
-					bb_error_msg_and_die("Invalid magic");
-				}
+			} else if (magic2 == 0x8b) {
+				check_header_gzip(src_fd); // FIXME: xfunc? _or_die?
+				status = inflate_gunzip(src_fd, dst_fd);
+			} else {
+				bb_error_msg("invalid magic");
+				exitcode = 1;
+			}
+			if (status < 0) {
+				bb_error_msg("error inflating");
+				exitcode = 1;
+			}
+			else if (ENABLE_DESKTOP && (opt & GUNZIP_OPT_VERBOSE)) {
+				fprintf(stderr, "%s: %u%% - replaced with %s\n",
+					old_path, (unsigned)(stat_buf.st_size*100 / (status+1)), new_path);
+			}
 		} else {
-			bb_error_msg_and_die("Invalid magic");
+			bb_error_msg("invalid magic");
+			exitcode = 1;
 		}
-
-		if ((status != EXIT_SUCCESS) && (new_path)) {
+		if (status < 0 && new_path) {
 			/* Unzip failed, remove new path instead of old path */
 			delete_path = new_path;
 		}
@@ -181,12 +150,13 @@ int gunzip_main(int argc, char **argv)
 
 		/* delete_path will be NULL if in test mode or from stdin */
 		if (delete_path && (unlink(delete_path) == -1)) {
-			bb_error_msg_and_die("Couldn't remove %s", delete_path);
+			bb_error_msg("cannot remove %s", delete_path);
+			exitcode = 1;
 		}
 
 		free(new_path);
 
 	} while (optind < argc);
 
-	return status;
+	return exitcode;
 }

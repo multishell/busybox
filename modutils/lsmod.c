@@ -12,22 +12,10 @@
  */
 
 #include "busybox.h"
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <stddef.h>
-#include <errno.h>
-#include <unistd.h>
-#include <dirent.h>
-#include <ctype.h>
-#include <assert.h>
-#include <getopt.h>
-#include <sys/utsname.h>
-#include <sys/file.h>
 
 
 #ifndef CONFIG_FEATURE_CHECK_TAINTED_MODULE
-static inline void check_tainted(void) { printf("\n"); }
+static void check_tainted(void) { puts(""); }
 #else
 #define TAINT_FILENAME                  "/proc/sys/kernel/tainted"
 #define TAINT_PROPRIETORY_MODULE        (1<<0)
@@ -92,13 +80,15 @@ int lsmod_main(int argc, char **argv)
 	char *module_names, *mn, *deps, *dn;
 	size_t bufsize, depsize, nmod, count, i, j;
 
-	module_names = xmalloc(bufsize = 256);
-	if (my_query_module(NULL, QM_MODULES, &module_names, &bufsize, &nmod)) {
-		bb_perror_msg_and_die("QM_MODULES");
+	module_names = deps = NULL;
+	bufsize = depsize = 0;
+	while(query_module(NULL, QM_MODULES, module_names, bufsize, &nmod)) {
+		if (errno != ENOSPC) bb_perror_msg_and_die("QM_MODULES");
+		module_names = xmalloc(bufsize = nmod);
 	}
 
 	deps = xmalloc(depsize = 256);
-	printf("Module                  Size  Used by");
+	printf("Module\t\t\tSize  Used by");
 	check_tainted();
 
 	for (i = 0, mn = module_names; i < nmod; mn += strlen(mn) + 1, i++) {
@@ -110,12 +100,13 @@ int lsmod_main(int argc, char **argv)
 			/* else choke */
 			bb_perror_msg_and_die("module %s: QM_INFO", mn);
 		}
-		if (my_query_module(mn, QM_REFS, &deps, &depsize, &count)) {
+		while (query_module(mn, QM_REFS, deps, depsize, &count)) {
 			if (errno == ENOENT) {
 				/* The module was removed out from underneath us. */
 				continue;
-			}
-			bb_perror_msg_and_die("module %s: QM_REFS", mn);
+			} else if (errno != ENOSPC)
+				bb_perror_msg_and_die("module %s: QM_REFS", mn);
+			deps = xrealloc(deps, count);
 		}
 		printf("%-20s%8lu%4ld", mn, info.size, info.usecount);
 		if (info.flags & NEW_MOD_DELETED)
@@ -136,66 +127,62 @@ int lsmod_main(int argc, char **argv)
 		}
 		if (count) printf("]");
 
-		printf("\n");
+		puts("");
 	}
 
 #ifdef CONFIG_FEATURE_CLEAN_UP
 	free(module_names);
 #endif
 
-	return( 0);
+	return 0;
 }
 
 #else /* CONFIG_FEATURE_QUERY_MODULE_INTERFACE */
 
 int lsmod_main(int argc, char **argv)
 {
+	FILE *file = xfopen("/proc/modules", "r");
+
 	printf("Module                  Size  Used by");
 	check_tainted();
 #if defined(CONFIG_FEATURE_LSMOD_PRETTY_2_6_OUTPUT)
 	{
-	  FILE *file;
-	  char line[4096];
+		char *line;
+		while ((line = xmalloc_fgets(file)) != NULL) {
+			char *tok;
 
-	  file = bb_xfopen("/proc/modules", "r");
-
-	  while (fgets(line, sizeof(line), file)) {
-	    char *tok;
-
-	    tok = strtok(line, " \t");
-	    printf("%-19s", tok);
-	    tok = strtok(NULL, " \t\n");
-	    printf(" %8s", tok);
-	    tok = strtok(NULL, " \t\n");
-	    /* Null if no module unloading support. */
-	    if (tok) {
-	      printf("  %s", tok);
-	      tok = strtok(NULL, "\n");
-	      if (!tok)
-		tok = "";
-	      /* New-style has commas, or -.  If so,
-		 truncate (other fields might follow). */
-	      else if (strchr(tok, ',')) {
-		tok = strtok(tok, "\t ");
-		/* Strip trailing comma. */
-		if (tok[strlen(tok)-1] == ',')
-		  tok[strlen(tok)-1] = '\0';
-	      } else if (tok[0] == '-'
-			 && (tok[1] == '\0' || isspace(tok[1])))
-		tok = "";
-	      printf(" %s", tok);
-	    }
-	    printf("\n");
-	  }
-	  fclose(file);
+			tok = strtok(line, " \t");
+			printf("%-19s", tok);
+			tok = strtok(NULL, " \t\n");
+			printf(" %8s", tok);
+			tok = strtok(NULL, " \t\n");
+			/* Null if no module unloading support. */
+			if (tok) {
+				printf("  %s", tok);
+				tok = strtok(NULL, "\n");
+				if (!tok)
+					tok = "";
+				/* New-style has commas, or -.  If so,
+				truncate (other fields might follow). */
+				else if (strchr(tok, ',')) {
+					tok = strtok(tok, "\t ");
+					/* Strip trailing comma. */
+					if (tok[strlen(tok)-1] == ',')
+						tok[strlen(tok)-1] = '\0';
+				} else if (tok[0] == '-'
+						&& (tok[1] == '\0' || isspace(tok[1])))
+					tok = "";
+					printf(" %s", tok);
+			}
+			puts("");
+			free(line);
+		}
+		fclose(file);
 	}
-	return EXIT_SUCCESS;
 #else
-	if (bb_xprint_file_by_name("/proc/modules") == 0)
-		return EXIT_SUCCESS;
+	xprint_and_close_file(file);
 #endif  /*  CONFIG_FEATURE_2_6_MODULES  */
-
-	return EXIT_FAILURE;
+	return EXIT_SUCCESS;
 }
 
 #endif /* CONFIG_FEATURE_QUERY_MODULE_INTERFACE */

@@ -12,23 +12,6 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include <time.h>
-#include <sys/types.h>
-#include <sys/param.h>
-#include <sys/stat.h>
-#include <ctype.h>
-#include <errno.h>
-#include <signal.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/wait.h>
-#include <fcntl.h>
-#include <stddef.h>
-#include <paths.h>
-#include <dirent.h>
 #include "busybox.h"
 
 #define FSIZE_MAX 32768
@@ -84,11 +67,13 @@ static unsigned long cmd_flags;
 #define FLAG_U	(1<<12)
 #define	FLAG_w	(1<<13)
 
+/* XXX: FIXME: the following variables should be static, but gcc currently
+ * creates a much bigger object if we do this.  */
 int context, status;
 char *start, *label[2];
 struct stat stb1, stb2;
 char **dl;
-int dl_count = 0;
+static int dl_count = 0;
 
 struct cand {
 	int x;
@@ -200,7 +185,7 @@ static int readhash(FILE * f)
 			for (i = 0; (t = getc(f)) != '\n'; i++) {
 				if (t == EOF) {
 					if (i == 0)
-						return (0);
+						return 0;
 					break;
 				}
 				sum = sum * 127 + t;
@@ -208,7 +193,7 @@ static int readhash(FILE * f)
 			for (i = 0; (t = getc(f)) != '\n'; i++) {
 				if (t == EOF) {
 					if (i == 0)
-						return (0);
+						return 0;
 					break;
 				}
 				sum = sum * 127 + t;
@@ -233,7 +218,7 @@ static int readhash(FILE * f)
 				continue;
 			case EOF:
 				if (i == 0)
-					return (0);
+					return 0;
 				/* FALLTHROUGH */
 			case '\n':
 				break;
@@ -261,19 +246,19 @@ static int files_differ(FILE * f1, FILE * f2, int flags)
 
 	if ((flags & (D_EMPTY1 | D_EMPTY2)) || stb1.st_size != stb2.st_size ||
 		(stb1.st_mode & S_IFMT) != (stb2.st_mode & S_IFMT))
-		return (1);
+		return 1;
 	while (1) {
 		i = fread(buf1, 1, sizeof(buf1), f1);
 		j = fread(buf2, 1, sizeof(buf2), f2);
 		if (i != j)
-			return (1);
+			return 1;
 		if (i == 0 && j == 0) {
 			if (ferror(f1) || ferror(f2))
-				return (1);
-			return (0);
+				return 1;
+			return 0;
 		}
 		if (memcmp(buf1, buf2, i) != 0)
-			return (1);
+			return 1;
 	}
 }
 
@@ -350,7 +335,7 @@ static int isqrt(int n)
 	int y, x = 1;
 
 	if (n == 0)
-		return (0);
+		return 0;
 
 	do {
 		y = x;
@@ -359,7 +344,7 @@ static int isqrt(int n)
 		x /= 2;
 	} while ((x - y) > 1 || (x - y) < -1);
 
-	return (x);
+	return x;
 }
 
 static int newcand(int x, int y, int pred)
@@ -374,7 +359,7 @@ static int newcand(int x, int y, int pred)
 	q->x = x;
 	q->y = y;
 	q->pred = pred;
-	return (clen++);
+	return clen++;
 }
 
 
@@ -383,7 +368,7 @@ static int search(int *c, int k, int y)
 	int i, j, l, t;
 
 	if (clist[c[k]].y < y)	/* quick look for typical case */
-		return (k + 1);
+		return k + 1;
 	i = 0;
 	j = k + 1;
 	while (1) {
@@ -396,9 +381,9 @@ static int search(int *c, int k, int y)
 		else if (t < y)
 			i = l;
 		else
-			return (l);
+			return l;
 	}
-	return (l + 1);
+	return l + 1;
 }
 
 
@@ -445,7 +430,7 @@ static int stone(int *a, int n, int *b, int *c)
 			}
 		} while ((y = b[++j]) > 0 && numtries < bound);
 	}
-	return (k);
+	return k;
 }
 
 static void unravel(int p)
@@ -478,7 +463,7 @@ static int skipline(FILE * f)
 
 	for (i = 1; (c = getc(f)) != '\n' && c != EOF; i++)
 		continue;
-	return (i);
+	return i;
 }
 
 
@@ -627,7 +612,7 @@ static int fetch(long *f, int a, int b, FILE * lb, int ch)
 	int i, j, c, lastc, col, nc;
 
 	if (a > b)
-		return (0);
+		return 0;
 	for (i = a; i <= b; i++) {
 		fseek(lb, f[i - 1], SEEK_SET);
 		nc = f[i] - f[i - 1];
@@ -640,7 +625,7 @@ static int fetch(long *f, int a, int b, FILE * lb, int ch)
 		for (j = 0, lastc = '\0'; j < nc; j++, lastc = c) {
 			if ((c = getc(lb)) == EOF) {
 				puts("\n\\ No newline at end of file");
-				return (0);
+				return 0;
 			}
 			if (c == '\t' && (cmd_flags & FLAG_t)) {
 				do {
@@ -652,7 +637,7 @@ static int fetch(long *f, int a, int b, FILE * lb, int ch)
 			}
 		}
 	}
-	return (0);
+	return 0;
 }
 
 static int asciifile(FILE * f)
@@ -663,18 +648,18 @@ static int asciifile(FILE * f)
 #endif
 
 	if ((cmd_flags & FLAG_a) || f == NULL)
-		return (1);
+		return 1;
 
 #if ENABLE_FEATURE_DIFF_BINARY
 	rewind(f);
 	cnt = fread(buf, 1, sizeof(buf), f);
 	for (i = 0; i < cnt; i++) {
 		if (!isprint(buf[i]) && !isspace(buf[i])) {
-			return (0);
+			return 0;
 		}
 	}
 #endif
-	return (1);
+	return 1;
 }
 
 /* dump accumulated "unified" diff changes */
@@ -720,23 +705,6 @@ static void dump_unified_vec(FILE * f1, FILE * f2)
 			ch = 'c';
 		else
 			ch = (a <= b) ? 'd' : 'a';
-#if 0
-		switch (ch) {
-		case 'c':
-			fetch(ixold, lowa, a - 1, f1, ' ');
-			fetch(ixold, a, b, f1, '-');
-			fetch(ixnew, c, d, f2, '+');
-			break;
-		case 'd':
-			fetch(ixold, lowa, a - 1, f1, ' ');
-			fetch(ixold, a, b, f1, '-');
-			break;
-		case 'a':
-			fetch(ixnew, lowc, c - 1, f2, ' ');
-			fetch(ixnew, c, d, f2, '+');
-			break;
-		}
-#else
 		if (ch == 'c' || ch == 'd') {
 			fetch(ixold, lowa, a - 1, f1, ' ');
 			fetch(ixold, a, b, f1, '-');
@@ -745,7 +713,6 @@ static void dump_unified_vec(FILE * f1, FILE * f2)
 			fetch(ixnew, lowc, c - 1, f2, ' ');
 		if (ch == 'c' || ch == 'a')
 			fetch(ixnew, c, d, f2, '+');
-#endif
 		lowa = b + 1;
 		lowc = d + 1;
 	}
@@ -855,8 +822,8 @@ static void output(char *file1, FILE * f1, char *file2, FILE * f2)
 }
 
 /*
- *      The following code uses an algorithm due to Harold Stone, 
- *      which finds a pair of longest identical subsequences in 
+ *      The following code uses an algorithm due to Harold Stone,
+ *      which finds a pair of longest identical subsequences in
  *      the two files.
  *
  *      The major goal is to generate the match vector J.
@@ -935,21 +902,21 @@ static int diffreg(char *ofile1, char *ofile2, int flags)
 		goto closem;
 
 	if (flags & D_EMPTY1)
-		f1 = bb_xfopen(bb_dev_null, "r");
+		f1 = xfopen(bb_dev_null, "r");
 	else {
 		if (strcmp(file1, "-") == 0)
 			f1 = stdin;
 		else
-			f1 = bb_xfopen(file1, "r");
+			f1 = xfopen(file1, "r");
 	}
 
 	if (flags & D_EMPTY2)
-		f2 = bb_xfopen(bb_dev_null, "r");
+		f2 = xfopen(bb_dev_null, "r");
 	else {
 		if (strcmp(file2, "-") == 0)
 			f2 = stdin;
 		else
-			f2 = bb_xfopen(file2, "r");
+			f2 = xfopen(file2, "r");
 	}
 
 	if ((i = files_differ(f1, f2, flags)) == 0)
@@ -1012,7 +979,7 @@ static int diffreg(char *ofile1, char *ofile2, int flags)
 		free(file1);
 	if (file2 != ofile2)
 		free(file2);
-	return (rval);
+	return rval;
 }
 
 #if ENABLE_FEATURE_DIFF_DIR
@@ -1022,19 +989,19 @@ static void do_diff(char *dir1, char *path1, char *dir2, char *path2)
 	int flags = D_HEADER;
 	int val;
 
-	char *fullpath1 = bb_xasprintf("%s/%s", dir1, path1);
-	char *fullpath2 = bb_xasprintf("%s/%s", dir2, path2);
+	char *fullpath1 = xasprintf("%s/%s", dir1, path1);
+	char *fullpath2 = xasprintf("%s/%s", dir2, path2);
 
 	if (stat(fullpath1, &stb1) != 0) {
 		flags |= D_EMPTY1;
 		memset(&stb1, 0, sizeof(stb1));
-		fullpath1 = bb_xasprintf("%s/%s", dir1, path2);
+		fullpath1 = xasprintf("%s/%s", dir1, path2);
 	}
 	if (stat(fullpath2, &stb2) != 0) {
 		flags |= D_EMPTY2;
 		memset(&stb2, 0, sizeof(stb2));
 		stb2.st_mode = stb1.st_mode;
-		fullpath2 = bb_xasprintf("%s/%s", dir2, path1);
+		fullpath2 = xasprintf("%s/%s", dir2, path1);
 	}
 
 	if (stb1.st_mode == 0)
@@ -1065,11 +1032,12 @@ static int dir_strcmp(const void *p1, const void *p2)
 /* This function adds a filename to dl, the directory listing. */
 
 static int add_to_dirlist(const char *filename,
-						  struct stat ATTRIBUTE_UNUSED * sb, void *userdata)
+		struct stat ATTRIBUTE_UNUSED * sb, void *userdata,
+		int depth ATTRIBUTE_UNUSED)
 {
 	dl_count++;
 	dl = xrealloc(dl, dl_count * sizeof(char *));
-	dl[dl_count - 1] = bb_xstrdup(filename);
+	dl[dl_count - 1] = xstrdup(filename);
 	if (cmd_flags & FLAG_r) {
 		int *pp = (int *) userdata;
 		int path_len = *pp + 1;
@@ -1095,23 +1063,23 @@ static char **get_dir(char *path)
 	int path_len = strlen(path);
 	void *userdata = &path_len;
 
-	/* Reset dl_count - there's no need to free dl as bb_xrealloc does
+	/* Reset dl_count - there's no need to free dl as xrealloc does
 	 * the job nicely. */
 	dl_count = 0;
 
 	/* Now fill dl with a listing. */
 	if (cmd_flags & FLAG_r)
 		recursive_action(path, TRUE, TRUE, FALSE, add_to_dirlist, NULL,
-						 userdata);
+						 userdata, 0);
 	else {
 		DIR *dp;
 		struct dirent *ep;
 
-		dp = bb_opendir(path);
+		dp = warn_opendir(path);
 		while ((ep = readdir(dp))) {
 			if ((!strcmp(ep->d_name, "..")) || (!strcmp(ep->d_name, ".")))
 				continue;
-			add_to_dirlist(ep->d_name, NULL, NULL);
+			add_to_dirlist(ep->d_name, NULL, NULL, 0);
 		}
 		closedir(dp);
 	}
@@ -1122,7 +1090,7 @@ static char **get_dir(char *path)
 	/* Copy dl so that we can return it. */
 	retval = xmalloc(dl_count * sizeof(char *));
 	for (i = 0; i < dl_count; i++)
-		retval[i] = bb_xstrdup(dl[i]);
+		retval[i] = xstrdup(dl[i]);
 
 	return retval;
 }
@@ -1199,10 +1167,9 @@ int diff_main(int argc, char **argv)
 	char *U_opt;
 	llist_t *L_arg = NULL;
 
-	bb_opt_complementally = "L::";
-	cmd_flags =
-		bb_getopt_ulflags(argc, argv, "abdiL:NqrsS:tTU:wu", &L_arg, &start,
-						  &U_opt);
+	opt_complementary = "L::";
+	cmd_flags = getopt32(argc, argv, "abdiL:NqrsS:tTU:wu",
+			&L_arg, &start, &U_opt);
 
 	if (cmd_flags & FLAG_L) {
 		while (L_arg) {
@@ -1228,7 +1195,7 @@ int diff_main(int argc, char **argv)
 
 	context = 3;		/* This is the default number of lines of context. */
 	if (cmd_flags & FLAG_U) {
-		context = bb_xgetlarg(U_opt, 10, 1, INT_MAX);
+		context = xatoul_range(U_opt, 1, INT_MAX);
 	}
 	argc -= optind;
 	argv += optind;
@@ -1238,7 +1205,7 @@ int diff_main(int argc, char **argv)
 	 * driver routine.  Both drivers use the contents of stb1 and stb2.
 	 */
 	if (argc < 2) {
-		bb_error_msg("Missing filename");
+		bb_error_msg("missing filename");
 		bb_show_usage();
 	}
 	if (strcmp(argv[0], "-") == 0) {
@@ -1252,12 +1219,12 @@ int diff_main(int argc, char **argv)
 	} else
 		xstat(argv[1], &stb2);
 	if (gotstdin && (S_ISDIR(stb1.st_mode) || S_ISDIR(stb2.st_mode)))
-		bb_error_msg_and_die("Can't compare - to a directory");
+		bb_error_msg_and_die("can't compare - to a directory");
 	if (S_ISDIR(stb1.st_mode) && S_ISDIR(stb2.st_mode)) {
 #if ENABLE_FEATURE_DIFF_DIR
 		diffdir(argv[0], argv[1]);
 #else
-		bb_error_msg_and_die("Directory comparison not supported");
+		bb_error_msg_and_die("directory comparison not supported");
 #endif
 	} else {
 		if (S_ISDIR(stb1.st_mode)) {

@@ -46,7 +46,7 @@ static void interrupted(int sig);
 /*
  * sem_up - up()'s a semaphore.
  */
-static inline void sem_up(int semid)
+static void sem_up(int semid)
 {
 	if ( semop(semid, SMrup, 1) == -1 )
 		error_exit("semop[SMrup]");
@@ -55,7 +55,7 @@ static inline void sem_up(int semid)
 /*
  * sem_down - down()'s a semaphore
  */
-static inline void sem_down(int semid)
+static void sem_down(int semid)
 {
 	if ( semop(semid, SMrdn, 2) == -1 )
 		error_exit("semop[SMrdn]");
@@ -88,7 +88,7 @@ int logread_main(int argc, char **argv)
 		error_exit("Can't get access to circular buffer from syslogd");
 
 	if ( (log_semid = semget(KEY_ID, 0, 0)) == -1)
-		error_exit("Can't get access to semaphone(s) for circular buffer from syslogd");
+		error_exit("Can't get access to semaphore(s) for circular buffer from syslogd");
 
 	// Suppose atomic memory move
 	i = follow ? buf->tail : buf->head;

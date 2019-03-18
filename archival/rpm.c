@@ -7,16 +7,6 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include <stdio.h>
-#include <unistd.h>
-#include <signal.h>
-#include <stdlib.h>
-#include <fcntl.h>
-#include <netinet/in.h> /* For ntohl & htonl function */
-#include <string.h> /* For strncmp */
-#include <sys/mman.h> /* For mmap */
-#include <time.h> /* For ctime */
-
 #include "busybox.h"
 #include "unarchive.h"
 
@@ -80,17 +70,15 @@ static void *map;
 static rpm_index **mytags;
 static int tagcount;
 
-void extract_cpio_gz(int fd);
-rpm_index **rpm_gettags(int fd, int *num_tags);
-int bsearch_rpmtag(const void *key, const void *item);
-char *rpm_getstring(int tag, int itemindex);
-int rpm_getint(int tag, int itemindex);
-int rpm_getcount(int tag);
-void exec_script(int progtag, int datatag, char *prefix);
-void fileaction_dobackup(char *filename, int fileref);
-void fileaction_setowngrp(char *filename, int fileref);
-void fileaction_list(char *filename, int itemno);
-void loop_through_files(int filetag, void (*fileaction)(char *filename, int fileref));
+static void extract_cpio_gz(int fd);
+static rpm_index **rpm_gettags(int fd, int *num_tags);
+static int bsearch_rpmtag(const void *key, const void *item);
+static char *rpm_getstring(int tag, int itemindex);
+static int rpm_getint(int tag, int itemindex);
+static int rpm_getcount(int tag);
+static void fileaction_dobackup(char *filename, int fileref);
+static void fileaction_setowngrp(char *filename, int fileref);
+static void loop_through_files(int filetag, void (*fileaction)(char *filename, int fileref));
 
 int rpm_main(int argc, char **argv)
 {
@@ -127,7 +115,7 @@ int rpm_main(int argc, char **argv)
 
 	if (optind == argc) bb_show_usage();
 	while (optind < argc) {
-		rpm_fd = bb_xopen(argv[optind], O_RDONLY);
+		rpm_fd = xopen(argv[optind], O_RDONLY);
 		mytags = rpm_gettags(rpm_fd, (int *) &tagcount);
 		offset = lseek(rpm_fd, 0, SEEK_CUR);
 		if (!mytags) { printf("Error reading rpm header\n"); exit(-1); }
@@ -179,13 +167,13 @@ int rpm_main(int argc, char **argv)
 	return 0;
 }
 
-void extract_cpio_gz(int fd) {
+static void extract_cpio_gz(int fd) {
 	archive_handle_t *archive_handle;
 	unsigned char magic[2];
 
 	/* Initialise */
 	archive_handle = init_handle();
-	archive_handle->seek = seek_by_char;
+	archive_handle->seek = seek_by_read;
 	//archive_handle->action_header = header_list;
 	archive_handle->action_data = data_extract_all;
 	archive_handle->flags |= ARCHIVE_PRESERVE_DATE;
@@ -193,12 +181,12 @@ void extract_cpio_gz(int fd) {
 	archive_handle->src_fd = fd;
 	archive_handle->offset = 0;
 
-	bb_xread_all(archive_handle->src_fd, &magic, 2);
+	xread(archive_handle->src_fd, &magic, 2);
 	if ((magic[0] != 0x1f) || (magic[1] != 0x8b)) {
-		bb_error_msg_and_die("Invalid gzip magic");
+		bb_error_msg_and_die("invalid gzip magic");
 	}
 	check_header_gzip(archive_handle->src_fd);
-	bb_xchdir("/"); // Install RPM's to root
+	xchdir("/"); // Install RPM's to root
 
 	archive_handle->src_fd = open_transformer(archive_handle->src_fd, inflate_gunzip);
 	archive_handle->offset = 0;
@@ -206,7 +194,7 @@ void extract_cpio_gz(int fd) {
 }
 
 
-rpm_index **rpm_gettags(int fd, int *num_tags)
+static rpm_index **rpm_gettags(int fd, int *num_tags)
 {
 	rpm_index **tags = xzalloc(200 * sizeof(struct rpmtag *)); /* We should never need mode than 200, and realloc later */
 	int pass, tagindex = 0;
@@ -245,14 +233,14 @@ rpm_index **rpm_gettags(int fd, int *num_tags)
 	return tags; /* All done, leave the file at the start of the gzipped cpio archive */
 }
 
-int bsearch_rpmtag(const void *key, const void *item)
+static int bsearch_rpmtag(const void *key, const void *item)
 {
 	int *tag = (int *)key;
 	rpm_index **tmp = (rpm_index **) item;
 	return (*tag - tmp[0]->tag);
 }
 
-int rpm_getcount(int tag)
+static int rpm_getcount(int tag)
 {
 	rpm_index **found;
 	found = bsearch(&tag, mytags, tagcount, sizeof(struct rpmtag *), bsearch_rpmtag);
@@ -260,7 +248,7 @@ int rpm_getcount(int tag)
 	else return found[0]->count;
 }
 
-char *rpm_getstring(int tag, int itemindex)
+static char *rpm_getstring(int tag, int itemindex)
 {
 	rpm_index **found;
 	found = bsearch(&tag, mytags, tagcount, sizeof(struct rpmtag *), bsearch_rpmtag);
@@ -273,7 +261,7 @@ char *rpm_getstring(int tag, int itemindex)
 	} else return NULL;
 }
 
-int rpm_getint(int tag, int itemindex)
+static int rpm_getint(int tag, int itemindex)
 {
 	rpm_index **found;
 	int n, *tmpint;
@@ -294,7 +282,7 @@ int rpm_getint(int tag, int itemindex)
 	} else return -1;
 }
 
-void fileaction_dobackup(char *filename, int fileref)
+static void fileaction_dobackup(char *filename, int fileref)
 {
 	struct stat oldfile;
 	int stat_res;
@@ -302,8 +290,7 @@ void fileaction_dobackup(char *filename, int fileref)
 	if (rpm_getint(RPMTAG_FILEFLAGS, fileref) & RPMFILE_CONFIG) { /* Only need to backup config files */
 		stat_res = lstat (filename, &oldfile);
 		if (stat_res == 0 && S_ISREG(oldfile.st_mode)) { /* File already exists  - really should check MD5's etc to see if different */
-			newname = bb_xstrdup(filename);
-			newname = strcat(newname, ".rpmorig");
+			newname = xasprintf("%s.rpmorig", filename);
 			copy_file(filename, newname, FILEUTILS_RECUR | FILEUTILS_PRESERVE_STATUS);
 			remove_file(filename, FILEUTILS_RECUR | FILEUTILS_FORCE);
 			free(newname);
@@ -311,24 +298,19 @@ void fileaction_dobackup(char *filename, int fileref)
 	}
 }
 
-void fileaction_setowngrp(char *filename, int fileref)
+static void fileaction_setowngrp(char *filename, int fileref)
 {
 	int uid, gid;
 	uid = bb_xgetpwnam(rpm_getstring(RPMTAG_FILEUSERNAME, fileref));
 	gid = bb_xgetgrnam(rpm_getstring(RPMTAG_FILEGROUPNAME, fileref));
-	chown (filename, uid, gid);
+	chown(filename, uid, gid);
 }
 
-void fileaction_list(char *filename, int ATTRIBUTE_UNUSED fileref)
-{
-	printf("%s\n", filename);
-}
-
-void loop_through_files(int filetag, void (*fileaction)(char *filename, int fileref))
+static void loop_through_files(int filetag, void (*fileaction)(char *filename, int fileref))
 {
 	int count = 0;
 	while (rpm_getstring(filetag, count)) {
-		char * filename = bb_xasprintf("%s%s",
+		char * filename = xasprintf("%s%s",
 			rpm_getstring(RPMTAG_DIRNAMES, rpm_getint(RPMTAG_DIRINDEXES,
 			count)), rpm_getstring(RPMTAG_BASENAMES, count));
 		fileaction(filename, count++);

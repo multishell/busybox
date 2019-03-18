@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 #include <sys/types.h>
 #include <stdio.h>
 #include <string.h>
@@ -628,12 +629,7 @@ struct e2fsck_struct {
 };
 
 
-
-static inline int tid_gt(tid_t x, tid_t y)
-{
-	int difference = (x - y);
-	return (difference > 0);
-}
+#define tid_gt(x, y)		((x - y) > 0)
 
 static inline int tid_geq(tid_t x, tid_t y)
 {

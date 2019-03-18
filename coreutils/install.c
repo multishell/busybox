@@ -1,35 +1,17 @@
+/* vi: set sw=4 ts=4: */
 /*
  *  Copyright (C) 2003 by Glenn McGrath <bug1@iinet.net.au>
  *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation; either version 2 of the License, or
- *  (at your option) any later version.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU Library General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
- *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  *
  * TODO: -d option, need a way of recursively making directories and changing
  *           owner/group, will probably modify bb_make_directory(...)
  */
 
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <errno.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <getopt.h> /* struct option */
-
 #include "busybox.h"
 #include "libcoreutils/coreutils.h"
+#include <libgen.h>
+#include <getopt.h> /* struct option */
 
 #define INSTALL_OPT_CMD	1
 #define INSTALL_OPT_DIRECTORY	2
@@ -63,11 +45,11 @@ int install_main(int argc, char **argv)
 	int ret = EXIT_SUCCESS, flags, i, isdir;
 
 #if ENABLE_FEATURE_INSTALL_LONG_OPTIONS
-	bb_applet_long_options = install_long_options;
+	applet_long_options = install_long_options;
 #endif
-	bb_opt_complementally = "?:s--d:d--s";
+	opt_complementary = "?:s--d:d--s";
 	/* -c exists for backwards compatibility, its needed */
-	flags = bb_getopt_ulflags(argc, argv, "cdpsg:m:o:", &gid_str, &mode_str, &uid_str);	/* 'a' must be 2nd */
+	flags = getopt32(argc, argv, "cdpsg:m:o:", &gid_str, &mode_str, &uid_str);	/* 'a' must be 2nd */
 
 	/* preserve access and modification time, this is GNU behaviour, BSD only preserves modification time */
 	if (flags & INSTALL_OPT_PRESERVE_TIME) {
@@ -79,7 +61,7 @@ int install_main(int argc, char **argv)
 	umask(0);
 
 	/* Create directories
-	 * dont use bb_make_directory() as it cant change uid or gid
+	 * don't use bb_make_directory() as it can't change uid or gid
 	 * perhaps bb_make_directory() should be improved.
 	 */
 	if (flags & INSTALL_OPT_DIRECTORY) {
@@ -95,7 +77,7 @@ int install_main(int argc, char **argv)
 				}
 				if (mkdir(*argv, mode) == -1) {
 					if (errno != EEXIST) {
-						bb_perror_msg("coulnt create %s", *argv);
+						bb_perror_msg("cannot create %s", *argv);
 						ret = EXIT_FAILURE;
 						break;
 					}
@@ -110,7 +92,7 @@ int install_main(int argc, char **argv)
 				}
 			} while (old_argv_ptr);
 		}
-		return(ret);
+		return ret;
 	}
 
 	{
@@ -145,5 +127,5 @@ int install_main(int argc, char **argv)
 		if(ENABLE_FEATURE_CLEAN_UP && isdir) free(dest);
 	}
 
-	return(ret);
+	return ret;
 }

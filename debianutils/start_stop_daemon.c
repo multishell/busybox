@@ -3,30 +3,23 @@
  * Mini start-stop-daemon implementation(s) for busybox
  *
  * Written by Marek Michalkiewicz <marekm@i17linuxb.ists.pwr.wroc.pl>,
- * public domain.
  * Adapted for busybox David Kimdon <dwhedon@gordian.com>
+ *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
 #include "busybox.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdarg.h>
-#include <signal.h>
-#include <errno.h>
-#include <sys/stat.h>
-#include <dirent.h>
-#include <unistd.h>
-#include <getopt.h> /* struct option */
-#include "pwd_.h"
+#include <getopt.h>
+#include <sys/resource.h>
 
 static int signal_nr = 15;
 static int user_id = -1;
 static int quiet;
-static char *userspec = NULL;
-static char *cmdname = NULL;
-static char *execname = NULL;
-static char *pidfile = NULL;
+static char *userspec;
+static char *chuid;
+static char *cmdname;
+static char *execname;
+static char *pidfile;
 
 struct pid_list {
 	struct pid_list *next;
@@ -47,22 +40,24 @@ static inline void push(pid_t pid)
 
 static int pid_is_exec(pid_t pid, const char *name)
 {
-	char buf[32];
-	struct stat sb, exec_stat;
-
-	if (name)
-		xstat(name, &exec_stat);
+	char buf[sizeof("/proc//exe") + sizeof(int)*3];
+	char *execbuf;
+	int equal;
 
 	sprintf(buf, "/proc/%d/exe", pid);
-	if (stat(buf, &sb) != 0)
-		return 0;
-	return (sb.st_dev == exec_stat.st_dev && sb.st_ino == exec_stat.st_ino);
+	execbuf = xstrdup(name);
+	readlink(buf, execbuf, strlen(name)+1);
+
+	equal = ! strcmp(execbuf, name);
+	if (ENABLE_FEATURE_CLEAN_UP)
+		free(execbuf);
+	return equal;
 }
 
 static int pid_is_user(int pid, int uid)
 {
 	struct stat sb;
-	char buf[32];
+	char buf[sizeof("/proc/") + sizeof(int)*3];
 
 	sprintf(buf, "/proc/%d", pid);
 	if (stat(buf, &sb) != 0)
@@ -72,7 +67,7 @@ static int pid_is_user(int pid, int uid)
 
 static int pid_is_cmd(pid_t pid, const char *name)
 {
-	char buf[32];
+	char buf[sizeof("/proc//stat") + sizeof(int)*3];
 	FILE *f;
 	int c;
 
@@ -121,7 +116,6 @@ static void do_pidfile(void)
 		fclose(f);
 	} else if (errno != ENOENT)
 		bb_perror_msg_and_die("open pidfile %s", pidfile);
-
 }
 
 static void do_procinit(void)
@@ -135,7 +129,7 @@ static void do_procinit(void)
 		return;
 	}
 
-	procdir = bb_xopendir("/proc");
+	procdir = xopendir("/proc");
 
 	foundany = 0;
 	while ((entry = readdir(procdir)) != NULL) {
@@ -152,28 +146,28 @@ static void do_procinit(void)
 
 static int do_stop(void)
 {
-	RESERVE_CONFIG_BUFFER(what, 1024);
+	char *what;
 	struct pid_list *p;
 	int killed = 0;
 
 	do_procinit();
 
 	if (cmdname)
-		strcpy(what, cmdname);
+		what = xstrdup(cmdname);
 	else if (execname)
-		strcpy(what, execname);
+		what = xstrdup(execname);
 	else if (pidfile)
-		sprintf(what, "process in pidfile `%.200s'", pidfile);
+		what = xasprintf("process in pidfile '%s'", pidfile);
 	else if (userspec)
-		sprintf(what, "process(es) owned by `%s'", userspec);
+		what = xasprintf("process(es) owned by '%s'", userspec);
 	else
-		bb_error_msg_and_die ("internal error, please report");
+		bb_error_msg_and_die("internal error, please report");
 
 	if (!found) {
 		if (!quiet)
-			printf("no %s found; none killed.\n", what);
+			printf("no %s found; none killed\n", what);
 		if (ENABLE_FEATURE_CLEAN_UP)
-			RELEASE_CONFIG_BUFFER(what);
+			free(what);
 		return -1;
 	}
 	for (p = found; p; p = p->next) {
@@ -189,75 +183,80 @@ static int do_stop(void)
 		for (p = found; p; p = p->next)
 			if(p->pid < 0)
 				printf(" %d", -p->pid);
-		printf(").\n");
+		puts(")");
 	}
 	if (ENABLE_FEATURE_CLEAN_UP)
-		RELEASE_CONFIG_BUFFER(what);
+		free(what);
 	return killed;
 }
 
 #if ENABLE_FEATURE_START_STOP_DAEMON_LONG_OPTIONS
 static const struct option ssd_long_options[] = {
-	{ "stop",			0,		NULL,		'K' },
-	{ "start",			0,		NULL,		'S' },
-	{ "background",		0,		NULL,		'b' },
-	{ "quiet",			0,		NULL,		'q' },
-	{ "make-pidfile",	0,		NULL,		'm' },
+	{ "stop",               0,      NULL,   'K' },
+	{ "start",              0,      NULL,   'S' },
+	{ "background",         0,      NULL,   'b' },
+	{ "quiet",              0,      NULL,   'q' },
+	{ "make-pidfile",       0,      NULL,   'm' },
 #if ENABLE_FEATURE_START_STOP_DAEMON_FANCY
-	{ "oknodo",			0,		NULL,		'o' },
-	{ "verbose",		0,		NULL,		'v' },
+	{ "oknodo",             0,      NULL,   'o' },
+	{ "verbose",            0,      NULL,   'v' },
+	{ "nicelevel",          1,      NULL,   'N' },
 #endif
-	{ "startas",		1,		NULL,		'a' },
-	{ "name",			1,		NULL,		'n' },
-	{ "signal",			1,		NULL,		's' },
-	{ "user",			1,		NULL,		'u' },
-	{ "exec",			1,		NULL,		'x' },
-	{ "pidfile",		1,		NULL,		'p' },
+	{ "startas",            1,      NULL,   'a' },
+	{ "name",               1,      NULL,   'n' },
+	{ "signal",             1,      NULL,   's' },
+	{ "user",               1,      NULL,   'u' },
+	{ "chuid",              1,      NULL,   'c' },
+	{ "exec",               1,      NULL,   'x' },
+	{ "pidfile",            1,      NULL,   'p' },
 #if ENABLE_FEATURE_START_STOP_DAEMON_FANCY
-	{ "retry",			1,		NULL,		'R' },
+	{ "retry",              1,      NULL,   'R' },
 #endif
-	{ 0,				0,		0,		0 }
+	{ 0,                    0,      0,      0 }
 };
 #endif
 
-#define SSD_CTX_STOP		1
-#define SSD_CTX_START		2
-#define SSD_OPT_BACKGROUND	4
-#define SSD_OPT_QUIET		8
-#define SSD_OPT_MAKEPID		16
+#define SSD_CTX_STOP            0x1
+#define SSD_CTX_START           0x2
+#define SSD_OPT_BACKGROUND      0x4
+#define SSD_OPT_QUIET           0x8
+#define SSD_OPT_MAKEPID         0x10
 #if ENABLE_FEATURE_START_STOP_DAEMON_FANCY
-#define SSD_OPT_OKNODO		32
-#define SSD_OPT_VERBOSE		64
-
+#define SSD_OPT_OKNODO          0x20
+#define SSD_OPT_VERBOSE         0x40
+#define SSD_OPT_NICELEVEL       0x80
 #endif
 
 int start_stop_daemon_main(int argc, char **argv)
 {
-	unsigned long opt;
+	unsigned opt;
 	char *signame = NULL;
 	char *startas = NULL;
 #if ENABLE_FEATURE_START_STOP_DAEMON_FANCY
 //	char *retry_arg = NULL;
 //	int retries = -1;
+	char *opt_N;
 #endif
 #if ENABLE_FEATURE_START_STOP_DAEMON_LONG_OPTIONS
-	bb_applet_long_options = ssd_long_options;
+	applet_long_options = ssd_long_options;
 #endif
 
 	/* Check required one context option was given */
-	bb_opt_complementally = "K:S:?:K--S:S--K:m?p:K?xpun:S?xa";
-	opt = bb_getopt_ulflags(argc, argv, "KSbqm"
-//		USE_FEATURE_START_STOP_DAEMON_FANCY("ovR:")
-		USE_FEATURE_START_STOP_DAEMON_FANCY("ov")
-		"a:n:s:u:x:p:"
+	opt_complementary = "K:S:?:K--S:S--K:m?p:K?xpun:S?xa";
+	opt = getopt32(argc, argv, "KSbqm"
+//		USE_FEATURE_START_STOP_DAEMON_FANCY("ovN:R:")
+		USE_FEATURE_START_STOP_DAEMON_FANCY("ovN:")
+		"a:n:s:u:c:x:p:"
+		USE_FEATURE_START_STOP_DAEMON_FANCY(,&opt_N)
 //		USE_FEATURE_START_STOP_DAEMON_FANCY(,&retry_arg)
-		,&startas, &cmdname, &signame, &userspec, &execname, &pidfile);
+		,&startas, &cmdname, &signame, &userspec, &chuid, &execname, &pidfile);
 
 	quiet = (opt & SSD_OPT_QUIET)
 			USE_FEATURE_START_STOP_DAEMON_FANCY(&& !(opt & SSD_OPT_VERBOSE));
 
 	if (signame) {
-		signal_nr = bb_xgetlarg(signame, 10, 0, NSIG);
+		signal_nr = get_signum(signame);
+		if (signal_nr < 0) bb_show_usage();
 	}
 
 	if (!startas)
@@ -265,7 +264,7 @@ int start_stop_daemon_main(int argc, char **argv)
 
 //	USE_FEATURE_START_STOP_DAEMON_FANCY(
 //		if (retry_arg)
-//			retries = bb_xgetlarg(retry_arg, 10, 0, INT_MAX);
+//			retries = xatoi_u(retry_arg);
 //	)
 	argc -= optind;
 	argv += optind;
@@ -284,23 +283,37 @@ int start_stop_daemon_main(int argc, char **argv)
 
 	if (found) {
 		if (!quiet)
-			printf("%s already running.\n%d\n", execname ,found->pid);
+			printf("%s already running\n%d\n", execname, found->pid);
 		USE_FEATURE_START_STOP_DAEMON_FANCY(return !(opt & SSD_OPT_OKNODO);)
 		SKIP_FEATURE_START_STOP_DAEMON_FANCY(return EXIT_FAILURE;)
 	}
 	*--argv = startas;
 	if (opt & SSD_OPT_BACKGROUND) {
-		bb_xdaemon(0, 0);
+		xdaemon(0, 0);
 		setsid();
 	}
 	if (opt & SSD_OPT_MAKEPID) {
 		/* user wants _us_ to make the pidfile */
-		FILE *pidf = bb_xfopen(pidfile, "w");
+		FILE *pidf = xfopen(pidfile, "w");
 
 		pid_t pidt = getpid();
 		fprintf(pidf, "%d\n", pidt);
 		fclose(pidf);
 	}
+	if (chuid) {
+		if (sscanf(chuid, "%d", &user_id) != 1)
+			user_id = bb_xgetpwnam(chuid);
+		xsetuid(user_id);
+	}
+#if ENABLE_FEATURE_START_STOP_DAEMON_FANCY
+	if (opt & SSD_OPT_NICELEVEL) {
+		/* Set process priority */
+		int prio = getpriority(PRIO_PROCESS, 0) + xatoi_range(opt_N, INT_MIN/2, INT_MAX/2);
+		if (setpriority(PRIO_PROCESS, 0, prio) < 0) {
+			bb_perror_msg_and_die("setpriority(%d)", prio);
+		}
+	}
+#endif
 	execv(startas, argv);
-	bb_perror_msg_and_die ("unable to start %s", startas);
+	bb_perror_msg_and_die("cannot start %s", startas);
 }

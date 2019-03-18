@@ -41,8 +41,8 @@ enum cfg_e {
 static int cfg;
 
 static int s;
-static int count = -1;
-static int timeout;
+static unsigned count = UINT_MAX;
+static unsigned timeout;
 static int sent;
 static int brd_sent;
 static int received;
@@ -52,18 +52,6 @@ static int req_recv;
 
 #define MS_TDIFF(tv1,tv2) ( ((tv1).tv_sec-(tv2).tv_sec)*1000 + \
 			   ((tv1).tv_usec-(tv2).tv_usec)/1000 )
-#if 0
-static void set_signal(int signo, void (*handler) (void))
-{
-	struct sigaction sa;
-
-	memset(&sa, 0, sizeof(sa));
-	sa.sa_handler = (void (*)(int)) handler;
-	sa.sa_flags = SA_RESTART;
-	sigaction(signo, &sa, NULL);
-}
-#endif
-
 static int send_pack(int sock, struct in_addr *src_addr,
 					 struct in_addr *dst_addr, struct sockaddr_ll *ME,
 					 struct sockaddr_ll *HE)
@@ -271,36 +259,33 @@ int arping_main(int argc, char **argv)
 	char *source = NULL;
 	char *target;
 
-	s = socket(PF_PACKET, SOCK_DGRAM, 0);
-	ifindex = errno;
+	s = xsocket(PF_PACKET, SOCK_DGRAM, 0);
 
 	// Drop suid root privileges
 	xsetuid(getuid());
 
 	{
-		unsigned long opt;
-		char *_count, *_timeout, *_device;
+		unsigned opt;
+		char *_count, *_timeout;
 
 		/* Dad also sets quit_on_reply.
 		 * Advert also sets unsolicited.
 		 */
-		bb_opt_complementally = "Df:AU";
-		opt = bb_getopt_ulflags(argc, argv, "DUAqfbc:w:i:s:",
-						&_count, &_timeout, &_device);
-		cfg |= opt & 63; /* set respective flags */
-		if (opt & 64) /* count */
-			count = atoi(_count);
-		if (opt & 128) /* timeout */
-			timeout = atoi(_timeout);
-		if (opt & 256) { /* interface */
-			if (strlen(_device) > IF_NAMESIZE) {
-				bb_error_msg_and_die("Interface name `%s' must be less than %d",
-								_device, IF_NAMESIZE);
+		opt_complementary = "Df:AU";
+		opt = getopt32(argc, argv, "DUAqfbc:w:i:s:",
+					&_count, &_timeout, &device, &source);
+		cfg |= opt & 0x3f; /* set respective flags */
+		if (opt & 0x40) /* -c: count */
+			count = xatou(_count);
+		if (opt & 0x80) /* -w: timeout */
+			timeout = xatoul_range(_timeout, 0, INT_MAX/2000);
+		if (opt & 0x100) { /* -i: interface */
+			if (strlen(device) > IF_NAMESIZE) {
+				bb_error_msg_and_die("interface name '%s' is too long",
+								device);
 			}
-			device = _device;
 		}
-		if (opt & 512) /* source */
-			source = optarg;
+		//if (opt & 0x200) /* -s: source */
 	}
 	argc -= optind;
 	argv += optind;
@@ -310,12 +295,7 @@ int arping_main(int argc, char **argv)
 
 	target = *argv;
 
-
-	if (s < 0) {
-		bb_default_error_retval = ifindex;
-		bb_perror_msg_and_die("socket");
-	}
-	bb_default_error_retval = 2;
+	xfunc_error_retval = 2;
 
 	{
 		struct ifreq ifr;
@@ -323,7 +303,7 @@ int arping_main(int argc, char **argv)
 		memset(&ifr, 0, sizeof(ifr));
 		strncpy(ifr.ifr_name, device, IFNAMSIZ - 1);
 		if (ioctl(s, SIOCGIFINDEX, &ifr) < 0) {
-			bb_error_msg_and_die("Interface %s not found", device);
+			bb_error_msg_and_die("interface %s not found", device);
 		}
 		ifindex = ifr.ifr_ifindex;
 
@@ -331,10 +311,10 @@ int arping_main(int argc, char **argv)
 			bb_error_msg_and_die("SIOCGIFFLAGS");
 		}
 		if (!(ifr.ifr_flags & IFF_UP)) {
-			bb_error_msg_and_die("Interface %s is down", device);
+			bb_error_msg_and_die("interface %s is down", device);
 		}
 		if (ifr.ifr_flags & (IFF_NOARP | IFF_LOOPBACK)) {
-			bb_error_msg("Interface %s is not ARPable", device);
+			bb_error_msg("interface %s is not ARPable", device);
 			exit(cfg&dad ? 0 : 2);
 		}
 	}
@@ -358,16 +338,13 @@ int arping_main(int argc, char **argv)
 
 	if (!(cfg&dad) || src.s_addr) {
 		struct sockaddr_in saddr;
-		int probe_fd = socket(AF_INET, SOCK_DGRAM, 0); /* maybe use bb_xsocket? */
+		int probe_fd = xsocket(AF_INET, SOCK_DGRAM, 0);
 
-		if (probe_fd < 0) {
-			bb_error_msg_and_die("socket");
-		}
 		if (device) {
 			if (setsockopt
 				(probe_fd, SOL_SOCKET, SO_BINDTODEVICE, device,
 				 strlen(device) + 1) == -1)
-				bb_error_msg("WARNING: interface %s is ignored", device);
+				bb_error_msg("warning: interface %s is ignored", device);
 		}
 		memset(&saddr, 0, sizeof(saddr));
 		saddr.sin_family = AF_INET;
@@ -377,7 +354,7 @@ int arping_main(int argc, char **argv)
 				bb_error_msg_and_die("bind");
 			}
 		} else if (!(cfg&dad)) {
-			int on = 1;
+			static const int on = 1;
 			socklen_t alen = sizeof(saddr);
 
 			saddr.sin_port = htons(1025);
@@ -386,7 +363,7 @@ int arping_main(int argc, char **argv)
 			if (setsockopt
 				(probe_fd, SOL_SOCKET, SO_DONTROUTE, (char *) &on,
 				 sizeof(on)) == -1)
-				bb_perror_msg("WARNING: setsockopt(SO_DONTROUTE)");
+				bb_perror_msg("warning: setsockopt(SO_DONTROUTE)");
 			if (connect(probe_fd, (struct sockaddr *) &saddr, sizeof(saddr))
 				== -1) {
 				bb_error_msg_and_die("connect");
@@ -415,7 +392,7 @@ int arping_main(int argc, char **argv)
 		}
 	}
 	if (me.sll_halen == 0) {
-		bb_error_msg("Interface \"%s\" is not ARPable (no ll address)", device);
+		bb_error_msg("interface \"%s\" is not ARPable (no ll address)", device);
 		exit(cfg&dad ? 0 : 2);
 	}
 	he = me;
@@ -455,7 +432,7 @@ int arping_main(int argc, char **argv)
 
 		if ((cc = recvfrom(s, packet, 4096, 0,
 						   (struct sockaddr *) &from, &alen)) < 0) {
-			perror("recvfrom");
+			bb_perror_msg("recvfrom");
 			continue;
 		}
 		sigemptyset(&sset);

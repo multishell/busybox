@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * clientsocket.c -- DHCP client socket creation
  *
@@ -20,12 +21,8 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <netinet/in.h>
 #include <features.h>
-#if (__GLIBC__ >= 2 && __GLIBC_MINOR >= 1) || defined _NEWLIB_VERSION
+#if (__GLIBC__ >= 2 && __GLIBC_MINOR__ >= 1) || defined(_NEWLIB_VERSION)
 #include <netpacket/packet.h>
 #include <net/ethernet.h>
 #else
@@ -34,7 +31,6 @@
 #include <linux/if_ether.h>
 #endif
 
-#include "clientsocket.h"
 #include "common.h"
 
 
@@ -43,9 +39,10 @@ int raw_socket(int ifindex)
 	int fd;
 	struct sockaddr_ll sock;
 
-	DEBUG(LOG_INFO, "Opening raw socket on ifindex %d", ifindex);
-	if ((fd = socket(PF_PACKET, SOCK_DGRAM, htons(ETH_P_IP))) < 0) {
-		DEBUG(LOG_ERR, "socket call failed: %m");
+	DEBUG("Opening raw socket on ifindex %d", ifindex);
+	fd = socket(PF_PACKET, SOCK_DGRAM, htons(ETH_P_IP));
+	if (fd < 0) {
+		bb_perror_msg("socket");
 		return -1;
 	}
 
@@ -53,7 +50,7 @@ int raw_socket(int ifindex)
 	sock.sll_protocol = htons(ETH_P_IP);
 	sock.sll_ifindex = ifindex;
 	if (bind(fd, (struct sockaddr *) &sock, sizeof(sock)) < 0) {
-		DEBUG(LOG_ERR, "bind call failed: %m");
+		bb_perror_msg("bind");
 		close(fd);
 		return -1;
 	}

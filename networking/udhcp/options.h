@@ -1,8 +1,7 @@
+/* vi: set sw=4 ts=4: */
 /* options.h */
 #ifndef _OPTIONS_H
 #define _OPTIONS_H
-
-#include "packet.h"
 
 #define TYPE_MASK	0x0F
 
@@ -22,13 +21,13 @@ enum {
 #define OPTION_LIST	0x20 /* There can be a list of 1 or more of these */
 
 struct dhcp_option {
-	char name[10];
+	char name[12];
 	char flags;
 	uint8_t code;
 };
 
-extern struct dhcp_option dhcp_options[];
-extern int option_lengths[];
+extern const struct dhcp_option dhcp_options[];
+extern const unsigned char option_lengths[];
 
 uint8_t *get_option(struct dhcpMessage *packet, int code);
 int end_option(uint8_t *optionptr);

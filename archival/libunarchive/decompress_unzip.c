@@ -29,13 +29,11 @@
  * Ken Turkowski, Dave Mack and Peter Jannesen.
  *
  * See the file algorithm.doc for the compression algorithms and file formats.
- * 
+ *
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
 #include "libbb.h"
-#include <sys/wait.h>
-#include <signal.h>
 #include "unarchive.h"
 
 typedef struct huft_s {
@@ -116,9 +114,8 @@ static unsigned int fill_bitbuffer(unsigned int bitbuffer, unsigned int *current
 			/* Leave the first 4 bytes empty so we can always unwind the bitbuffer
 			 * to the front of the bytebuffer, leave 4 bytes free at end of tail
 			 * so we can easily top up buffer in check_trailer_gzip() */
-			if (!(bytebuffer_size = bb_xread(gunzip_src_fd, &bytebuffer[4], bytebuffer_max - 8))) {
+			if (1 > (bytebuffer_size = safe_read(gunzip_src_fd, &bytebuffer[4], bytebuffer_max - 8)))
 				bb_error_msg_and_die("unexpected end of file");
-			}
 			bytebuffer_size += 4;
 			bytebuffer_offset = 4;
 		}
@@ -126,7 +123,7 @@ static unsigned int fill_bitbuffer(unsigned int bitbuffer, unsigned int *current
 		bytebuffer_offset++;
 		*current += 8;
 	}
-	return(bitbuffer);
+	return bitbuffer;
 }
 
 /*
@@ -514,7 +511,7 @@ static int inflate_stored(int my_n, int my_b_stored, int my_k_stored, int setup)
 static int inflate_block(int *e)
 {
 	unsigned t;			/* block type */
-	register unsigned int b;	/* bit buffer */
+	unsigned int b;	/* bit buffer */
 	unsigned int k;	/* number of bits in bit buffer */
 
 	/* make local bit buffer */
@@ -748,7 +745,7 @@ static int inflate_block(int *e)
 
 		if ((i = huft_build(ll, nl, 257, cplens, cplext, &tl, &bl)) != 0) {
 			if (i == 1) {
-				bb_error_msg_and_die("Incomplete literal tree");
+				bb_error_msg_and_die("incomplete literal tree");
 				huft_free(tl);
 			}
 			return i;	/* incomplete code set */
@@ -773,7 +770,7 @@ static int inflate_block(int *e)
 	}
 	default:
 		/* bad block type */
-		bb_error_msg_and_die("bad block type %d\n", t);
+		bb_error_msg_and_die("bad block type %d", t);
 	}
 }
 
@@ -809,11 +806,11 @@ static int inflate_get_next_window(void)
 		}
 
 		switch (method) {
-			case -1:	ret = inflate_stored(0,0,0,0);
-					break;
-			case -2:	ret = inflate_codes(0,0,0,0,0);
-					break;
-			default:	bb_error_msg_and_die("inflate error %d", method);
+		case -1:	ret = inflate_stored(0,0,0,0);
+				break;
+		case -2:	ret = inflate_codes(0,0,0,0,0);
+				break;
+		default:	bb_error_msg_and_die("inflate error %d", method);
 		}
 
 		if (ret == 1) {
@@ -838,8 +835,10 @@ void inflate_cleanup(void)
 	free(bytebuffer);
 }
 
-int inflate_unzip(int in, int out)
+USE_DESKTOP(long long) int
+inflate_unzip(int in, int out)
 {
+	USE_DESKTOP(long long total = 0;)
 	ssize_t nwrote;
 	typedef void (*sig_type) (int);
 
@@ -854,19 +853,20 @@ int inflate_unzip(int in, int out)
 	gunzip_bb = 0;
 
 	/* Create the crc table */
-	gunzip_crc_table = bb_crc32_filltable(0);
+	gunzip_crc_table = crc32_filltable(0);
 	gunzip_crc = ~0;
-	
+
 	/* Allocate space for buffer */
 	bytebuffer = xmalloc(bytebuffer_max);
 
 	while(1) {
 		int ret = inflate_get_next_window();
-		nwrote = bb_full_write(out, gunzip_window, gunzip_outbuf_count);
+		nwrote = full_write(out, gunzip_window, gunzip_outbuf_count);
 		if (nwrote == -1) {
 			bb_perror_msg("write");
 			return -1;
 		}
+		USE_DESKTOP(total += nwrote;)
 		if (ret == 0) break;
 	}
 
@@ -883,20 +883,22 @@ int inflate_unzip(int in, int out)
 		gunzip_bb >>= 8;
 		gunzip_bk -= 8;
 	}
-	return 0;
+	return USE_DESKTOP(total) + 0;
 }
 
-int inflate_gunzip(int in, int out)
+USE_DESKTOP(long long) int
+inflate_gunzip(int in, int out)
 {
 	uint32_t stored_crc = 0;
 	unsigned int count;
+	USE_DESKTOP(long long total = )inflate_unzip(in, out);
 
-	inflate_unzip(in, out);
+	USE_DESKTOP(if (total < 0) return total;)
 
 	/* top up the input buffer with the rest of the trailer */
 	count = bytebuffer_size - bytebuffer_offset;
 	if (count < 8) {
-		bb_xread_all(in, &bytebuffer[bytebuffer_size], 8 - count);
+		xread(in, &bytebuffer[bytebuffer_size], 8 - count);
 		bytebuffer_size += 8 - count;
 	}
 	for (count = 0; count != 4; count++) {
@@ -914,9 +916,9 @@ int inflate_gunzip(int in, int out)
 	if (gunzip_bytes_out !=
 		(bytebuffer[bytebuffer_offset] | (bytebuffer[bytebuffer_offset+1] << 8) |
 		(bytebuffer[bytebuffer_offset+2] << 16) | (bytebuffer[bytebuffer_offset+3] << 24))) {
-		bb_error_msg("Incorrect length");
+		bb_error_msg("incorrect length");
 		return -1;
 	}
 
-	return 0;
+	return USE_DESKTOP(total) + 0;
 }

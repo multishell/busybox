@@ -42,7 +42,7 @@ static time_t askremotedate(const char *host)
 	alarm(10);
 	signal(SIGALRM, socket_timeout);
 
-	fd = xconnect(&s_in);
+	fd = xconnect_tcp_v4(&s_in);
 
 	if (safe_read(fd, (void *)&nett, 4) != 4)    /* read time from server */
 		bb_error_msg_and_die("%s did not send the complete time", host);
@@ -55,7 +55,7 @@ static time_t askremotedate(const char *host)
 	 * Subtract the RFC 868 time  to get Linux epoch
 	 */
 
-	return(ntohl(nett) - RFC_868_BIAS);
+	return ntohl(nett) - RFC_868_BIAS;
 }
 
 int rdate_main(int argc, char **argv)
@@ -63,8 +63,8 @@ int rdate_main(int argc, char **argv)
 	time_t remote_time;
 	unsigned long flags;
 
-	bb_opt_complementally = "-1";
-	flags = bb_getopt_ulflags(argc, argv, "sp");
+	opt_complementary = "-1";
+	flags = getopt32(argc, argv, "sp");
 
 	remote_time = askremotedate(argv[optind]);
 
@@ -73,10 +73,10 @@ int rdate_main(int argc, char **argv)
 
 		time(&current_time);
 		if (current_time == remote_time)
-			bb_error_msg("Current time matches remote time.");
+			bb_error_msg("current time matches remote time");
 		else
 			if (stime(&remote_time) < 0)
-				bb_perror_msg_and_die("Could not set time of day");
+				bb_perror_msg_and_die("cannot set time of day");
 	}
 
 	if ((flags & 1) == 0)

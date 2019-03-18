@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * fgetversion.c	- Get a file version on an ext2 file system
  * fsetversion.c	- Set a file version on an ext2 file system
@@ -16,10 +17,10 @@
  * 93/10/30	- Creation
  */
 
-#if HAVE_ERRNO_H
+#ifdef HAVE_ERRNO_H
 #include <errno.h>
 #endif
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
 #include <fcntl.h>
@@ -43,7 +44,7 @@
 
 int fgetsetversion (const char * name, unsigned long * get_version, unsigned long set_version)
 {
-#if HAVE_EXT2_IOCTLS
+#ifdef HAVE_EXT2_IOCTLS
 	int fd, r, ver, save_errno = 0;
 
 	fd = open (name, OPEN_FLAGS);

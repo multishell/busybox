@@ -7,19 +7,9 @@
  * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <errno.h>
-#include <string.h>
-#include <strings.h>
-#include <time.h>
-#include <math.h>
-#include <ctype.h>
-#include <getopt.h>
-
-#include "xregex.h"
 #include "busybox.h"
+#include "xregex.h"
+#include <math.h>
 
 
 #define	MAXVARFMT	240
@@ -259,7 +249,8 @@ enum {
 /* builtins */
 enum {
 	B_a2=0,	B_ix,	B_ma,	B_sp,	B_ss,	B_ti,	B_lo,	B_up,
-	B_ge,	B_gs,	B_su
+	B_ge,	B_gs,	B_su,
+	B_an,	B_co,	B_ls,	B_or,	B_rs,	B_xo,
 };
 
 /* tokens and their corresponding info values */
@@ -299,6 +290,8 @@ static char * const tokenlist =
 	"\5while"	NTC
 	"\4else"	NTC
 
+	"\3and"		"\5compl"	"\6lshift"	"\2or"
+	"\6rshift"	"\3xor"
 	"\5close"	"\6system"	"\6fflush"	"\5atan2"	/* BUILTIN */
 	"\3cos"		"\3exp"		"\3int"		"\3log"
 	"\4rand"	"\3sin"		"\4sqrt"	"\5srand"
@@ -352,6 +345,8 @@ static const uint32_t tokeninfo[] = {
 	ST_WHILE,
 	0,
 
+	OC_B|B_an|P(0x83), OC_B|B_co|P(0x41), OC_B|B_ls|P(0x83), OC_B|B_or|P(0x83),
+	OC_B|B_rs|P(0x83), OC_B|B_xo|P(0x83),
 	OC_FBLTIN|Sx|F_cl, OC_FBLTIN|Sx|F_sy, OC_FBLTIN|Sx|F_ff, OC_B|B_a2|P(0x83),
 	OC_FBLTIN|Nx|F_co, OC_FBLTIN|Nx|F_ex, OC_FBLTIN|Nx|F_in, OC_FBLTIN|Nx|F_lg,
 	OC_FBLTIN|F_rn,    OC_FBLTIN|Nx|F_si, OC_FBLTIN|Nx|F_sq, OC_FBLTIN|Nx|F_sr,
@@ -463,7 +458,7 @@ static void syntax_error(const char * const message)
 
 static unsigned int hashidx(const char *name)
 {
-	register unsigned int idx=0;
+	unsigned int idx=0;
 
 	while (*name)  idx = *name++ + (idx << 6) - idx;
 	return idx;
@@ -574,7 +569,7 @@ static void hash_remove(xhash *hash, const char *name)
 
 static void skip_spaces(char **s)
 {
-	register char *p = *s;
+	char *p = *s;
 
 	while(*p == ' ' || *p == '\t' ||
 			(*p == '\\' && *(p+1) == '\n' && (++p, ++t.lineno))) {
@@ -585,7 +580,7 @@ static void skip_spaces(char **s)
 
 static char *nextword(char **s)
 {
-	register char *p = *s;
+	char *p = *s;
 
 	while (*(*s)++) ;
 
@@ -594,7 +589,7 @@ static char *nextword(char **s)
 
 static char nextchar(char **s)
 {
-	register char c, *pps;
+	char c, *pps;
 
 	c = *((*s)++);
 	pps = *s;
@@ -603,14 +598,14 @@ static char nextchar(char **s)
 	return c;
 }
 
-static inline int isalnum_(int c)
+static int ATTRIBUTE_ALWAYS_INLINE isalnum_(int c)
 {
 	return (isalnum(c) || c == '_');
 }
 
 static FILE *afopen(const char *path, const char *mode)
 {
-	return (*path == '-' && *(path+1) == '\0') ? stdin : bb_xfopen(path, mode);
+	return (*path == '-' && *(path+1) == '\0') ? stdin : xfopen(path, mode);
 }
 
 /* -------- working with variables (set/get/copy/etc) -------- */
@@ -672,7 +667,7 @@ static var *setvar_p(var *v, char *value)
 /* same as setvar_p but make a copy of string */
 static var *setvar_s(var *v, const char *value)
 {
-	return setvar_p(v, (value && *value) ? bb_xstrdup(value) : NULL);
+	return setvar_p(v, (value && *value) ? xstrdup(value) : NULL);
 }
 
 /* same as setvar_s but set USER flag */
@@ -686,7 +681,7 @@ static var *setvar_u(var *v, const char *value)
 /* set array element to user string */
 static void setari_u(var *a, int idx, const char *s)
 {
-	register var *v;
+	var *v;
 	static char sidx[12];
 
 	sprintf(sidx, "%d", idx);
@@ -709,7 +704,7 @@ static char *getvar_s(var *v)
 	/* if v is numeric and has no cached string, convert it to string */
 	if ((v->type & (VF_NUMBER | VF_CACHED)) == VF_NUMBER) {
 		fmt_num(buf, MAXVARFMT, getvar_s(V[CONVFMT]), v->number, TRUE);
-		v->string = bb_xstrdup(buf);
+		v->string = xstrdup(buf);
 		v->type |= VF_CACHED;
 	}
 	return (v->string == NULL) ? "" : v->string;
@@ -744,7 +739,7 @@ static var *copyvar(var *dest, const var *src)
 		dest->type |= (src->type & ~VF_DONTTOUCH);
 		dest->number = src->number;
 		if (src->string)
-			dest->string = bb_xstrdup(src->string);
+			dest->string = xstrdup(src->string);
 	}
 	handle_special(dest);
 	return dest;
@@ -991,7 +986,7 @@ static void rollback_token(void) { t.rollback = TRUE; }
 
 static node *new_node(uint32_t info)
 {
-	register node *n;
+	node *n;
 
 	n = (node *)xzalloc(sizeof(node));
 	n->info = info;
@@ -1136,7 +1131,7 @@ static node *parse_expr(uint32_t iexp)
 /* add node to chain. Return ptr to alloc'd node */
 static node *chain_node(uint32_t info)
 {
-	register node *n;
+	node *n;
 
 	if (! seq->first)
 		seq->first = seq->last = new_node(0);
@@ -1144,7 +1139,7 @@ static node *chain_node(uint32_t info)
 	if (seq->programname != programname) {
 		seq->programname = programname;
 		n = chain_node(OC_NEWSOURCE);
-		n->l.s = bb_xstrdup(programname);
+		n->l.s = xstrdup(programname);
 	}
 
 	n = seq->last;
@@ -1355,13 +1350,13 @@ static void parse_program(char *p)
 
 static node *mk_splitter(char *s, tsplitter *spl)
 {
-	register regex_t *re, *ire;
+	regex_t *re, *ire;
 	node *n;
 
 	re = &spl->re[0];
 	ire = &spl->re[1];
 	n = &spl->n;
-	if ((n->info && OPCLSMASK) == OC_REGEXP) {
+	if ((n->info & OPCLSMASK) == OC_REGEXP) {
 		regfree(re);
 		regfree(ire);
 	}
@@ -1433,7 +1428,7 @@ static int awk_split(char *s, node *spl, char **slist)
 	regmatch_t pmatch[2];
 
 	/* in worst case, each char would be a separate field */
-	*slist = s1 = bb_xstrndup(s, strlen(s) * 2 + 3);
+	*slist = s1 = xstrndup(s, strlen(s) * 2 + 3);
 
 	c[0] = c[1] = (char)spl->info;
 	c[2] = c[3] = '\0';
@@ -1475,7 +1470,7 @@ static int awk_split(char *s, node *spl, char **slist)
 		}
 	} else {				/* space split */
 		while (*s) {
-			while (isspace(*s)) s++;
+			s = skip_whitespace(s);
 			if (! *s) break;
 			n++;
 			while (*s && !isspace(*s))
@@ -1747,7 +1742,7 @@ static char *awk_printf(node *n)
 	var *v, *arg;
 
 	v = nvalloc(1);
-	fmt = f = bb_xstrdup(getvar_s(evaluate(nextarg(&n), v)));
+	fmt = f = xstrdup(getvar_s(evaluate(nextarg(&n), v)));
 
 	i = 0;
 	while (*f) {
@@ -1769,7 +1764,7 @@ static char *awk_printf(node *n)
 					is_numeric(arg) ? (char)getvar_i(arg) : *getvar_s(arg));
 
 		} else if (c == 's') {
-		    s1 = getvar_s(arg);
+			s1 = getvar_s(arg);
 			qrealloc(&b, incr+i+strlen(s1), &bsize);
 			i += sprintf(b+i, s, s1);
 
@@ -1933,6 +1928,30 @@ static var *exec_builtin(node *op, var *res)
 		s[n] = '\0';
 		setvar_p(res, s);
 		break;
+		
+	 case B_an:
+		setvar_i(res, (long)getvar_i(av[0]) & (long)getvar_i(av[1]));
+		break;
+		
+	 case B_co:
+		setvar_i(res, ~(long)getvar_i(av[0]));
+		break;
+
+	 case B_ls:
+		setvar_i(res, (long)getvar_i(av[0]) << (long)getvar_i(av[1]));
+		break;
+
+	 case B_or:
+		setvar_i(res, (long)getvar_i(av[0]) | (long)getvar_i(av[1]));
+		break;
+
+	 case B_rs:
+		setvar_i(res, (long)((unsigned long)getvar_i(av[0]) >> (unsigned long)getvar_i(av[1])));
+		break;
+
+	 case B_xo:
+		setvar_i(res, (long)getvar_i(av[0]) ^ (long)getvar_i(av[1]));
+		break;
 
 	  case B_lo:
 		to_xxx = tolower;
@@ -1941,7 +1960,7 @@ static var *exec_builtin(node *op, var *res)
 	  case B_up:
 		to_xxx = toupper;
 lo_cont:
-		s1 = s = bb_xstrdup(as[0]);
+		s1 = s = xstrdup(as[0]);
 		while (*s1) {
 			*s1 = (*to_xxx)(*s1);
 			s1++;
@@ -2118,7 +2137,7 @@ static var *evaluate(node *op, var *res)
 							bb_perror_msg_and_die("popen");
 						X.rsm->is_pipe = 1;
 					} else {
-						X.rsm->F = bb_xfopen(R.s, opn=='w' ? "w" : "a");
+						X.rsm->F = xfopen(R.s, opn=='w' ? "w" : "a");
 					}
 				}
 				X.F = X.rsm->F;
@@ -2132,7 +2151,7 @@ static var *evaluate(node *op, var *res)
 						L.v = evaluate(nextarg(&op1), v1);
 						if (L.v->type & VF_NUMBER) {
 							fmt_num(buf, MAXVARFMT, getvar_s(V[OFMT]),
-														getvar_i(L.v), TRUE);
+									getvar_i(L.v), TRUE);
 							fputs(buf, X.F);
 						} else {
 							fputs(getvar_s(L.v), X.F);
@@ -2272,7 +2291,7 @@ re_cont:
 						X.rsm->F = popen(L.s, "r");
 						X.rsm->is_pipe = TRUE;
 					} else {
-						X.rsm->F = fopen(L.s, "r");		/* not bb_xfopen! */
+						X.rsm->F = fopen(L.s, "r");		/* not xfopen! */
 					}
 				}
 			} else {
@@ -2415,7 +2434,7 @@ re_cont:
 				R.d--;
 				goto r_op_change;
 			  case '!':
-			    L.d = istrue(X.v) ? 0 : 1;
+				L.d = istrue(X.v) ? 0 : 1;
 				break;
 			  case '-':
 				L.d = -R.d;
@@ -2564,7 +2583,7 @@ static int is_assignment(const char *expr)
 {
 	char *exprc, *s, *s0, *s1;
 
-	exprc = bb_xstrdup(expr);
+	exprc = xstrdup(expr);
 	if (!isalnum_(*exprc) || (s = strchr(exprc, '=')) == NULL) {
 		free(exprc);
 		return FALSE;
@@ -2615,6 +2634,8 @@ static rstream *next_input_file(void)
 
 int awk_main(int argc, char **argv)
 {
+	unsigned opt;
+	char *opt_F, *opt_v, *opt_W;
 	char *s, *s1;
 	int i, j, c, flen;
 	var *v;
@@ -2659,7 +2680,7 @@ int awk_main(int argc, char **argv)
 	}
 
 	for (envp=environ; *envp; envp++) {
-		s = bb_xstrdup(*envp);
+		s = xstrdup(*envp);
 		s1 = strchr(s, '=');
 		if (!s1) {
 			goto keep_going;
@@ -2670,49 +2691,37 @@ keep_going:
 		free(s);
 	}
 
-	while((c = getopt(argc, argv, "F:v:f:W:")) != EOF) {
-		switch (c) {
-			case 'F':
-				setvar_s(V[FS], optarg);
-				break;
-			case 'v':
-				if (! is_assignment(optarg))
-					bb_show_usage();
-				break;
-			case 'f':
-				from_file = TRUE;
-				F = afopen(programname = optarg, "r");
-				s = NULL;
-				/* one byte is reserved for some trick in next_token */
-				if (fseek(F, 0, SEEK_END) == 0) {
-					flen = ftell(F);
-					s = (char *)xmalloc(flen+4);
-					fseek(F, 0, SEEK_SET);
-					i = 1 + fread(s+1, 1, flen, F);
-				} else {
-					for (i=j=1; j>0; i+=j) {
-						s = (char *)xrealloc(s, i+4096);
-						j = fread(s+i, 1, 4094, F);
-					}
-				}
-				s[i] = '\0';
-				fclose(F);
-				parse_program(s+1);
-				free(s);
-				break;
-			case 'W':
-				bb_error_msg("Warning: unrecognized option '-W %s' ignored\n", optarg);
-				break;
-
-			default:
-				bb_show_usage();
+	opt = getopt32(argc, argv, "F:v:f:W:", &opt_F, &opt_v, &programname, &opt_W);
+	if (opt & 0x1) setvar_s(V[FS], opt_F); // -F
+	if (opt & 0x2) if (!is_assignment(opt_v)) bb_show_usage(); // -v
+	if (opt & 0x4) { // -f
+		from_file = TRUE;
+		F = afopen(programname, "r");
+		s = NULL;
+		/* one byte is reserved for some trick in next_token */
+		if (fseek(F, 0, SEEK_END) == 0) {
+			flen = ftell(F);
+			s = (char *)xmalloc(flen+4);
+			fseek(F, 0, SEEK_SET);
+			i = 1 + fread(s+1, 1, flen, F);
+		} else {
+			for (i=j=1; j>0; i+=j) {
+				s = (char *)xrealloc(s, i+4096);
+				j = fread(s+i, 1, 4094, F);
+			}
 		}
+		s[i] = '\0';
+		fclose(F);
+		parse_program(s+1);
+		free(s);
 	}
+	if (opt & 0x8) // -W
+		bb_error_msg("warning: unrecognized option '-W %s' ignored", opt_W);
 
 	if (!from_file) {
 		if (argc == optind)
 			bb_show_usage();
-		programname="cmd. line";
+		programname = "cmd. line";
 		parse_program(argv[optind++]);
 
 	}
@@ -2758,4 +2767,3 @@ keep_going:
 
 	return 0;
 }
-

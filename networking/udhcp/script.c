@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /* script.c
  *
  * Functions to call the DHCP client notification scripts
@@ -7,20 +8,11 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include <string.h>
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-
 #include "common.h"
-#include "options.h"
 #include "dhcpd.h"
 #include "dhcpc.h"
+#include "options.h"
+
 
 /* get a rough idea of how long an option will be (rounding up...) */
 static const int max_option_length[] = {
@@ -62,7 +54,8 @@ static int mton(struct in_addr *mask)
 
 
 /* Fill dest with the text of option 'option'. */
-static void fill_options(char *dest, uint8_t *option, struct dhcp_option *type_p)
+static void fill_options(char *dest, uint8_t *option,
+			const struct dhcp_option *type_p)
 {
 	int type, optlen;
 	uint16_t val_u16;
@@ -75,7 +68,7 @@ static void fill_options(char *dest, uint8_t *option, struct dhcp_option *type_p
 
 	type = type_p->flags & TYPE_MASK;
 	optlen = option_lengths[type];
-	for(;;) {
+	for (;;) {
 		switch (type) {
 		case OPTION_IP_PAIR:
 			dest += sprintip(dest, "", option);
@@ -148,19 +141,19 @@ static char **fill_envp(struct dhcpMessage *packet)
 
 	envp = xzalloc(sizeof(char *) * (num_options + 5));
 	j = 0;
-	envp[j++] = bb_xasprintf("interface=%s", client_config.interface);
-	envp[j++] = bb_xasprintf("PATH=%s",
+	envp[j++] = xasprintf("interface=%s", client_config.interface);
+	envp[j++] = xasprintf("PATH=%s",
 		getenv("PATH") ? : "/bin:/usr/bin:/sbin:/usr/sbin");
-	envp[j++] = bb_xasprintf("HOME=%s", getenv("HOME") ? : "/");
+	envp[j++] = xasprintf("HOME=%s", getenv("HOME") ? : "/");
 
 	if (packet == NULL) return envp;
 
 	envp[j] = xmalloc(sizeof("ip=255.255.255.255"));
 	sprintip(envp[j++], "ip=", (uint8_t *) &packet->yiaddr);
 
-
 	for (i = 0; dhcp_options[i].code; i++) {
-		if (!(temp = get_option(packet, dhcp_options[i].code)))
+		temp = get_option(packet, dhcp_options[i].code);
+		if (!temp)
 			continue;
 		envp[j] = xmalloc(upper_length(temp[OPT_LEN - 2],
 			dhcp_options[i].flags & TYPE_MASK) + strlen(dhcp_options[i].name) + 2);
@@ -169,7 +162,7 @@ static char **fill_envp(struct dhcpMessage *packet)
 		/* Fill in a subnet bits option for things like /24 */
 		if (dhcp_options[i].code == DHCP_SUBNET) {
 			memcpy(&subnet, temp, 4);
-			envp[j++] = bb_xasprintf("mask=%d", mton(&subnet));
+			envp[j++] = xasprintf("mask=%d", mton(&subnet));
 		}
 	}
 	if (packet->siaddr) {
@@ -179,12 +172,12 @@ static char **fill_envp(struct dhcpMessage *packet)
 	if (!(over & FILE_FIELD) && packet->file[0]) {
 		/* watch out for invalid packets */
 		packet->file[sizeof(packet->file) - 1] = '\0';
-		envp[j++] = bb_xasprintf("boot_file=%s", packet->file);
+		envp[j++] = xasprintf("boot_file=%s", packet->file);
 	}
 	if (!(over & SNAME_FIELD) && packet->sname[0]) {
 		/* watch out for invalid packets */
 		packet->sname[sizeof(packet->sname) - 1] = '\0';
-		envp[j++] = bb_xasprintf("sname=%s", packet->sname);
+		envp[j++] = xasprintf("sname=%s", packet->sname);
 	}
 	return envp;
 }
@@ -199,7 +192,7 @@ void udhcp_run_script(struct dhcpMessage *packet, const char *name)
 	if (client_config.script == NULL)
 		return;
 
-	DEBUG(LOG_INFO, "vforking and execle'ing %s", client_config.script);
+	DEBUG("vfork'ing and execle'ing %s", client_config.script);
 
 	envp = fill_envp(packet);
 	/* call script */
@@ -211,11 +204,10 @@ void udhcp_run_script(struct dhcpMessage *packet, const char *name)
 		return;
 	} else if (pid == 0) {
 		/* close fd's? */
-
 		/* exec script */
 		execle(client_config.script, client_config.script,
 		       name, NULL, envp);
-		LOG(LOG_ERR, "script %s failed: %m", client_config.script);
+		bb_perror_msg("script %s failed", client_config.script);
 		exit(1);
 	}
 }

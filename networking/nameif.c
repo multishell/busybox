@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * nameif.c - Naming Interfaces based on MAC address for busybox.
  *
@@ -9,13 +10,7 @@
  */
 
 #include "busybox.h"
-
-#include <sys/syslog.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <errno.h>
-#include <string.h>
-#include <unistd.h>
+#include <syslog.h>
 #include <net/if.h>
 #include <netinet/ether.h>
 
@@ -46,29 +41,6 @@ typedef struct mactable_s {
 	struct ether_addr *mac;
 } mactable_t;
 
-static unsigned long flags;
-
-static void serror(const char *s, ...) ATTRIBUTE_NORETURN;
-
-static void serror(const char *s, ...)
-{
-	va_list ap;
-
-	va_start(ap, s);
-
-	if (flags & 1) {
-		openlog(bb_applet_name, 0, LOG_LOCAL0);
-		vsyslog(LOG_ERR, s, ap);
-		closelog();
-	} else {
-		bb_verror_msg(s, ap);
-		putc('\n', stderr);
-	}
-	va_end(ap);
-
-	exit(EXIT_FAILURE);
-}
-
 /* Check ascii str_macaddr, convert and copy to *mac */
 static struct ether_addr *cc_macaddr(const char *str_macaddr)
 {
@@ -76,7 +48,7 @@ static struct ether_addr *cc_macaddr(const char *str_macaddr)
 
 	lmac = ether_aton(str_macaddr);
 	if (lmac == NULL)
-		serror("cannot parse MAC %s", str_macaddr);
+		bb_error_msg_and_die("cannot parse MAC %s", str_macaddr);
 	mac = xmalloc(ETH_ALEN);
 	memcpy(mac, lmac, ETH_ALEN);
 
@@ -93,7 +65,10 @@ int nameif_main(int argc, char **argv)
 	int if_index = 1;
 	mactable_t *ch;
 
-	flags = bb_getopt_ulflags(argc, argv, "sc:", &fname);
+	if (1 & getopt32(argc, argv, "sc:", &fname)) {
+		openlog(applet_name, 0, LOG_LOCAL0);
+		logmode = LOGMODE_SYSLOG;
+	}
 
 	if ((argc - optind) & 1)
 		bb_show_usage();
@@ -102,11 +77,11 @@ int nameif_main(int argc, char **argv)
 		char **a = argv + optind;
 
 		while (*a) {
-
 			if (strlen(*a) > IF_NAMESIZE)
-				serror("interface name `%s' too long", *a);
+				bb_error_msg_and_die("interface name '%s' "
+					    "too long", *a);
 			ch = xzalloc(sizeof(mactable_t));
-			ch->ifname = bb_xstrdup(*a++);
+			ch->ifname = xstrdup(*a++);
 			ch->mac = cc_macaddr(*a++);
 			if (clist)
 				clist->prev = ch;
@@ -114,9 +89,9 @@ int nameif_main(int argc, char **argv)
 			clist = ch;
 		}
 	} else {
-		ifh = bb_xfopen(fname, "r");
+		ifh = xfopen(fname, "r");
 
-		while ((line = bb_get_line_from_file(ifh)) != NULL) {
+		while ((line = xmalloc_fgets(ifh)) != NULL) {
 			char *line_ptr;
 			size_t name_length;
 
@@ -127,9 +102,10 @@ int nameif_main(int argc, char **argv)
 			}
 			name_length = strcspn(line_ptr, " \t");
 			ch = xzalloc(sizeof(mactable_t));
-			ch->ifname = bb_xstrndup(line_ptr, name_length);
+			ch->ifname = xstrndup(line_ptr, name_length);
 			if (name_length > IF_NAMESIZE)
-				serror("interface name `%s' too long", ch->ifname);
+				bb_error_msg_and_die("interface name '%s' "
+						"too long", ch->ifname);
 			line_ptr += name_length;
 			line_ptr += strspn(line_ptr, " \t");
 			name_length = strspn(line_ptr, "0123456789ABCDEFabcdef:");
@@ -144,8 +120,7 @@ int nameif_main(int argc, char **argv)
 		fclose(ifh);
 	}
 
-	if ((ctl_sk = socket(PF_INET, SOCK_DGRAM, 0)) == -1)
-		serror("socket: %m");
+	ctl_sk = xsocket(PF_INET, SOCK_DGRAM, 0);
 
 	while (clist) {
 		struct ifreq ifr;
@@ -173,7 +148,7 @@ int nameif_main(int argc, char **argv)
 
 		strcpy(ifr.ifr_newname, ch->ifname);
 		if (ioctl(ctl_sk, SIOCSIFNAME, &ifr) < 0)
-			serror("cannot change ifname %s to %s: %m",
+			bb_perror_msg_and_die("cannot change ifname %s to %s",
 				   ifr.ifr_name, ch->ifname);
 
 		/* Remove list entry of renamed interface */

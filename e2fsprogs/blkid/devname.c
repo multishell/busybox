@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * devname.c - get a dev by its device inode name
  *
@@ -13,22 +14,20 @@
 
 #include <stdio.h>
 #include <string.h>
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#if HAVE_SYS_TYPES_H
+#ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
-#if HAVE_SYS_STAT_H
 #include <sys/stat.h>
-#endif
-#if HAVE_ERRNO_H
+#ifdef HAVE_ERRNO_H
 #include <errno.h>
 #endif
-#if HAVE_SYS_MKDEV_H
+#ifdef HAVE_SYS_MKDEV_H
 #include <sys/mkdev.h>
 #endif
 #include <time.h>
@@ -364,6 +363,6 @@ int main(int argc, char **argv)
 		printf("%s: error probing devices\n", argv[0]);
 
 	blkid_put_cache(cache);
-	return (0);
+	return 0;
 }
 #endif

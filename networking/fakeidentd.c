@@ -10,19 +10,7 @@
  */
 
 #include "busybox.h"
-
-#include <unistd.h>
-#include <string.h>
-#include <fcntl.h>
-#include <signal.h>
 #include <sys/syslog.h>
-
-#include <pwd.h>
-
-#include <sys/syslog.h>
-#include <time.h>
-#include <sys/socket.h>
-#include <errno.h>
 #include <sys/uio.h>
 
 
@@ -76,7 +64,7 @@ static void replyError(int s, char *buf);
 static const char *nobodystr = "nobody"; /* this needs to be declared like this */
 static char *bind_ip_address = "0.0.0.0";
 
-static inline void movefd(int from, int to)
+static void movefd(int from, int to)
 {
 	if (from != to) {
 		dup2(from, to);
@@ -89,25 +77,24 @@ static void inetbind(void)
 	int s, port;
 	struct sockaddr_in addr;
 	int len = sizeof(addr);
-	int one = 1;
 	struct servent *se;
 
-	if ((se = getservbyname("identd", "tcp")) == NULL)
-		port = IDENT_PORT;
-	else
+	se = getservbyname("identd", "tcp");
+	port = IDENT_PORT;
+	if (se)
 		port = se->s_port;
 
-	s = bb_xsocket(AF_INET, SOCK_STREAM, 0);
+	s = xsocket(AF_INET, SOCK_STREAM, 0);
 
-	setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
+	setsockopt_reuseaddr(s);
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_addr.s_addr = inet_addr(bind_ip_address);
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(port);
 
-	bb_xbind(s, (struct sockaddr *)&addr, len);
-	bb_xlisten(s, 5);
+	xbind(s, (struct sockaddr *)&addr, len);
+	xlisten(s, 5);
 
 	movefd(s, 0);
 }
@@ -120,15 +107,15 @@ static void handlexitsigs(int signum)
 }
 
 /* May succeed. If not, won't care. */
-static inline void writepid(uid_t nobody, uid_t nogrp)
+static void writepid(uid_t nobody, uid_t nogrp)
 {
-	char buf[24];
+	char buf[sizeof(int)*3 + 2];
 	int fd = open(PIDFILE, O_WRONLY|O_CREAT|O_TRUNC, 0664);
 
 	if (fd < 0)
 		return;
 
-	snprintf(buf, 23, "%d\n", getpid());
+	sprintf(buf, "%d\n", getpid());
 	write(fd, buf, strlen(buf));
 	fchown(fd, nobody, nogrp);
 	close(fd);
@@ -147,12 +134,12 @@ static int godaemon(void)
 
 	switch (fork()) {
 	case -1:
-		bb_perror_msg_and_die("Could not fork");
+		bb_perror_msg_and_die("fork");
 
 	case 0:
 		pw = getpwnam(nobodystr);
 		if (pw == NULL)
-			bb_error_msg_and_die("Cannot find uid/gid of user '%s'", nobodystr);
+			bb_error_msg_and_die("cannot find uid/gid of user '%s'", nobodystr);
 		nobody = pw->pw_uid;
 		nogrp = pw->pw_gid;
 		writepid(nobody, nogrp);
@@ -169,7 +156,6 @@ static int godaemon(void)
 
 		setsid();
 
-		openlog(bb_applet_name, 0, LOG_DAEMON);
 		return 1;
 	}
 
@@ -231,13 +217,17 @@ static int checkInput(char *buf, int len, int l)
 
 int fakeidentd_main(int argc, char **argv)
 {
+	/* This applet is an inetd-style daemon */
+	openlog(applet_name, 0, LOG_DAEMON);
+	logmode = LOGMODE_SYSLOG;
+
 	memset(conns, 0, sizeof(conns));
 	memset(&G, 0, sizeof(G));
 	FD_ZERO(&G.readfds);
 	FD_SET(0, &G.readfds);
 
 	/* handle -b <ip> parameter */
-	bb_getopt_ulflags(argc, argv, "b:", &bind_ip_address);
+	getopt32(argc, argv, "b:", &bind_ip_address);
 	/* handle optional REPLY STRING */
 	if (optind < argc)
 		G.identuser = argv[optind];
@@ -298,7 +288,7 @@ deleteconn:
 
 		if (s < 0) {
 			if (errno != EINTR) /* EINTR */
-				syslog(LOG_ERR, "accept: %s", strerror(errno));
+				bb_perror_msg("accept");
 		} else {
 			if (G.conncnt == MAXCONNS)
 				i = closeOldest();

@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * pfsck --- A generic, parallelizing front-end for the fsck program.
  * It will automatically try to run fsck programs in parallel if the
@@ -101,7 +102,7 @@ struct fsck_instance {
  * Return the "base device" given a particular device; this is used to
  * assure that we only fsck one partition on a particular drive at any
  * one time.  Otherwise, the disk heads will be seeking all over the
- * place.  If the base device can not be determined, return NULL.
+ * place.  If the base device cannot be determined, return NULL.
  *
  * The base_device() function returns an allocated string which must
  * be freed.
@@ -128,18 +129,12 @@ static char *base_device(const char *device)
 	int len;
 #endif
 
-	cp = str = bb_xstrdup(device);
+	cp = str = xstrdup(device);
 
 	/* Skip over /dev/; if it's not present, give up. */
 	if (strncmp(cp, "/dev/", 5) != 0)
 		goto errout;
 	cp += 5;
-
-#if 0	/* this is for old stuff no one uses anymore ? */
-	/* Skip over /dev/dsk/... */
-	if (strncmp(cp, "dsk/", 4) == 0)
-		cp += 4;
-#endif
 
 	/*
 	 * For md devices, we treat them all as if they were all
@@ -484,7 +479,7 @@ static void load_fs_info(const char *filename)
 	struct fs_info *fs;
 
 	if ((f = fopen(filename, "r")) == NULL) {
-		bb_perror_msg("WARNING: couldn't open %s", filename);
+		bb_perror_msg("WARNING: cannot open %s", filename);
 		return;
 	}
 	while (!feof(f)) {
@@ -549,12 +544,12 @@ static char *find_fsck(char *type)
   tpl = (strncmp(type, "fsck.", 5) ? "%s/fsck.%s" : "%s/%s");
 
   for(s = strtok(p, ":"); s; s = strtok(NULL, ":")) {
-	s = bb_xasprintf(tpl, s, type);
+	s = xasprintf(tpl, s, type);
 	if (stat(s, &st) == 0) break;
 	free(s);
   }
   free(p);
-  return(s);
+  return s;
 }
 
 static int progress_active(void)
@@ -588,7 +583,7 @@ static int execute(const char *type, const char *device, const char *mntpt,
 		return ENOMEM;
 	memset(inst, 0, sizeof(struct fsck_instance));
 
-	prog = bb_xasprintf("fsck.%s", type);
+	prog = xasprintf("fsck.%s", type);
 	argv[0] = prog;
 	argc = 1;
 
@@ -619,7 +614,7 @@ static int execute(const char *type, const char *device, const char *mntpt,
 		       mntpt ? mntpt : device);
 		for (i=0; i < argc; i++)
 			printf("%s ", argv[i]);
-		printf("\n");
+		puts("");
 	}
 
 	/* Fork and execute the correct program. */
@@ -722,7 +717,7 @@ static struct fsck_instance *wait_one(int flags)
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			if (errno == ECHILD) {
-				bb_error_msg("wait: No more child process?!?");
+				bb_error_msg("wait: no more child process?!?");
 				return NULL;
 			}
 			perror("wait");
@@ -845,7 +840,7 @@ static void fsck_device(struct fs_info *fs, int interactive)
 	num_running++;
 	retval = execute(type, fs->device, fs->mountpt, interactive);
 	if (retval) {
-		bb_error_msg("Error %d while executing fsck.%s for %s",
+		bb_error_msg("error %d while executing fsck.%s for %s",
 						retval, type, fs->device);
 		num_running--;
 	}
@@ -882,8 +877,8 @@ static void compile_fs_type(char *fs_type, struct fs_type_compile *cmp)
 		}
 	}
 
-	cmp->list = xcalloc(num, sizeof(char *));
-	cmp->type = xcalloc(num, sizeof(int));
+	cmp->list = xzalloc(num * sizeof(char *));
+	cmp->type = xzalloc(num * sizeof(int));
 	cmp->negate = 0;
 
 	if (!fs_type)
@@ -918,9 +913,6 @@ static void compile_fs_type(char *fs_type, struct fs_type_compile *cmp)
 				bb_error_msg_and_die("%s", fs_type_syntax_error);
 			}
 		}
-#if 0
-		printf("Adding %s to list (type %d).\n", s, cmp->type[num]);
-#endif
 		cmp->list[num++] = string_copy(s);
 		s = strtok(NULL, ",");
 	}
@@ -1004,11 +996,11 @@ static int ignore(struct fs_info *fs)
 	if (!fs_match(fs, &fs_type_compiled)) return 1;
 
 	/* Are we ignoring this type? */
-	if(compare_string_array(ignored_types, fs->type) >= 0)
+	if (index_in_str_array(ignored_types, fs->type) >= 0)
 		return 1;
 
 	/* Do we really really want to check this fs? */
-	wanted = compare_string_array(really_wanted, fs->type) >= 0;
+	wanted = index_in_str_array(really_wanted, fs->type) >= 0;
 
 	/* See if the <fsck.fs> program is available. */
 	s = find_fsck(fs->type);
@@ -1216,8 +1208,8 @@ static void PRS(int argc, char *argv[])
 				 * /proc/partitions isn't found.
 				 */
 				if (access("/proc/partitions", R_OK) < 0) {
-					bb_error_msg_and_die("Couldn't open /proc/partitions: %m\n"
-							"Is /proc mounted?");
+					bb_perror_msg_and_die("cannot open /proc/partitions "
+							"(is /proc mounted?)");
 				}
 				/*
 				 * Check to see if this is because
@@ -1225,10 +1217,10 @@ static void PRS(int argc, char *argv[])
 				 */
 				if (geteuid())
 					bb_error_msg_and_die(
-		"Must be root to scan for matching filesystems: %s\n", arg);
+		"must be root to scan for matching filesystems: %s\n", arg);
 				else
 					bb_error_msg_and_die(
-		"Couldn't find matching filesystem: %s", arg);
+		"cannot find matching filesystem: %s", arg);
 			}
 			devices[num_devices++] = dev ? dev : string_copy(arg);
 			continue;

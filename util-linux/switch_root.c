@@ -1,16 +1,13 @@
-/* vi:set ts=4:*/
+/* vi: set sw=4 ts=4: */
 /* Copyright 2005 Rob Landley <rob@landley.net>
  *
  * Switch from rootfs to another filesystem as the root of the mount tree.
  *
- * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
+ * Licensed under GPL version 2, see file LICENSE in this tarball for details.
  */
 
 #include "busybox.h"
-#include <fcntl.h>
-#include <string.h>
 #include <sys/vfs.h>
-#include <unistd.h>
 
 
 // Make up for header deficiencies.
@@ -38,7 +35,7 @@ static void delete_contents(char *directory)
 	struct stat st;
 
 	// Don't descend into other filesystems
-	if (lstat(directory,&st) || st.st_dev != rootdev) return;
+	if (lstat(directory, &st) || st.st_dev != rootdev) return;
 
 	// Recursively delete the contents of directories.
 	if (S_ISDIR(st.st_mode)) {
@@ -74,8 +71,8 @@ int switch_root_main(int argc, char *argv[])
 
 	// Parse args (-c console)
 
-	bb_opt_complementally="-2";
-	bb_getopt_ulflags(argc,argv,"c:",&console);
+	opt_complementary = "-2";
+	getopt32(argc, argv, "c:", &console);
 
 	// Change to new root directory and verify it's a different fs.
 
@@ -84,7 +81,7 @@ int switch_root_main(int argc, char *argv[])
 	if (chdir(newroot) || lstat(".", &st1) || lstat("/", &st2) ||
 		st1.st_dev == st2.st_dev)
 	{
-		bb_error_msg_and_die("bad newroot %s",newroot);
+		bb_error_msg_and_die("bad newroot %s", newroot);
 	}
 	rootdev=st2.st_dev;
 
@@ -114,12 +111,12 @@ int switch_root_main(int argc, char *argv[])
 	if (console) {
 		close(0);
 		if(open(console, O_RDWR) < 0)
-			bb_error_msg_and_die("Bad console '%s'",console);
+			bb_error_msg_and_die("bad console '%s'", console);
 		dup2(0, 1);
 		dup2(0, 2);
 	}
 
 	// Exec real init.  (This is why we must be pid 1.)
-	execv(argv[optind],argv+optind);
-	bb_error_msg_and_die("Bad init '%s'",argv[optind]);
+	execv(argv[optind], argv+optind);
+	bb_error_msg_and_die("bad init '%s'", argv[optind]);
 }

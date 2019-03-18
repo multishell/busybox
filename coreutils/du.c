@@ -23,16 +23,11 @@
  * 4) Fixed busybox bug #1284 involving long overflow with human_readable.
  */
 
-#include <stdlib.h>
-#include <limits.h>
-#include <unistd.h>
-#include <dirent.h>
-#include <sys/stat.h>
 #include "busybox.h"
 
 #ifdef CONFIG_FEATURE_HUMAN_READABLE
 # ifdef CONFIG_FEATURE_DU_DEFAULT_BLOCKSIZE_1K
-static unsigned long disp_hr = KILOBYTE;
+static unsigned long disp_hr = 1024;
 # else
 static unsigned long disp_hr = 512;
 # endif
@@ -57,23 +52,23 @@ static int one_file_system;
 static dev_t dir_dev;
 
 
-static void print(long size, char *filename)
+static void print(long size, const char * const filename)
 {
 	/* TODO - May not want to defer error checking here. */
 #ifdef CONFIG_FEATURE_HUMAN_READABLE
-	bb_printf("%s\t%s\n", make_human_readable_str(size, 512, disp_hr),
+	printf("%s\t%s\n", make_human_readable_str(size, 512, disp_hr),
 		   filename);
 #else
 	if (disp_k) {
 		size++;
 		size >>= 1;
 	}
-	bb_printf("%ld\t%s\n", size, filename);
+	printf("%ld\t%s\n", size, filename);
 #endif
 }
 
 /* tiny recursive du */
-static long du(char *filename)
+static long du(const char * const filename)
 {
 	struct stat statbuf;
 	long sum;
@@ -121,7 +116,7 @@ static long du(char *filename)
 		struct dirent *entry;
 		char *newfile;
 
-		dir = bb_opendir(filename);
+		dir = warn_opendir(filename);
 		if (!dir) {
 			status = EXIT_FAILURE;
 			return sum;
@@ -158,7 +153,7 @@ int du_main(int argc, char **argv)
 	int slink_depth_save;
 	int print_final_total;
 	char *smax_print_depth;
-	unsigned long opt;
+	unsigned opt;
 
 #ifdef CONFIG_FEATURE_DU_DEFUALT_BLOCKSIZE_1K
 	if (getenv("POSIXLY_CORRECT")) {	/* TODO - a new libbb function? */
@@ -170,30 +165,30 @@ int du_main(int argc, char **argv)
 	}
 #endif
 
-	/* Note: SUSv3 specifies that -a and -s options can not be used together
+	/* Note: SUSv3 specifies that -a and -s options cannot be used together
 	 * in strictly conforming applications.  However, it also says that some
 	 * du implementations may produce output when -a and -s are used together.
 	 * gnu du exits with an error code in this case.  We choose to simply
 	 * ignore -a.  This is consistent with -s being equivalent to -d 0.
 	 */
 #ifdef CONFIG_FEATURE_HUMAN_READABLE
-	bb_opt_complementally = "h-km:k-hm:m-hk:H-L:L-H:s-d:d-s";
-	opt = bb_getopt_ulflags(argc, argv, "aHkLsx" "d:" "lc" "hm", &smax_print_depth);
+	opt_complementary = "h-km:k-hm:m-hk:H-L:L-H:s-d:d-s";
+	opt = getopt32(argc, argv, "aHkLsx" "d:" "lc" "hm", &smax_print_depth);
 	if((opt & (1 << 9))) {
 		/* -h opt */
 		disp_hr = 0;
 	}
 	if((opt & (1 << 10))) {
 		/* -m opt */
-		disp_hr = MEGABYTE;
+		disp_hr = 1024*1024;
 	}
 	if((opt & (1 << 2))) {
 		/* -k opt */
-			disp_hr = KILOBYTE;
+		disp_hr = 1024;
 	}
 #else
-	bb_opt_complementally = "H-L:L-H:s-d:d-s";
-	opt = bb_getopt_ulflags(argc, argv, "aHkLsx" "d:" "lc", &smax_print_depth);
+	opt_complementary = "H-L:L-H:s-d:d-s";
+	opt = getopt32(argc, argv, "aHkLsx" "d:" "lc", &smax_print_depth);
 #if !defined CONFIG_FEATURE_DU_DEFAULT_BLOCKSIZE_1K
 	if((opt & (1 << 2))) {
 		/* -k opt */
@@ -220,7 +215,7 @@ int du_main(int argc, char **argv)
 	one_file_system = opt & (1 << 5); /* -x opt */
 	if((opt & (1 << 6))) {
 		/* -d opt */
-		max_print_depth = bb_xgetularg10_bnd(smax_print_depth, 0, INT_MAX);
+		max_print_depth = xatoi_u(smax_print_depth);
 	}
 	if((opt & (1 << 7))) {
 		/* -l opt */
@@ -251,5 +246,5 @@ int du_main(int argc, char **argv)
 		print(total, "total");
 	}
 
-	bb_fflush_stdout_and_exit(status);
+	fflush_stdout_and_exit(status);
 }

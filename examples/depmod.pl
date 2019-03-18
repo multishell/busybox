@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# vi: set ts=4:
+# vi: set sw=4 ts=4:
 # Copyright (c) 2001 David Schleef <ds@schleef.org>
 # Copyright (c) 2001 Erik Andersen <andersen@codepoet.org>
 # Copyright (c) 2001 Stuart Hughes <seh@zee2.com>
@@ -34,7 +34,7 @@ my $dep = {};
 my $mod = {};
 
 my $usage = <<TXT;
-$0 -b basedir { -k <vmlinux> | -F <System.map> } [options]... 
+$0 -b basedir { -k <vmlinux> | -F <System.map> } [options]...
   Where:
    -h --help         : Show this help screen
    -b --basedir      : Modules base directory (e.g /lib/modules/<2.x.y>)
@@ -211,7 +211,7 @@ __END__
 
 depmod.pl - a cross platform script to generate kernel module
 dependency lists (modules.conf) which can then be used by modprobe
-on the target platform. 
+on the target platform.
 
 It supports Linux 2.4 and 2.6 styles of modules.conf (auto-detected)
 
@@ -245,7 +245,7 @@ This displays the help message.
 =item B<-b --basedir>
 
 The base directory uner which the target's modules will be found.  This
-defaults to the /lib/modules directory. 
+defaults to the /lib/modules directory.
 
 If you don't specify the kernel version, this script will search for
 one under the specified based directory and use the first thing that

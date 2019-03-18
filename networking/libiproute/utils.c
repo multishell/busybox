@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * utils.c
  *
@@ -124,7 +125,7 @@ int get_addr_1(inet_prefix * addr, char *name, int family)
 
 	memset(addr, 0, sizeof(*addr));
 
-	if (strcmp(name, bb_INET_default) == 0 ||
+	if (strcmp(name, bb_str_default) == 0 ||
 		strcmp(name, "all") == 0 || strcmp(name, "any") == 0) {
 		addr->family = family;
 		addr->bytelen = (family == AF_INET6 ? 16 : 4);
@@ -168,7 +169,7 @@ int get_prefix_1(inet_prefix * dst, char *arg, int family)
 
 	memset(dst, 0, sizeof(*dst));
 
-	if (strcmp(arg, bb_INET_default) == 0 || strcmp(arg, "any") == 0) {
+	if (strcmp(arg, bb_str_default) == 0 || strcmp(arg, "any") == 0) {
 		dst->family = family;
 		dst->bytelen = 0;
 		dst->bitlen = 0;
@@ -205,10 +206,10 @@ int get_prefix_1(inet_prefix * dst, char *arg, int family)
 int get_addr(inet_prefix * dst, char *arg, int family)
 {
 	if (family == AF_PACKET) {
-		bb_error_msg_and_die("\"%s\" may be inet address, but it is not allowed in this context.", arg);
+		bb_error_msg_and_die("\"%s\" may be inet address, but it is not allowed in this context", arg);
 	}
 	if (get_addr_1(dst, arg, family)) {
-		bb_error_msg_and_die("an inet address is expected rather than \"%s\".", arg);
+		bb_error_msg_and_die("an inet address is expected rather than \"%s\"", arg);
 	}
 	return 0;
 }
@@ -216,10 +217,10 @@ int get_addr(inet_prefix * dst, char *arg, int family)
 int get_prefix(inet_prefix * dst, char *arg, int family)
 {
 	if (family == AF_PACKET) {
-		bb_error_msg_and_die("\"%s\" may be inet address, but it is not allowed in this context.", arg);
+		bb_error_msg_and_die("\"%s\" may be inet address, but it is not allowed in this context", arg);
 	}
 	if (get_prefix_1(dst, arg, family)) {
-		bb_error_msg_and_die("an inet address is expected rather than \"%s\".", arg);
+		bb_error_msg_and_die("an inet address is expected rather than \"%s\"", arg);
 	}
 	return 0;
 }
@@ -236,7 +237,7 @@ __u32 get_addr32(char *name)
 
 void incomplete_command(void)
 {
-	bb_error_msg("Command line is not complete. Try option \"help\"");
+	bb_error_msg("command line is not complete, try option \"help\"");
 	exit(-1);
 }
 
@@ -248,13 +249,13 @@ void invarg(const char * const arg, const char * const opt)
 
 void duparg(char *key, char *arg)
 {
-	bb_error_msg("duplicate \"%s\": \"%s\" is the second value.", key, arg);
+	bb_error_msg("duplicate \"%s\": \"%s\" is the second value", key, arg);
 	exit(-1);
 }
 
 void duparg2(char *key, char *arg)
 {
-	bb_error_msg("either \"%s\" is duplicate, or \"%s\" is a garbage.", key, arg);
+	bb_error_msg("either \"%s\" is duplicate, or \"%s\" is garbage", key, arg);
 	exit(-1);
 }
 
@@ -262,10 +263,7 @@ int matches(char *cmd, char *pattern)
 {
 	int len = strlen(cmd);
 
-	if (len > strlen(pattern)) {
-		return -1;
-	}
-	return memcmp(pattern, cmd, len);
+	return strncmp(pattern, cmd, len);
 }
 
 int inet_addr_match(inet_prefix * a, inet_prefix * b, int bits)

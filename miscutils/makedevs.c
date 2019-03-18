@@ -8,15 +8,6 @@
  */
 
 #include "busybox.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
-#include <time.h>
-#include <ctype.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/sysmacros.h>     /* major() and minor() */
 
 #ifdef CONFIG_FEATURE_MAKEDEVS_LEAF
 int makedevs_main(int argc, char **argv)
@@ -30,10 +21,10 @@ int makedevs_main(int argc, char **argv)
 
 	basedev = argv[1];
 	type = argv[2];
-	Smajor = atoi(argv[3]);
-	Sminor = atoi(argv[4]);
-	S = atoi(argv[5]);
-	E = atoi(argv[6]);
+	Smajor = xatoi_u(argv[3]);
+	Sminor = xatoi_u(argv[4]);
+	S = xatoi_u(argv[5]);
+	E = xatoi_u(argv[6]);
 	nodname = argc == 8 ? basedev : buf;
 
 	mode = 0660;
@@ -62,7 +53,7 @@ int makedevs_main(int argc, char **argv)
 	/* if mode != S_IFCHR and != S_IFBLK third param in mknod() ignored */
 
 		if (mknod(nodname, mode, makedev(Smajor, Sminor)))
-			bb_error_msg("Failed to create: %s", nodname);
+			bb_error_msg("failed to create: %s", nodname);
 
 		if (nodname == basedev) /* ex. /dev/hda - to /dev/hda1 ... */
 			nodname = buf;
@@ -85,16 +76,15 @@ int makedevs_main(int argc, char **argv)
 	int linenum = 0;
 	int ret = EXIT_SUCCESS;
 
-	unsigned long flags;
-	flags = bb_getopt_ulflags(argc, argv, "d:", &line);
+	getopt32(argc, argv, "d:", &line);
 	if (line)
-		table = bb_xfopen(line, "r");
+		table = xfopen(line, "r");
 
 	if (optind >= argc || (rootdir=argv[optind])==NULL) {
 		bb_error_msg_and_die("root directory not specified");
 	}
 
-	bb_xchdir(rootdir);
+	xchdir(rootdir);
 
 	umask(0);
 
@@ -105,7 +95,7 @@ int makedevs_main(int argc, char **argv)
 		printf("table=<stdin>\n");
 	}
 
-	while ((line = bb_get_chomped_line_from_file(table))) {
+	while ((line = xmalloc_getline(table))) {
 		char type;
 		unsigned int mode = 0755;
 		unsigned int major = 0;
@@ -129,7 +119,7 @@ int makedevs_main(int argc, char **argv)
 		{
 			if (*line=='\0' || *line=='#' || isspace(*line))
 				continue;
-			bb_error_msg("line %d invalid: '%s'\n", linenum, line);
+			bb_error_msg("line %d invalid: '%s'", linenum, line);
 			ret = EXIT_FAILURE;
 			continue;
 		}
@@ -197,7 +187,7 @@ int makedevs_main(int argc, char **argv)
 					sprintf(full_name_inc, "%s%d", full_name, i);
 					rdev = (major << 8) + minor + (i * increment - start);
 					if (mknod(full_name_inc, mode, rdev) == -1) {
-						bb_perror_msg("line %d: could not create node %s", linenum, full_name_inc);
+						bb_perror_msg("line %d: cannot create node %s", linenum, full_name_inc);
 						ret = EXIT_FAILURE;
 					}
 					else if (chown(full_name_inc, uid, gid) == -1) {
@@ -213,7 +203,7 @@ int makedevs_main(int argc, char **argv)
 			} else {
 				rdev = (major << 8) + minor;
 				if (mknod(full_name, mode, rdev) == -1) {
-					bb_perror_msg("line %d: could not create node %s", linenum, full_name);
+					bb_perror_msg("line %d: cannot create node %s", linenum, full_name);
 					ret = EXIT_FAILURE;
 				}
 				else if (chown(full_name, uid, gid) == -1) {

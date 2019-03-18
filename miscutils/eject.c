@@ -14,35 +14,47 @@
  */
 
 #include "busybox.h"
-#include <fcntl.h>
-#include <sys/ioctl.h>
-#include <unistd.h>
-#include <mntent.h>
 
 /* various defines swiped from linux/cdrom.h */
 #define CDROMCLOSETRAY            0x5319  /* pendant of CDROMEJECT  */
 #define CDROMEJECT                0x5309  /* Ejects the cdrom media */
-#define DEFAULT_CDROM             "/dev/cdrom"
+#define CDROM_DRIVE_STATUS        0x5326  /* Get tray position, etc. */
+/* drive status possibilities returned by CDROM_DRIVE_STATUS ioctl */
+#define CDS_TRAY_OPEN        2
+
+#define FLAG_CLOSE  1
+#define FLAG_SMART  2
 
 int eject_main(int argc, char **argv)
 {
 	unsigned long flags;
 	char *device;
-	struct mntent *m;
+	int dev, cmd;
 
-	flags = bb_getopt_ulflags(argc, argv, "t");
-	device = argv[optind] ? : DEFAULT_CDROM;
+	opt_complementary = "?:?1:t--T:T--t";
+	flags = getopt32(argc, argv, "tT");
+	device = argv[optind] ? : "/dev/cdrom";
 
-	if ((m = find_mount_point(device, bb_path_mtab_file))) {
-		if (umount(m->mnt_dir)) {
-			bb_error_msg_and_die("Can't umount");
-		} else if (ENABLE_FEATURE_MTAB_SUPPORT) {
-			erase_mtab(m->mnt_fsname);
-		}
-	}
-	if (ioctl(bb_xopen(device, (O_RDONLY | O_NONBLOCK)),
-				(flags ? CDROMCLOSETRAY : CDROMEJECT))) {
+	// We used to do "umount <device>" here, but it was buggy
+	// if something was mounted OVER cdrom and
+	// if cdrom is mounted many times.
+	//
+	// This works equally well (or better):
+	// #!/bin/sh
+	// umount /dev/cdrom
+	// eject
+
+	dev = xopen(device, O_RDONLY|O_NONBLOCK);
+	cmd = CDROMEJECT;
+	if (flags & FLAG_CLOSE
+	 || (flags & FLAG_SMART && ioctl(dev, CDROM_DRIVE_STATUS) == CDS_TRAY_OPEN))
+		cmd = CDROMCLOSETRAY;
+	if (ioctl(dev, cmd)) {
 		bb_perror_msg_and_die("%s", device);
 	}
-	return (EXIT_SUCCESS);
+
+	if (ENABLE_FEATURE_CLEAN_UP)
+		close(dev);
+
+	return EXIT_SUCCESS;
 }

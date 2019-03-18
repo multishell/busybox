@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * gen_uuid.c --- generate a DCE-compatible uuid
  *
@@ -40,6 +41,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/file.h>
+#include <sys/time.h>
 #ifdef HAVE_SYS_IOCTL_H
 #include <sys/ioctl.h>
 #endif

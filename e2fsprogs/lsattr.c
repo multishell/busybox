@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * lsattr.c		- List file attributes on an ext2 file system
  *
@@ -40,14 +41,6 @@
 #define OPT_GENERATION 16
 static int flags;
 
-#ifdef CONFIG_LFS
-# define LSTAT lstat64
-# define STRUCT_STAT struct stat64
-#else
-# define LSTAT lstat
-# define STRUCT_STAT struct stat
-#endif
-
 static void list_attributes(const char *name)
 {
 	unsigned long fsflags;
@@ -64,7 +57,7 @@ static void list_attributes(const char *name)
 	if (flags & OPT_PF_LONG) {
 		printf("%-28s ", name);
 		print_flags(stdout, fsflags, PFOPT_LONG);
-		printf("\n");
+		puts("");
 	} else {
 		print_flags(stdout, fsflags, 0);
 		printf(" %s\n", name);
@@ -79,9 +72,9 @@ static int lsattr_dir_proc(const char *, struct dirent *, void *);
 
 static void lsattr_args(const char *name)
 {
-	STRUCT_STAT	st;
+	struct stat st;
 
-	if (LSTAT(name, &st) == -1) {
+	if (lstat(name, &st) == -1) {
 		bb_perror_msg("stating %s", name);
 	} else {
 		if (S_ISDIR(st.st_mode) && !(flags & OPT_DIRS_OPT))
@@ -94,12 +87,12 @@ static void lsattr_args(const char *name)
 static int lsattr_dir_proc(const char *dir_name, struct dirent *de,
 			   void *private)
 {
-	STRUCT_STAT	st;
+	struct stat st;
 	char *path;
 
 	path = concat_path_file(dir_name, de->d_name);
 
-	if (LSTAT(path, &st) == -1)
+	if (lstat(path, &st) == -1)
 		bb_perror_msg(path);
 	else {
 		if (de->d_name[0] != '.' || (flags & OPT_ALL)) {
@@ -109,7 +102,7 @@ static int lsattr_dir_proc(const char *dir_name, struct dirent *de,
 			   (de->d_name[1] != '.' && de->d_name[2] != '\0')))) {
 				printf("\n%s:\n", path);
 				iterate_on_dir(path, lsattr_dir_proc, NULL);
-				printf("\n");
+				puts("");
 			}
 		}
 	}
@@ -123,7 +116,7 @@ int lsattr_main(int argc, char **argv)
 {
 	int i;
 
-	flags = bb_getopt_ulflags(argc, argv, "Radlv");
+	flags = getopt32(argc, argv, "Radlv");
 
 	if (optind > argc - 1)
 		lsattr_args(".");

@@ -5,19 +5,7 @@
  *
  * Copyright (C) 1999 by Randolph Chung <tausq@debian.org>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  *
  * This version of ping is adapted from the ping in netkit-base 0.10,
  * which is:
@@ -65,22 +53,15 @@ enum {
 	PINGINTERVAL = 1		/* second */
 };
 
-#define O_QUIET         (1 << 0)
-#define O_VERBOSE       (1 << 1)
-
-#define	A(bit)		rcvd_tbl[(bit)>>3]	/* identify byte in array */
-#define	B(bit)		(1 << ((bit) & 0x07))	/* identify bit in byte */
-#define	SET(bit)	(A(bit) |= B(bit))
-#define	CLR(bit)	(A(bit) &= (~B(bit)))
-#define	TST(bit)	(A(bit) & B(bit))
-
 static void ping(const char *host);
 
-/* simple version */
 #ifndef CONFIG_FEATURE_FANCY_PING6
+
+/* simple version */
+
 static struct hostent *h;
 
-void noresp(int ign)
+static void noresp(int ign)
 {
 	printf("No response from %s\n", h->h_name);
 	exit(EXIT_FAILURE);
@@ -113,8 +94,10 @@ static void ping(const char *host)
 	c = sendto(pingsock, packet, DEFDATALEN + sizeof (struct icmp6_hdr), 0,
 			   (struct sockaddr *) &pingaddr, sizeof(struct sockaddr_in6));
 
-	if (c < 0 || c != sizeof(packet))
+	if (c < 0 || c != sizeof(packet)) {
+		if (ENABLE_FEATURE_CLEAN_UP) close(pingsock);
 		bb_perror_msg_and_die("sendto");
+	}
 
 	signal(SIGALRM, noresp);
 	alarm(5);					/* give the host 5000ms to respond */
@@ -136,6 +119,7 @@ static void ping(const char *host)
 				break;
 		}
 	}
+	if (ENABLE_FEATURE_CLEAN_UP) close(pingsock);
 	printf("%s is alive!\n", h->h_name);
 	return;
 }
@@ -151,25 +135,36 @@ int ping6_main(int argc, char **argv)
 }
 
 #else /* ! CONFIG_FEATURE_FANCY_PING6 */
+
 /* full(er) version */
+
+#define OPT_STRING "qvc:s:I:"
+enum {
+	OPT_QUIET = 1 << 0,
+	OPT_VERBOSE = 1 << 1,
+};
+
 static struct sockaddr_in6 pingaddr;
 static int pingsock = -1;
-static int datalen; /* intentionally uninitialized to work around gcc bug */
-static char* ifname;
+static unsigned datalen; /* intentionally uninitialized to work around gcc bug */
+static int if_index;
 
-static long ntransmitted, nreceived, nrepeats, pingcount;
-static int myid, options;
+static unsigned long ntransmitted, nreceived, nrepeats, pingcount;
+static int myid;
 static unsigned long tmin = ULONG_MAX, tmax, tsum;
 static char rcvd_tbl[MAX_DUP_CHK / 8];
 
-# ifdef CONFIG_FEATURE_FANCY_PING
-extern
-# endif
-	struct hostent *hostent;
+static struct hostent *hostent;
 
 static void sendping(int);
 static void pingstats(int);
 static void unpack(char *, int, struct sockaddr_in6 *, int);
+
+#define	A(bit)		rcvd_tbl[(bit)>>3]	/* identify byte in array */
+#define	B(bit)		(1 << ((bit) & 0x07))	/* identify bit in byte */
+#define	SET(bit)	(A(bit) |= B(bit))
+#define	CLR(bit)	(A(bit) &= (~B(bit)))
+#define	TST(bit)	(A(bit) & B(bit))
 
 /**************************************************************************/
 
@@ -180,12 +175,12 @@ static void pingstats(int junk)
 	signal(SIGINT, SIG_IGN);
 
 	printf("\n--- %s ping statistics ---\n", hostent->h_name);
-	printf("%ld packets transmitted, ", ntransmitted);
-	printf("%ld packets received, ", nreceived);
+	printf("%lu packets transmitted, ", ntransmitted);
+	printf("%lu packets received, ", nreceived);
 	if (nrepeats)
-		printf("%ld duplicates, ", nrepeats);
+		printf("%lu duplicates, ", nrepeats);
 	if (ntransmitted)
-		printf("%ld%% packet loss\n",
+		printf("%lu%% packet loss\n",
 			   (ntransmitted - nreceived) * 100 / ntransmitted);
 	if (nreceived)
 		printf("round-trip min/avg/max = %lu.%lu/%lu.%lu/%lu.%lu ms\n",
@@ -210,7 +205,7 @@ static void sendping(int junk)
 	pkt->icmp6_type = ICMP6_ECHO_REQUEST;
 	pkt->icmp6_code = 0;
 	pkt->icmp6_cksum = 0;
-	pkt->icmp6_seq = SWAP_BE16(ntransmitted++);
+	pkt->icmp6_seq = htons(ntransmitted++);
 	pkt->icmp6_id = myid;
 	CLR(pkt->icmp6_seq % MAX_DUP_CHK);
 
@@ -246,7 +241,7 @@ static void sendping(int junk)
 #ifndef MLD_LISTENER_REDUCTION
 # define MLD_LISTENER_REDUCTION ICMP6_MEMBERSHIP_REDUCTION
 #endif
-static char *icmp6_type_name (int id)
+static char *icmp6_type_name(int id)
 {
 	switch (id) {
 	case ICMP6_DST_UNREACH:				return "Destination Unreachable";
@@ -277,12 +272,11 @@ static void unpack(char *packet, int sz, struct sockaddr_in6 *from, int hoplimit
 		return;
 
 	icmppkt = (struct icmp6_hdr *) packet;
-
 	if (icmppkt->icmp6_id != myid)
-	    return;				/* not our ping */
+		return;				/* not our ping */
 
 	if (icmppkt->icmp6_type == ICMP6_ECHO_REPLY) {
-	    ++nreceived;
+		++nreceived;
 		tp = (struct timeval *) &icmppkt->icmp6_data8[4];
 
 		if ((tv.tv_usec -= tp->tv_usec) < 0) {
@@ -307,7 +301,7 @@ static void unpack(char *packet, int sz, struct sockaddr_in6 *from, int hoplimit
 			dupflag = 0;
 		}
 
-		if (options & O_QUIET)
+		if (option_mask32 & OPT_QUIET)
 			return;
 
 		printf("%d bytes from %s: icmp6_seq=%u", sz,
@@ -318,11 +312,11 @@ static void unpack(char *packet, int sz, struct sockaddr_in6 *from, int hoplimit
 			   triptime / 10, triptime % 10);
 		if (dupflag)
 			printf(" (DUP!)");
-		printf("\n");
+		puts("");
 	} else
 		if (icmppkt->icmp6_type != ICMP6_ECHO_REQUEST)
-			bb_error_msg("Warning: Got ICMP %d (%s)",
-					icmppkt->icmp6_type, icmp6_type_name (icmppkt->icmp6_type));
+			bb_error_msg("warning: got ICMP %d (%s)",
+					icmppkt->icmp6_type, icmp6_type_name(icmppkt->icmp6_type));
 }
 
 static void ping(const char *host)
@@ -342,22 +336,16 @@ static void ping(const char *host)
 	pingaddr.sin6_family = AF_INET6;
 	hostent = xgethostbyname2(host, AF_INET6);
 	if (hostent->h_addrtype != AF_INET6)
-		bb_error_msg_and_die("unknown address type; only AF_INET6 is currently supported.");
+		bb_error_msg_and_die("unknown address type; only AF_INET6 is currently supported");
 
 	memcpy(&pingaddr.sin6_addr, hostent->h_addr, sizeof(pingaddr.sin6_addr));
 
 #ifdef ICMP6_FILTER
 	{
 		struct icmp6_filter filt;
-		if (!(options & O_VERBOSE)) {
+		if (!(option_mask32 & OPT_VERBOSE)) {
 			ICMP6_FILTER_SETBLOCKALL(&filt);
-#if 0
-			if ((options & F_FQDN) || (options & F_FQDNOLD) ||
-				(options & F_NODEADDR) || (options & F_SUPTYPES))
-				ICMP6_FILTER_SETPASS(ICMP6_NI_REPLY, &filt);
-			else
-#endif
-				ICMP6_FILTER_SETPASS(ICMP6_ECHO_REPLY, &filt);
+			ICMP6_FILTER_SETPASS(ICMP6_ECHO_REPLY, &filt);
 		} else {
 			ICMP6_FILTER_SETPASSALL(&filt);
 		}
@@ -368,9 +356,7 @@ static void ping(const char *host)
 #endif /*ICMP6_FILTER*/
 
 	/* enable broadcast pings */
-	sockopt = 1;
-	setsockopt(pingsock, SOL_SOCKET, SO_BROADCAST, (char *) &sockopt,
-			   sizeof(sockopt));
+	setsockopt_broadcast(pingsock);
 
 	/* set recv buf for broadcast pings */
 	sockopt = 48 * 1024;
@@ -385,15 +371,13 @@ static void ping(const char *host)
 	setsockopt(pingsock, SOL_IPV6, IPV6_HOPLIMIT, (char *) &sockopt,
 			   sizeof(sockopt));
 
-	if (ifname) {
-		if ((pingaddr.sin6_scope_id = if_nametoindex(ifname)) == 0)
-			bb_error_msg_and_die("%s: invalid interface name", ifname);
-	}
+	if (if_index)
+		pingaddr.sin6_scope_id = if_index;
 
 	printf("PING %s (%s): %d data bytes\n",
-	           hostent->h_name,
-			   inet_ntop(AF_INET6, &pingaddr.sin6_addr,
-						 buf, sizeof(buf)),
+		   hostent->h_name,
+		   inet_ntop(AF_INET6, &pingaddr.sin6_addr,
+			buf, sizeof(buf)),
 		   datalen);
 
 	signal(SIGINT, pingstats);
@@ -402,18 +386,18 @@ static void ping(const char *host)
 	sendping(0);
 
 	/* listen for replies */
-	msg.msg_name=&from;
-	msg.msg_namelen=sizeof(from);
-	msg.msg_iov=&iov;
-	msg.msg_iovlen=1;
-	msg.msg_control=control_buf;
-	iov.iov_base=packet;
-	iov.iov_len=sizeof(packet);
+	msg.msg_name = &from;
+	msg.msg_namelen = sizeof(from);
+	msg.msg_iov = &iov;
+	msg.msg_iovlen = 1;
+	msg.msg_control = control_buf;
+	iov.iov_base = packet;
+	iov.iov_len = sizeof(packet);
 	while (1) {
 		int c;
 		struct cmsghdr *cmsgptr = NULL;
-		int hoplimit=-1;
-		msg.msg_controllen=sizeof(control_buf);
+		int hoplimit = -1;
+		msg.msg_controllen = sizeof(control_buf);
 
 		if ((c = recvmsg(pingsock, &msg, 0)) < 0) {
 			if (errno == EINTR)
@@ -425,7 +409,7 @@ static void ping(const char *host)
 			 cmsgptr = CMSG_NXTHDR(&msg, cmsgptr)) {
 			if (cmsgptr->cmsg_level == SOL_IPV6 &&
 				cmsgptr->cmsg_type == IPV6_HOPLIMIT ) {
-				hoplimit=*(int*)CMSG_DATA(cmsgptr);
+				hoplimit = *(int*)CMSG_DATA(cmsgptr);
 			}
 		}
 		unpack(packet, c, &from, hoplimit);
@@ -437,55 +421,24 @@ static void ping(const char *host)
 
 int ping6_main(int argc, char **argv)
 {
-	char *thisarg;
+	char *opt_c, *opt_s, *opt_I;
 
 	datalen = DEFDATALEN; /* initialized here rather than in global scope to work around gcc bug */
 
-	argc--;
-	argv++;
-	options = 0;
-	/* Parse any options */
-	while (argc >= 1 && **argv == '-') {
-		thisarg = *argv;
-		thisarg++;
-		switch (*thisarg) {
-		case 'v':
-			options &= ~O_QUIET;
-			options |= O_VERBOSE;
-			break;
-		case 'q':
-			options &= ~O_VERBOSE;
-			options |= O_QUIET;
-			break;
-		case 'c':
-			if (--argc <= 0)
-			        bb_show_usage();
-			argv++;
-			pingcount = atoi(*argv);
-			break;
-		case 's':
-			if (--argc <= 0)
-			        bb_show_usage();
-			argv++;
-			datalen = atoi(*argv);
-			break;
-		case 'I':
-			if (--argc <= 0)
-			        bb_show_usage();
-			argv++;
-			ifname = *argv;
-			break;
-		default:
-			bb_show_usage();
-		}
-		argc--;
-		argv++;
+	/* exactly one argument needed, -v and -q don't mix */
+	opt_complementary = "=1:q--v:v--q"; 
+	getopt32(argc, argv, OPT_STRING, &opt_c, &opt_s, &opt_I);
+	if (option_mask32 & 4) pingcount = xatoul(opt_c); // -c
+	if (option_mask32 & 8) datalen = xatou16(opt_s); // -s
+	if (option_mask32 & 0x10) { // -I
+		if_index = if_nametoindex(opt_I);
+		if (!if_index)
+			bb_error_msg_and_die(
+				"%s: invalid interface name", opt_I);
 	}
-	if (argc < 1)
-		bb_show_usage();
 
-	myid = getpid() & 0xFFFF;
-	ping(*argv);
+	myid = (int16_t)getpid();
+	ping(argv[optind]);
 	return EXIT_SUCCESS;
 }
 #endif /* ! CONFIG_FEATURE_FANCY_PING6 */

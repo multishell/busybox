@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * probe.c - identify a block device by its contents, and return a dev
  *           struct with the details
@@ -98,7 +99,7 @@ static void get_ext2_info(blkid_dev dev, unsigned char *buf)
 static int probe_ext3(int fd __BLKID_ATTR((unused)),
 		      blkid_cache cache __BLKID_ATTR((unused)),
 		      blkid_dev dev,
-		      const struct blkid_magic *id __BLKID_ATTR((unused)), 
+		      const struct blkid_magic *id __BLKID_ATTR((unused)),
 		      unsigned char *buf)
 {
 	struct ext2_super_block *es;
@@ -125,7 +126,7 @@ static int probe_ext3(int fd __BLKID_ATTR((unused)),
 static int probe_ext2(int fd __BLKID_ATTR((unused)),
 		      blkid_cache cache __BLKID_ATTR((unused)),
 		      blkid_dev dev,
-		      const struct blkid_magic *id __BLKID_ATTR((unused)), 
+		      const struct blkid_magic *id __BLKID_ATTR((unused)),
 		      unsigned char *buf)
 {
 	struct ext2_super_block *es;
@@ -304,10 +305,10 @@ static int probe_romfs(int fd __BLKID_ATTR((unused)),
 	return 0;
 }
 
-static int probe_cramfs(int fd __BLKID_ATTR((unused)), 
-		       blkid_cache cache __BLKID_ATTR((unused)), 
+static int probe_cramfs(int fd __BLKID_ATTR((unused)),
+		       blkid_cache cache __BLKID_ATTR((unused)),
 		       blkid_dev dev,
-		       const struct blkid_magic *id __BLKID_ATTR((unused)), 
+		       const struct blkid_magic *id __BLKID_ATTR((unused)),
 		       unsigned char *buf)
 {
 	struct cramfs_super_block *csb;
@@ -705,7 +706,7 @@ int main(int argc, char **argv)
 	dev = blkid_get_dev(cache, argv[1], BLKID_DEV_NORMAL);
 	if (!dev) {
 		printf("%s: %s has an unsupported type\n", argv[0], argv[1]);
-		return (1);
+		return 1;
 	}
 	printf("%s is type %s\n", argv[1], dev->bid_type ?
 		dev->bid_type : "(null)");
@@ -715,6 +716,6 @@ int main(int argc, char **argv)
 		printf("\tuuid is %s\n", dev->bid_uuid);
 
 	blkid_free_dev(dev);
-	return (0);
+	return 0;
 }
 #endif

@@ -4,18 +4,15 @@
  *
  * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
  *
- * Licensed under the GPL v2, see the file LICENSE in this tarball.
+ * Licensed under the GPL version 2, see the file LICENSE in this tarball.
  */
 
 #include "busybox.h"
 #include <mntent.h>
-#include <dirent.h>
-#include <errno.h>
-#include <string.h>
 #include <sys/swap.h>
 
 
-static int swap_enable_disable(const char *device)
+static int swap_enable_disable(char *device)
 {
 	int status;
 	struct stat st;
@@ -27,7 +24,7 @@ static int swap_enable_disable(const char *device)
 		if (st.st_blocks * 512 < st.st_size)
 			bb_error_msg_and_die("swap file has holes");
 
-	if (bb_applet_name[5] == 'n')
+	if (applet_name[5] == 'n')
 		status = swapon(device, 0);
 	else
 		status = swapoff(device);
@@ -69,7 +66,7 @@ int swap_on_off_main(int argc, char **argv)
 	if (argc == 1)
 		bb_show_usage();
 
-	ret = bb_getopt_ulflags(argc, argv, "a");
+	ret = getopt32(argc, argv, "a");
 	if (ret & DO_ALL)
 		return do_em_all();
 

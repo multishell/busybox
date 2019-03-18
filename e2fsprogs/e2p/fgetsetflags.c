@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * fgetflags.c		- Get a file flags on an ext2 file system
  * fsetflags.c		- Set a file flags on an ext2 file system
@@ -15,15 +16,15 @@
  * 93/10/30	- Creation
  */
 
-#if HAVE_ERRNO_H
+#ifdef HAVE_ERRNO_H
 #include <errno.h>
 #endif
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
 #include <sys/types.h>
 #include <sys/stat.h>
-#if HAVE_EXT2_IOCTLS
+#ifdef HAVE_EXT2_IOCTLS
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #endif
@@ -38,7 +39,7 @@
 
 int fgetsetflags (const char * name, unsigned long * get_flags, unsigned long set_flags)
 {
-#if HAVE_EXT2_IOCTLS
+#ifdef HAVE_EXT2_IOCTLS
 	struct stat buf;
 	int fd, r, f, save_errno = 0;
 
@@ -62,8 +63,8 @@ int fgetsetflags (const char * name, unsigned long * get_flags, unsigned long se
 	if (save_errno)
 		errno = save_errno;
 	return r;
-#endif /* HAVE_EXT2_IOCTLS */
 notsupp:
+#endif /* HAVE_EXT2_IOCTLS */
 	errno = EOPNOTSUPP;
 	return -1;
 }

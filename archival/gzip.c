@@ -16,6 +16,13 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
+/* TODO: full support for -v for DESKTOP
+/usr/bin/gzip -v a bogus aa
+a:       85.1% -- replaced with a.gz
+gzip: bogus: No such file or directory
+aa:      85.1% -- replaced with aa.gz
+*/
+
 #define SMALL_MEM
 
 #include <stdlib.h>
@@ -123,8 +130,8 @@ typedef int file_t;		/* Do not use stdio */
 #define ASCII   1
 
 #ifndef WSIZE
-#  define WSIZE 0x8000	/* window size--must be a power of two, and */
-#endif							/*  at least 32K for zip's deflate method */
+#  define WSIZE 0x8000  /* window size--must be a power of two, and */
+#endif                  /*  at least 32K for zip's deflate method */
 
 #define MIN_MATCH  3
 #define MAX_MATCH  258
@@ -143,15 +150,6 @@ typedef int file_t;		/* Do not use stdio */
 /* put_byte is used for the compressed output */
 #define put_byte(c) {outbuf[outcnt++]=(uch)(c); if (outcnt==OUTBUFSIZ)\
    flush_outbuf();}
-
-
-/* Output a 32 bit value to the bit stream, lsb first */
-#if 0
-#define put_long(n) { \
-    put_short((n) & 0xffff); \
-    put_short(((ulg)(n)) >> 16); \
-}
-#endif
 
 #define seekable()    0	/* force sequential output */
 #define translate_eol 0	/* no option -a yet */
@@ -272,15 +270,14 @@ DECLARE(ush, tab_prefix, 1L << BITS);
 static int foreground;	/* set if program run in foreground */
 static int method = DEFLATED;	/* compression method */
 static int exit_code = OK;	/* program exit code */
-static int part_nb;		/* number of parts in .gz file */
 static long time_stamp;	/* original time stamp (modification time) */
-static long ifile_size;	/* input file size, -1 for devices (debug only) */
 static char z_suffix[MAX_SUFFIX + 1];	/* default suffix (can be set with --suffix) */
-static int z_len;		/* strlen(z_suffix) */
 
 static int ifd;			/* input file descriptor */
 static int ofd;			/* output file descriptor */
+#ifdef DEBUG
 static unsigned insize;	/* valid bytes in inbuf */
+#endif
 static unsigned outcnt;	/* bytes in output buffer */
 
 static uint32_t *crc_32_tab;
@@ -311,7 +308,9 @@ static void abort_gzip(int ATTRIBUTE_UNUSED ignored)
 static void clear_bufs(void)
 {
 	outcnt = 0;
+#ifdef DEBUG
 	insize = 0;
+#endif
 	bytes_in = 0L;
 }
 
@@ -484,7 +483,7 @@ static void send_bits(int value, int length)
  */
 static unsigned bi_reverse(unsigned code, int len)
 {
-	register unsigned res = 0;
+	unsigned res = 0;
 
 	do {
 		res |= code & 1;
@@ -782,7 +781,7 @@ static void check_match(IPos start, IPos match, int length);
  */
 static void lm_init(ush * flags)
 {
-	register unsigned j;
+	unsigned j;
 
 	/* Initialize the hash table. */
 	memset(head, 0, HASH_SIZE * sizeof(*head));
@@ -832,9 +831,9 @@ static void lm_init(ush * flags)
 static int longest_match(IPos cur_match)
 {
 	unsigned chain_length = max_chain_length;	/* max hash chain length */
-	register uch *scan = window + strstart;	/* current string */
-	register uch *match;	/* matched string */
-	register int len;	/* length of current match */
+	uch *scan = window + strstart;	/* current string */
+	uch *match;	/* matched string */
+	int len;	/* length of current match */
 	int best_len = prev_length;	/* best match length so far */
 	IPos limit =
 		strstart > (IPos) MAX_DIST ? strstart - (IPos) MAX_DIST : NIL;
@@ -848,9 +847,9 @@ static int longest_match(IPos cur_match)
 #if HASH_BITS < 8 || MAX_MATCH != 258
 #  error Code too clever
 #endif
-	register uch *strend = window + strstart + MAX_MATCH;
-	register uch scan_end1 = scan[best_len - 1];
-	register uch scan_end = scan[best_len];
+	uch *strend = window + strstart + MAX_MATCH;
+	uch scan_end1 = scan[best_len - 1];
+	uch scan_end = scan[best_len];
 
 	/* Do not waste too much time if we already have a good match: */
 	if (prev_length >= good_match) {
@@ -937,7 +936,7 @@ static void check_match(IPos start, IPos match, int length)
  */
 static void fill_window(void)
 {
-	register unsigned n, m;
+	unsigned n, m;
 	unsigned more =
 		(unsigned) (window_size - (ulg) lookahead - (ulg) strstart);
 	/* Amount of free space at the end of the window. */
@@ -1005,7 +1004,7 @@ static ulg deflate(void)
 	IPos prev_match;	/* previous match */
 	int flush;			/* set if current block must be flushed */
 	int match_available = 0;	/* set if previous match exists */
-	register unsigned match_length = MIN_MATCH - 1;	/* length of best match */
+	unsigned match_length = MIN_MATCH - 1;	/* length of best match */
 
 	/* Process the input block. */
 	while (lookahead != 0) {
@@ -1130,44 +1129,37 @@ typedef struct dirent dir_type;
 /* ======================================================================== */
 int gzip_main(int argc, char **argv)
 {
+	enum {
+		OPT_tostdout = 0x1,
+		OPT_force = 0x2,
+	};
+
+	unsigned opt;
 	int result;
 	int inFileNum;
 	int outFileNum;
 	struct stat statBuf;
 	char *delFileName;
-	int tostdout = 0;
-	int force = 0;
-	int opt;
 
-	while ((opt = getopt(argc, argv, "cf123456789dq")) != -1) {
-		switch (opt) {
-		case 'c':
-			tostdout = 1;
-			break;
-		case 'f':
-			force = 1;
-			break;
-			/* Ignore 1-9 (compression level) options */
-		case '1':
-		case '2':
-		case '3':
-		case '4':
-		case '5':
-		case '6':
-		case '7':
-		case '8':
-		case '9':
-			break;
-		case 'q':
-			break;
-#ifdef CONFIG_GUNZIP
-		case 'd':
-			optind = 1;
-			return gunzip_main(argc, argv);
-#endif
-		default:
-			bb_show_usage();
-		}
+	opt = getopt32(argc, argv, "cf123456789qv" USE_GUNZIP("d"));
+	//if (opt & 0x1) // -c
+	//if (opt & 0x2) // -f
+	/* Ignore 1-9 (compression level) options */
+	//if (opt & 0x4) // -1
+	//if (opt & 0x8) // -2
+	//if (opt & 0x10) // -3
+	//if (opt & 0x20) // -4
+	//if (opt & 0x40) // -5
+	//if (opt & 0x80) // -6
+	//if (opt & 0x100) // -7
+	//if (opt & 0x200) // -8
+	//if (opt & 0x400) // -9
+	//if (opt & 0x800) // -q
+	//if (opt & 0x1000) // -v
+	if (ENABLE_GUNZIP && (opt & 0x2000)) { // -d
+		/* FIXME: getopt32 should not depend on optind */
+		optind = 1;
+		return gunzip_main(argc, argv);
 	}
 
 	foreground = signal(SIGINT, SIG_IGN) != SIG_IGN;
@@ -1186,7 +1178,6 @@ int gzip_main(int argc, char **argv)
 #endif
 
 	strncpy(z_suffix, Z_SUFFIX, sizeof(z_suffix) - 1);
-	z_len = strlen(z_suffix);
 
 	/* Allocate all global buffers (for DYN_ALLOC option) */
 	ALLOC(uch, inbuf, INBUFSIZ + INBUF_EXTRA);
@@ -1196,14 +1187,12 @@ int gzip_main(int argc, char **argv)
 	ALLOC(ush, tab_prefix, 1L << BITS);
 
 	/* Initialise the CRC32 table */
-	crc_32_tab = bb_crc32_filltable(0);
-	
+	crc_32_tab = crc32_filltable(0);
+
 	clear_bufs();
-	part_nb = 0;
 
 	if (optind == argc) {
 		time_stamp = 0;
-		ifile_size = -1L;
 		zip(STDIN_FILENO, STDOUT_FILENO);
 	} else {
 		int i;
@@ -1214,20 +1203,16 @@ int gzip_main(int argc, char **argv)
 			clear_bufs();
 			if (strcmp(argv[i], "-") == 0) {
 				time_stamp = 0;
-				ifile_size = -1L;
 				inFileNum = STDIN_FILENO;
 				outFileNum = STDOUT_FILENO;
 			} else {
-				inFileNum = bb_xopen3(argv[i], O_RDONLY, 0);
+				inFileNum = xopen(argv[i], O_RDONLY);
 				if (fstat(inFileNum, &statBuf) < 0)
 					bb_perror_msg_and_die("%s", argv[i]);
 				time_stamp = statBuf.st_ctime;
-				ifile_size = statBuf.st_size;
 
-				if (!tostdout) {
-					path = xmalloc(strlen(argv[i]) + 4);
-					strcpy(path, argv[i]);
-					strcat(path, ".gz");
+				if (!(opt & OPT_tostdout)) {
+					path = xasprintf("%s.gz", argv[i]);
 
 					/* Open output file */
 #if (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 1) && defined O_NOFOLLOW
@@ -1248,7 +1233,7 @@ int gzip_main(int argc, char **argv)
 					outFileNum = STDOUT_FILENO;
 			}
 
-			if (path == NULL && isatty(outFileNum) && force == 0) {
+			if (path == NULL && isatty(outFileNum) && !(opt & OPT_force)) {
 				bb_error_msg
 					("compressed data not written to a terminal. Use -f to force compression.");
 				free(path);
@@ -1275,7 +1260,7 @@ int gzip_main(int argc, char **argv)
 		}
 	}
 
-	return (exit_code);
+	return exit_code;
 }
 
 /* trees.c -- output deflated data using Huffman coding
@@ -2421,7 +2406,6 @@ static int zip(int in, int out)
 	outcnt = 0;
 
 	/* Write the header to the gzip file. See algorithm.doc for the format */
-
 
 	method = DEFLATED;
 	put_header_byte(GZIP_MAGIC[0]);	/* magic header */

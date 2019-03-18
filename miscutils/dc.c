@@ -1,4 +1,8 @@
 /* vi: set sw=4 ts=4: */
+/*
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
+ */
+
 #include "busybox.h"
 #include <ctype.h>
 #include <stdio.h>
@@ -167,7 +171,7 @@ static void stack_machine(const char *argument)
 		}
 		o++;
 	}
-	bb_error_msg_and_die("%s: syntax error.", argument);
+	bb_error_msg_and_die("%s: syntax error", argument);
 }
 
 /* return pointer to next token in buffer and set *buffer to one char
@@ -175,10 +179,10 @@ static void stack_machine(const char *argument)
  */
 static char *get_token(char **buffer)
 {
-	char *start   = NULL;
-	char *current = *buffer;
+	char *start = NULL;
+	char *current;
 
-	while (isspace(*current)) { current++; }
+	current = skip_whitespace(*buffer);
 	if (*current != 0) {
 		start = current;
 		while (!isspace(*current) && *current != 0) { current++; }
@@ -204,7 +208,7 @@ int dc_main(int argc, char **argv)
 		char *line   = NULL;
 		char *cursor = NULL;
 		char *token  = NULL;
-		while ((line = bb_get_chomped_line_from_file(stdin))) {
+		while ((line = xmalloc_getline(stdin))) {
 			cursor = line;
 			len = number_of_tokens(line);
 			for (i = 0; i < len; i++) {

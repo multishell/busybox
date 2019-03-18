@@ -2,8 +2,9 @@
 /*
  * fsck.c - a file system consistency checker for Linux.
  *
- * (C) 1991, 1992 Linus Torvalds. This file may be redistributed
- * as per the GNU copyleft.
+ * (C) 1991, 1992 Linus Torvalds.
+ *
+ * Licensed under GPLv2, see file LICENSE in this tarball for details.
  */
 
 /*
@@ -86,17 +87,8 @@
  * enforced (but it's not much fun on a character device :-).
  */
 
-#include <stdio.h>
-#include <errno.h>
-#include <unistd.h>
-#include <string.h>
-#include <fcntl.h>
-#include <ctype.h>
-#include <stdlib.h>
-#include <termios.h>
-#include <mntent.h>
-#include <sys/param.h>
 #include "busybox.h"
+#include <mntent.h>
 
 /*
  * This is the original minix inode layout on disk.
@@ -247,7 +239,7 @@ static void recursive_check(unsigned int ino);
 static void recursive_check2(unsigned int ino);
 #endif
 
-static inline int bit(char *a, unsigned int i)
+static int bit(char *a, unsigned int i)
 {
 	  return (a[i >> 3] & (1<<(i & 7))) != 0;
 }
@@ -282,7 +274,7 @@ static char *name_component[MAX_DEPTH+1];
 
 /* Wed Feb  9 15:17:06 MST 2000 */
 /* dynamically allocate name_list (instead of making it static) */
-static inline void alloc_current_name(void)
+static void alloc_current_name(void)
 {
 	current_name = xmalloc(MAX_DEPTH * (BUFSIZ + 1));
 	current_name[0] = '/';
@@ -293,7 +285,7 @@ static inline void alloc_current_name(void)
 #ifdef CONFIG_FEATURE_CLEAN_UP
 /* execute this atexit() to deallocate name_list[] */
 /* piptigger was here */
-static inline void free_current_name(void)
+static void free_current_name(void)
 {
 	free(current_name);
 }
@@ -330,12 +322,12 @@ static int ask(const char *string, int def)
 	int c;
 
 	if (!repair) {
-		printf("\n");
+		puts("");
 		errors_uncorrected = 1;
 		return 0;
 	}
 	if (automatic) {
-		printf("\n");
+		puts("");
 		if (!def)
 			errors_uncorrected = 1;
 		return def;
@@ -453,7 +445,7 @@ static void read_block(unsigned int nr, char *addr)
 		return;
 	}
 	if (BLOCK_SIZE * nr != lseek(IN, BLOCK_SIZE * nr, SEEK_SET)) {
-		printf("%s: unable to seek to block in file '%s'\n",
+		printf("%s: cannot seek to block in file '%s'\n",
 				bb_msg_read_error, current_name);
 		errors_uncorrected = 1;
 		memset(addr, 0, BLOCK_SIZE);
@@ -1351,7 +1343,7 @@ int fsck_minix_main(int argc, char **argv)
 	 * flags and whether or not the -f switch was specified on the
 	 * command line.
 	 */
-	printf("%s, %s\n", bb_applet_name, program_version);
+	printf("%s, %s\n", applet_name, program_version);
 	if (!(Super.s_state & MINIX_ERROR_FS) &&
 		(Super.s_state & MINIX_VALID_FS) && !force) {
 		if (repair)

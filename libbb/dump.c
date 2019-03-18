@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * Support code for the hexdump and od applets,
  * based on code from util-linux v 2.11l
@@ -11,9 +12,6 @@
  */
 
 #include "libbb.h"
-#include <string.h>
-#include <unistd.h>
-#include <ctype.h>		/* for isdigit() */
 #include "dump.h"
 
 enum _vflag bb_dump_vflag = FIRST;
@@ -37,9 +35,9 @@ static const char lcc[] = "diouxX";
 
 int bb_dump_size(FS * fs)
 {
-	register FU *fu;
-	register int bcnt, cur_size;
-	register char *fmt;
+	FU *fu;
+	int bcnt, cur_size;
+	char *fmt;
 	const char *p;
 	int prec;
 
@@ -76,7 +74,7 @@ int bb_dump_size(FS * fs)
 		}
 		cur_size += bcnt * fu->reps;
 	}
-	return (cur_size);
+	return cur_size;
 }
 
 static void rewrite(FS * fs)
@@ -155,7 +153,7 @@ static void rewrite(FS * fs)
 				}
 				/* Unlike the original, output the remainder of the format string. */
 				if (!*byte_count_str) {
-					bb_error_msg_and_die("bad byte count for conversion character %s.", p1);
+					bb_error_msg_and_die("bad byte count for conversion character %s", p1);
 				}
 				pr->bcnt = *byte_count_str;
 			} else if (*p1 == 'l') {
@@ -188,7 +186,7 @@ static void rewrite(FS * fs)
 				} else if (sokay == USEPREC) {
 					pr->bcnt = prec;
 				} else {	/* NOTOKAY */
-					bb_error_msg_and_die("%%s requires a precision or a byte count.");
+					bb_error_msg_and_die("%%s requires a precision or a byte count");
 				}
 			} else if (*p1 == '_') {
 				++p2;
@@ -222,7 +220,7 @@ static void rewrite(FS * fs)
 				}
 			} else {
 			DO_BAD_CONV_CHAR:
-				bb_error_msg_and_die("bad conversion character %%%s.\n", p1);
+				bb_error_msg_and_die("bad conversion character %%%s", p1);
 			}
 
 			/*
@@ -231,7 +229,7 @@ static void rewrite(FS * fs)
 			 */
 			savech = *p2;
 			p1[1] = '\0';
-			pr->fmt = bb_xstrdup(fmtp);
+			pr->fmt = xstrdup(fmtp);
 			*p2 = savech;
 			pr->cchar = pr->fmt + (p1 - fmtp);
 
@@ -255,7 +253,7 @@ static void rewrite(FS * fs)
 
 			/* only one conversion character if byte count */
 			if (!(pr->flags & F_ADDRESS) && fu->bcnt && nconv++) {
-				bb_error_msg_and_die("byte count with multiple conversion characters.\n");
+				bb_error_msg_and_die("byte count with multiple conversion characters");
 			}
 		}
 		/*
@@ -324,7 +322,7 @@ static int next(char **argv)
 
 	if (argv) {
 		_argv = argv;
-		return (1);
+		return 1;
 	}
 	for (;;) {
 		if (*_argv) {
@@ -337,7 +335,7 @@ static int next(char **argv)
 			statok = done = 1;
 		} else {
 			if (done++)
-				return (0);
+				return 0;
 			statok = 0;
 		}
 		if (bb_dump_skip)
@@ -345,7 +343,7 @@ static int next(char **argv)
 		if (*_argv)
 			++_argv;
 		if (!bb_dump_skip)
-			return (1);
+			return 1;
 	}
 	/* NOTREACHED */
 }
@@ -354,7 +352,7 @@ static unsigned char *get(void)
 {
 	static int ateof = 1;
 	static unsigned char *curp=NULL, *savp; /*DBU:[dave@cray.com]initialize curp */
-	register int n;
+	int n;
 	int need, nread;
 	unsigned char *tmpp;
 
@@ -376,17 +374,17 @@ static unsigned char *get(void)
 		 */
 		if (!bb_dump_length || (ateof && !next((char **) NULL))) {
 			if (need == bb_dump_blocksize) {
-				return ((unsigned char *) NULL);
+				return NULL;
 			}
 			if (bb_dump_vflag != ALL && !memcmp(curp, savp, nread)) {
 				if (bb_dump_vflag != DUP) {
-					printf("*\n");
+					puts("*");
 				}
-				return ((unsigned char *) NULL);
+				return NULL;
 			}
 			memset((char *) curp + nread, 0, need);
 			eaddress = address + nread;
-			return (curp);
+			return curp;
 		}
 		n = fread((char *) curp + nread, sizeof(unsigned char),
 				  bb_dump_length == -1 ? need : MIN(bb_dump_length, need), stdin);
@@ -407,10 +405,10 @@ static unsigned char *get(void)
 				if (bb_dump_vflag == DUP || bb_dump_vflag == FIRST) {
 					bb_dump_vflag = WAIT;
 				}
-				return (curp);
+				return curp;
 			}
 			if (bb_dump_vflag == WAIT) {
-				printf("*\n");
+				puts("*");
 			}
 			bb_dump_vflag = DUP;
 			address = savaddress += bb_dump_blocksize;
@@ -502,11 +500,11 @@ static void conv_u(PR * pr, unsigned char * p)
 static void display(void)
 {
 /*  extern FU *endfu; */
-	register FS *fs;
-	register FU *fu;
-	register PR *pr;
-	register int cnt;
-	register unsigned char *bp;
+	FS *fs;
+	FU *fu;
+	PR *pr;
+	int cnt;
+	unsigned char *bp;
 
 	off_t saveaddress;
 	unsigned char savech = 0, *savebp;
@@ -650,7 +648,7 @@ static void display(void)
 
 int bb_dump_dump(char **argv)
 {
-	register FS *tfs;
+	FS *tfs;
 
 	/* figure out the data block bb_dump_size */
 	for (bb_dump_blocksize = 0, tfs = bb_dump_fshead; tfs; tfs = tfs->nextfs) {
@@ -667,7 +665,7 @@ int bb_dump_dump(char **argv)
 	next(argv);
 	display();
 
-	return (exitval);
+	return exitval;
 }
 
 void bb_dump_add(const char *fmt)

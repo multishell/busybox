@@ -1,4 +1,5 @@
 /* vi: set sw=4 ts=4: */
+
 /*
  * vlock implementation for busybox
  *
@@ -15,18 +16,8 @@
 /* Fixed by Erik Andersen to do passwords the tinylogin way...
  * It now works with md5, sha1, etc passwords. */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/vt.h>
-#include <signal.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <sys/ioctl.h>
-#include <termios.h>
-
 #include "busybox.h"
+#include <sys/vt.h>
 
 static struct passwd *pw;
 static struct vt_mode ovtm;
@@ -36,10 +27,7 @@ static unsigned long o_lock_all;
 
 static void release_vt(int signo)
 {
-	if (!o_lock_all)
-		ioctl(vfd, VT_RELDISP, 1);
-	else
-		ioctl(vfd, VT_RELDISP, 0);
+	ioctl(vfd, VT_RELDISP, !o_lock_all);
 }
 
 static void acquire_vt(int signo)
@@ -59,18 +47,19 @@ int vlock_main(int argc, char **argv)
 	struct sigaction sa;
 	struct vt_mode vtm;
 	struct termios term;
+	uid_t uid = getuid();
+
+	pw = getpwuid(uid);
+	if (pw == NULL)
+		bb_error_msg_and_die("unknown uid %d", uid);
 
 	if (argc > 2) {
 		bb_show_usage();
 	}
 
-	o_lock_all = bb_getopt_ulflags (argc, argv, "a");
+	o_lock_all = getopt32(argc, argv, "a");
 
-	if((pw = getpwuid(getuid())) == NULL) {
-		bb_error_msg_and_die("Unknown uid %d", getuid());
-	}
-
-	vfd = bb_xopen(CURRENT_TTY, O_RDWR);
+	vfd = xopen(CURRENT_TTY, O_RDWR);
 
 	if (ioctl(vfd, VT_GETMODE, &vtm) < 0) {
 		bb_perror_msg_and_die("VT_GETMODE");
@@ -117,14 +106,13 @@ int vlock_main(int argc, char **argv)
 	tcsetattr(STDIN_FILENO, TCSANOW, &term);
 
 	do {
-		printf("Virtual Console%s locked.\n%s's ", (o_lock_all) ? "s" : "", pw->pw_name);
-		fflush(stdout);
-		if (correct_password (pw)) {
+		printf("Virtual Console%s locked by %s.\n", (o_lock_all) ? "s" : "", pw->pw_name);
+		if (correct_password(pw)) {
 			break;
 		}
 		bb_do_delay(FAIL_DELAY);
-		puts("Password incorrect.");
+		puts("Password incorrect");
 	} while (1);
 	restore_terminal();
-	return 0;
+	fflush_stdout_and_exit(0);
 }

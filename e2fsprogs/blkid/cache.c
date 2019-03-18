@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * cache.c - allocation/initialization/free routines for cache
  *
@@ -101,7 +102,7 @@ int main(int argc, char** argv)
 
 	blkid_debug_mask = DEBUG_ALL;
 	if ((argc > 2)) {
-		fprintf(stderr, "Usage: %s [filename] \n", argv[0]);
+		fprintf(stderr, "Usage: %s [filename]\n", argv[0]);
 		exit(1);
 	}
 

@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * chattr.c		- Change file attributes on an ext2 file system
  *
@@ -51,14 +52,6 @@ static unsigned long version;
 static unsigned long af;
 static unsigned long rf;
 static unsigned long sf;
-
-#ifdef CONFIG_LFS
-# define LSTAT lstat64
-# define STRUCT_STAT struct stat64
-#else
-# define LSTAT lstat
-# define STRUCT_STAT struct stat
-#endif
 
 struct flags_char {
 	unsigned long flag;
@@ -119,9 +112,9 @@ static int chattr_dir_proc(const char *, struct dirent *, void *);
 static void change_attributes(const char * name)
 {
 	unsigned long fsflags;
-	STRUCT_STAT	st;
+	struct stat st;
 
-	if (LSTAT(name, &st) == -1) {
+	if (lstat(name, &st) == -1) {
 		bb_error_msg("stat %s failed", name);
 		return;
 	}

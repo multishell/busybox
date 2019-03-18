@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * getsize.c --- get the size of a partition.
  *
@@ -13,10 +14,8 @@
 #include "blkidP.h"
 
 #include <stdio.h>
-#if HAVE_UNISTD_H
 #include <unistd.h>
-#endif
-#if HAVE_ERRNO_H
+#ifdef HAVE_ERRNO_H
 #include <errno.h>
 #endif
 #include <fcntl.h>

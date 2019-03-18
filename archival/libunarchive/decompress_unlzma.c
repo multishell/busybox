@@ -1,4 +1,4 @@
-/* vi:set ts=4: */
+/* vi: set sw=4 ts=4: */
 /*
  * Small lzma deflate implementation.
  * Copyright (C) 2006  Aurelien Jacobs <aurel@gnuage.org>
@@ -211,9 +211,10 @@ typedef struct {
 #define LZMA_REP_LEN_CODER (LZMA_LEN_CODER + LZMA_NUM_LEN_PROBS)
 #define LZMA_LITERAL (LZMA_REP_LEN_CODER + LZMA_NUM_LEN_PROBS)
 
-
-int unlzma(int src_fd, int dst_fd)
+USE_DESKTOP(long long) int
+unlzma(int src_fd, int dst_fd)
 {
+	USE_DESKTOP(long long total_written = 0;)
 	lzma_header_t header;
 	int lc, pb, lp;
 	uint32_t pos_state_mask;
@@ -305,7 +306,9 @@ int unlzma(int src_fd, int dst_fd)
 			if (buffer_pos == header.dict_size) {
 				buffer_pos = 0;
 				global_pos += header.dict_size;
+				// FIXME: error check
 				write(dst_fd, buffer, header.dict_size);
+				USE_DESKTOP(total_written += header.dict_size;)
 			}
 			if (state < 4)
 				state = 0;
@@ -345,7 +348,9 @@ int unlzma(int src_fd, int dst_fd)
 						if (buffer_pos == header.dict_size) {
 							buffer_pos = 0;
 							global_pos += header.dict_size;
+							// FIXME: error check
 							write(dst_fd, buffer, header.dict_size);
+							USE_DESKTOP(total_written += header.dict_size;)
 						}
 						continue;
 					} else {
@@ -456,16 +461,18 @@ int unlzma(int src_fd, int dst_fd)
 				if (buffer_pos == header.dict_size) {
 					buffer_pos = 0;
 					global_pos += header.dict_size;
+					// FIXME: error check
 					write(dst_fd, buffer, header.dict_size);
+					USE_DESKTOP(total_written += header.dict_size;)
 				}
 				len--;
 			} while (len != 0 && buffer_pos < header.dst_size);
 		}
 	}
 
+	// FIXME: error check
 	write(dst_fd, buffer, buffer_pos);
+	USE_DESKTOP(total_written += buffer_pos;)
 	rc_free(&rc);
-	return 0;
+	return USE_DESKTOP(total_written) + 0;
 }
-
-/* vi:set ts=4: */

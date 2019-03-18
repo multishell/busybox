@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * version.c --- Return the version of the ext2 library
  *
@@ -18,8 +19,6 @@
 
 #include "ext2_fs.h"
 #include "ext2fs.h"
-
-//#include "../../version.h"
 
 static const char *lib_version = E2FSPROGS_VERSION;
 static const char *lib_date = E2FSPROGS_DATE;

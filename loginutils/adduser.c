@@ -8,14 +8,6 @@
  * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
-#include <stdio.h>
-#include <sys/types.h>
-#include <string.h>
-#include <unistd.h>
-#include <time.h>
-#include <getopt.h>
-#include <sys/stat.h>
-
 #include "busybox.h"
 
 #define DONT_SET_PASS			(1 << 4)
@@ -32,7 +24,7 @@ static int passwd_study(const char *filename, struct passwd *p)
 	const int min = 500;
 	const int max = 65000;
 
-	passwd = bb_xfopen(filename, "r");
+	passwd = xfopen(filename, "r");
 
 	/* EDR if uid is out of bounds, set to min */
 	if ((p->pw_uid > max) || (p->pw_uid < min))
@@ -78,7 +70,7 @@ static void addgroup_wrapper(struct passwd *p)
 {
 	char *cmd;
 
-	cmd = bb_xasprintf("addgroup -g %d \"%s\"", p->pw_gid, p->pw_name);
+	cmd = xasprintf("addgroup -g %d \"%s\"", p->pw_gid, p->pw_name);
 	system(cmd);
 	free(cmd);
 }
@@ -89,7 +81,7 @@ static void passwd_wrapper(const char *login)
 {
 	static const char prog[] = "passwd";
 	execlp(prog, prog, login, NULL);
-	bb_error_msg_and_die("Failed to execute '%s', you must set the password for '%s' manually", prog, login);
+	bb_error_msg_and_die("failed to execute '%s', you must set the password for '%s' manually", prog, login);
 }
 
 /* putpwent(3) remix */
@@ -99,7 +91,7 @@ static int adduser(struct passwd *p, unsigned long flags)
 	int addgroup = !p->pw_gid;
 
 	/* make sure everything is kosher and setup uid && gid */
-	file = bb_xfopen(bb_path_passwd_file, "a");
+	file = xfopen(bb_path_passwd_file, "a");
 	fseek(file, 0, SEEK_END);
 
 	switch (passwd_study(bb_path_passwd_file, p)) {
@@ -119,14 +111,14 @@ static int adduser(struct passwd *p, unsigned long flags)
 
 #if ENABLE_FEATURE_SHADOWPASSWDS
 	/* add to shadow if necessary */
-	file = bb_xfopen(bb_path_shadow_file, "a");
+	file = xfopen(bb_path_shadow_file, "a");
 	fseek(file, 0, SEEK_END);
 	fprintf(file, "%s:!:%ld:%d:%d:%d:::\n",
-					p->pw_name,				/* username */
-					time(NULL) / 86400,		/* sp->sp_lstchg */ 
-					0,						/* sp->sp_min */
-					99999,					/* sp->sp_max */
-					7);						/* sp->sp_warn */
+			p->pw_name,             /* username */
+			time(NULL) / 86400,     /* sp->sp_lstchg */ 
+			0,                      /* sp->sp_min */
+			99999,                  /* sp->sp_max */
+			7);                     /* sp->sp_warn */
 	fclose(file);
 #endif
 
@@ -145,8 +137,8 @@ static int adduser(struct passwd *p, unsigned long flags)
 		if (mkdir(p->pw_dir, 0755)
 		|| chown(p->pw_dir, p->pw_uid, p->pw_gid)
 		|| chmod(p->pw_dir, 02755)) {
- 			bb_perror_msg("%s", p->pw_dir);
- 		}
+			bb_perror_msg("%s", p->pw_dir);
+		}
 	}
 
 	if (!(flags & DONT_SET_PASS)) {
@@ -177,18 +169,18 @@ int adduser_main(int argc, char **argv)
 	pw.pw_dir = NULL;
 
 	/* check for min, max and missing args and exit on error */
-	bb_opt_complementally = "-1:?1:?";
-	flags = bb_getopt_ulflags(argc, argv, "h:g:s:G:DSH", &pw.pw_dir, &pw.pw_gecos, &pw.pw_shell, &usegroup);
+	opt_complementary = "-1:?1:?";
+	flags = getopt32(argc, argv, "h:g:s:G:DSH", &pw.pw_dir, &pw.pw_gecos, &pw.pw_shell, &usegroup);
 
 	/* got root? */
 	if(geteuid()) {
 		bb_error_msg_and_die(bb_msg_perm_denied_are_you_root);
- 	}
+	}
 
 	/* create string for $HOME if not specified already */
 	if (!pw.pw_dir) {
 		snprintf(bb_common_bufsiz1, BUFSIZ, "/home/%s", argv[optind]);
-		pw.pw_dir =  &bb_common_bufsiz1[0];
+		pw.pw_dir = &bb_common_bufsiz1[0];
 	}
 
 	/* create a passwd struct */

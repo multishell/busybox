@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * mountopts.c --- convert between default mount options and strings
  *
@@ -99,7 +100,7 @@ int e2p_edit_mntopts(const char *str, __u32 *mntopts, __u32 ok)
 	int	neg;
 	unsigned int	mask;
 
-	buf = bb_xstrdup(str);
+	buf = xstrdup(str);
 	cp = buf;
 	while (cp && *cp) {
 		neg = 0;

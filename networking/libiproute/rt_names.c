@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * rt_names.c		rtnetlink names DB.
  *
@@ -15,7 +16,7 @@
 #include <stdint.h>
 #include "rt_names.h"
 
-static void rtnl_tab_initialize(char *file, char **tab, int size)
+static void rtnl_tab_initialize(char *file, const char **tab, int size)
 {
 	char buf[512];
 	FILE *fp;
@@ -50,7 +51,7 @@ static void rtnl_tab_initialize(char *file, char **tab, int size)
 }
 
 
-static char * rtnl_rtprot_tab[256] = {
+static const char * rtnl_rtprot_tab[256] = {
 	"none",
 	"redirect",
 	"kernel",
@@ -95,7 +96,7 @@ const char * rtnl_rtprot_n2a(int id, char *buf, int len)
 
 int rtnl_rtprot_a2n(uint32_t *id, char *arg)
 {
-	static char *cache = NULL;
+	static const char *cache = NULL;
 	static unsigned long res;
 	char *end;
 	int i;
@@ -127,7 +128,7 @@ int rtnl_rtprot_a2n(uint32_t *id, char *arg)
 
 
 
-static char * rtnl_rtscope_tab[256] = {
+static const char * rtnl_rtscope_tab[256] = {
 	"global",
 };
 
@@ -162,7 +163,7 @@ const char * rtnl_rtscope_n2a(int id, char *buf, int len)
 
 int rtnl_rtscope_a2n(uint32_t *id, char *arg)
 {
-	static char *cache = NULL;
+	static const char *cache = NULL;
 	static unsigned long res;
 	char *end;
 	int i;
@@ -194,7 +195,7 @@ int rtnl_rtscope_a2n(uint32_t *id, char *arg)
 
 
 
-static char * rtnl_rtrealm_tab[256] = {
+static const char * rtnl_rtrealm_tab[256] = {
 	"unknown",
 };
 
@@ -209,7 +210,7 @@ static void rtnl_rtrealm_initialize(void)
 
 int rtnl_rtrealm_a2n(uint32_t *id, char *arg)
 {
-	static char *cache = NULL;
+	static const char *cache = NULL;
 	static unsigned long res;
 	char *end;
 	int i;
@@ -239,9 +240,25 @@ int rtnl_rtrealm_a2n(uint32_t *id, char *arg)
 	return 0;
 }
 
+#if ENABLE_FEATURE_IP_RULE
+const char * rtnl_rtrealm_n2a(int id, char *buf, int len)
+{
+	if (id<0 || id>=256) {
+		snprintf(buf, len, "%d", id);
+		return buf;
+	}
+	if (!rtnl_rtrealm_tab[id]) {
+		if (!rtnl_rtrealm_init)
+			rtnl_rtrealm_initialize();
+	}
+	if (rtnl_rtrealm_tab[id])
+		return rtnl_rtrealm_tab[id];
+	snprintf(buf, len, "%d", id);
+	return buf;
+}
+#endif
 
-
-static char * rtnl_rtdsfield_tab[256] = {
+static const char * rtnl_rtdsfield_tab[256] = {
 	"0",
 };
 
@@ -273,7 +290,7 @@ const char * rtnl_dsfield_n2a(int id, char *buf, int len)
 
 int rtnl_dsfield_a2n(uint32_t *id, char *arg)
 {
-	static char *cache = NULL;
+	static const char *cache = NULL;
 	static unsigned long res;
 	char *end;
 	int i;
@@ -303,3 +320,65 @@ int rtnl_dsfield_a2n(uint32_t *id, char *arg)
 	return 0;
 }
 
+#if ENABLE_FEATURE_IP_RULE
+static int rtnl_rttable_init;
+static const char * rtnl_rttable_tab[256] = {
+	"unspec",
+};
+static void rtnl_rttable_initialize(void)
+{
+	rtnl_rttable_init = 1;
+	rtnl_rttable_tab[255] = "local";
+	rtnl_rttable_tab[254] = "main";
+	rtnl_rttable_tab[253] = "default";
+	rtnl_tab_initialize("/etc/iproute2/rt_tables", rtnl_rttable_tab, 256);
+}
+
+const char *rtnl_rttable_n2a(int id, char *buf, int len)
+{
+	if (id < 0 || id >= 256) {
+		snprintf(buf, len, "%d", id);
+		return buf;
+	}
+	if (!rtnl_rttable_tab[id]) {
+		if (!rtnl_rttable_init)
+			rtnl_rttable_initialize();
+	}
+	if (rtnl_rttable_tab[id])
+		return rtnl_rttable_tab[id];
+	snprintf(buf, len, "%d", id);
+	return buf;
+}
+
+int rtnl_rttable_a2n(uint32_t * id, char *arg)
+{
+	static char *cache = NULL;
+	static unsigned long res;
+	char *end;
+	int i;
+
+	if (cache && strcmp(cache, arg) == 0) {
+		*id = res;
+		return 0;
+	}
+
+	if (!rtnl_rttable_init)
+		rtnl_rttable_initialize();
+
+	for (i = 0; i < 256; i++) {
+		if (rtnl_rttable_tab[i] && strcmp(rtnl_rttable_tab[i], arg) == 0) {
+			cache = (char*)rtnl_rttable_tab[i];
+			res = i;
+			*id = res;
+			return 0;
+		}
+	}
+
+	i = strtoul(arg, &end, 0);
+	if (!end || end == arg || *end || i > 255)
+		return -1;
+	*id = i;
+	return 0;
+}
+
+#endif

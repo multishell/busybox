@@ -17,8 +17,10 @@
 #include <string.h>
 #include <assert.h>
 
-#if ENABLE_STATIC && defined(__GLIBC__)
+/* Apparently uclibc defines __GLIBC__ (compat trick?). Oh well. */
+#if ENABLE_STATIC && defined(__GLIBC__) && !defined(__UCLIBC__)
 #warning Static linking against glibc produces buggy executables
+#warning (glibc does not cope well with ld --gc-sections).
 #warning See sources.redhat.com/bugzilla/show_bug.cgi?id=3400
 #warning Note that glibc is utterly unsuitable for static linking anyway.
 #endif
@@ -48,41 +50,39 @@ const size_t NUM_APPLETS = (sizeof (applets) / sizeof (struct BB_applet) - 1);
 #ifdef CONFIG_FEATURE_SUID_CONFIG
 
 #include <ctype.h>
-#include "pwd_.h"
-#include "grp_.h"
 
 #define CONFIG_FILE "/etc/busybox.conf"
 
 /* applets [] is const, so we have to define this "override" structure */
 static struct BB_suid_config
 {
-  struct BB_applet *m_applet;
+	struct BB_applet *m_applet;
 
-  uid_t m_uid;
-  gid_t m_gid;
-  mode_t m_mode;
+	uid_t m_uid;
+	gid_t m_gid;
+	mode_t m_mode;
 
-  struct BB_suid_config *m_next;
+	struct BB_suid_config *m_next;
 } *suid_config;
 
 static int suid_cfg_readable;
 
 /* check if u is member of group g */
-static int ingroup (uid_t u, gid_t g)
+static int ingroup(uid_t u, gid_t g)
 {
-  struct group *grp = getgrgid (g);
+	struct group *grp = getgrgid(g);
 
-  if (grp) {
-	char **mem;
+	if (grp) {
+		char **mem;
 
-	for (mem = grp->gr_mem; *mem; mem++) {
-	  struct passwd *pwd = getpwnam (*mem);
+		for (mem = grp->gr_mem; *mem; mem++) {
+			struct passwd *pwd = getpwnam(*mem);
 
-	  if (pwd && (pwd->pw_uid == u))
-		return 1;
+			if (pwd && (pwd->pw_uid == u))
+				return 1;
+		}
 	}
-  }
-  return 0;
+	return 0;
 }
 
 /* This should probably be a libbb routine.  In that case,
@@ -143,7 +143,7 @@ static void parse_config_file(void)
 		|| !S_ISREG(st.st_mode)					/* Not a regular file? */
 		|| (st.st_uid != 0)						/* Not owned by root? */
 		|| (st.st_mode & (S_IWGRP | S_IWOTH))	/* Writable by non-root? */
-		|| !(f = fopen(config_file, "r"))		/* Can not open? */
+		|| !(f = fopen(config_file, "r"))		/* Cannot open? */
 		) {
 		return;
 	}
@@ -272,8 +272,8 @@ static void parse_config_file(void)
 
 					sct->m_uid = strtoul(s, &e2, 10);
 					if (*e2 || (s == e2)) {
-						struct passwd *pwd;
-						if (!(pwd = getpwnam(s))) {
+						struct passwd *pwd = getpwnam(s);
+						if (!pwd) {
 							parse_error("user");
 						}
 						sct->m_uid = pwd->pw_uid;
@@ -324,68 +324,60 @@ static void parse_config_file(void)
 #endif /* CONFIG_FEATURE_SUID_CONFIG */
 
 #ifdef CONFIG_FEATURE_SUID
-static void check_suid (struct BB_applet *applet)
+static void check_suid(struct BB_applet *applet)
 {
-  uid_t ruid = getuid ();               /* real [ug]id */
-  uid_t rgid = getgid ();
+	uid_t ruid = getuid();               /* real [ug]id */
+	uid_t rgid = getgid();
 
 #ifdef CONFIG_FEATURE_SUID_CONFIG
-  if (suid_cfg_readable) {
-	struct BB_suid_config *sct;
+	if (suid_cfg_readable) {
+		struct BB_suid_config *sct;
 
-	for (sct = suid_config; sct; sct = sct->m_next) {
-	  if (sct->m_applet == applet)
-		break;
-	}
-	if (sct) {
-	  mode_t m = sct->m_mode;
+		for (sct = suid_config; sct; sct = sct->m_next) {
+			if (sct->m_applet == applet)
+				break;
+		}
+		if (sct) {
+			mode_t m = sct->m_mode;
 
-	  if (sct->m_uid == ruid)       /* same uid */
-		m >>= 6;
-	  else if ((sct->m_gid == rgid) || ingroup (ruid, sct->m_gid))  /* same group / in group */
-		m >>= 3;
+			if (sct->m_uid == ruid)       /* same uid */
+				m >>= 6;
+			else if ((sct->m_gid == rgid) || ingroup(ruid, sct->m_gid))  /* same group / in group */
+				m >>= 3;
 
-	  if (!(m & S_IXOTH))           /* is x bit not set ? */
-		bb_error_msg_and_die ("You have no permission to run this applet!");
+			if (!(m & S_IXOTH))           /* is x bit not set ? */
+				bb_error_msg_and_die("you have no permission to run this applet!");
 
-	  if ((sct->m_mode & (S_ISGID | S_IXGRP)) == (S_ISGID | S_IXGRP)) {     /* *both* have to be set for sgid */
-		if (setegid (sct->m_gid))
-		  bb_error_msg_and_die
-			("BusyBox binary has insufficient rights to set proper GID for applet!");
-	  } else
-		setgid (rgid);                  /* no sgid -> drop */
+			if ((sct->m_mode & (S_ISGID | S_IXGRP)) == (S_ISGID | S_IXGRP)) {     /* *both* have to be set for sgid */
+				xsetgid(sct->m_gid);
+			} else xsetgid(rgid);                /* no sgid -> drop */
 
-	  if (sct->m_mode & S_ISUID) {
-		if (seteuid (sct->m_uid))
-		  bb_error_msg_and_die
-			("BusyBox binary has insufficient rights to set proper UID for applet!");
-	  } else
-		setuid (ruid);                  /* no suid -> drop */
+			if (sct->m_mode & S_ISUID) xsetuid(sct->m_uid);
+			else xsetuid(ruid);                  /* no suid -> drop */
+		} else {
+			/* default: drop all privileges */
+			xsetgid(rgid);
+			xsetuid(ruid);
+		}
+		return;
 	} else {
-		/* default: drop all privileges */
-	  setgid (rgid);
-	  setuid (ruid);
-	}
-	return;
-  } else {
 #ifndef CONFIG_FEATURE_SUID_CONFIG_QUIET
-	static int onetime = 0;
+		static int onetime = 0;
 
-	if (!onetime) {
-	  onetime = 1;
-	  fprintf (stderr, "Using fallback suid method\n");
+		if (!onetime) {
+			onetime = 1;
+			fprintf(stderr, "Using fallback suid method\n");
+		}
+#endif
 	}
 #endif
-  }
-#endif
 
-  if (applet->need_suid == _BB_SUID_ALWAYS) {
-	if (geteuid () != 0)
-	  bb_error_msg_and_die ("This applet requires root privileges!");
-  } else if (applet->need_suid == _BB_SUID_NEVER) {
-	setgid (rgid);                          /* drop all privileges */
-	setuid (ruid);
-  }
+	if (applet->need_suid == _BB_SUID_ALWAYS) {
+		if (geteuid()) bb_error_msg_and_die("applet requires root privileges!");
+	} else if (applet->need_suid == _BB_SUID_NEVER) {
+		xsetgid(rgid);                          /* drop all privileges */
+		xsetuid(ruid);
+	}
 }
 #else
 #define check_suid(x)
@@ -393,7 +385,7 @@ static void check_suid (struct BB_applet *applet)
 
 
 
-#if ENABLE_FEATURE_COMPRESS_USAGE
+#ifdef CONFIG_FEATURE_COMPRESS_USAGE
 
 #include "usage_compressed.h"
 #include "unarchive.h"
@@ -425,14 +417,14 @@ static const char *unpack_usage_messages(void)
 	case -1: /* error */
 		exit(1);
 	case 0: /* child */
-		bb_full_write(input[1], packed_usage, sizeof(packed_usage));
+		full_write(input[1], packed_usage, sizeof(packed_usage));
 		exit(0);
 	}
 	/* parent */
 	close(input[1]);
 
 	buf = xmalloc(SIZEOF_usage_messages);
-	bb_full_read(output[0], buf, SIZEOF_usage_messages);
+	full_read(output[0], buf, SIZEOF_usage_messages);
 	return buf;
 }
 
@@ -440,7 +432,7 @@ static const char *unpack_usage_messages(void)
 #define unpack_usage_messages() usage_messages
 #endif /* ENABLE_FEATURE_COMPRESS_USAGE */
 
-void bb_show_usage (void)
+void bb_show_usage(void)
 {
 	if (ENABLE_SHOW_USAGE) {
 		const char *format_string;
@@ -453,40 +445,39 @@ void bb_show_usage (void)
 		format_string = "%s\n\nUsage: %s %s\n\n";
 		if (*usage_string == '\b')
 			format_string = "%s\n\nNo help available.\n\n";
-		fprintf (stderr, format_string, bb_msg_full_version,
+		fprintf(stderr, format_string, bb_msg_full_version,
 			applet_using->name, usage_string);
 	}
 
-  exit (bb_default_error_retval);
+	exit(xfunc_error_retval);
 }
 
-static int applet_name_compare (const void *x, const void *y)
+static int applet_name_compare(const void *name, const void *vapplet)
 {
-  const char *name = x;
-  const struct BB_applet *applet = y;
+	const struct BB_applet *applet = vapplet;
 
-  return strcmp (name, applet->name);
+	return strcmp(name, applet->name);
 }
 
 extern const size_t NUM_APPLETS;
 
-struct BB_applet *find_applet_by_name (const char *name)
+struct BB_applet *find_applet_by_name(const char *name)
 {
-  return bsearch (name, applets, NUM_APPLETS, sizeof (struct BB_applet),
-				  applet_name_compare);
+	return bsearch(name, applets, NUM_APPLETS, sizeof(struct BB_applet),
+				applet_name_compare);
 }
 
-void run_applet_by_name (const char *name, int argc, char **argv)
+void run_applet_by_name(const char *name, int argc, char **argv)
 {
-	if(ENABLE_FEATURE_SUID_CONFIG) parse_config_file ();
+	if (ENABLE_FEATURE_SUID_CONFIG) parse_config_file();
 
-	if(!strncmp(name, "busybox", 7)) busybox_main(argc, argv);
+	if (!strncmp(name, "busybox", 7)) busybox_main(argc, argv);
 	/* Do a binary search to find the applet entry given the name. */
 	applet_using = find_applet_by_name(name);
-	if(applet_using) {
-		bb_applet_name = applet_using->name;
-		if(argc==2 && !strcmp(argv[1], "--help")) bb_show_usage ();
-		if(ENABLE_FEATURE_SUID) check_suid (applet_using);
-		exit ((*(applet_using->main)) (argc, argv));
+	if (applet_using) {
+		applet_name = applet_using->name;
+		if(argc==2 && !strcmp(argv[1], "--help")) bb_show_usage();
+		if(ENABLE_FEATURE_SUID) check_suid(applet_using);
+		exit((*(applet_using->main))(argc, argv));
 	}
 }

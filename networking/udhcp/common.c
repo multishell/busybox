@@ -10,21 +10,10 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
-#include <fcntl.h>
-#include <unistd.h>
-#include <errno.h>
-#include <string.h>
-#include <stdlib.h>
-#include <signal.h>
-#include <paths.h>
-#include <sys/socket.h>
-#include <stdarg.h>
+#include <syslog.h>
 
 #include "common.h"
-#include "pidfile.h"
 
-
-static int daemonized;
 
 long uptime(void)
 {
@@ -33,7 +22,6 @@ long uptime(void)
 	return info.uptime;
 }
 
-
 /*
  * This function makes sure our first socket calls
  * aren't going to fd 1 (printf badness...) and are
@@ -41,81 +29,30 @@ long uptime(void)
  */
 static inline void sanitize_fds(void)
 {
-	int zero;
-	if ((zero = open(bb_dev_null, O_RDWR, 0)) < 0)
-		return;
-	while (zero < 3)
-		zero = dup(zero);
-	close(zero);
+	int fd = xopen(bb_dev_null, O_RDWR);
+	while (fd < 3)
+		fd = dup(fd);
+	close(fd);
 }
 
 
 void udhcp_background(const char *pidfile)
 {
 #ifdef __uClinux__
-	LOG(LOG_ERR, "Cannot background in uclinux (yet)");
+	bb_error_msg("cannot background in uclinux (yet)");
 #else /* __uClinux__ */
 	int pid_fd;
 
 	/* hold lock during fork. */
 	pid_fd = pidfile_acquire(pidfile);
-	if (daemon(0, 0) == -1) { /* bb_xdaemon? */
-		perror("fork");
-		exit(1);
-	}
-	daemonized++;
+	setsid();
+	xdaemon(0, 0);
+	logmode &= ~LOGMODE_STDIO;
 	pidfile_write_release(pid_fd);
 #endif /* __uClinux__ */
 }
 
-
-#ifdef CONFIG_FEATURE_UDHCP_SYSLOG
-
-void udhcp_logging(int level, const char *fmt, ...)
-{
-	va_list p;
-	va_list p2;
-
-	va_start(p, fmt);
-	__va_copy(p2, p);
-	if (!daemonized) {
-		vprintf(fmt, p);
-		putchar('\n');
-	}
-	vsyslog(level, fmt, p2);
-	va_end(p);
-}
-
-#else
-
-
-static char *syslog_level_msg[] = {
-	[LOG_EMERG]   = "EMERGENCY!",
-	[LOG_ALERT]   = "ALERT!",
-	[LOG_CRIT]    = "critical!",
-	[LOG_WARNING] = "warning",
-	[LOG_ERR]     = "error",
-	[LOG_INFO]    = "info",
-	[LOG_DEBUG]   = "debug"
-};
-
-
-void udhcp_logging(int level, const char *fmt, ...)
-{
-	va_list p;
-
-	va_start(p, fmt);
-	if (!daemonized) {
-		printf("%s, ", syslog_level_msg[level]);
-		vprintf(fmt, p);
-		putchar('\n');
-	}
-	va_end(p);
-}
-#endif
-
-
-void udhcp_start_log_and_pid(const char *client_server, const char *pidfile)
+void udhcp_start_log_and_pid(const char *pidfile)
 {
 	int pid_fd;
 
@@ -129,8 +66,10 @@ void udhcp_start_log_and_pid(const char *client_server, const char *pidfile)
 	/* equivelent of doing a fflush after every \n */
 	setlinebuf(stdout);
 
-	if (ENABLE_FEATURE_UDHCP_SYSLOG)
-		openlog(client_server, LOG_PID | LOG_CONS, LOG_LOCAL0);
+	if (ENABLE_FEATURE_UDHCP_SYSLOG) {
+		openlog(applet_name, LOG_PID, LOG_LOCAL0);
+		logmode |= LOGMODE_SYSLOG;
+	}
 
-	udhcp_logging(LOG_INFO, "%s (v%s) started", client_server, BB_VER);
+	bb_info_msg("%s (v%s) started", applet_name, BB_VER);
 }

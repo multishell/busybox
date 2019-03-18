@@ -48,14 +48,14 @@ static int decode(char *name, CODE * codetab)
 	CODE *c;
 
 	if (isdigit(*name))
-		return (atoi(name));
+		return atoi(name);
 	for (c = codetab; c->c_name; c++) {
 		if (!strcasecmp(name, c->c_name)) {
-			return (c->c_val);
+			return c->c_val;
 		}
 	}
 
-	return (-1);
+	return -1;
 }
 
 /* Decode a symbolic name to a numeric value
@@ -89,30 +89,21 @@ static int pencode(char *s)
 
 int logger_main(int argc, char **argv)
 {
+	unsigned opt;
+	char *opt_p, *opt_t;
 	int pri = LOG_USER | LOG_NOTICE;
 	int option = 0;
-	int c, i, opt;
+	int c, i;
 	char buf[1024], name[128];
 
 	/* Fill out the name string early (may be overwritten later) */
 	bb_getpwuid(name, geteuid(), sizeof(name));
 
 	/* Parse any options */
-	while ((opt = getopt(argc, argv, "p:st:")) > 0) {
-		switch (opt) {
-			case 's':
-				option |= LOG_PERROR;
-				break;
-			case 'p':
-				pri = pencode(optarg);
-				break;
-			case 't':
-				safe_strncpy(name, optarg, sizeof(name));
-				break;
-			default:
-				bb_show_usage();
-		}
-	}
+	opt = getopt32(argc, argv, "p:st:", &opt_p, &opt_t);
+	if (opt & 0x1) pri = pencode(opt_p); // -p
+	if (opt & 0x2) option |= LOG_PERROR; // -s
+	if (opt & 0x4) safe_strncpy(name, opt_t, sizeof(name)); // -t
 
 	openlog(name, option, 0);
 	if (optind == argc) {
@@ -138,7 +129,7 @@ int logger_main(int argc, char **argv)
 			len += strlen(*argv);
 			message = xrealloc(message, len);
 			if(!i)
-				message[0] = 0;
+				message[0] = '\0';
 			else
 				strcat(message, " ");
 			strcat(message, *argv);
@@ -186,6 +177,3 @@ int logger_main(int argc, char **argv)
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  */
-
-
-

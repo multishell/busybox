@@ -13,22 +13,7 @@
 #define VERSION "2.3.2"
 
 #include "busybox.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdarg.h>
-#include <string.h>
-#include <errno.h>
-#include <time.h>
-#include <dirent.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <syslog.h>
-#include <signal.h>
-#include <getopt.h>
-#include <sys/ioctl.h>
-#include <sys/wait.h>
-#include <sys/stat.h>
-#include <sys/resource.h>
+#include <sys/syslog.h>
 
 #define arysize(ary)    (sizeof(ary)/sizeof((ary)[0]))
 
@@ -80,10 +65,10 @@ typedef struct CronLine {
 #define DaemonUid 0
 
 #if ENABLE_DEBUG_CROND_OPTION
-static short DebugOpt;
+static unsigned DebugOpt;
 #endif
 
-static short LogLevel = 8;
+static unsigned LogLevel = 8;
 static const char *LogFile;
 static const char *CDir = CRONTABS;
 
@@ -135,7 +120,7 @@ static void crondlog(const char *ctl, ...)
 				close(logfd);
 #if ENABLE_DEBUG_CROND_OPTION
 			} else {
-				bb_perror_msg("Can't open log file");
+				bb_perror_msg("can't open log file");
 #endif
 			}
 		}
@@ -148,19 +133,19 @@ static void crondlog(const char *ctl, ...)
 
 int crond_main(int ac, char **av)
 {
-	unsigned long opt;
+	unsigned opt;
 	char *lopt, *Lopt, *copt;
 
 #if ENABLE_DEBUG_CROND_OPTION
 	char *dopt;
 
-	bb_opt_complementally = "f-b:b-f:S-L:L-S:d-l";
+	opt_complementary = "f-b:b-f:S-L:L-S:d-l";
 #else
-	bb_opt_complementally = "f-b:b-f:S-L:L-S";
+	opt_complementary = "f-b:b-f:S-L:L-S";
 #endif
 
 	opterr = 0;			/* disable getopt 'errors' message. */
-	opt = bb_getopt_ulflags(ac, av, "l:L:fbSc:"
+	opt = getopt32(ac, av, "l:L:fbSc:"
 #if ENABLE_DEBUG_CROND_OPTION
 							"d:"
 #endif
@@ -170,7 +155,7 @@ int crond_main(int ac, char **av)
 #endif
 		);
 	if (opt & 1) {
-		LogLevel = atoi(lopt);
+		LogLevel = xatou(lopt);
 	}
 	if (opt & 2) {
 		if (*Lopt != 0) {
@@ -184,7 +169,7 @@ int crond_main(int ac, char **av)
 	}
 #if ENABLE_DEBUG_CROND_OPTION
 	if (opt & 64) {
-		DebugOpt = atoi(dopt);
+		DebugOpt = xatou(dopt);
 		LogLevel = 0;
 	}
 #endif
@@ -193,7 +178,7 @@ int crond_main(int ac, char **av)
 	 * change directory
 	 */
 
-	bb_xchdir(CDir);
+	xchdir(CDir);
 	signal(SIGHUP, SIG_IGN);	/* hmm.. but, if kill -HUP original
 								 * version - his died. ;(
 								 */
@@ -208,7 +193,7 @@ int crond_main(int ac, char **av)
 		/* reexec for vfork() do continue parent */
 		vfork_daemon_rexec(1, 0, ac, av, "-f");
 #else
-		bb_xdaemon(1, 0);
+		xdaemon(1, 0);
 #endif
 	}
 
@@ -220,7 +205,7 @@ int crond_main(int ac, char **av)
 	 */
 
 	crondlog("\011%s " VERSION " dillon, started, log level %d\n",
-			 bb_applet_name, LogLevel);
+			 applet_name, LogLevel);
 
 	SynchronizeDir();
 
@@ -279,7 +264,7 @@ int crond_main(int ac, char **av)
 			}
 		}
 	}
-	bb_fflush_stdout_and_exit(EXIT_SUCCESS); /* not reached */
+	return 0; /* not reached */
 }
 
 static int ChangeUser(const char *user)
@@ -293,7 +278,7 @@ static int ChangeUser(const char *user)
 	pas = getpwnam(user);
 	if (pas == 0) {
 		crondlog("\011failed to get uid for %s", user);
-		return (-1);
+		return -1;
 	}
 	setenv("USER", pas->pw_name, 1);
 	setenv("HOME", pas->pw_dir, 1);
@@ -305,22 +290,22 @@ static int ChangeUser(const char *user)
 	err_msg = change_identity_e2str(pas);
 	if (err_msg) {
 		crondlog("\011%s for user %s", err_msg, user);
-		return (-1);
+		return -1;
 	}
 	if (chdir(pas->pw_dir) < 0) {
 		crondlog("\011chdir failed: %s: %m", pas->pw_dir);
 		if (chdir(TMPDIR) < 0) {
 			crondlog("\011chdir failed: %s: %m", TMPDIR);
-			return (-1);
+			return -1;
 		}
 	}
-	return (pas->pw_uid);
+	return pas->pw_uid;
 }
 
 static void startlogger(void)
 {
 	if (LogFile == 0) {
-		openlog(bb_applet_name, LOG_CONS | LOG_PID, LOG_CRON);
+		openlog(applet_name, LOG_CONS | LOG_PID, LOG_CRON);
 	}
 #if ENABLE_DEBUG_CROND_OPTION
 	else {				/* test logfile */
@@ -329,7 +314,7 @@ static void startlogger(void)
 		if ((logfd = open(LogFile, O_WRONLY | O_CREAT | O_APPEND, 0600)) >= 0) {
 			close(logfd);
 		} else {
-			bb_perror_msg("Failed to open log file '%s' reason", LogFile);
+			bb_perror_msg("failed to open log file '%s': ", LogFile);
 		}
 	}
 #endif
@@ -392,7 +377,7 @@ static char *ParseField(char *user, char *ary, int modvalue, int off,
 	int n2 = -1;
 
 	if (base == NULL) {
-		return (NULL);
+		return NULL;
 	}
 
 	while (*ptr != ' ' && *ptr != '\t' && *ptr != '\n') {
@@ -435,7 +420,7 @@ static char *ParseField(char *user, char *ary, int modvalue, int off,
 
 		if (skip == 0) {
 			crondlog("\111failed user %s parsing %s\n", user, base);
-			return (NULL);
+			return NULL;
 		}
 		if (*ptr == '-' && n2 < 0) {
 			++ptr;
@@ -475,7 +460,7 @@ static char *ParseField(char *user, char *ary, int modvalue, int off,
 
 			if (failsafe == 0) {
 				crondlog("\111failed user %s parsing %s\n", user, base);
-				return (NULL);
+				return NULL;
 			}
 		}
 		if (*ptr != ',') {
@@ -488,7 +473,7 @@ static char *ParseField(char *user, char *ary, int modvalue, int off,
 
 	if (*ptr != ' ' && *ptr != '\t' && *ptr != '\n') {
 		crondlog("\111failed user %s parsing %s\n", user, base);
-		return (NULL);
+		return NULL;
 	}
 
 	while (*ptr == ' ' || *ptr == '\t' || *ptr == '\n') {
@@ -505,7 +490,7 @@ static char *ParseField(char *user, char *ary, int modvalue, int off,
 	}
 #endif
 
-	return (ptr);
+	return ptr;
 }
 
 static void FixDayDow(CronLine * line)
@@ -669,7 +654,7 @@ static void SynchronizeDir(void)
 
 	remove(CRONUPDATE);
 	if (chdir(CDir) < 0) {
-		crondlog("\311unable to find %s\n", CDir);
+		crondlog("\311cannot find %s\n", CDir);
 	}
 	{
 		DIR *dir = opendir(".");
@@ -688,7 +673,7 @@ static void SynchronizeDir(void)
 			}
 			closedir(dir);
 		} else {
-			crondlog("\311Unable to open current dir!\n");
+			crondlog("\311cannot open current dir!\n");
 		}
 	}
 }
@@ -792,7 +777,7 @@ static int TestJobs(time_t t1, time_t t2)
 			}
 		}
 	}
-	return (nJobs);
+	return nJobs;
 }
 
 static void RunJobs(void)
@@ -858,7 +843,7 @@ static int CheckJobs(void)
 		}
 		nStillRunning += file->cf_Running;
 	}
-	return (nStillRunning);
+	return nStillRunning;
 }
 
 
@@ -891,14 +876,14 @@ ForkJob(const char *user, CronLine * line, int mailFd,
 			close(mailFd);
 		}
 		execl(prog, prog, cmd, arg, NULL);
-		crondlog("\024unable to exec, user %s cmd %s %s %s\n", user, prog, cmd, arg);
+		crondlog("\024cannot exec, user %s cmd %s %s %s\n", user, prog, cmd, arg);
 		if (mailf) {
 			fdprintf(1, "Exec failed: %s -c %s\n", prog, arg);
 		}
 		exit(0);
 	} else if (pid < 0) {
 		/* FORK FAILED */
-		crondlog("\024couldn't fork, user %s\n", user);
+		crondlog("\024cannot fork, user %s\n", user);
 		line->cl_Pid = 0;
 		if (mailf) {
 			remove(mailf);
@@ -939,9 +924,9 @@ static void RunJob(const char *user, CronLine * line)
 		line->cl_MailFlag = 1;
 		fdprintf(mailFd, "To: %s\nSubject: cron: %s\n\n", user,
 			line->cl_Shell);
-		line->cl_MailPos = lseek(mailFd, 0, 1);
+		line->cl_MailPos = lseek(mailFd, 0, SEEK_CUR);
 	} else {
-		crondlog("\024unable to create mail file user %s file %s, output to /dev/null\n", user, mailFile);
+		crondlog("\024cannot create mail file user %s file %s, output to /dev/null\n", user, mailFile);
 	}
 
 	ForkJob(user, line, mailFd, DEFAULT_SHELL, "-c", line->cl_Shell, mailFile);
@@ -1018,12 +1003,12 @@ static void RunJob(const char *user, CronLine * line)
 #endif
 
 		execl(DEFAULT_SHELL, DEFAULT_SHELL, "-c", line->cl_Shell, NULL);
-		crondlog("\024unable to exec, user %s cmd %s -c %s\n", user,
+		crondlog("\024cannot exec, user %s cmd %s -c %s\n", user,
 				 DEFAULT_SHELL, line->cl_Shell);
 		exit(0);
 	} else if (pid < 0) {
 		/* FORK FAILED */
-		crondlog("\024couldn't fork, user %s\n", user);
+		crondlog("\024cannot, user %s\n", user);
 		pid = 0;
 	}
 	line->cl_Pid = pid;

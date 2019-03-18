@@ -4,68 +4,43 @@
  *
  * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
  *
- * Licensed under the GPL v2, see the file LICENSE in this tarball.
+ * Licensed under the GPL version 2, see the file LICENSE in this tarball.
  */
 
 #include "busybox.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <unistd.h>
-#include <signal.h>
-#include <ctype.h>
-#include <string.h>
-#include <sys/types.h>
-#include <unistd.h>
 
-#if ENABLE_FEATURE_PIDOF_SINGLE
-#define _SINGLE_COMPL(a) a
-#define SINGLE (1<<0)
-#else
-#define _SINGLE_COMPL(a)
-#define SINGLE (0)
-#endif
-
-#if ENABLE_FEATURE_PIDOF_OMIT
-#define _OMIT_COMPL(a) a
-#define _OMIT(a) ,a
-#if ENABLE_FEATURE_PIDOF_SINGLE
-#define OMIT (1<<1)
-#else
-#define OMIT (1<<0)
-#endif
-#else
-#define _OMIT_COMPL(a) ""
-#define _OMIT(a)
-#define OMIT (0)
-#define omitted (0)
-#endif
+enum {
+	USE_FEATURE_PIDOF_SINGLE(OPTBIT_SINGLE,)
+	USE_FEATURE_PIDOF_OMIT(  OPTBIT_OMIT  ,)
+	OPT_SINGLE = USE_FEATURE_PIDOF_SINGLE((1<<OPTBIT_SINGLE)) + 0,
+	OPT_OMIT   = USE_FEATURE_PIDOF_OMIT(  (1<<OPTBIT_OMIT  )) + 0,
+};
 
 int pidof_main(int argc, char **argv)
 {
-	unsigned n = 0;
+	unsigned first = 1;
 	unsigned fail = 1;
-	unsigned long int opt;
+	unsigned opt;
 #if ENABLE_FEATURE_PIDOF_OMIT
 	llist_t *omits = NULL; /* list of pids to omit */
-	bb_opt_complementally = _OMIT_COMPL("o::");
+	opt_complementary = "o::";
 #endif
 
 	/* do unconditional option parsing */
-	opt = bb_getopt_ulflags(argc, argv,
-					_SINGLE_COMPL("s") _OMIT_COMPL("o:")
-					_OMIT(&omits));
+	opt = getopt32(argc, argv, ""
+			USE_FEATURE_PIDOF_SINGLE ("s")
+			USE_FEATURE_PIDOF_OMIT("o:", &omits));
 
 #if ENABLE_FEATURE_PIDOF_OMIT
 	/* fill omit list.  */
 	{
-		char getppid_str[32];
+		char getppid_str[sizeof(int)*3 + 1];
 		llist_t * omits_p = omits;
 		while (omits_p) {
 			/* are we asked to exclude the parent's process ID?  */
 			if (!strncmp(omits_p->data, "%PPID", 5)) {
 				llist_pop(&omits_p);
-				snprintf(getppid_str, sizeof(getppid_str), "%d", getppid());
+				snprintf(getppid_str, sizeof(getppid_str), "%u", (unsigned)getppid());
 				llist_add_to(&omits_p, getppid_str);
 			}
 			omits_p = omits_p->link;
@@ -73,35 +48,33 @@ int pidof_main(int argc, char **argv)
 	}
 #endif
 	/* Looks like everything is set to go.  */
-	while(optind < argc) {
-		long *pidList;
-		long *pl;
+	while (optind < argc) {
+		pid_t *pidList;
+		pid_t *pl;
 
 		/* reverse the pidlist like GNU pidof does.  */
 		pidList = pidlist_reverse(find_pid_by_name(argv[optind]));
-		for(pl = pidList; *pl > 0; pl++) {
+		for (pl = pidList; *pl; pl++) {
+			SKIP_FEATURE_PIDOF_OMIT(const) unsigned omitted = 0;
 #if ENABLE_FEATURE_PIDOF_OMIT
-			unsigned omitted = 0;
-			if (opt & OMIT) {
+			if (opt & OPT_OMIT) {
 				llist_t *omits_p = omits;
-				while (omits_p)
-					if (strtol(omits_p->data, NULL, 10) == *pl) {
-						omitted = 1; break;
+				while (omits_p) {
+					if (xatoul(omits_p->data) == *pl) {
+						omitted = 1;
+						break;
 					} else
 						omits_p = omits_p->link;
+				}
 			}
 #endif
 			if (!omitted) {
-				if (n) {
-					putchar(' ');
-				} else {
-					n = 1;
-				}
-				printf("%ld", *pl);
+				printf(" %u" + first, (unsigned)*pl);
+				first = 0;
 			}
 			fail = (!ENABLE_FEATURE_PIDOF_OMIT && omitted);
 
-			if (ENABLE_FEATURE_PIDOF_SINGLE && (opt & SINGLE))
+			if (ENABLE_FEATURE_PIDOF_SINGLE && (opt & OPT_SINGLE))
 				break;
 		}
 		free(pidList);

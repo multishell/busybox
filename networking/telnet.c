@@ -34,10 +34,6 @@
 #include <netinet/in.h>
 #include "busybox.h"
 
-#if 0
-enum { DOTRACE = 1 };
-#endif
-
 #ifdef DOTRACE
 #include <arpa/inet.h> /* for inet_ntoa()... */
 #define TRACE(x, y) do { if (x) printf y; } while (0)
@@ -92,7 +88,7 @@ struct Globalvars * Gptr;
 #define G (*Gptr)
 #endif
 
-static inline void iacflush(void)
+static void iacflush(void)
 {
 	write(G.netfd, G.iacbuf, G.iaclen);
 	G.iaclen = 0;
@@ -107,7 +103,7 @@ static void telopt(byte c);
 static int subneg(byte c);
 
 /* Some globals */
-static int one = 1;
+static const int one = 1;
 
 #ifdef CONFIG_FEATURE_TELNET_TTYPE
 static char *ttype;
@@ -189,9 +185,9 @@ static void handlenetoutput(int len)
 	 *	I don't agree.
 	 *	first - I cannot use programs like sz/rz
 	 *	second - the 0x0D is sent as one character and if the next
-	 *	         char is 0x0A then it's eaten by a server side.
+	 *		 char is 0x0A then it's eaten by a server side.
 	 *	third - whay doy you have to make 'many write()s'?
-	 *	        I don't understand.
+	 *		I don't understand.
 	 *	So I implemented it. It's realy useful for me. I hope that
 	 *	others people will find it interesting to.
 	 */
@@ -209,12 +205,12 @@ static void handlenetoutput(int len)
 		}
 		outbuf[j++] = *p;
 		if (*p == 0xff)
-		    outbuf[j++] = 0xff;
+			outbuf[j++] = 0xff;
 		else if (*p == 0x0d)
-		    outbuf[j++] = 0x00;
+			outbuf[j++] = 0x00;
 	}
 	if (j > 0 )
-	    write(G.netfd, outbuf, j);
+		write(G.netfd, outbuf, j);
 }
 
 
@@ -295,7 +291,7 @@ static void handlenetinput(int len)
 
 /* ******************************* */
 
-static inline void putiac(int c)
+static void putiac(int c)
 {
 	G.iacbuf[G.iaclen++] = c;
 }
@@ -310,17 +306,6 @@ static void putiac2(byte wwdd, byte c)
 	putiac(wwdd);
 	putiac(c);
 }
-
-#if 0
-static void putiac1(byte c)
-{
-	if (G.iaclen + 2 > IACBUFSIZE)
-		iacflush();
-
-	putiac(IAC);
-	putiac(c);
-}
-#endif
 
 #ifdef CONFIG_FEATURE_TELNET_TTYPE
 static void putiac_subopt(byte c, char *str)
@@ -443,13 +428,13 @@ static void do_linemode(void)
 
 /* ******************************* */
 
-static inline void to_notsup(char c)
+static void to_notsup(char c)
 {
 	if      (G.telwish == WILL)	putiac2(DONT, c);
 	else if (G.telwish == DO)	putiac2(WONT, c);
 }
 
-static inline void to_echo(void)
+static void to_echo(void)
 {
 	/* if server requests ECHO, don't agree */
 	if      (G.telwish == DO) {	putiac2(WONT, TELOPT_ECHO);	return; }
@@ -476,7 +461,7 @@ static inline void to_echo(void)
 	WriteCS(1, "\r\n");  /* sudden modec */
 }
 
-static inline void to_sga(void)
+static void to_sga(void)
 {
 	/* daemon always sends will/wont, client do/dont */
 
@@ -498,7 +483,7 @@ static inline void to_sga(void)
 }
 
 #ifdef CONFIG_FEATURE_TELNET_TTYPE
-static inline void to_ttype(void)
+static void to_ttype(void)
 {
 	/* Tell server we will (or won't) do TTYPE */
 
@@ -512,7 +497,7 @@ static inline void to_ttype(void)
 #endif
 
 #ifdef CONFIG_FEATURE_TELNET_AUTOLOGIN
-static inline void to_new_environ(void)
+static void to_new_environ(void)
 {
 	/* Tell server we will (or will not) do AUTOLOGIN */
 
@@ -526,7 +511,7 @@ static inline void to_new_environ(void)
 #endif
 
 #ifdef CONFIG_FEATURE_AUTOWIDTH
-static inline void to_naws(void)
+static void to_naws(void)
 {
 	/* Tell server we will do NAWS */
 	putiac2(WILL, TELOPT_NAWS);
@@ -622,7 +607,7 @@ int telnet_main(int argc, char** argv)
 #endif
 
 #ifdef CONFIG_FEATURE_TELNET_TTYPE
-    ttype = getenv("TERM");
+	ttype = getenv("TERM");
 #endif
 
 	memset(&G, 0, sizeof G);
@@ -638,7 +623,7 @@ int telnet_main(int argc, char** argv)
 		bb_show_usage();
 
 #ifdef CONFIG_FEATURE_TELNET_AUTOLOGIN
-	if (1 & bb_getopt_ulflags(argc, argv, "al:", &autologin))
+	if (1 & getopt32(argc, argv, "al:", &autologin))
 		autologin = getenv("USER");
 
 	if (optind < argc) {
@@ -654,7 +639,7 @@ int telnet_main(int argc, char** argv)
 	s_in.sin_port = bb_lookup_port((argc == 3) ? argv[2] : "telnet", "tcp", 23);
 #endif
 
-	G.netfd = xconnect(&s_in);
+	G.netfd = xconnect_tcp_v4(&s_in);
 
 	setsockopt(G.netfd, SOL_SOCKET, SO_KEEPALIVE, &one, sizeof one);
 

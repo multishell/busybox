@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * feature.c --- convert between features and strings
  *
@@ -154,7 +155,7 @@ int e2p_edit_feature(const char *str, __u32 *compat_array, __u32 *ok_array)
 	unsigned int	mask;
 	int		compat_type;
 
-	buf = bb_xstrdup(str);
+	buf = xstrdup(str);
 	cp = buf;
 	while (cp && *cp) {
 		neg = 0;

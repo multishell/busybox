@@ -4,20 +4,7 @@
  *
  * Copyright (C) 2001 Matt Kraai <kraai@alumni.carnegiemellon.edu>
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
- *
+ * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 
 /* BB_AUDIT SUSv3 compliant */
@@ -42,25 +29,25 @@ static const struct option mkdir_long_options[] = {
 };
 #endif
 
-int mkdir_main (int argc, char **argv)
+int mkdir_main(int argc, char **argv)
 {
 	mode_t mode = (mode_t)(-1);
 	int status = EXIT_SUCCESS;
 	int flags = 0;
-	unsigned long opt;
+	unsigned opt;
 	char *smode;
 
 #if ENABLE_FEATURE_MKDIR_LONG_OPTIONS
-	bb_applet_long_options = mkdir_long_options;
+	applet_long_options = mkdir_long_options;
 #endif
-	opt = bb_getopt_ulflags(argc, argv, "m:p", &smode);
-	if(opt & 1) {
-			mode = 0777;
-		if (!bb_parse_mode (smode, &mode)) {
-			bb_error_msg_and_die ("invalid mode `%s'", smode);
+	opt = getopt32(argc, argv, "m:p", &smode);
+	if (opt & 1) {
+		mode = 0777;
+		if (!bb_parse_mode(smode, &mode)) {
+			bb_error_msg_and_die("invalid mode '%s'", smode);
 		}
 	}
-	if(opt & 2)
+	if (opt & 2)
 		flags |= FILEUTILS_RECUR;
 
 	if (optind == argc) {

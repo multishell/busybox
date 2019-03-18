@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * tune2fs.c - Change the file system parameters on an ext2 file system
  *
@@ -44,8 +45,6 @@
 #include "blkid/blkid.h"
 
 #include "busybox.h"
-#include "grp_.h"
-#include "pwd_.h"
 
 static char * device_name = NULL;
 static char * new_label, *new_last_mounted, *new_UUID;
@@ -55,7 +54,8 @@ static int m_flag, M_flag, r_flag, s_flag = -1, u_flag, U_flag, T_flag;
 static time_t last_check_time;
 static int print_label;
 static int max_mount_count, mount_count, mount_flags;
-static unsigned long interval, reserved_ratio, reserved_blocks;
+static unsigned long interval, reserved_blocks;
+static unsigned reserved_ratio;
 static unsigned long resgid, resuid;
 static unsigned short errors;
 static int open_flag;
@@ -380,7 +380,7 @@ static time_t parse_time(char *str)
 	struct	tm	ts;
 
 	if (strcmp(str, "now") == 0) {
-		return (time(0));
+		return time(0);
 	}
 	memset(&ts, 0, sizeof(ts));
 #ifdef HAVE_STRPTIME
@@ -396,9 +396,9 @@ static time_t parse_time(char *str)
 		ts.tm_mday = 0;
 #endif
 	if (ts.tm_mday == 0) {
-		bb_error_msg_and_die("Couldn't parse date/time specifier: %s", str);
+		bb_error_msg_and_die("Cannot parse date/time specifier: %s", str);
 	}
-	return (mktime(&ts));
+	return mktime(&ts);
 }
 
 static void parse_tune2fs_options(int argc, char **argv)
@@ -411,19 +411,14 @@ static void parse_tune2fs_options(int argc, char **argv)
 		switch (c)
 		{
 			case 'c':
-				if (safe_strtoi(optarg, &max_mount_count) ||  max_mount_count > 16000) {
-					goto MOUNTS_COUNT_ERROR;
-				}
+				max_mount_count = xatou_range(optarg, 0, 16000);
 				if (max_mount_count == 0)
 					max_mount_count = -1;
 				c_flag = 1;
 				open_flag = EXT2_FLAG_RW;
 				break;
 			case 'C':
-				if (safe_strtoi(optarg, &mount_count) || mount_count > 16000) {
-MOUNTS_COUNT_ERROR:
-					bb_error_msg_and_die("bad mounts count - %s", optarg);
-				}
+				mount_count = xatou_range(optarg, 0, 16000);
 				C_flag = 1;
 				open_flag = EXT2_FLAG_RW;
 				break;
@@ -444,13 +439,14 @@ MOUNTS_COUNT_ERROR:
 				f_flag = 1;
 				break;
 			case 'g':
-				if (safe_strtoul(optarg, &resgid))
+				resgid = bb_strtoul(optarg, NULL, 10);
+				if (errno)
 					resgid = bb_xgetgrnam(optarg);
 				g_flag = 1;
 				open_flag = EXT2_FLAG_RW;
 				break;
 			case 'i':
-				interval = strtoul (optarg, &tmp, 0);
+				interval = strtoul(optarg, &tmp, 0);
 				switch (*tmp) {
 				case 's':
 					tmp++;
@@ -498,9 +494,7 @@ MOUNTS_COUNT_ERROR:
 					EXT2_FLAG_JOURNAL_DEV_OK;
 				break;
 			case 'm':
-				if(safe_strtoul(optarg, &reserved_ratio) || reserved_ratio > 50) {
-					bb_error_msg_and_die("bad reserved block ratio - %s", optarg);
-				}
+				reserved_ratio = xatou_range(optarg, 0, 50);
 				m_flag = 1;
 				open_flag = EXT2_FLAG_RW;
 				break;
@@ -525,9 +519,7 @@ MOUNTS_COUNT_ERROR:
 				open_flag = EXT2_FLAG_RW;
 				break;
 			case 'r':
-				if(safe_strtoul(optarg, &reserved_blocks)) {
-					bb_error_msg_and_die("bad reserved blocks count - %s", optarg);
-				}
+				reserved_blocks = xatoul(optarg);
 				r_flag = 1;
 				open_flag = EXT2_FLAG_RW;
 				break;
@@ -541,7 +533,8 @@ MOUNTS_COUNT_ERROR:
 				open_flag = EXT2_FLAG_RW;
 				break;
 			case 'u':
-				if (safe_strtoul(optarg, &resuid))
+				resuid = bb_strtoul(optarg, NULL, 10);
+				if (errno)
 					resuid = bb_xgetpwnam(optarg);
 				u_flag = 1;
 				open_flag = EXT2_FLAG_RW;
@@ -595,9 +588,9 @@ int tune2fs_main(int argc, char **argv)
 	if (ENABLE_FEATURE_CLEAN_UP)
 		atexit(tune2fs_clean_up);
 
-	if (ENABLE_FINDFS && (bb_applet_name[0] == 'f')) /* findfs */
+	if (ENABLE_FINDFS && (applet_name[0] == 'f')) /* findfs */
 		do_findfs(argc, argv);  /* no return */
-	else if (ENABLE_E2LABEL && (bb_applet_name[0] == 'e')) /* e2label */
+	else if (ENABLE_E2LABEL && (applet_name[0] == 'e')) /* e2label */
 		parse_e2label_options(argc, argv);
 	else
 		parse_tune2fs_options(argc, argv);  /* tune2fs */
@@ -616,7 +609,7 @@ int tune2fs_main(int argc, char **argv)
 	}
 	retval = ext2fs_check_if_mounted(device_name, &mount_flags);
 	if (retval)
-		bb_error_msg_and_die("Could not determine if %s is mounted", device_name);
+		bb_error_msg_and_die("cannot determine if %s is mounted", device_name);
 	/* Normally we only need to write out the superblock */
 	fs->flags |= EXT2_FLAG_SUPER_ONLY;
 
@@ -647,9 +640,9 @@ int tune2fs_main(int argc, char **argv)
 	}
 	if (m_flag) {
 		sb->s_r_blocks_count = (sb->s_blocks_count / 100)
-			* reserved_ratio;
+				* reserved_ratio;
 		ext2fs_mark_super_dirty(fs);
-		printf("Setting reserved blocks percentage to %lu (%u blocks)\n",
+		printf("Setting reserved blocks percentage to %u (%u blocks)\n",
 			reserved_ratio, sb->s_r_blocks_count);
 	}
 	if (r_flag) {
@@ -662,7 +655,7 @@ int tune2fs_main(int argc, char **argv)
 	if (s_flag == 1) {
 		if (sb->s_feature_ro_compat &
 		    EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER)
-			bb_error_msg("\nThe filesystem already has sparse superblocks\n");
+			bb_error_msg("\nThe filesystem already has sparse superblocks");
 		else {
 			sb->s_feature_ro_compat |=
 				EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER;
@@ -674,7 +667,7 @@ int tune2fs_main(int argc, char **argv)
 	if (s_flag == 0) {
 		if (!(sb->s_feature_ro_compat &
 		      EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER))
-			bb_error_msg("\nThe filesystem already has sparse superblocks disabled\n");
+			bb_error_msg("\nThe filesystem already has sparse superblocks disabled");
 		else {
 			sb->s_feature_ro_compat &=
 				~EXT2_FEATURE_RO_COMPAT_SPARSE_SUPER;
@@ -697,7 +690,7 @@ int tune2fs_main(int argc, char **argv)
 	}
 	if (L_flag) {
 		if (strlen(new_label) > sizeof(sb->s_volume_name))
-			bb_error_msg("Warning: label too long, truncating\n");
+			bb_error_msg("Warning: label too long, truncating");
 		memset(sb->s_volume_name, 0, sizeof(sb->s_volume_name));
 		safe_strncpy(sb->s_volume_name, new_label,
 			sizeof(sb->s_volume_name));

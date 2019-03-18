@@ -24,36 +24,13 @@
  * - central directory
  */
 
-#include <fcntl.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <errno.h>
-#include "unarchive.h"
 #include "busybox.h"
+#include "unarchive.h"
 
-#if BB_BIG_ENDIAN
-static inline unsigned short
-__swap16(unsigned short x) {
-	return (((uint16_t)(x) & 0xFF) << 8) | (((uint16_t)(x) & 0xFF00) >> 8);
-}
-
-static inline uint32_t
-__swap32(uint32_t x) {
-	 return (((x & 0xFF) << 24) |
-		((x & 0xFF00) << 8) |
-		((x & 0xFF0000) >> 8) |
-		((x & 0xFF000000) >> 24));
-}
-#else /* it's little-endian */
-# define __swap16(x) (x)
-# define __swap32(x) (x)
-#endif /* BB_BIG_ENDIAN */
-
-#define ZIP_FILEHEADER_MAGIC		__swap32(0x04034b50)
-#define ZIP_CDS_MAGIC			__swap32(0x02014b50)
-#define ZIP_CDS_END_MAGIC		__swap32(0x06054b50)
-#define ZIP_DD_MAGIC			__swap32(0x08074b50)
+#define ZIP_FILEHEADER_MAGIC		SWAP_LE32(0x04034b50)
+#define ZIP_CDS_MAGIC			SWAP_LE32(0x02014b50)
+#define ZIP_CDS_END_MAGIC		SWAP_LE32(0x06054b50)
+#define ZIP_DD_MAGIC			SWAP_LE32(0x08074b50)
 
 extern unsigned int gunzip_crc;
 extern unsigned int gunzip_bytes_out;
@@ -71,57 +48,50 @@ typedef union {
 		unsigned int ucmpsize ATTRIBUTE_PACKED;	/* 18-21 */
 		unsigned short filename_len;	/* 22-23 */
 		unsigned short extra_len;		/* 24-25 */
-	} formated ATTRIBUTE_PACKED;
+	} formatted ATTRIBUTE_PACKED;
 } zip_header_t;
 
 static void unzip_skip(int fd, off_t skip)
 {
 	if (lseek(fd, skip, SEEK_CUR) == (off_t)-1) {
 		if ((errno != ESPIPE) || (bb_copyfd_size(fd, -1, skip) != skip)) {
-			bb_error_msg_and_die("Seek failure");
+			bb_error_msg_and_die("seek failure");
 		}
-	}
-}
-
-static void unzip_read(int fd, void *buf, size_t count)
-{
-	if (bb_xread(fd, buf, count) != count) {
-		bb_error_msg_and_die(bb_msg_read_error);
 	}
 }
 
 static void unzip_create_leading_dirs(char *fn)
 {
 	/* Create all leading directories */
-	char *name = bb_xstrdup(fn);
+	char *name = xstrdup(fn);
 	if (bb_make_directory(dirname(name), 0777, FILEUTILS_RECUR)) {
-		bb_error_msg_and_die("Exiting"); /* bb_make_directory is noisy */
+		bb_error_msg_and_die("exiting"); /* bb_make_directory is noisy */
 	}
 	free(name);
 }
 
 static int unzip_extract(zip_header_t *zip_header, int src_fd, int dst_fd)
 {
-	if (zip_header->formated.method == 0) {
+	if (zip_header->formatted.method == 0) {
 		/* Method 0 - stored (not compressed) */
-		int size = zip_header->formated.ucmpsize;
+		off_t size = zip_header->formatted.ucmpsize;
 		if (size && (bb_copyfd_size(src_fd, dst_fd, size) != size)) {
-			bb_error_msg_and_die("Cannot complete extraction");
+			bb_error_msg_and_die("cannot complete extraction");
 		}
 
 	} else {
 		/* Method 8 - inflate */
-		inflate_init(zip_header->formated.cmpsize);
+		inflate_init(zip_header->formatted.cmpsize);
 		inflate_unzip(src_fd, dst_fd);
 		inflate_cleanup();
 		/* Validate decompression - crc */
-		if (zip_header->formated.crc32 != (gunzip_crc ^ 0xffffffffL)) {
-			bb_error_msg("Invalid compressed data--crc error");
+		if (zip_header->formatted.crc32 != (gunzip_crc ^ 0xffffffffL)) {
+			bb_error_msg("invalid compressed data--%s error", "crc");
 			return 1;
 		}
 		/* Validate decompression - size */
-		if (zip_header->formated.ucmpsize != gunzip_bytes_out) {
-			bb_error_msg("Invalid compressed data--length error");
+		if (zip_header->formatted.ucmpsize != gunzip_bytes_out) {
+			bb_error_msg("invalid compressed data--%s error", "length");
 			return 1;
 		}
 	}
@@ -145,9 +115,9 @@ int unzip_main(int argc, char **argv)
 	struct stat stat_buf;
 
 	while((opt = getopt(argc, argv, "-d:lnopqx")) != -1) {
-		switch(opt_range) {
+		switch (opt_range) {
 		case 0: /* Options */
-			switch(opt) {
+			switch (opt) {
 			case 'l': /* List */
 				verbosity = v_list;
 				break;
@@ -168,7 +138,7 @@ int unzip_main(int argc, char **argv)
 				break;
 
 			case 1 : /* The zip file */
-				src_fn = bb_xstrndup(optarg, strlen(optarg)+4);
+				src_fn = xstrndup(optarg, strlen(optarg)+4);
 				opt_range++;
 				break;
 
@@ -231,13 +201,13 @@ int unzip_main(int argc, char **argv)
 		}
 		if (src_fd == -1) {
 			src_fn[orig_src_fn_len] = 0;
-			bb_error_msg_and_die("Cannot open %s, %s.zip, %s.ZIP", src_fn, src_fn, src_fn);
+			bb_error_msg_and_die("cannot open %s, %s.zip, %s.ZIP", src_fn, src_fn, src_fn);
 		}
 	}
 
 	/* Change dir if necessary */
 	if (base_dir)
-		bb_xchdir(base_dir);
+		xchdir(base_dir);
 
 	if (verbosity != v_silent)
 		printf("Archive:  %s\n", src_fn);
@@ -248,42 +218,40 @@ int unzip_main(int argc, char **argv)
 		unsigned int magic;
 
 		/* Check magic number */
-		unzip_read(src_fd, &magic, 4);
+		xread(src_fd, &magic, 4);
 		if (magic == ZIP_CDS_MAGIC) {
 			break;
 		} else if (magic != ZIP_FILEHEADER_MAGIC) {
-			bb_error_msg_and_die("Invalid zip magic %08X", magic);
+			bb_error_msg_and_die("invalid zip magic %08X", magic);
 		}
 
 		/* Read the file header */
-		unzip_read(src_fd, zip_header.raw, 26);
-#if BB_BIG_ENDIAN
-		zip_header.formated.version = __swap16(zip_header.formated.version);
-		zip_header.formated.flags = __swap16(zip_header.formated.flags);
-		zip_header.formated.method = __swap16(zip_header.formated.method);
-		zip_header.formated.modtime = __swap16(zip_header.formated.modtime);
-		zip_header.formated.moddate = __swap16(zip_header.formated.moddate);
-		zip_header.formated.crc32 = __swap32(zip_header.formated.crc32);
-		zip_header.formated.cmpsize = __swap32(zip_header.formated.cmpsize);
-		zip_header.formated.ucmpsize = __swap32(zip_header.formated.ucmpsize);
-		zip_header.formated.filename_len = __swap16(zip_header.formated.filename_len);
-		zip_header.formated.extra_len = __swap16(zip_header.formated.extra_len);
-#endif /* BB_BIG_ENDIAN */
-		if ((zip_header.formated.method != 0) && (zip_header.formated.method != 8)) {
-			bb_error_msg_and_die("Unsupported compression method %d", zip_header.formated.method);
+		xread(src_fd, zip_header.raw, 26);
+		zip_header.formatted.version = SWAP_LE32(zip_header.formatted.version);
+		zip_header.formatted.flags = SWAP_LE32(zip_header.formatted.flags);
+		zip_header.formatted.method = SWAP_LE32(zip_header.formatted.method);
+		zip_header.formatted.modtime = SWAP_LE32(zip_header.formatted.modtime);
+		zip_header.formatted.moddate = SWAP_LE32(zip_header.formatted.moddate);
+		zip_header.formatted.crc32 = SWAP_LE32(zip_header.formatted.crc32);
+		zip_header.formatted.cmpsize = SWAP_LE32(zip_header.formatted.cmpsize);
+		zip_header.formatted.ucmpsize = SWAP_LE32(zip_header.formatted.ucmpsize);
+		zip_header.formatted.filename_len = SWAP_LE32(zip_header.formatted.filename_len);
+		zip_header.formatted.extra_len = SWAP_LE32(zip_header.formatted.extra_len);
+		if ((zip_header.formatted.method != 0) && (zip_header.formatted.method != 8)) {
+			bb_error_msg_and_die("unsupported compression method %d", zip_header.formatted.method);
 		}
 
 		/* Read filename */
 		free(dst_fn);
-		dst_fn = xzalloc(zip_header.formated.filename_len + 1);
-		unzip_read(src_fd, dst_fn, zip_header.formated.filename_len);
+		dst_fn = xzalloc(zip_header.formatted.filename_len + 1);
+		xread(src_fd, dst_fn, zip_header.formatted.filename_len);
 
 		/* Skip extra header bytes */
-		unzip_skip(src_fd, zip_header.formated.extra_len);
+		unzip_skip(src_fd, zip_header.formatted.extra_len);
 
 		if ((verbosity == v_list) && !list_header_done){
 			printf("  Length     Date   Time    Name\n"
-				   " --------    ----   ----    ----\n");
+			       " --------    ----   ----    ----\n");
 			list_header_done = 1;
 		}
 
@@ -293,12 +261,12 @@ int unzip_main(int argc, char **argv)
 			i = 'n';
 
 		} else { /* Extract entry */
-			total_size += zip_header.formated.ucmpsize;
+			total_size += zip_header.formatted.ucmpsize;
 
 			if (verbosity == v_list) { /* List entry */
-				unsigned int dostime = zip_header.formated.modtime | (zip_header.formated.moddate << 16);
+				unsigned int dostime = zip_header.formatted.modtime | (zip_header.formatted.moddate << 16);
 				printf("%9u  %02u-%02u-%02u %02u:%02u   %s\n",
-					   zip_header.formated.ucmpsize,
+					   zip_header.formatted.ucmpsize,
 					   (dostime & 0x01e00000) >> 21,
 					   (dostime & 0x001f0000) >> 16,
 					   (((dostime & 0xfe000000) >> 25) + 1980) % 100,
@@ -314,14 +282,14 @@ int unzip_main(int argc, char **argv)
 			} else if (last_char_is(dst_fn, '/')) { /* Extract directory */
 				if (stat(dst_fn, &stat_buf) == -1) {
 					if (errno != ENOENT) {
-						bb_perror_msg_and_die("Cannot stat '%s'",dst_fn);
+						bb_perror_msg_and_die("cannot stat '%s'",dst_fn);
 					}
 					if (verbosity == v_normal) {
 						printf("   creating: %s\n", dst_fn);
 					}
 					unzip_create_leading_dirs(dst_fn);
 					if (bb_make_directory(dst_fn, 0777, 0)) {
-						bb_error_msg_and_die("Exiting");
+						bb_error_msg_and_die("exiting");
 					}
 				} else {
 					if (!S_ISDIR(stat_buf.st_mode)) {
@@ -334,7 +302,7 @@ int unzip_main(int argc, char **argv)
 			_check_file:
 				if (stat(dst_fn, &stat_buf) == -1) { /* File does not exist */
 					if (errno != ENOENT) {
-						bb_perror_msg_and_die("Cannot stat '%s'",dst_fn);
+						bb_perror_msg_and_die("cannot stat '%s'",dst_fn);
 					}
 					i = 'y';
 
@@ -348,7 +316,7 @@ int unzip_main(int argc, char **argv)
 						} else {
 							printf("replace %s? [y]es, [n]o, [A]ll, [N]one, [r]ename: ", dst_fn);
 							if (!fgets(key_buf, 512, stdin)) {
-								bb_perror_msg_and_die("Cannot read input");
+								bb_perror_msg_and_die("cannot read input");
 							}
 							i = key_buf[0];
 						}
@@ -365,7 +333,7 @@ int unzip_main(int argc, char **argv)
 			overwrite = o_always;
 		case 'y': /* Open file and fall into unzip */
 			unzip_create_leading_dirs(dst_fn);
-			dst_fd = bb_xopen(dst_fn, O_WRONLY | O_CREAT);
+			dst_fd = xopen(dst_fn, O_WRONLY | O_CREAT | O_TRUNC);
 		case -1: /* Unzip */
 			if (verbosity == v_normal) {
 				printf("  inflating: %s\n", dst_fn);
@@ -383,17 +351,17 @@ int unzip_main(int argc, char **argv)
 			overwrite = o_never;
 		case 'n':
 			/* Skip entry data */
-			unzip_skip(src_fd, zip_header.formated.cmpsize);
+			unzip_skip(src_fd, zip_header.formatted.cmpsize);
 			break;
 
 		case 'r':
 			/* Prompt for new name */
 			printf("new name: ");
 			if (!fgets(key_buf, 512, stdin)) {
-				bb_perror_msg_and_die("Cannot read input");
+				bb_perror_msg_and_die("cannot read input");
 			}
 			free(dst_fn);
-			dst_fn = bb_xstrdup(key_buf);
+			dst_fn = xstrdup(key_buf);
 			chomp(dst_fn);
 			goto _check_file;
 
@@ -403,7 +371,7 @@ int unzip_main(int argc, char **argv)
 		}
 
 		/* Data descriptor section */
-		if (zip_header.formated.flags & 4) {
+		if (zip_header.formatted.flags & 4) {
 			/* skip over duplicate crc, compressed size and uncompressed size */
 			unzip_skip(src_fd, 12);
 		}

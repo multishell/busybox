@@ -65,25 +65,10 @@
 */
 
 
-#include <unistd.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <errno.h>
-#include <ctype.h>
-#include <string.h>
-
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/ioctl.h>
-#include <features.h>
 #include <netpacket/packet.h>
 #include <net/ethernet.h>
-#include <netdb.h>
 #include <netinet/ether.h>
-
-#ifdef __linux__
 #include <linux/if.h>
-#endif
 
 #include "busybox.h"
 
@@ -93,10 +78,10 @@
  */
 #ifdef PF_PACKET
 # define whereto_t sockaddr_ll
-# define make_socket() bb_xsocket(PF_PACKET, SOCK_RAW, 0)
+# define make_socket() xsocket(PF_PACKET, SOCK_RAW, 0)
 #else
 # define whereto_t sockaddr
-# define make_socket() bb_xsocket(AF_INET, SOCK_PACKET, SOCK_PACKET)
+# define make_socket() xsocket(AF_INET, SOCK_PACKET, SOCK_PACKET)
 #endif
 
 #ifdef DEBUG
@@ -107,7 +92,7 @@ void bb_debug_dump_packet(unsigned char *outpack, int pktsize)
 	printf("packet dump:\n");
 	for (i = 0; i < pktsize; ++i) {
 		printf("%2.2x ", outpack[i]);
-		if (i % 20 == 19) printf("\n");
+		if (i % 20 == 19) puts("");
 	}
 	printf("\n\n");
 }
@@ -120,7 +105,7 @@ static inline void get_dest_addr(const char *arg, struct ether_addr *eaddr);
 static inline int get_fill(unsigned char *pkt, struct ether_addr *eaddr, int broadcast);
 static inline int get_wol_pw(const char *ethoptarg, unsigned char *wol_passwd);
 
-int etherwake_main(int argc, char *argv[])
+int ether_wake_main(int argc, char *argv[])
 {
 	char *ifname = "eth0", *pass = NULL;
 	unsigned long flags;
@@ -135,7 +120,7 @@ int etherwake_main(int argc, char *argv[])
 	struct whereto_t whereto;	/* who to wake up */
 
 	/* handle misc user options */
-	flags = bb_getopt_ulflags(argc, argv, "bi:p:", &ifname, &pass);
+	flags = getopt32(argc, argv, "bi:p:", &ifname, &pass);
 	if (optind == argc)
 		bb_show_usage();
 	if (pass)
@@ -160,7 +145,7 @@ int etherwake_main(int argc, char *argv[])
 	{
 		struct ifreq if_hwaddr;
 
-		strcpy(if_hwaddr.ifr_name, ifname);
+		strncpy(if_hwaddr.ifr_name, ifname, sizeof(if_hwaddr.ifr_name));
 		if (ioctl(s, SIOCGIFHWADDR, &if_hwaddr) < 0)
 			bb_perror_msg_and_die("SIOCGIFHWADDR on %s failed", ifname);
 
@@ -190,8 +175,7 @@ int etherwake_main(int argc, char *argv[])
 
 	/* This is necessary for broadcasts to work */
 	if (flags /*& 1 [OPT_BROADCAST]*/) {
-		int one = 1;
-		if (setsockopt(s, SOL_SOCKET, SO_BROADCAST, (void *)&one, sizeof(one)) < 0)
+		if (setsockopt_broadcast(s) < 0)
 			bb_perror_msg("SO_BROADCAST");
 	}
 
@@ -285,7 +269,7 @@ static inline int get_wol_pw(const char *ethoptarg, unsigned char *wol_passwd)
 		byte_cnt = sscanf(ethoptarg, "%d.%d.%d.%d",
 		                  &passwd[0], &passwd[1], &passwd[2], &passwd[3]);
 	if (byte_cnt < 4) {
-		bb_error_msg("Unable to read the Wake-On-LAN pass");
+		bb_error_msg("cannot read Wake-On-LAN pass");
 		return 0;
 	}
 

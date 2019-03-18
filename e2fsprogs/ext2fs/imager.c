@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * image.c --- writes out the critical parts of the filesystem as a
  *	flat file.
@@ -323,7 +324,7 @@ errcode_t ext2fs_image_bitmap_write(ext2_filsys fs, int fd, int flags)
 	}
 	retval = 0;
 errout:
-	return (retval);
+	return retval;
 }
 
 
@@ -372,5 +373,5 @@ errcode_t ext2fs_image_bitmap_read(ext2_filsys fs, int fd, int flags)
 	retval = 0;
 errout:
 	free(buf);
-	return (retval);
+	return retval;
 }

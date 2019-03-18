@@ -4,11 +4,43 @@
  *
  * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
  *
- * Licensed under the GPL v2, see the file LICENSE in this tarball.
+ * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
  */
 
+#include <stdio.h>
+#include <string.h>
+#include <assert.h>
+#include "libbb.h"
 
-#ifdef L_bb_getgrgid
+ /*
+  * if bufsize is > 0 char *buffer cannot be set to NULL.
+  *                   If idname is not NULL it is written on the static
+  *                   allocated buffer (and a pointer to it is returned).
+  *                   if idname is NULL, id as string is written to the static
+  *                   allocated buffer and NULL is returned.
+  * if bufsize is = 0 char *buffer can be set to NULL.
+  *                   If idname exists a pointer to it is returned,
+  *                   else NULL is returned.
+  * if bufsize is < 0 char *buffer can be set to NULL.
+  *                   If idname exists a pointer to it is returned,
+  *                   else an error message is printed and the program exits.
+  */
+
+/* internal function for bb_getpwuid and bb_getgrgid */
+static char * bb_getug(char *buffer, char *idname, long id, int bufsize, char prefix)
+{
+	if (bufsize > 0 ) {
+		assert(buffer!=NULL);
+		if(idname) {
+			return safe_strncpy(buffer, idname, bufsize);
+		}
+		snprintf(buffer, bufsize, "%ld", id);
+	} else if (bufsize < 0 && !idname) {
+		bb_error_msg_and_die("unknown %cid %ld", prefix, id);
+	}
+	return idname;
+}
+
   /* Hacked by Tito Ragusa (c) 2004 <farmatito@tiscali.it> to make it more
   * flexible :
   *
@@ -26,26 +58,14 @@
   *                   the program exits.
   */
 
-#include "libbb.h"
-#include "grp_.h"
-
 /* gets a groupname given a gid */
 char * bb_getgrgid(char *group, long gid, int bufsize)
 {
 	struct group *mygroup = getgrgid(gid);
 
-	return  bb_getug(group, (mygroup) ?
+	return bb_getug(group, (mygroup) ?
 			mygroup->gr_name : (char *)mygroup, gid, bufsize, 'g');
 }
-#endif /* L_bb_getgrgid */
-
-#ifdef L_bb_xgetgrnam
-#include <stdio.h>
-#include <string.h>
-#include "libbb.h"
-#include "pwd_.h"
-#include "grp_.h"
-
 
 /* returns a gid given a group name */
 long bb_xgetgrnam(const char *name)
@@ -56,17 +76,8 @@ long bb_xgetgrnam(const char *name)
 	if (mygroup==NULL)
 		bb_error_msg_and_die("unknown group name: %s", name);
 
-	return (mygroup->gr_gid);
+	return mygroup->gr_gid;
 }
-#endif /* L_bb_xgetgrnam */
-
-#ifdef L_bb_xgetpwnam
-#include <stdio.h>
-#include <string.h>
-#include "libbb.h"
-#include "pwd_.h"
-#include "grp_.h"
-
 
 /* returns a uid given a username */
 long bb_xgetpwnam(const char *name)
@@ -79,13 +90,11 @@ long bb_xgetpwnam(const char *name)
 
 	return myuser->pw_uid;
 }
-#endif /* L_bb_xgetpwnam */
 
-#ifdef L_bb_getpwuid
  /* Hacked by Tito Ragusa (c) 2004 <farmatito@tiscali.it> to make it more
   * flexible :
   *
-  * if bufsize is > 0 char *name can not be set to NULL.
+  * if bufsize is > 0 char *name cannot be set to NULL.
   *                   On success username is written on the static allocated
   *                   buffer name (and a pointer to it is returned).
   *                   On failure uid as string is written to the static
@@ -99,72 +108,23 @@ long bb_xgetpwnam(const char *name)
   *                   the program exits.
   */
 
-#include "libbb.h"
-#include "pwd_.h"
-
 /* gets a username given a uid */
 char * bb_getpwuid(char *name, long uid, int bufsize)
 {
 	struct passwd *myuser = getpwuid(uid);
 
-	return  bb_getug(name, (myuser) ?
-			myuser->pw_name : (char *)myuser , uid, bufsize, 'u');
+	return bb_getug(name, myuser ? myuser->pw_name : (char *)myuser,
+				uid, bufsize, 'u');
 }
-#endif /* L_bb_getpwuid */
-
-#ifdef L_bb_getug
- /*
-  * if bufsize is > 0 char *buffer can not be set to NULL.
-  *                   If idname is not NULL it is written on the static
-  *                   allocated buffer (and a pointer to it is returned).
-  *                   if idname is NULL, id as string is written to the static
-  *                   allocated buffer and NULL is returned.
-  * if bufsize is = 0 char *buffer can be set to NULL.
-  *                   If idname exists a pointer to it is returned,
-  *                   else NULL is returned.
-  * if bufsize is < 0 char *buffer can be set to NULL.
-  *                   If idname exists a pointer to it is returned,
-  *                   else an error message is printed and the program exits.
-  */
-
-#include <stdio.h>
-#include <assert.h>
-#include "libbb.h"
-
-
-/* internal function for bb_getpwuid and bb_getgrgid */
-char * bb_getug(char *buffer, char *idname, long id, int bufsize, char prefix)
-{
-	if(bufsize > 0 ) {
-		assert(buffer!=NULL);
-		if(idname) {
-			return safe_strncpy(buffer, idname, bufsize);
-		}
-		snprintf(buffer, bufsize, "%ld", id);
-	} else if(bufsize < 0 && !idname) {
-		bb_error_msg_and_die("unknown %cid %ld", prefix, id);
-	}
-	return idname;
-}
-#endif /* L_bb_getug */
-
-
-#ifdef L_get_ug_id
-/* indirect dispatcher for pwd helpers.  */
-#include <stdlib.h>
-#include "libbb.h"
 
 unsigned long get_ug_id(const char *s,
 		long (*__bb_getxxnam)(const char *))
 {
 	unsigned long r;
-	char *p;
 
-	r = strtoul(s, &p, 10);
-	if (*p || (s == p)) {
+	r = bb_strtoul(s, NULL, 10);
+	if (errno)
 		r = __bb_getxxnam(s);
-	}
 
 	return r;
 }
-#endif /* L_get_ug_id */

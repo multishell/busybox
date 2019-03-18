@@ -5,15 +5,11 @@
  * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
  * Copyright (C) 2005 by Rob Landley <rob@landley.net>
  *
- * This program is licensed under the GNU General Public license (GPL)
- * version 2 or later, see http://www.fsf.org/licensing/licenses/gpl.html
- * or the file "LICENSE" in the busybox source tarball for the full text.
- *
+ * Licensed under GPL version 2, see file LICENSE in this tarball for details.
  */
 
 #include "busybox.h"
 #include <mntent.h>
-#include <errno.h>
 #include <getopt.h>
 
 #define OPTION_STRING		"flDnravd"
@@ -31,7 +27,7 @@ int umount_main(int argc, char **argv)
 	struct mntent me;
 	FILE *fp;
 	int status = EXIT_SUCCESS;
-	unsigned long opt;
+	unsigned opt;
 	struct mtab_list {
 		char *dir;
 		char *device;
@@ -40,7 +36,7 @@ int umount_main(int argc, char **argv)
 
 	/* Parse any options */
 
-	opt = bb_getopt_ulflags(argc, argv, OPTION_STRING);
+	opt = getopt32(argc, argv, OPTION_STRING);
 
 	argc -= optind;
 	argv += optind;
@@ -58,24 +54,27 @@ int umount_main(int argc, char **argv)
 	/* If we're umounting all, then m points to the start of the list and
 	 * the argument list should be empty (which will match all). */
 
-	if (!(fp = setmntent(bb_path_mtab_file, "r"))) {
+	fp = setmntent(bb_path_mtab_file, "r");
+	if (!fp) {
 		if (opt & OPT_ALL)
-			bb_error_msg_and_die("Cannot open %s", bb_path_mtab_file);
-	} else while (getmntent_r(fp,&me,path,sizeof(path))) {
-		m = xmalloc(sizeof(struct mtab_list));
-		m->next = mtl;
-		m->device = bb_xstrdup(me.mnt_fsname);
-		m->dir = bb_xstrdup(me.mnt_dir);
-		mtl = m;
+			bb_error_msg_and_die("cannot open %s", bb_path_mtab_file);
+	} else {
+		while (getmntent_r(fp, &me, path, sizeof(path))) {
+			m = xmalloc(sizeof(struct mtab_list));
+			m->next = mtl;
+			m->device = xstrdup(me.mnt_fsname);
+			m->dir = xstrdup(me.mnt_dir);
+			mtl = m;
+		}
+		endmntent(fp);
 	}
-	endmntent(fp);
 
-	/* If we're not mounting all, we need at least one argument. */
+	/* If we're not umounting all, we need at least one argument. */
 	if (!(opt & OPT_ALL)) {
 		m = 0;
 		if (!argc) bb_show_usage();
 	}
-	
+
 	// Loop through everything we're supposed to umount, and do so.
 	for (;;) {
 		int curstat;
@@ -106,19 +105,19 @@ int umount_main(int argc, char **argv)
 		if (curstat && doForce) {
 			curstat = umount2(zapit, doForce);
 			if (curstat)
-				bb_error_msg_and_die("forced umount of %s failed!", zapit);
+				bb_error_msg("forced umount of %s failed!", zapit);
 		}
 
 		// If still can't umount, maybe remount read-only?
 		if (curstat && (opt & OPT_REMOUNT) && errno == EBUSY && m) {
 			curstat = mount(m->device, zapit, NULL, MS_REMOUNT|MS_RDONLY, NULL);
-			bb_error_msg(curstat ? "Cannot remount %s read-only" :
+			bb_error_msg(curstat ? "cannot remount %s read-only" :
 						 "%s busy - remounted read-only", m->device);
 		}
 
 		if (curstat) {
 			status = EXIT_FAILURE;
-			bb_perror_msg("Couldn't umount %s", zapit);
+			bb_perror_msg("cannot umount %s", zapit);
 		} else {
 			/* De-allocate the loop device.  This ioctl should be ignored on
 			 * any non-loop block devices. */
@@ -132,7 +131,7 @@ int umount_main(int argc, char **argv)
 		// Note this means that "umount /dev/blah" will unmount all instances
 		// of /dev/blah, not just the most recent.
 		while (m && (m = m->next))
-			if ((opt & OPT_ALL) || !strcmp(path,m->device))
+			if ((opt & OPT_ALL) || !strcmp(path, m->device))
 				break;
 	}
 
@@ -144,7 +143,7 @@ int umount_main(int argc, char **argv)
 			free(mtl->device);
 			free(mtl->dir);
 			free(mtl);
-			mtl=m;
+			mtl = m;
 		}
 	}
 

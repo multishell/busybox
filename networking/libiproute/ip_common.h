@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 #ifndef _IP_COMMON_H
 #define _IP_COMMON_H 1
 
@@ -5,7 +6,12 @@
 #include <asm/types.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
-
+#if !defined IFA_RTA
+#include <linux/if_addr.h>
+#endif
+#if !defined IFLA_RTA
+#include <linux/if_link.h>
+#endif
 
 extern int preferred_family;
 extern char * _SL_;

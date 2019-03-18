@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /* fold -- wrap each input line to fit in specified width.
 
    Written by David MacKenzie, djm@gnu.ai.mit.edu.
@@ -9,13 +10,6 @@
    Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
 */
 
-#include <ctype.h>
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/types.h>
-#include <unistd.h>
 #include "busybox.h"
 
 static unsigned long flags;
@@ -60,15 +54,15 @@ int fold_main(int argc, char **argv)
 				if (*a == '-' && !a[1])
 					break;
 				if (isdigit(*a)) {
-					argv[i] = bb_xasprintf("-w%s", a);
+					argv[i] = xasprintf("-w%s", a);
 				}
 			}
 		}
 	}
 
-	flags = bb_getopt_ulflags(argc, argv, "bsw:", &w_opt);
+	flags = getopt32(argc, argv, "bsw:", &w_opt);
 	if (flags & FLAG_WIDTH)
-		width = bb_xgetlarg(w_opt, 10, 1, 10000);
+		width = xatoul_range(w_opt, 1, 10000);
 
 	argv += optind;
 	if (!*argv) {
@@ -76,7 +70,7 @@ int fold_main(int argc, char **argv)
 	}
 
 	do {
-		FILE *istream = bb_wfopen_input(*argv);
+		FILE *istream = fopen_or_warn_stdin(*argv);
 		int c;
 		int column = 0;		/* Screen column where next char will go. */
 		int offset_out = 0;	/* Index in `line_out' for next char. */
@@ -150,12 +144,11 @@ rescan:
 			fwrite(line_out, sizeof(char), (size_t) offset_out, stdout);
 		}
 
-		if (ferror(istream) || bb_fclose_nonstdin(istream)) {
+		if (ferror(istream) || fclose_if_not_stdin(istream)) {
 			bb_perror_msg("%s", *argv);	/* Avoid multibyte problems. */
 			errs |= EXIT_FAILURE;
 		}
 	} while (*++argv);
 
-	bb_fflush_stdout_and_exit(errs);
+	fflush_stdout_and_exit(errs);
 }
-/* vi: set sw=4 ts=4: */

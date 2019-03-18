@@ -12,10 +12,6 @@
  * Licensed under the GPL v2 or later, see the file LICENSE in this tarball.
 */
 
-#include <string.h>
-#include <unistd.h>
-#include <stdint.h>
-#include <fcntl.h>
 #include "busybox.h"
 
 enum ConvType {
@@ -30,7 +26,7 @@ static int convert(char *fn)
 	int i;
 
 	if (fn != NULL) {
-		in = bb_xfopen(fn, "rw");
+		in = xfopen(fn, "rw");
 		/*
 		   The file is then created with mode read/write and
 		   permissions 0666 for glibc 2.0.6 and earlier or
@@ -91,17 +87,17 @@ int dos2unix_main(int argc, char *argv[])
 	int o;
 
 	/* See if we are supposed to be doing dos2unix or unix2dos */
-	if (bb_applet_name[0] == 'd') {
+	if (applet_name[0] == 'd') {
 		ConvType = CT_DOS2UNIX;	/*2 */
 	} else {
 		ConvType = CT_UNIX2DOS;	/*1 */
 	}
 	/* -u and -d are mutally exclusive */
-	bb_opt_complementally = "?:u--d:d--u";
+	opt_complementary = "?:u--d:d--u";
 	/* process parameters */
 	/* -u convert to unix */
 	/* -d convert to dos  */
-	o = bb_getopt_ulflags(argc, argv, "du");
+	o = getopt32(argc, argv, "du");
 
 	/* Do the conversion requested by an argument else do the default
 	 * conversion depending on our name.  */

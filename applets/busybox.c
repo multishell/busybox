@@ -2,21 +2,11 @@
 /*
  * BusyBox' main applet dispatcher.
  *
- * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
+ * Licensed under GPLv2, see file LICENSE in this tarball for details.
  */
 #include "busybox.h"
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <errno.h>
-#include <stdlib.h>
-#if ENABLE_LOCALE_SUPPORT
-#include <locale.h>
-#else
-#define setlocale(x,y)
-#endif
 
-const char *bb_applet_name ATTRIBUTE_EXTERNALLY_VISIBLE;
+const char *applet_name ATTRIBUTE_EXTERNALLY_VISIBLE;
 
 #ifdef CONFIG_FEATURE_INSTALLER
 /*
@@ -69,16 +59,16 @@ int main(int argc, char **argv)
 {
 	const char *s;
 
-	bb_applet_name=argv[0];
-	if (*bb_applet_name == '-') bb_applet_name++;
-	for (s = bb_applet_name; *s ;)
-		if (*(s++) == '/') bb_applet_name = s;
+	applet_name=argv[0];
+	if (*applet_name == '-') applet_name++;
+	for (s = applet_name; *s ;)
+		if (*(s++) == '/') applet_name = s;
 
-	/* Set locale for everybody except `init' */
-	if(ENABLE_LOCALE_SUPPORT && getpid() != 1)
+	/* Set locale for everybody except 'init' */
+	if (ENABLE_LOCALE_SUPPORT && getpid() != 1)
 		setlocale(LC_ALL, "");
 
-	run_applet_by_name(bb_applet_name, argc, argv);
+	run_applet_by_name(applet_name, argc, argv);
 	bb_error_msg_and_die("applet not found");
 }
 
@@ -102,6 +92,7 @@ int busybox_main(int argc, char **argv)
 		}
 
 		/* link */
+// XXX: FIXME: this is broken. Why not just use argv[0] ?
 		busybox = xreadlink("/proc/self/exe");
 		if (busybox) {
 			install_links(busybox, use_symbolic_links);
@@ -116,7 +107,8 @@ int busybox_main(int argc, char **argv)
 
 	if (argc==1 || !strcmp(argv[1],"--help") ) {
 		if (argc>2) {
-			run_applet_by_name(bb_applet_name=argv[2], 2, argv);
+			applet_name = argv[2];
+			run_applet_by_name(applet_name, 2, argv);
 		} else {
 			const struct BB_applet *a;
 			int col, output_width;
@@ -125,10 +117,12 @@ int busybox_main(int argc, char **argv)
 				/* Obtain the terminal width.  */
 				get_terminal_width_height(0, &output_width, NULL);
 				/* leading tab and room to wrap */
-				output_width -= 20;
-			} else output_width = 60;
+				output_width -= sizeof("start-stop-daemon, ") + 8;
+			} else output_width = 80 - sizeof("start-stop-daemon, ") - 8;
 
-			printf("%s\n\n"
+			printf("%s\n"
+			       "Copyright (C) 1998-2006  Erik Andersen, Rob Landley, and others.\n"
+			       "Licensed under GPLv2.  See source distribution for full notice.\n\n"
 			       "Usage: busybox [function] [arguments]...\n"
 			       "   or: [function] [arguments]...\n\n"
 			       "\tBusyBox is a multi-call binary that combines many common Unix\n"

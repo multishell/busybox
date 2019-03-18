@@ -39,17 +39,7 @@
 	of crypt do not truncate passwords.
 */
 
-#include <ctype.h>
-#include <unistd.h>
-#include <string.h>
-#include <strings.h>
-
 #include "libbb.h"
-
-
-/* passwords should consist of 6 (to 8 characters) */
-#define MINLEN 6
-
 
 static int string_checker_helper(const char *p1, const char *p2) __attribute__ ((__pure__));
 
@@ -71,7 +61,7 @@ static int string_checker(const char *p1, const char *p2)
 	/* check string */
 	int ret = string_checker_helper(p1, p2);
 	/* Make our own copy */
-	char *p = bb_xstrdup(p1);
+	char *p = xstrdup(p1);
 	/* reverse string */
 	size = strlen(p);
 
@@ -100,14 +90,14 @@ static const char *obscure_msg(const char *old_p, const char *new_p, const struc
 	int c;
 	int length;
 	int mixed = 0;
-	/* Add 1 for each type of characters to the minlen of password */
-	int size = MINLEN + 8;
+	/* Add 2 for each type of characters to the minlen of password */
+	int size = CONFIG_PASSWORD_MINLEN + 8;
 	const char *p;
 	char hostname[255];
 
 	/* size */
-	if (!new_p || (length = strlen(new_p)) < MINLEN)
-		return("too short");
+	if (!new_p || (length = strlen(new_p)) < CONFIG_PASSWORD_MINLEN)
+		return "too short";
 
 	/* no username as-is, as sub-string, reversed, capitalized, doubled */
 	if (string_checker(new_p, pw->pw_name)) {
@@ -167,14 +157,14 @@ static const char *obscure_msg(const char *old_p, const char *new_p, const struc
 	return NULL;
 }
 
-int obscure(const char *old, const char *newval, const struct passwd *pwdp)
+int obscure(const char *old, const char *newval, const struct passwd *pw)
 {
 	const char *msg;
 
-	if ((msg = obscure_msg(old, newval, pwdp))) {
-		printf("Bad password: %s.\n", msg);
-		/* If user is root warn only */
-		return (getuid())? 1 : 0;
+	msg = obscure_msg(old, newval, pw);
+	if (msg) {
+		printf("Bad password: %s\n", msg);
+		return 1;
 	}
 	return 0;
 }

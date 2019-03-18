@@ -21,18 +21,6 @@
  */
 
 #include "busybox.h"
-#include <stdlib.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <errno.h>
-#include <termios.h>
-#include <signal.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <string.h>
-
 
 #define SOH 0x01
 #define STX 0x02
@@ -212,7 +200,7 @@ static int receive(char *error_buf, size_t error_buf_size,
 		wantBlockNo++;
 		length += blockLength;
 
-		if (bb_full_write(filefd, blockBuf, blockLength) < 0) {
+		if (full_write(filefd, blockBuf, blockLength) < 0) {
 			note_error("write to file failed: %m");
 			goto fatal;
 		}
@@ -274,11 +262,11 @@ int rx_main(int argc, char **argv)
 			bb_show_usage();
 
 	fn = argv[1];
-	ttyfd = bb_xopen3(CURRENT_TTY, O_RDWR, 0);
-	filefd = bb_xopen3(fn, O_RDWR|O_CREAT|O_TRUNC, 0666);
+	ttyfd = xopen(CURRENT_TTY, O_RDWR);
+	filefd = xopen(fn, O_RDWR|O_CREAT|O_TRUNC);
 
 	if (tcgetattr(ttyfd, &tty) < 0)
-			bb_error_msg_and_die("%s: tcgetattr failed: %m\n", argv[0]);
+			bb_perror_msg_and_die("tcgetattr");
 
 	orig_tty = tty;
 
@@ -296,8 +284,7 @@ int rx_main(int argc, char **argv)
 	tcsetattr(ttyfd, TCSAFLUSH, &orig_tty);
 
 	if (n < 0)
-			bb_error_msg_and_die("\n%s: receive failed:\n  %s\n",
-							   argv[0], error_buf);
+		bb_error_msg_and_die("\nreceive failed:\n  %s", error_buf);
 
-	bb_fflush_stdout_and_exit(EXIT_SUCCESS);
+	fflush_stdout_and_exit(EXIT_SUCCESS);
 }

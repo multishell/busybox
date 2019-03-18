@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * test_io.c --- This is the Test I/O interface.
  *
@@ -110,7 +111,7 @@ static void test_dump_block(io_channel channel,
 	for (i=0, cp = buf; i < channel->block_size; i++, cp++) {
 		cksum += *cp;
 	}
-	fprintf(f, "Contents of block %lu, checksum %08lu: \n", block, cksum);
+	fprintf(f, "Contents of block %lu, checksum %08lu:\n", block, cksum);
 	for (i=0, cp = buf; i < channel->block_size; i++, cp++) {
 		if ((i % 16) == 0)
 			fprintf(f, "%04x: ", i);

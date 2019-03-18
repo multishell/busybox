@@ -19,18 +19,6 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  * ------------------------------------------------------------------------- */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-#include <fcntl.h>
-
 #include "busybox.h"
 
 
@@ -72,7 +60,7 @@ static const char *const tftp_bb_error_msg[] = {
 #endif
 
 
-#ifdef CONFIG_FEATURE_TFTP_BLOCKSIZE
+#if ENABLE_FEATURE_TFTP_BLOCKSIZE
 
 static int tftp_blocksize_check(int blocksize, int bufsize)
 {
@@ -159,7 +147,7 @@ static int tftp(const int cmd, const struct hostent *host,
 	char *buf=xmalloc(tftp_bufsize += 4);
 
 	if ((socketfd = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
-		/* need to unlink the localfile, so don't use bb_xsocket here. */
+		/* need to unlink the localfile, so don't use xsocket here. */
 		bb_perror_msg("socket");
 		return EXIT_FAILURE;
 	}
@@ -167,7 +155,7 @@ static int tftp(const int cmd, const struct hostent *host,
 	len = sizeof(sa);
 
 	memset(&sa, 0, len);
-	bb_xbind(socketfd, (struct sockaddr *)&sa, len);
+	xbind(socketfd, (struct sockaddr *)&sa, len);
 
 	sa.sin_family = host->h_addrtype;
 	sa.sin_port = port;
@@ -216,7 +204,7 @@ static int tftp(const int cmd, const struct hostent *host,
 			memcpy(cp, MODE_OCTET, MODE_OCTET_LEN);
 			cp += MODE_OCTET_LEN;
 
-#ifdef CONFIG_FEATURE_TFTP_BLOCKSIZE
+#if ENABLE_FEATURE_TFTP_BLOCKSIZE
 
 			len = tftp_bufsize - 4;	/* data block size */
 
@@ -249,7 +237,7 @@ static int tftp(const int cmd, const struct hostent *host,
 			block_nr++;
 
 			if ((cmd & tftp_cmd_put) && (opcode == TFTP_DATA)) {
-				len = bb_full_read(localfd, cp, tftp_bufsize - 4);
+				len = full_read(localfd, cp, tftp_bufsize - 4);
 
 				if (len < 0) {
 					bb_perror_msg(bb_msg_read_error);
@@ -273,7 +261,7 @@ static int tftp(const int cmd, const struct hostent *host,
 
 			len = cp - buf;
 
-#ifdef CONFIG_DEBUG_TFTP
+#if ENABLE_DEBUG_TFTP
 			fprintf(stderr, "sending %u bytes\n", len);
 			for (cp = buf; cp < &buf[len]; cp++)
 				fprintf(stderr, "%02x ", (unsigned char) *cp);
@@ -349,7 +337,7 @@ static int tftp(const int cmd, const struct hostent *host,
 		opcode = ntohs(*((unsigned short *) buf));
 		tmp = ntohs(*((unsigned short *) &buf[2]));
 
-#ifdef CONFIG_DEBUG_TFTP
+#if ENABLE_DEBUG_TFTP
 		fprintf(stderr, "received %d bytes: %04x %04x\n", len, opcode, tmp);
 #endif
 
@@ -371,7 +359,7 @@ static int tftp(const int cmd, const struct hostent *host,
 
 			break;
 		}
-#ifdef CONFIG_FEATURE_TFTP_BLOCKSIZE
+#if ENABLE_FEATURE_TFTP_BLOCKSIZE
 		if (want_option_ack) {
 
 			want_option_ack = 0;
@@ -385,7 +373,7 @@ static int tftp(const int cmd, const struct hostent *host,
 				res = tftp_option_get(&buf[2], len - 2, OPTION_BLOCKSIZE);
 
 				if (res) {
-					int blksize = atoi(res);
+					int blksize = xatoi_u(res);
 
 					if (tftp_blocksize_check(blksize, tftp_bufsize - 4)) {
 
@@ -394,7 +382,7 @@ static int tftp(const int cmd, const struct hostent *host,
 						} else {
 							opcode = TFTP_ACK;
 						}
-#ifdef CONFIG_DEBUG_TFTP
+#if ENABLE_DEBUG_TFTP
 						fprintf(stderr, "using %s %u\n", OPTION_BLOCKSIZE,
 								blksize);
 #endif
@@ -420,7 +408,7 @@ static int tftp(const int cmd, const struct hostent *host,
 
 			if (tmp == block_nr) {
 
-				len = bb_full_write(localfd, &buf[4], len - 4);
+				len = full_write(localfd, &buf[4], len - 4);
 
 				if (len < 0) {
 					bb_perror_msg(bb_msg_write_error);
@@ -460,7 +448,7 @@ static int tftp(const int cmd, const struct hostent *host,
 		}
 	}
 
-#ifdef CONFIG_FEATURE_CLEAN_UP
+#if ENABLE_FEATURE_CLEAN_UP
 	close(socketfd);
 	free(buf);
 #endif
@@ -482,7 +470,7 @@ int tftp_main(int argc, char **argv)
 
 	/* figure out what to pass to getopt */
 
-#ifdef CONFIG_FEATURE_TFTP_BLOCKSIZE
+#if ENABLE_FEATURE_TFTP_BLOCKSIZE
 	char *sblocksize = NULL;
 
 #define BS "b:"
@@ -492,7 +480,7 @@ int tftp_main(int argc, char **argv)
 #define BS_ARG
 #endif
 
-#ifdef CONFIG_FEATURE_TFTP_GET
+#if ENABLE_FEATURE_TFTP_GET
 #define GET "g"
 #define GET_COMPL ":g"
 #else
@@ -500,7 +488,7 @@ int tftp_main(int argc, char **argv)
 #define GET_COMPL
 #endif
 
-#ifdef CONFIG_FEATURE_TFTP_PUT
+#if ENABLE_FEATURE_TFTP_PUT
 #define PUT "p"
 #define PUT_COMPL ":p"
 #else
@@ -509,28 +497,26 @@ int tftp_main(int argc, char **argv)
 #endif
 
 #if defined(CONFIG_FEATURE_TFTP_GET) && defined(CONFIG_FEATURE_TFTP_PUT)
-	bb_opt_complementally = GET_COMPL PUT_COMPL ":?g--p:p--g";
+	opt_complementary = GET_COMPL PUT_COMPL ":?g--p:p--g";
 #elif defined(CONFIG_FEATURE_TFTP_GET) || defined(CONFIG_FEATURE_TFTP_PUT)
-	bb_opt_complementally = GET_COMPL PUT_COMPL;
+	opt_complementary = GET_COMPL PUT_COMPL;
 #endif
 
-
-	cmd = bb_getopt_ulflags(argc, argv, GET PUT "l:r:" BS,
-							&localfile, &remotefile BS_ARG);
+	cmd = getopt32(argc, argv, GET PUT "l:r:" BS, &localfile, &remotefile BS_ARG);
 
 	cmd &= (tftp_cmd_get | tftp_cmd_put);
-#ifdef CONFIG_FEATURE_TFTP_GET
+#if ENABLE_FEATURE_TFTP_GET
 	if (cmd == tftp_cmd_get)
 		flags = O_WRONLY | O_CREAT | O_TRUNC;
 #endif
-#ifdef CONFIG_FEATURE_TFTP_PUT
+#if ENABLE_FEATURE_TFTP_PUT
 	if (cmd == tftp_cmd_put)
 		flags = O_RDONLY;
 #endif
 
-#ifdef CONFIG_FEATURE_TFTP_BLOCKSIZE
+#if ENABLE_FEATURE_TFTP_BLOCKSIZE
 	if (sblocksize) {
-		blocksize = atoi(sblocksize);
+		blocksize = xatoi_u(sblocksize);
 		if (!tftp_blocksize_check(blocksize, 0)) {
 			return EXIT_FAILURE;
 		}
@@ -556,7 +542,7 @@ int tftp_main(int argc, char **argv)
 	host = xgethostbyname(argv[optind]);
 	port = bb_lookup_port(argv[optind + 1], "udp", 69);
 
-#ifdef CONFIG_DEBUG_TFTP
+#if ENABLE_DEBUG_TFTP
 	fprintf(stderr, "using server \"%s\", remotefile \"%s\", "
 			"localfile \"%s\".\n",
 			inet_ntoa(*((struct in_addr *) host->h_addr)),
@@ -571,5 +557,5 @@ int tftp_main(int argc, char **argv)
 		if (cmd == tftp_cmd_get && result != EXIT_SUCCESS)
 			unlink(localfile);
 	}
-	return (result);
+	return result;
 }

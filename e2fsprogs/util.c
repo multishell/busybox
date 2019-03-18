@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * util.c --- helper functions used by tune2fs and mke2fs
  *
@@ -32,17 +33,12 @@ void proceed_question(void)
 void check_plausibility(const char *device, int force)
 {
 	int val;
-#ifdef CONFIG_LFS
-	struct stat64 s;
-	val = stat64(device, &s);
-#else
 	struct stat s;
 	val = stat(device, &s);
-#endif
 	if (force)
 		return;
 	if(val == -1)
-		bb_perror_msg_and_die("Could not stat %s", device);
+		bb_perror_msg_and_die("cannot stat %s", device);
 	if (!S_ISBLK(s.st_mode)) {
 		printf("%s is not a block special device.\n", device);
 		proceed_question();
@@ -86,7 +82,7 @@ void check_mount(const char *device, int force, const char *type)
 
 	retval = ext2fs_check_if_mounted(device, &mount_flags);
 	if (retval) {
-		bb_error_msg("Could not determine if %s is mounted", device);
+		bb_error_msg("cannot determine if %s is mounted", device);
 		return;
 	}
 	if (mount_flags & EXT2_MF_MOUNTED) {
@@ -98,7 +94,7 @@ force_check:
 			bb_error_msg_and_die("it's not safe to run badblocks!");
 	}
 
-	if (mount_flags & EXT2_MF_BUSY) {  
+	if (mount_flags & EXT2_MF_BUSY) {
 		bb_error_msg("%s is apparently in use by the system", device);
 		goto force_check;
 	}
@@ -110,14 +106,7 @@ void parse_journal_opts(char **journal_device, int *journal_flags,
 {
 	char *buf, *token, *next, *p, *arg;
 	int journal_usage = 0;
-#if 0
-	int	len;
-	len = strlen(opts);
-	buf = xmalloc(len+1);
-	strcpy(buf, opts);
-#else
-	buf = bb_xstrdup(opts);
-#endif
+	buf = xstrdup(opts);
 	for (token = buf; token && *token; token = next) {
 		p = strchr(token, ',');
 		next = 0;
@@ -230,7 +219,7 @@ void make_journal_device(char *journal_device, ext2_filsys fs, int quiet, int fo
 					EXT2_FLAG_JOURNAL_DEV_OK, 0,
 					fs->blocksize, io_ptr, &jfs);
 	if (retval)
-		bb_error_msg_and_die("Could not journal device %s", journal_device);
+		bb_error_msg_and_die("cannot journal device %s", journal_device);
 	if(!quiet)
 		printf("Adding journal to device %s: ", journal_device);
 	fflush(stdout);
@@ -259,7 +248,7 @@ void make_journal_blocks(ext2_filsys fs, int journal_size, int journal_flags, in
 	retval = ext2fs_add_journal_inode(fs, journal_blocks,
 						  journal_flags);
 	if(retval)
-		bb_error_msg_and_die("Could not create journal");
+		bb_error_msg_and_die("cannot create journal");
 	if(!quiet)
 		puts("done");
 }
@@ -270,7 +259,7 @@ char *e2fs_set_sbin_path(void)
 	/* Update our PATH to include /sbin  */
 #define PATH_SET "/sbin"
 	if (oldpath)
-		oldpath = bb_xasprintf("%s:%s", PATH_SET, oldpath);
+		oldpath = xasprintf("%s:%s", PATH_SET, oldpath);
 	 else
 		oldpath = PATH_SET;
 	putenv (oldpath);

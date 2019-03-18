@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * tag.c - allocation/initialization/free routines for tag structs
  *
@@ -256,7 +257,7 @@ blkid_tag_iterate blkid_tag_iterate_begin(blkid_dev dev)
 	iter->magic = TAG_ITERATE_MAGIC;
 	iter->dev = dev;
 	iter->p	= dev->bid_tags.next;
-	return (iter);
+	return iter;
 }
 
 /*
@@ -354,7 +355,7 @@ extern int optind;
 void usage(char *prog)
 {
 	fprintf(stderr, "Usage: %s [-f blkid_file] [-m debug_mask] device "
-		"[type value]\n", 
+		"[type value]\n",
 		prog);
 	fprintf(stderr, "\tList all tags for a device and exit\n", prog);
 	exit(1);
@@ -382,7 +383,7 @@ int main(int argc, char **argv)
 		case 'm':
 			blkid_debug_mask = strtoul (optarg, &tmp, 0);
 			if (*tmp) {
-				fprintf(stderr, "Invalid debug mask: %d\n", 
+				fprintf(stderr, "Invalid debug mask: %d\n",
 					optarg);
 				exit(1);
 			}
@@ -407,15 +408,15 @@ int main(int argc, char **argv)
 
 	dev = blkid_get_dev(cache, devname, flags);
 	if (!dev) {
-		fprintf(stderr, "%s: Can not find device in blkid cache\n");
+		fprintf(stderr, "%s: cannot find device in blkid cache\n");
 		exit(1);
 	}
 	if (search_type) {
 		found = blkid_dev_has_tag(dev, search_type, search_value);
 		printf("Device %s: (%s, %s) %s\n", blkid_dev_devname(dev),
-		       search_type, search_value ? search_value : "NULL", 
+		       search_type, search_value ? search_value : "NULL",
 		       found ? "FOUND" : "NOT FOUND");
-		return(!found);
+		return !found;
 	}
 	printf("Device %s...\n", blkid_dev_devname(dev));
 
@@ -426,6 +427,6 @@ int main(int argc, char **argv)
 	blkid_tag_iterate_end(iter);
 
 	blkid_put_cache(cache);
-	return (0);
+	return 0;
 }
 #endif

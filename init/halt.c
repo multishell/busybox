@@ -4,13 +4,11 @@
  *
  * Copyright 2006 by Rob Landley <rob@landley.net>
  *
- * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
+ * Licensed under GPL version 2, see file LICENSE in this tarball for details.
  */
 
 #include "busybox.h"
-#include <signal.h>
 #include <sys/reboot.h>
-#include <unistd.h>
 
 int halt_main(int argc, char *argv[])
 {
@@ -27,29 +25,34 @@ RB_POWERDOWN,
 #endif
 RB_AUTOBOOT
 	};
-	static const int signals[] = {SIGUSR1, SIGUSR2, SIGTERM};
+	static const int signals[] = { SIGUSR1, SIGUSR2, SIGTERM };
 
-	char *delay = "hpr";
+	char *delay;
 	int which, flags, rc = 1;
 
 	/* Figure out which applet we're running */
-	for(which=0;delay[which]!=*bb_applet_name;which++);
+	for (which = 0; "hpr"[which] != *applet_name; which++);
 
 	/* Parse and handle arguments */
-	flags = bb_getopt_ulflags(argc, argv, "d:nf", &delay);
-	if (flags&1) sleep(atoi(delay));
-	if (!(flags&2)) sync();
+	flags = getopt32(argc, argv, "d:nf", &delay);
+	if (flags & 1) sleep(xatou(delay));
+	if (!(flags & 2)) sync();
 
 	/* Perform action. */
 	if (ENABLE_INIT && !(flags & 4)) {
 		if (ENABLE_FEATURE_INITRD) {
-			long *pidlist=find_pid_by_name("linuxrc");
-			if (*pidlist>0) rc = kill(*pidlist,signals[which]);
-			if (ENABLE_FEATURE_CLEAN_UP) free(pidlist);
+			pid_t *pidlist = find_pid_by_name("linuxrc");
+			if (pidlist[0] > 0)
+				rc = kill(pidlist[0], signals[which]);
+			if (ENABLE_FEATURE_CLEAN_UP)
+				free(pidlist);
 		}
-		if (rc) rc = kill(1,signals[which]);
-	} else rc = reboot(magic[which]);
+		if (rc)
+			rc = kill(1, signals[which]);
+	} else
+		rc = reboot(magic[which]);
 
-	if (rc) bb_error_msg("No.");
+	if (rc)
+		bb_error_msg("no");
 	return rc;
 }

@@ -10,34 +10,18 @@
  */
 
 #include "busybox.h"
-#include <stdio.h>
-#include <stdlib.h>
 #include <errno.h>
 #include <paths.h>
 #include <signal.h>
-#include <stdarg.h>
-#include <string.h>
-#include <termios.h>
-#include <unistd.h>
-#include <limits.h>
-#include <fcntl.h>
 #include <sys/ioctl.h>
-#include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/reboot.h>
 
 #include "init_shared.h"
 
-
 #ifdef CONFIG_SYSLOGD
 # include <sys/syslog.h>
 #endif
-
-
-#ifdef CONFIG_SELINUX
-# include <selinux/selinux.h>
-#endif /* CONFIG_SELINUX */
-
 
 #define INIT_BUFFS_SIZE 256
 
@@ -72,7 +56,6 @@ struct serial_struct {
 	int	reserved[1];
 };
 
-
 #ifndef _PATH_STDPATH
 #define _PATH_STDPATH	"/usr/bin:/bin:/usr/sbin:/sbin"
 #endif
@@ -87,8 +70,6 @@ struct serial_struct {
 #define CORE_ENABLE_FLAG_FILE "/.init_enable_core"
 #include <sys/resource.h>
 #endif
-
-#define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))
 
 #define INITTAB      "/etc/inittab"	/* inittab file location */
 #ifndef INIT_SCRIPT
@@ -192,10 +173,7 @@ static void loop_forever(void)
 #if ENABLE_DEBUG_INIT
 #define messageD message
 #else
-static inline void messageD(int ATTRIBUTE_UNUSED device,
-				const char ATTRIBUTE_UNUSED *fmt, ...)
-{
-}
+#define messageD(...)  do {;} while(0);
 #endif
 static void message(int device, const char *fmt, ...)
 	__attribute__ ((format(printf, 2, 3)));
@@ -217,7 +195,7 @@ static void message(int device, const char *fmt, ...)
 	/* Log the message to syslogd */
 	if (device & LOG) {
 		/* don`t out "\r\n" */
-		openlog(bb_applet_name, 0, LOG_DAEMON);
+		openlog(applet_name, 0, LOG_DAEMON);
 		syslog(LOG_INFO, "%s", msg + 1);
 		closelog();
 	}
@@ -233,14 +211,14 @@ static void message(int device, const char *fmt, ...)
 	if (log_fd < 0) {
 		if ((log_fd = device_open(log_console, O_RDWR | O_NONBLOCK | O_NOCTTY)) < 0) {
 			log_fd = -2;
-			bb_error_msg("Bummer, can't write to log on %s!", log_console);
+			bb_error_msg("bummer, can't write to log on %s!", log_console);
 			device = CONSOLE;
 		} else {
 			fcntl(log_fd, F_SETFD, FD_CLOEXEC);
 		}
 	}
 	if ((device & LOG) && (log_fd >= 0)) {
-		bb_full_write(log_fd, msg, l);
+		full_write(log_fd, msg, l);
 	}
 #endif
 
@@ -249,12 +227,12 @@ static void message(int device, const char *fmt, ...)
 					O_WRONLY | O_NOCTTY | O_NONBLOCK);
 		/* Always send console messages to /dev/console so people will see them. */
 		if (fd >= 0) {
-			bb_full_write(fd, msg, l);
+			full_write(fd, msg, l);
 			close(fd);
 #if ENABLE_DEBUG_INIT
 		/* all descriptors may be closed */
 		} else {
-			bb_error_msg("Bummer, can't print: ");
+			bb_error_msg("bummer, can't print: ");
 			va_start(arguments, fmt);
 			vfprintf(stderr, fmt, arguments);
 			va_end(arguments);
@@ -312,15 +290,6 @@ static void console_init(void)
 
 	if ((s = getenv("CONSOLE")) != NULL || (s = getenv("console")) != NULL) {
 		safe_strncpy(console, s, sizeof(console));
-#if 0 /* #cpu(sparc) */
-	/* sparc kernel supports console=tty[ab] parameter which is also
-	 * passed to init, so catch it here */
-		/* remap tty[ab] to /dev/ttyS[01] */
-		if (strcmp(s, "ttya") == 0)
-			safe_strncpy(console, SC_0, sizeof(console));
-		else if (strcmp(s, "ttyb") == 0)
-			safe_strncpy(console, SC_1, sizeof(console));
-#endif
 	} else {
 		/* 2.2 kernels: identify the real console backend and try to use it */
 		if (ioctl(0, TIOCGSERIAL, &sr) == 0) {
@@ -564,7 +533,7 @@ static pid_t run(const struct init_action *a)
 			messageD(LOG, "Waiting for enter to start '%s'"
 						"(pid %d, terminal %s)\n",
 					  cmdpath, getpid(), a->terminal);
-			bb_full_write(1, press_enter, sizeof(press_enter) - 1);
+			full_write(1, press_enter, sizeof(press_enter) - 1);
 			while(read(0, &c, 1) == 1 && c != '\n')
 				;
 		}
@@ -592,7 +561,7 @@ static pid_t run(const struct init_action *a)
 		execv(cmdpath, cmd);
 
 		/* We're still here?  Some error happened. */
-		message(LOG | CONSOLE, "Bummer, could not run '%s': %m", cmdpath);
+		message(LOG | CONSOLE, "Bummer, cannot run '%s': %m", cmdpath);
 		_exit(-1);
 	}
 	sigprocmask(SIG_SETMASK, &omask, NULL);
@@ -842,9 +811,6 @@ static void new_init_action(int action, const char *command, const char *cons)
 	strcpy(new_action->command, command);
 	new_action->action = action;
 	strcpy(new_action->terminal, cons);
-#if 0   /* calloc zeroed always */
-	new_action->pid = 0;
-#endif
 	messageD(LOG|CONSOLE, "command='%s' action='%d' terminal='%s'\n",
 		new_action->command, new_action->action, new_action->terminal);
 }
@@ -1016,7 +982,7 @@ int init_main(int argc, char **argv)
 #if !ENABLE_DEBUG_INIT
 	/* Expect to be invoked as init with PID=1 or be invoked as linuxrc */
 	if (getpid() != 1 &&
-		(!ENABLE_FEATURE_INITRD || !strstr(bb_applet_name, "linuxrc")))
+		(!ENABLE_FEATURE_INITRD || !strstr(applet_name, "linuxrc")))
 	{
 		bb_show_usage();
 	}
@@ -1058,6 +1024,9 @@ int init_main(int argc, char **argv)
 		for(e = environment; *e; e++)
 			putenv((char *) *e);
 	}
+
+	if (argc > 1) setenv("RUNLEVEL", argv[1], 1);
+
 	/* Hello world */
 	message(MAYBE_CONSOLE | LOG, "init started:  %s", bb_msg_full_version);
 
@@ -1066,7 +1035,7 @@ int init_main(int argc, char **argv)
 		struct sysinfo info;
 
 		if (!sysinfo(&info) &&
-			(info.mem_unit ? : 1) * (long long)info.totalram < MEGABYTE)
+			(info.mem_unit ? : 1) * (long long)info.totalram < 1024*1024)
 		{
 			message(CONSOLE,"Low memory: forcing swapon.");
 			/* swapon -a requires /proc typically */
@@ -1156,7 +1125,7 @@ int init_main(int argc, char **argv)
 				}
 			}
 			/* see if anyone else is waiting to be reaped */
-			wpid = waitpid (-1, NULL, WNOHANG);
+			wpid = waitpid(-1, NULL, WNOHANG);
 		}
 	}
 }

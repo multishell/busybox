@@ -4,15 +4,10 @@
  *
  * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
  *
- * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
+ * Licensed under GPL version 2, see file LICENSE in this tarball for details.
  */
 
 #include "busybox.h"
-#include <signal.h>
-#include <stdlib.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <getopt.h>
 #include <sys/reboot.h>
 #include <sys/syslog.h>
 #include "init_shared.h"
@@ -36,7 +31,7 @@ int bb_shutdown_system(unsigned long magic)
 #endif
 	reboot(RB_ENABLE_CAD);
 
-	openlog(bb_applet_name, 0, pri);
+	openlog(applet_name, 0, pri);
 
 	message = "\nThe system is going down NOW !!";
 	syslog(pri, "%s", message);

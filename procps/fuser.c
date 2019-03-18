@@ -9,18 +9,6 @@
  */
 
 #include "busybox.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <limits.h>
-#include <dirent.h>
-#include <signal.h>
-#include <sys/types.h>
-#include <sys/ioctl.h>
-#include <sys/stat.h>
-#include <sys/socket.h>
-#include <sys/sysmacros.h>
 
 #define FUSER_PROC_DIR "/proc"
 #define FUSER_MAX_LINE 255
@@ -95,7 +83,7 @@ static int fuser_parse_net_arg(const char *filename,
 	if((sscanf(filename, "%d/%4s", port, tproto)) != 2) return 0;
 	sprintf(path, "%s/net/%s", FUSER_PROC_DIR, tproto);
 	if((access(path, R_OK)) != 0) return 0;
-	*proto = bb_xstrdup(tproto);
+	*proto = xstrdup(tproto);
 	return 1;
 }
 
@@ -289,7 +277,7 @@ static int fuser_print_pid_list(pid_list *plist)
 		if(curr->pid > 0) printf("%d ", curr->pid);
 		curr = curr->next;
 	}
-	printf("\n");
+	puts("");
 	return 1;
 }
 
@@ -304,7 +292,7 @@ static int fuser_kill_pid_list(pid_list *plist, int sig)
 		if(curr->pid > 0 && curr->pid != mypid) {
 			if (kill(curr->pid, sig) != 0) {
 				bb_perror_msg(
-					"Could not kill pid '%d'", curr->pid);
+					"cannot kill pid '%d'", curr->pid);
 				success = 0;
 			}
 		}
@@ -335,7 +323,7 @@ int fuser_main(int argc, char **argv)
 		optn = fuser_option(argv[i]);
 		if(optn) opt |= optn;
 		else if(argv[i][0] == '-') {
-			if(!(u_signal_names(argv[i]+1, &killsig, 0)))
+			if(0>(killsig = get_signum(argv[i]+1)))
 				killsig = SIGTERM;
 		}
 		else {
@@ -345,7 +333,6 @@ int fuser_main(int argc, char **argv)
 	}
 	if(!fnic) return 1;
 
-	pids = xmalloc(sizeof(pid_list));
 	inodes = xmalloc(sizeof(inode_list));
 	for(i=0;i<fnic;i++) {
 		if(fuser_parse_net_arg(argv[fni[i]], &proto, &port)) {
@@ -354,14 +341,13 @@ int fuser_main(int argc, char **argv)
 		else {
 			if(!fuser_file_to_dev_inode(
 				argv[fni[i]], &dev, &inode)) {
-				free(pids);
-				free(inodes);
-				bb_perror_msg_and_die(
-					"Could not open '%s'", argv[fni[i]]);
+				if (ENABLE_FEATURE_CLEAN_UP) free(inodes);
+				bb_perror_msg_and_die("cannot open '%s'", argv[fni[i]]);
 			}
 			fuser_add_inode(inodes, dev, inode);
 		}
 	}
+	pids = xmalloc(sizeof(pid_list));
 	success = fuser_scan_proc_pids(opt, inodes, pids);
 	/* if the first pid in the list is 0, none have been found */
 	if(pids->pid == 0) success = 0;

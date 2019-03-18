@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * libnetlink.c	RTnetlink service routines.
  *
@@ -35,7 +36,7 @@ int rtnl_open(struct rtnl_handle *rth, unsigned subscriptions)
 
 	rth->fd = socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
 	if (rth->fd < 0) {
-		bb_perror_msg("Cannot open netlink socket");
+		bb_perror_msg("cannot open netlink socket");
 		return -1;
 	}
 
@@ -44,20 +45,20 @@ int rtnl_open(struct rtnl_handle *rth, unsigned subscriptions)
 	rth->local.nl_groups = subscriptions;
 
 	if (bind(rth->fd, (struct sockaddr*)&rth->local, sizeof(rth->local)) < 0) {
-		bb_perror_msg("Cannot bind netlink socket");
+		bb_perror_msg("cannot bind netlink socket");
 		return -1;
 	}
 	addr_len = sizeof(rth->local);
 	if (getsockname(rth->fd, (struct sockaddr*)&rth->local, &addr_len) < 0) {
-		bb_perror_msg("Cannot getsockname");
+		bb_perror_msg("cannot getsockname");
 		return -1;
 	}
 	if (addr_len != sizeof(rth->local)) {
-		bb_error_msg("Wrong address length %d", addr_len);
+		bb_error_msg("wrong address length %d", addr_len);
 		return -1;
 	}
 	if (rth->local.nl_family != AF_NETLINK) {
-		bb_error_msg("Wrong address family %d", rth->local.nl_family);
+		bb_error_msg("wrong address family %d", rth->local.nl_family);
 		return -1;
 	}
 	rth->seq = time(NULL);
@@ -120,12 +121,12 @@ int rtnl_dump_request(struct rtnl_handle *rth, int type, void *req, int len)
 }
 
 int rtnl_dump_filter(struct rtnl_handle *rth,
-		     int (*filter)(struct sockaddr_nl *, struct nlmsghdr *n, void *),
-		     void *arg1,
-		     int (*junk)(struct sockaddr_nl *,struct nlmsghdr *n, void *),
-		     void *arg2)
+		int (*filter)(struct sockaddr_nl *, struct nlmsghdr *n, void *),
+		void *arg1,
+		int (*junk)(struct sockaddr_nl *, struct nlmsghdr *n, void *),
+		void *arg2)
 {
-	char	buf[8192];
+	char buf[8192];
 	struct sockaddr_nl nladdr;
 	struct iovec iov = { buf, sizeof(buf) };
 
@@ -194,11 +195,11 @@ skip_it:
 			h = NLMSG_NEXT(h, status);
 		}
 		if (msg.msg_flags & MSG_TRUNC) {
-			bb_error_msg("Message truncated");
+			bb_error_msg("message truncated");
 			continue;
 		}
 		if (status) {
-			bb_error_msg_and_die("!!!Remnant of size %d", status);
+			bb_error_msg_and_die("remnant of size %d!", status);
 		}
 	}
 }
@@ -233,7 +234,7 @@ int rtnl_talk(struct rtnl_handle *rtnl, struct nlmsghdr *n, pid_t peer,
 	status = sendmsg(rtnl->fd, &msg, 0);
 
 	if (status < 0) {
-		bb_perror_msg("Cannot talk to rtnetlink");
+		bb_perror_msg("cannot talk to rtnetlink");
 		return -1;
 	}
 
@@ -264,10 +265,10 @@ int rtnl_talk(struct rtnl_handle *rtnl, struct nlmsghdr *n, pid_t peer,
 
 			if (l<0 || len>status) {
 				if (msg.msg_flags & MSG_TRUNC) {
-					bb_error_msg("Truncated message");
+					bb_error_msg("truncated message");
 					return -1;
 				}
-				bb_error_msg_and_die("!!!malformed message: len=%d", len);
+				bb_error_msg_and_die("malformed message: len=%d!", len);
 			}
 
 			if (nladdr.nl_pid != peer ||
@@ -303,17 +304,17 @@ int rtnl_talk(struct rtnl_handle *rtnl, struct nlmsghdr *n, pid_t peer,
 				return 0;
 			}
 
-			bb_error_msg("Unexpected reply!!!");
+			bb_error_msg("unexpected reply!");
 
 			status -= NLMSG_ALIGN(len);
 			h = (struct nlmsghdr*)((char*)h + NLMSG_ALIGN(len));
 		}
 		if (msg.msg_flags & MSG_TRUNC) {
-			bb_error_msg("Message truncated");
+			bb_error_msg("message truncated");
 			continue;
 		}
 		if (status) {
-			bb_error_msg_and_die("!!!Remnant of size %d", status);
+			bb_error_msg_and_die("remnant of size %d!", status);
 		}
 	}
 }
@@ -389,7 +390,7 @@ int parse_rtattr(struct rtattr *tb[], int max, struct rtattr *rta, int len)
 		rta = RTA_NEXT(rta,len);
 	}
 	if (len) {
-		bb_error_msg("!!!Deficit %d, rta_len=%d", len, rta->rta_len);
+		bb_error_msg("deficit %d, rta_len=%d!", len, rta->rta_len);
 	}
 	return 0;
 }

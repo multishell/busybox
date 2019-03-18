@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * resolve.c - resolve names and tags into specific devices
  *
@@ -11,7 +12,7 @@
  */
 
 #include <stdio.h>
-#if HAVE_UNISTD_H
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
 #include <stdlib.h>
@@ -101,7 +102,7 @@ errout:
 	if (!cache) {
 		blkid_put_cache(c);
 	}
-	return (ret);
+	return ret;
 }
 
 #ifdef TEST_PROGRAM
@@ -120,7 +121,7 @@ int main(int argc, char **argv)
 		exit(1);
 	}
 	if (blkid_get_cache(&cache, bb_dev_null) < 0) {
-		fprintf(stderr, "Couldn't get blkid cache\n");
+		fprintf(stderr, "cannot get blkid cache\n");
 		exit(1);
 	}
 

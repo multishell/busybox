@@ -18,13 +18,6 @@
  */
 
 #include "busybox.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <signal.h>		/* for our signal() handlers */
-#include <string.h>		/* strncpy() */
-#include <errno.h>		/* errno and friends */
-#include <unistd.h>
-#include <ctype.h>
 #include <sys/syslog.h>
 #include <sys/klog.h>
 
@@ -50,23 +43,22 @@ int klogd_main(int argc, char **argv)
 	int i, n, lastc;
 	char *start;
 
-
 	{
-		unsigned long opt;
+		unsigned opt;
 
 		/* do normal option parsing */
-		opt = bb_getopt_ulflags(argc, argv, "c:n", &start);
+		opt = getopt32(argc, argv, "c:n", &start);
 
 		if (opt & OPT_LEVEL) {
 			/* Valid levels are between 1 and 8 */
-			console_log_level = bb_xgetlarg(start, 10, 1, 8);
+			console_log_level = xatoul_range(start, 1, 8);
 		}
 
 		if (!(opt & OPT_FOREGROUND)) {
 #ifdef BB_NOMMU
 			vfork_daemon_rexec(0, 1, argc, argv, "-n");
 #else
-			bb_xdaemon(0, 1);
+			xdaemon(0, 1);
 #endif
 		}
 	}

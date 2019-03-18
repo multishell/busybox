@@ -31,12 +31,6 @@
 */
 
 #include "busybox.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <termios.h>
-#include <unistd.h>
-#include <ctype.h>
 
 #ifdef CONFIG_FEATURE_LESS_REGEXP
 #include "xregex.h"
@@ -50,14 +44,18 @@
 #define REAL_KEY_LEFT 'D'
 #define REAL_PAGE_UP '5'
 #define REAL_PAGE_DOWN '6'
+#define REAL_KEY_HOME '7'
+#define REAL_KEY_END '8'
 
 /* These are the special codes assigned by this program to the special keys */
-#define PAGE_UP 20
-#define PAGE_DOWN 21
-#define KEY_UP 22
-#define KEY_DOWN 23
-#define KEY_RIGHT 24
-#define KEY_LEFT 25
+#define KEY_UP 20
+#define KEY_DOWN 21
+#define KEY_RIGHT 22
+#define KEY_LEFT 23
+#define PAGE_UP 24
+#define PAGE_DOWN 25
+#define KEY_HOME 26
+#define KEY_END 27
 
 /* The escape codes for highlighted and normal text */
 #define HIGHLIGHT "\033[7m"
@@ -79,19 +77,19 @@ static int current_file = 1;
 static int line_pos;
 static int num_flines;
 static int num_files = 1;
-static int past_eof;
 
 /* Command line options */
-static unsigned long flags;
+static unsigned flags;
 #define FLAG_E 1
 #define FLAG_M (1<<1)
 #define FLAG_m (1<<2)
 #define FLAG_N (1<<3)
 #define FLAG_TILDE (1<<4)
-
-/* This is needed so that program behaviour changes when input comes from
-   stdin */
-static int inp_stdin;
+/* hijack command line options variable for internal state vars */
+#define LESS_STATE_INP_STDIN (1<<5)
+#define LESS_STATE_PAST_EOF  (1<<6)
+#define LESS_STATE_MATCH_BACKWARDS (1<<7)
+/* INP_STDIN is used to change behaviour when input comes from stdin */
 
 #ifdef CONFIG_FEATURE_LESS_MARKS
 static int mark_lines[15][2];
@@ -103,7 +101,6 @@ static int match_found;
 static int *match_lines;
 static int match_pos;
 static int num_matches;
-static int match_backwards;
 static regex_t old_pattern;
 #endif
 
@@ -120,12 +117,6 @@ static void set_tty_cooked(void)
 	tcsetattr(fileno(inp), TCSANOW, &term_orig);
 }
 
-/* Set terminal input to raw mode  (taken from vi.c) */
-static void set_tty_raw(void)
-{
-	tcsetattr(fileno(inp), TCSANOW, &term_vi);
-}
-
 /* Exit the program gracefully */
 static void tless_exit(int code)
 {
@@ -135,7 +126,7 @@ static void tless_exit(int code)
 		 only termios.h? */
 
 	putchar('\n');
-	exit(code);
+	fflush_stdout_and_exit(code);
 }
 
 /* Grab a character from input without requiring the return key. If the
@@ -144,28 +135,23 @@ static void tless_exit(int code)
 static int tless_getch(void)
 {
 	int input;
-
-	set_tty_raw();
+	/* Set terminal input to raw mode  (taken from vi.c) */
+	tcsetattr(fileno(inp), TCSANOW, &term_vi);
 
 	input = getc(inp);
 	/* Detect escape sequences (i.e. arrow keys) and handle
 	   them accordingly */
 
 	if (input == '\033' && getc(inp) == '[') {
+		unsigned int i;
 		input = getc(inp);
 		set_tty_cooked();
-		if (input == REAL_KEY_UP)
-			return KEY_UP;
-		else if (input == REAL_KEY_DOWN)
-			return KEY_DOWN;
-		else if (input == REAL_KEY_RIGHT)
-			return KEY_RIGHT;
-		else if (input == REAL_KEY_LEFT)
-			return KEY_LEFT;
-		else if (input == REAL_PAGE_UP)
-			return PAGE_UP;
-		else if (input == REAL_PAGE_DOWN)
-			return PAGE_DOWN;
+
+		i = input - REAL_KEY_UP;
+		if (i < 4)
+			return 20 + i;
+		else if ((i = input - REAL_PAGE_UP) < 4)
+			return 24 + i;
 	}
 	/* The input is a normal ASCII value */
 	else {
@@ -191,12 +177,12 @@ static void clear_line(void)
 /* This adds line numbers to every line, as the -N flag necessitates */
 static void add_linenumbers(void)
 {
-	char current_line[256];
 	int i;
 
 	for (i = 0; i <= num_flines; i++) {
-		safe_strncpy(current_line, flines[i], 256);
-		flines[i] = bb_xasprintf("%5d %s", i + 1, current_line);
+		char *new = xasprintf("%5d %s", i + 1, flines[i]);
+		free(flines[i]);
+		flines[i] = new;
 	}
 }
 
@@ -206,27 +192,27 @@ static void data_readlines(void)
 	char current_line[256];
 	FILE *fp;
 
-	fp = (inp_stdin) ? stdin : bb_xfopen(filename, "r");
+	fp = (flags & LESS_STATE_INP_STDIN) ? stdin : xfopen(filename, "r");
 	flines = NULL;
 	for (i = 0; (feof(fp)==0) && (i <= MAXLINES); i++) {
 		strcpy(current_line, "");
 		fgets(current_line, 256, fp);
 		if (fp != stdin)
-			bb_xferror(fp, filename);
+			die_if_ferror(fp, filename);
 		flines = xrealloc(flines, (i+1) * sizeof(char *));
-		flines[i] = bb_xstrdup(current_line);
+		flines[i] = xstrdup(current_line);
 	}
 	num_flines = i - 2;
 
 	/* Reset variables for a new file */
 
 	line_pos = 0;
-	past_eof = 0;
+	flags &= ~LESS_STATE_PAST_EOF;
 
 	fclose(fp);
 
 	if (inp == NULL)
-		inp = (inp_stdin) ? bb_xfopen(CURRENT_TTY, "r") : stdin;
+		inp = (flags & LESS_STATE_INP_STDIN) ? xfopen(CURRENT_TTY, "r") : stdin;
 
 	if (flags & FLAG_N)
 		add_linenumbers();
@@ -246,16 +232,21 @@ static void m_status_print(void)
 {
 	int percentage;
 
-	if (!past_eof) {
+	if (!(flags & LESS_STATE_PAST_EOF)) {
 		if (!line_pos) {
 			if (num_files > 1)
-				printf("%s%s %s%i%s%i%s%i-%i/%i ", HIGHLIGHT, filename, "(file ", current_file, " of ", num_files, ") lines ", line_pos + 1, line_pos + height - 1, num_flines + 1);
+				printf("%s%s %s%i%s%i%s%i-%i/%i ", HIGHLIGHT,
+					filename, "(file ", current_file, " of ", num_files, ") lines ",
+					line_pos + 1, line_pos + height - 1, num_flines + 1);
 			else {
-				printf("%s%s lines %i-%i/%i ", HIGHLIGHT, filename, line_pos + 1, line_pos + height - 1, num_flines + 1);
+				printf("%s%s lines %i-%i/%i ", HIGHLIGHT,
+					filename, line_pos + 1, line_pos + height - 1,
+					num_flines + 1);
 			}
 		}
 		else {
-			printf("%s %s lines %i-%i/%i ", HIGHLIGHT, filename, line_pos + 1, line_pos + height - 1, num_flines + 1);
+			printf("%s %s lines %i-%i/%i ", HIGHLIGHT, filename,
+				line_pos + 1, line_pos + height - 1, num_flines + 1);
 		}
 
 		if (line_pos == num_flines - height + 2) {
@@ -269,7 +260,8 @@ static void m_status_print(void)
 		}
 	}
 	else {
-		printf("%s%s lines %i-%i/%i (END) ", HIGHLIGHT, filename, line_pos + 1, num_flines + 1, num_flines + 1);
+		printf("%s%s lines %i-%i/%i (END) ", HIGHLIGHT, filename,
+				line_pos + 1, num_flines + 1, num_flines + 1);
 		if ((num_files > 1) && (current_file != num_files))
 			printf("- Next: %s", files[current_file]);
 		printf("%s", NORMAL);
@@ -306,7 +298,8 @@ static void status_print(void)
 		if (!line_pos) {
 			printf("%s%s %s", HIGHLIGHT, filename, NORMAL);
 			if (num_files > 1)
-				printf("%s%s%i%s%i%s%s", HIGHLIGHT, "(file ", current_file, " of ", num_files, ")", NORMAL);
+				printf("%s%s%i%s%i%s%s", HIGHLIGHT, "(file ",
+					current_file, " of ", num_files, ")", NORMAL);
 		}
 		else if (line_pos == num_flines - height + 2) {
 			printf("%s%s %s", HIGHLIGHT, "(END)", NORMAL);
@@ -357,12 +350,12 @@ static void buffer_init(void)
 	/* Fill the buffer until the end of the file or the
 	   end of the buffer is reached */
 	for (i = 0; (i < (height - 1)) && (i <= num_flines); i++) {
-		buffer[i] = bb_xstrdup(flines[i]);
+		buffer[i] = xstrdup(flines[i]);
 	}
 
 	/* If the buffer still isn't full, fill it with blank lines */
 	for (; i < (height - 1); i++) {
-		buffer[i] = bb_xstrdup("");
+		buffer[i] = xstrdup("");
 	}
 }
 
@@ -371,12 +364,12 @@ static void buffer_down(int nlines)
 {
 	int i;
 
-	if (!past_eof) {
+	if (!(flags & LESS_STATE_PAST_EOF)) {
 		if (line_pos + (height - 3) + nlines < num_flines) {
 			line_pos += nlines;
 			for (i = 0; i < (height - 1); i++) {
 				free(buffer[i]);
-				buffer[i] = bb_xstrdup(flines[line_pos + i]);
+				buffer[i] = xstrdup(flines[line_pos + i]);
 			}
 		}
 		else {
@@ -386,7 +379,7 @@ static void buffer_down(int nlines)
 				line_pos += 1;
 				for (i = 0; i < (height - 1); i++) {
 					free(buffer[i]);
-					buffer[i] = bb_xstrdup(flines[line_pos + i]);
+					buffer[i] = xstrdup(flines[line_pos + i]);
 				}
 			}
 		}
@@ -402,12 +395,12 @@ static void buffer_up(int nlines)
 	int i;
 	int tilde_line;
 
-	if (!past_eof) {
+	if (!(flags & LESS_STATE_PAST_EOF)) {
 		if (line_pos - nlines >= 0) {
 			line_pos -= nlines;
 			for (i = 0; i < (height - 1); i++) {
 				free(buffer[i]);
-				buffer[i] = bb_xstrdup(flines[line_pos + i]);
+				buffer[i] = xstrdup(flines[line_pos + i]);
 			}
 		}
 		else {
@@ -417,7 +410,7 @@ static void buffer_up(int nlines)
 				line_pos -= 1;
 				for (i = 0; i < (height - 1); i++) {
 					free(buffer[i]);
-					buffer[i] = bb_xstrdup(flines[line_pos + i]);
+					buffer[i] = xstrdup(flines[line_pos + i]);
 				}
 			}
 		}
@@ -430,7 +423,7 @@ static void buffer_up(int nlines)
 		/* Going backwards nlines lines has taken us to a point where
 		   nothing is past the EOF, so we revert to normal. */
 		if (line_pos < num_flines - height + 3) {
-			past_eof = 0;
+			flags &= ~LESS_STATE_PAST_EOF;
 			buffer_up(nlines);
 		}
 		else {
@@ -439,10 +432,10 @@ static void buffer_up(int nlines)
 			for (i = 0; i < (height - 1); i++) {
 				free(buffer[i]);
 				if (i < tilde_line - nlines + 1)
-					buffer[i] = bb_xstrdup(flines[line_pos + i]);
+					buffer[i] = xstrdup(flines[line_pos + i]);
 				else {
 					if (line_pos >= num_flines - height + 2)
-						buffer[i] = bb_xstrdup("~\n");
+						buffer[i] = xstrdup("~\n");
 				}
 			}
 		}
@@ -452,7 +445,7 @@ static void buffer_up(int nlines)
 static void buffer_line(int linenum)
 {
 	int i;
-	past_eof = 0;
+	flags &= ~LESS_STATE_PAST_EOF;
 
 	if (linenum < 0 || linenum > num_flines) {
 		clear_line();
@@ -461,7 +454,7 @@ static void buffer_line(int linenum)
 	else if (linenum < (num_flines - height - 2)) {
 		for (i = 0; i < (height - 1); i++) {
 			free(buffer[i]);
-			buffer[i] = bb_xstrdup(flines[linenum + i]);
+			buffer[i] = xstrdup(flines[linenum + i]);
 		}
 		line_pos = linenum;
 		buffer_print();
@@ -470,13 +463,13 @@ static void buffer_line(int linenum)
 		for (i = 0; i < (height - 1); i++) {
 			free(buffer[i]);
 			if (linenum + i < num_flines + 2)
-				buffer[i] = bb_xstrdup(flines[linenum + i]);
+				buffer[i] = xstrdup(flines[linenum + i]);
 			else
-				buffer[i] = bb_xstrdup((flags & FLAG_TILDE) ? "\n" : "~\n");
+				buffer[i] = xstrdup((flags & FLAG_TILDE) ? "\n" : "~\n");
 		}
 		line_pos = linenum;
 		/* Set past_eof so buffer_down and buffer_up act differently */
-		past_eof = 1;
+		flags |= LESS_STATE_PAST_EOF;
 		buffer_print();
 	}
 }
@@ -508,11 +501,11 @@ static void examine_file(void)
 	newline_offset = strlen(filename) - 1;
 	filename[newline_offset] = '\0';
 
-	files[num_files] = bb_xstrdup(filename);
+	files[num_files] = xstrdup(filename);
 	current_file = num_files + 1;
 	num_files++;
 
-	inp_stdin = 0;
+	flags &= ~LESS_STATE_INP_STDIN;
 	reinitialise();
 }
 
@@ -608,34 +601,40 @@ static char *process_regex_on_line(char *line, regex_t *pattern, int action)
 	   insert_highlights if action = 1, or has the escape sequences
 	   removed if action = 0, and then the line is returned. */
 	int match_status;
-	char *line2 = (char *) xmalloc((sizeof(char) * (strlen(line) + 1)) + 64);
+	char *line2 = xmalloc((sizeof(char) * (strlen(line) + 1)) + 64);
 	char *growline = "";
 	regmatch_t match_structs;
 
-	line2 = bb_xstrdup(line);
+	line2 = xstrdup(line);
 
 	match_found = 0;
 	match_status = regexec(pattern, line2, 1, &match_structs, 0);
-	
+
 	while (match_status == 0) {
 		if (match_found == 0)
 			match_found = 1;
-		
+
 		if (action) {
-			growline = bb_xasprintf("%s%.*s%s%.*s%s", growline, match_structs.rm_so, line2, HIGHLIGHT, match_structs.rm_eo - match_structs.rm_so, line2 + match_structs.rm_so, NORMAL); 
+			growline = xasprintf("%s%.*s%s%.*s%s", growline,
+				match_structs.rm_so, line2, HIGHLIGHT,
+				match_structs.rm_eo - match_structs.rm_so,
+				line2 + match_structs.rm_so, NORMAL);
 		}
 		else {
-			growline = bb_xasprintf("%s%.*s%.*s", growline, match_structs.rm_so - 4, line2, match_structs.rm_eo - match_structs.rm_so, line2 + match_structs.rm_so);
+			growline = xasprintf("%s%.*s%.*s", growline,
+				match_structs.rm_so - 4, line2,
+				match_structs.rm_eo - match_structs.rm_so,
+				line2 + match_structs.rm_so);
 		}
-		
+
 		line2 += match_structs.rm_eo;
 		match_status = regexec(pattern, line2, 1, &match_structs, REG_NOTBOL);
 	}
-	
-	growline = bb_xasprintf("%s%s", growline, line2);
-	
+
+	growline = xasprintf("%s%s", growline, line2);
+
 	return (match_found ? growline : line);
-	
+
 	free(growline);
 	free(line2);
 }
@@ -659,19 +658,20 @@ static void regex_process(void)
 	regex_t pattern;
 	/* Get the uncompiled regular expression from the user */
 	clear_line();
-	putchar((match_backwards) ? '?' : '/');
+	putchar((flags & LESS_STATE_MATCH_BACKWARDS) ? '?' : '/');
 	uncomp_regex[0] = 0;
 	fgets(uncomp_regex, sizeof(uncomp_regex), inp);
-	
+
 	if (strlen(uncomp_regex) == 1) {
 		if (num_matches)
-			goto_match(match_backwards ? match_pos - 1 : match_pos + 1);
+			goto_match((flags & LESS_STATE_MATCH_BACKWARDS)
+						? match_pos - 1 : match_pos + 1);
 		else
 			buffer_print();
 		return;
 	}
 	uncomp_regex[strlen(uncomp_regex) - 1] = '\0';
-	
+
 	/* Compile the regex and check for errors */
 	xregcomp(&pattern, uncomp_regex, 0);
 
@@ -679,11 +679,11 @@ static void regex_process(void)
 		/* Get rid of all the highlights we added previously */
 		for (i = 0; i <= num_flines; i++) {
 			current_line = process_regex_on_line(flines[i], &old_pattern, 0);
-			flines[i] = bb_xstrdup(current_line);
+			flines[i] = xstrdup(current_line);
 		}
 	}
 	old_pattern = pattern;
-	
+
 	/* Reset variables */
 	match_lines = xrealloc(match_lines, sizeof(int));
 	match_lines[0] = -1;
@@ -693,17 +693,17 @@ static void regex_process(void)
 	/* Run the regex on each line of the current file here */
 	for (i = 0; i <= num_flines; i++) {
 		current_line = process_regex_on_line(flines[i], &pattern, 1);
-		flines[i] = bb_xstrdup(current_line);
+		flines[i] = xstrdup(current_line);
 		if (match_found) {
 			match_lines = xrealloc(match_lines, (j + 1) * sizeof(int));
 			match_lines[j] = i;
 			j++;
 		}
 	}
-	
+
 	num_matches = j;
 	if ((match_lines[0] != -1) && (num_flines > height - 2)) {
-		if (match_backwards) {
+		if (flags & LESS_STATE_MATCH_BACKWARDS) {
 			for (i = 0; i < num_matches; i++) {
 				if (match_lines[i] > line_pos) {
 					match_pos = i - 1;
@@ -769,11 +769,11 @@ static void number_process(int first_digit)
 			goto_match(match_pos + num);
 			break;
 		case '/':
-			match_backwards = 0;
+			flags &= ~LESS_STATE_MATCH_BACKWARDS;
 			regex_process();
 			break;
 		case '?':
-			match_backwards = 1;
+			flags |= LESS_STATE_MATCH_BACKWARDS;
 			regex_process();
 			break;
 #endif
@@ -864,28 +864,26 @@ static void save_input_to_file(void)
 	fgets(current_line, 256, inp);
 	current_line[strlen(current_line) - 1] = '\0';
 	if (strlen(current_line) > 1) {
-		fp = bb_xfopen(current_line, "w");
+		fp = xfopen(current_line, "w");
 		for (i = 0; i < num_flines; i++)
 			fprintf(fp, "%s", flines[i]);
 		fclose(fp);
 		buffer_print();
 	}
 	else
-		printf("%sNo log file%s", HIGHLIGHT, NORMAL);
+		printf("%s%s%s", HIGHLIGHT, "No log file", NORMAL);
 }
 
 #ifdef CONFIG_FEATURE_LESS_MARKS
 static void add_mark(void)
 {
 	int letter;
-	int mark_line;
 
 	clear_line();
 	printf("Mark: ");
 	letter = tless_getch();
 
 	if (isalpha(letter)) {
-		mark_line = line_pos;
 
 		/* If we exceed 15 marks, start overwriting previous ones */
 		if (num_marks == 14)
@@ -933,19 +931,14 @@ static char opp_bracket(char bracket)
 	switch (bracket) {
 		case '{': case '[':
 			return bracket + 2;
-			break;
 		case '(':
 			return ')';
-			break;
 		case '}': case ']':
 			return bracket - 2;
-			break;
 		case ')':
 			return '(';
-			break;
 		default:
 			return 0;
-			break;
 	}
 }
 
@@ -1029,10 +1022,10 @@ static void keypress_process(int keypress)
 			buffer_up((height - 1) / 2);
 			buffer_print();
 			break;
-		case 'g': case 'p': case '<': case '%':
+		case KEY_HOME: case 'g': case 'p': case '<': case '%':
 			buffer_line(0);
 			break;
-		case 'G': case '>':
+		case KEY_END: case 'G': case '>':
 			buffer_line(num_flines - height + 2);
 			break;
 		case 'q': case 'Q':
@@ -1055,7 +1048,7 @@ static void keypress_process(int keypress)
 			full_repaint();
 			break;
 		case 's':
-			if (inp_stdin)
+			if (flags & LESS_STATE_INP_STDIN)
 				save_input_to_file();
 			break;
 		case 'E':
@@ -1069,7 +1062,7 @@ static void keypress_process(int keypress)
 #endif
 #ifdef CONFIG_FEATURE_LESS_REGEXP
 		case '/':
-			match_backwards = 0;
+			flags &= ~LESS_STATE_MATCH_BACKWARDS;
 			regex_process();
 			break;
 		case 'n':
@@ -1079,7 +1072,7 @@ static void keypress_process(int keypress)
 			goto_match(match_pos - 1);
 			break;
 		case '?':
-			match_backwards = 1;
+			flags |= LESS_STATE_MATCH_BACKWARDS;
 			regex_process();
 			break;
 #endif
@@ -1115,7 +1108,7 @@ int less_main(int argc, char **argv) {
 
 	int keypress;
 
-	flags = bb_getopt_ulflags(argc, argv, "EMmN~");
+	flags = getopt32(argc, argv, "EMmN~");
 
 	argc -= optind;
 	argv += optind;
@@ -1124,14 +1117,14 @@ int less_main(int argc, char **argv) {
 
 	if (!num_files) {
 		if (ttyname(STDIN_FILENO) == NULL)
-			inp_stdin = 1;
+			flags |= LESS_STATE_INP_STDIN;
 		else {
-			bb_error_msg("Missing filename");
+			bb_error_msg("missing filename");
 			bb_show_usage();
 		}
 	}
 
-	strcpy(filename, (inp_stdin) ? bb_msg_standard_input : files[0]);
+	strcpy(filename, (flags & LESS_STATE_INP_STDIN) ? bb_msg_standard_input : files[0]);
 	get_terminal_width_height(0, &width, &height);
 	data_readlines();
 	tcgetattr(fileno(inp), &term_orig);

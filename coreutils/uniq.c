@@ -11,9 +11,6 @@
 /* http://www.opengroup.org/onlinepubs/007904975/utilities/uniq.html */
 
 #include "busybox.h"
-#include <string.h>
-#include <ctype.h>
-#include <unistd.h>
 
 static const char uniq_opts[] = "f:s:" "cdu\0\1\2\4";
 
@@ -23,7 +20,7 @@ static FILE *xgetoptfile_uniq_s(char **argv, int read0write2)
 
 	if ((n = *argv) != NULL) {
 		if ((*n != '-') || n[1]) {
-			return bb_xfopen(n, "r\0w" + read0write2);
+			return xfopen(n, "r\0w" + read0write2);
 		}
 	}
 	return (read0write2) ? stdout : stdin;
@@ -40,7 +37,7 @@ int uniq_main(int argc, char **argv)
 
 	while ((opt = getopt(argc, argv, uniq_opts)) > 0) {
 		if ((opt == 'f') || (opt == 's')) {
-			int t = bb_xgetularg10(optarg);
+			unsigned long t = xatoul(optarg);
 			if (opt == 'f') {
 				skip_fields = t;
 			} else {
@@ -72,15 +69,15 @@ int uniq_main(int argc, char **argv)
 		dups = 0;
 
 		/* gnu uniq ignores newlines */
-		while ((s1 = bb_get_chomped_line_from_file(in)) != NULL) {
+		while ((s1 = xmalloc_getline(in)) != NULL) {
 			e1 = s1;
-			for (i=skip_fields ; i ; i--) {
+			for (i = skip_fields; i; i--) {
 				e1 = skip_whitespace(e1);
 				while (*e1 && !isspace(*e1)) {
 					++e1;
 				}
 			}
-			for (i = skip_chars ; *e1 && i ; i--) {
+			for (i = skip_chars; *e1 && i; i--) {
 				++e1;
 			}
 
@@ -93,14 +90,14 @@ int uniq_main(int argc, char **argv)
 
 		if (s0) {
 			if (!(uniq_flags & (2 << !!dups))) {
-				bb_fprintf(out, "\0%d " + (uniq_flags & 1), dups + 1);
-				bb_fprintf(out, "%s\n", s0);
+				fprintf(out, "\0%d " + (uniq_flags & 1), dups + 1);
+				fprintf(out, "%s\n", s0);
 			}
 			free((void *)s0);
 		}
 	} while (s1);
 
-	bb_xferror(in, input_filename);
+	die_if_ferror(in, input_filename);
 
-	bb_fflush_stdout_and_exit(EXIT_SUCCESS);
+	fflush_stdout_and_exit(EXIT_SUCCESS);
 }

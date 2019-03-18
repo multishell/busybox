@@ -98,15 +98,8 @@
 /* #include <dmalloc.h> */
 /* #define DEBUG_SHELL */
 
-#if 1
 #include "cmdedit.h"
-#else
-#define bb_applet_name "hush"
-//#include "standalone.h"
-#define hush_main main
-#undef CONFIG_FEATURE_SH_FANCY_PROMPT
-#define BB_BANNER ""
-#endif
+
 #define SPECIAL_VAR_SYMBOL 03
 #define FLAG_EXIT_FROM_LOOP 1
 #define FLAG_PARSE_SEMICOLON (1 << 1)		/* symbol ';' is special for parser */
@@ -292,7 +285,7 @@ struct built_in_command {
 };
 
 /* belongs in busybox.h */
-static inline int max(int a, int b) {
+static int max(int a, int b) {
 	return (a>b)?a:b;
 }
 
@@ -305,15 +298,22 @@ static void debug_printf(const char *format, ...)
 	vfprintf(stderr, format, args);
 	va_end(args);
 }
+/* broken, of course, but OK for testing */
+static char *indenter(int i)
+{
+	static char blanks[]="                                    ";
+	return &blanks[sizeof(blanks)-i-1];
+}
 #else
-static inline void debug_printf(const char *format ATTRIBUTE_UNUSED, ...) { }
+#define debug_printf(...) do {;} while(0);
 #endif
 #define final_printf debug_printf
 
 static void __syntax(char *file, int line) {
 	bb_error_msg("syntax error %s:%d", file, line);
 }
-#define syntax() __syntax(__FILE__, __LINE__)
+// NB: was __FILE__, but that produces full path sometimess, so...
+#define syntax() __syntax("hush.c", __LINE__)
 
 /* Index of subroutines: */
 /*   function prototypes for builtins */
@@ -352,7 +352,6 @@ static void mark_open(int fd);
 static void mark_closed(int fd);
 static void close_all(void);
 /*  "run" the final data structures: */
-static char *indenter(int i);
 static int free_pipe_list(struct pipe *head, int indent);
 static int free_pipe(struct pipe *pi, int indent);
 /*  really run the final data structures: */
@@ -400,7 +399,7 @@ static int set_local_var(const char *s, int flg_export);
 /* Table of built-in functions.  They can be forked or not, depending on
  * context: within pipes, they fork.  As simple commands, they do not.
  * When used in non-forking context, they can change global variables
- * in the parent shell process.  If forked, of course they can not.
+ * in the parent shell process.  If forked, of course they cannot.
  * For example, 'unset foo | whatever' will parse and run, but foo will
  * still be set at the end. */
 static const struct built_in_command bltins[] = {
@@ -508,7 +507,7 @@ static int builtin_export(struct child_prog *child)
 	char *name = child->argv[1];
 
 	if (name == NULL) {
-		return (builtin_env(child));
+		return builtin_env(child);
 	}
 
 	name = strdup(name);
@@ -719,7 +718,7 @@ static int builtin_source(struct child_prog *child)
 	/* XXX search through $PATH is missing */
 	input = fopen(child->argv[1], "r");
 	if (!input) {
-		bb_error_msg("Couldn't open file '%s'", child->argv[1]);
+		bb_error_msg("cannot open '%s'", child->argv[1]);
 		return EXIT_FAILURE;
 	}
 
@@ -731,7 +730,7 @@ static int builtin_source(struct child_prog *child)
 	status = parse_file_outer(input);
 	mark_closed(fileno(input));
 	fclose(input);
-	return (status);
+	return status;
 }
 
 static int builtin_umask(struct child_prog *child)
@@ -854,7 +853,7 @@ static int static_peek(struct in_str *i)
 	return *i->p;
 }
 
-static inline void cmdedit_set_initial_prompt(void)
+static void cmdedit_set_initial_prompt(void)
 {
 #ifndef CONFIG_FEATURE_SH_FANCY_PROMPT
 	PS1 = NULL;
@@ -865,7 +864,7 @@ static inline void cmdedit_set_initial_prompt(void)
 #endif
 }
 
-static inline void setup_prompt_string(int promptmode, char **prompt_str)
+static void setup_prompt_string(int promptmode, char **prompt_str)
 {
 	debug_printf("setup_prompt_string %d ",promptmode);
 #ifndef CONFIG_FEATURE_SH_FANCY_PROMPT
@@ -1122,7 +1121,7 @@ static void pseudo_exec(struct child_prog *child)
 #endif
 		debug_printf("exec of %s\n",child->argv[0]);
 		execvp(child->argv[0],child->argv);
-		bb_perror_msg("couldn't exec: %s",child->argv[0]);
+		bb_perror_msg("cannot exec: %s",child->argv[0]);
 		_exit(1);
 	} else if (child->group) {
 		debug_printf("runtime nesting to group\n");
@@ -1226,7 +1225,7 @@ static int checkjobs(struct pipe* fg_pipe)
 					if (i==fg_pipe->num_progs-1)
 						rcode=WEXITSTATUS(status);
 					(fg_pipe->num_progs)--;
-					return(rcode);
+					return rcode;
 				}
 			}
 		}
@@ -1258,15 +1257,6 @@ static int checkjobs(struct pipe* fg_pipe)
 			/* child stopped */
 			pi->stopped_progs++;
 			pi->progs[prognum].is_stopped = 1;
-
-#if 0
-			/* Printing this stuff is a pain, since it tends to
-			 * overwrite the prompt an inconveinient moments.  So
-			 * don't do that.  */
-			if (pi->stopped_progs == pi->num_progs) {
-				printf("\n"JOB_STATUS_FORMAT, pi->jobid, "Stopped", pi->text);
-			}
-#endif
 		}
 	}
 
@@ -1278,32 +1268,6 @@ static int checkjobs(struct pipe* fg_pipe)
 	//	bb_perror_msg("tcsetpgrp-2");
 	return -1;
 }
-
-/* Figure out our controlling tty, checking in order stderr,
- * stdin, and stdout.  If check_pgrp is set, also check that
- * we belong to the foreground process group associated with
- * that tty.  The value of shell_terminal is needed in order to call
- * tcsetpgrp(shell_terminal, ...); */
-#if 0
-static void controlling_tty(int check_pgrp)
-{
-	pid_t curpgrp;
-
-	if ((curpgrp = tcgetpgrp(shell_terminal = 2)) < 0
-			&& (curpgrp = tcgetpgrp(shell_terminal = 0)) < 0
-			&& (curpgrp = tcgetpgrp(shell_terminal = 1)) < 0)
-		goto shell_terminal_error;
-
-	if (check_pgrp && curpgrp != getpgid(0))
-		goto shell_terminal_error;
-
-	return;
-
-shell_terminal_error:
-		shell_terminal = -1;
-		return;
-}
-#endif
 
 /* run_pipe_real() starts all the jobs, but doesn't wait for anything
  * to finish.  See checkjobs().
@@ -1337,7 +1301,7 @@ static int run_pipe_real(struct pipe *pi)
 	 * Builtins within pipes have to fork anyway, and are handled in
 	 * pseudo_exec.  "echo foo | read bar" doesn't work on bash, either.
 	 */
-	if (pi->num_progs == 1) child = & (pi->progs[0]);
+	child = & (pi->progs[0]);
 	if (pi->num_progs == 1 && child->group && child->subshell == 0) {
 		int squirrel[] = {-1, -1, -1};
 		int rcode;
@@ -1362,7 +1326,7 @@ static int run_pipe_real(struct pipe *pi)
 				 * variable. */
 				int export_me=0;
 				char *name, *value;
-				name = bb_xstrdup(child->argv[i]);
+				name = xstrdup(child->argv[i]);
 				debug_printf("Local environment set: %s\n", name);
 				value = strchr(name, '=');
 				if (value)
@@ -1633,13 +1597,6 @@ static int run_list_real(struct pipe *pi)
 	return rcode;
 }
 
-/* broken, of course, but OK for testing */
-static char *indenter(int i)
-{
-	static char blanks[]="                                    ";
-	return &blanks[sizeof(blanks)-i-1];
-}
-
 /* return code is the exit status of the pipe */
 static int free_pipe(struct pipe *pi, int indent)
 {
@@ -1647,29 +1604,28 @@ static int free_pipe(struct pipe *pi, int indent)
 	struct child_prog *child;
 	struct redir_struct *r, *rnext;
 	int a, i, ret_code=0;
-	char *ind = indenter(indent);
 
 	if (pi->stopped_progs > 0)
 		return ret_code;
-	final_printf("%s run pipe: (pid %d)\n",ind,getpid());
+	final_printf("%s run pipe: (pid %d)\n",indenter(indent),getpid());
 	for (i=0; i<pi->num_progs; i++) {
 		child = &pi->progs[i];
-		final_printf("%s  command %d:\n",ind,i);
+		final_printf("%s  command %d:\n",indenter(indent),i);
 		if (child->argv) {
 			for (a=0,p=child->argv; *p; a++,p++) {
-				final_printf("%s   argv[%d] = %s\n",ind,a,*p);
+				final_printf("%s   argv[%d] = %s\n",indenter(indent),a,*p);
 			}
 			globfree(&child->glob_result);
 			child->argv=NULL;
 		} else if (child->group) {
-			final_printf("%s   begin group (subshell:%d)\n",ind, child->subshell);
+			final_printf("%s   begin group (subshell:%d)\n",indenter(indent), child->subshell);
 			ret_code = free_pipe_list(child->group,indent+3);
-			final_printf("%s   end group\n",ind);
+			final_printf("%s   end group\n",indenter(indent));
 		} else {
-			final_printf("%s   (nil)\n",ind);
+			final_printf("%s   (nil)\n",indenter(indent));
 		}
 		for (r=child->redirects; r; r=rnext) {
-			final_printf("%s   redirect %d%s", ind, r->fd, redir_table[r->type].descrip);
+			final_printf("%s   redirect %d%s", indenter(indent), r->fd, redir_table[r->type].descrip);
 			if (r->dup == -1) {
 				/* guard against the case >$FOO, where foo is unset or blank */
 				if (r->word.gl_pathv) {
@@ -1693,11 +1649,10 @@ static int free_pipe_list(struct pipe *head, int indent)
 {
 	int rcode=0;   /* if list has no members */
 	struct pipe *pi, *next;
-	char *ind = indenter(indent);
 	for (pi=head; pi; pi=next) {
-		final_printf("%s pipe reserved mode %d\n", ind, pi->r_mode);
+		final_printf("%s pipe reserved mode %d\n", indenter(indent), pi->r_mode);
 		rcode = free_pipe(pi, indent);
-		final_printf("%s pipe followup code %d\n", ind, pi->followup);
+		final_printf("%s pipe followup code %d\n", indenter(indent), pi->followup);
 		next=pi->next;
 		pi->next=NULL;
 		free(pi);
@@ -1765,19 +1720,6 @@ static int glob_needed(const char *s)
 	}
 	return 0;
 }
-
-#if 0
-static void globprint(glob_t *pglob)
-{
-	int i;
-	debug_printf("glob_t at %p:\n", pglob);
-	debug_printf("  gl_pathc=%d  gl_pathv=%p  gl_offs=%d  gl_flags=%d\n",
-		pglob->gl_pathc, pglob->gl_pathv, pglob->gl_offs, pglob->gl_flags);
-	for (i=0; i<pglob->gl_pathc; i++)
-		debug_printf("pglob->gl_pathv[%d] = %p = %s\n", i,
-			pglob->gl_pathv[i], pglob->gl_pathv[i]);
-}
-#endif
 
 static int xglob(o_string *dest, int flags, glob_t *pglob)
 {
@@ -2247,7 +2189,6 @@ static int redirect_opt_num(o_string *o)
 static FILE *generate_stream_from_list(struct pipe *head)
 {
 	FILE *pf;
-#if 1
 	int pid, channel[2];
 	if (pipe(channel)<0) bb_perror_msg_and_die("pipe");
 #if !defined(__UCLIBC__) || defined(__ARCH_HAS_MMU__)
@@ -2263,23 +2204,12 @@ static FILE *generate_stream_from_list(struct pipe *head)
 			dup2(channel[1],1);
 			close(channel[1]);
 		}
-#if 0
-#define SURROGATE "surrogate response"
-		write(1,SURROGATE,sizeof(SURROGATE));
-		_exit(run_list(head));
-#else
 		_exit(run_list_real(head));   /* leaks memory */
-#endif
 	}
 	debug_printf("forked child %d\n",pid);
 	close(channel[1]);
 	pf = fdopen(channel[0],"r");
 	debug_printf("pipe on FILE *%p\n",pf);
-#else
-	free_pipe_list(head,0);
-	pf=popen("echo surrogate response","r");
-	debug_printf("started fake pipe on FILE *%p\n",pf);
-#endif
 	return pf;
 }
 
@@ -2489,14 +2419,6 @@ int parse_stream(o_string *dest, struct p_context *ctx,
 				debug_printf("leaving parse_stream (triggered)\n");
 				return 0;
 			}
-#if 0
-			if (ch=='\n') {
-				/* Yahoo!  Time to run with it! */
-				done_pipe(ctx,PIPE_SEQ);
-				run_list(ctx->list_head);
-				initialize_context(ctx);
-			}
-#endif
 			if (m!=2) switch (ch) {
 		case '#':
 			if (dest->length == 0 && !dest->quote) {
@@ -2743,11 +2665,8 @@ int hush_main(int argc, char **argv)
 
 	/* Initialize some more globals to non-zero values */
 	set_cwd();
-#ifdef CONFIG_FEATURE_COMMAND_EDITING
-	cmdedit_set_initial_prompt();
-#else
-	PS1 = NULL;
-#endif
+    if (ENABLE_FEATURE_COMMAND_EDITING) cmdedit_set_initial_prompt();
+	else PS1 = NULL;
 	PS2 = "> ";
 
 	/* initialize our shell local variables with the values
@@ -2828,7 +2747,7 @@ int hush_main(int argc, char **argv)
 	debug_printf("\nrunning script '%s'\n", argv[optind]);
 	global_argv = argv+optind;
 	global_argc = argc-optind;
-	input = bb_xfopen(argv[optind], "r");
+	input = xfopen(argv[optind], "r");
 	opt = parse_file_outer(input);
 
 #ifdef CONFIG_FEATURE_CLEAN_UP
@@ -2849,7 +2768,7 @@ int hush_main(int argc, char **argv)
 #endif
 
 final_return:
-	return(opt?opt:last_return_code);
+	return opt ? opt : last_return_code;
 }
 
 static char *insert_var_value(char *inp)

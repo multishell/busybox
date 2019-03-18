@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  * e2fsck
  *
@@ -725,7 +726,7 @@ static void e2fsck_free_dir_info(e2fsck_t ctx)
 /*
  * Return the count of number of directories in the dir_info structure
  */
-static inline int e2fsck_get_num_dirinfo(e2fsck_t ctx)
+static int e2fsck_get_num_dirinfo(e2fsck_t ctx)
 {
 	return ctx->dir_info_count;
 }
@@ -738,7 +739,7 @@ static struct dir_info *e2fsck_dir_info_iter(e2fsck_t ctx, int *control)
 	if (*control >= ctx->dir_info_count)
 		return 0;
 
-	return(ctx->dir_info + (*control)++);
+	return ctx->dir_info + (*control)++;
 }
 
 /*
@@ -869,7 +870,7 @@ static struct dx_dir_info *e2fsck_dx_dir_info_iter(e2fsck_t ctx, int *control)
 	if (*control >= ctx->dx_dir_info_count)
 		return 0;
 
-	return(ctx->dx_dir_info + (*control)++);
+	return ctx->dx_dir_info + (*control)++;
 }
 
 #endif /* ENABLE_HTREE */
@@ -1054,7 +1055,7 @@ static errcode_t ea_refcount_create(int size, ext2_refcount_t *ret)
 
 errout:
 	ea_refcount_free(refcount);
-	return(retval);
+	return retval;
 }
 
 /*
@@ -1362,7 +1363,7 @@ e2fsck_handle_write_error(io_channel channel, unsigned long block, int count,
 	return error;
 }
 
-static inline const char *ehandler_operation(const char *op)
+static const char *ehandler_operation(const char *op)
 {
 	const char *ret = operation;
 
@@ -1421,7 +1422,7 @@ static int journal_bmap(journal_t *journal, blk_t block, unsigned long *phys)
 	retval= ext2fs_bmap(inode->i_ctx->fs, inode->i_ino,
 			    &inode->i_ext2, NULL, 0, block, &pblk);
 	*phys = pblk;
-	return (retval);
+	return retval;
 #endif
 }
 
@@ -1468,7 +1469,7 @@ static void ll_rw_block(int rw, int nr, struct buffer_head *bhp[])
 						     bh->b_blocknr,
 						     1, bh->b_data);
 			if (retval) {
-				bb_error_msg("while reading block %lu\n",
+				bb_error_msg("while reading block %lu",
 					(unsigned long) bh->b_blocknr);
 				bh->b_err = retval;
 				continue;
@@ -1479,7 +1480,7 @@ static void ll_rw_block(int rw, int nr, struct buffer_head *bhp[])
 						      bh->b_blocknr,
 						      1, bh->b_data);
 			if (retval) {
-				bb_error_msg("while writing block %lu\n",
+				bb_error_msg("while writing block %lu",
 					(unsigned long) bh->b_blocknr);
 				bh->b_err = retval;
 				continue;
@@ -1490,7 +1491,7 @@ static void ll_rw_block(int rw, int nr, struct buffer_head *bhp[])
 	}
 }
 
-static inline void mark_buffer_dirty(struct buffer_head *bh)
+static void mark_buffer_dirty(struct buffer_head *bh)
 {
 	bh->b_dirty = 1;
 }
@@ -1507,7 +1508,7 @@ static void brelse(struct buffer_head *bh)
 	ext2fs_free_mem(&bh);
 }
 
-static inline int buffer_uptodate(struct buffer_head *bh)
+static int buffer_uptodate(struct buffer_head *bh)
 {
 	return bh->b_uptodate;
 }
@@ -1795,7 +1796,7 @@ static errcode_t e2fsck_journal_load(journal_t *journal)
 
 	ll_rw_block(READ, 1, &jbh);
 	if (jbh->b_err) {
-		bb_error_msg(_("reading journal superblock\n"));
+		bb_error_msg(_("reading journal superblock"));
 		return jbh->b_err;
 	}
 
@@ -1851,7 +1852,7 @@ static errcode_t e2fsck_journal_load(journal_t *journal)
 	 * format to be able to proceed safely, so any other checks that
 	 * fail we should attempt to recover from. */
 	if (jsb->s_blocksize != htonl(journal->j_blocksize)) {
-		bb_error_msg(_("%s: no valid journal superblock found\n"),
+		bb_error_msg(_("%s: no valid journal superblock found"),
 			ctx->device_name);
 		return EXT2_ET_CORRUPT_SUPERBLOCK;
 	}
@@ -1859,7 +1860,7 @@ static errcode_t e2fsck_journal_load(journal_t *journal)
 	if (ntohl(jsb->s_maxlen) < journal->j_maxlen)
 		journal->j_maxlen = ntohl(jsb->s_maxlen);
 	else if (ntohl(jsb->s_maxlen) > journal->j_maxlen) {
-		bb_error_msg(_("%s: journal too short\n"),
+		bb_error_msg(_("%s: journal too short"),
 			ctx->device_name);
 		return EXT2_ET_CORRUPT_SUPERBLOCK;
 	}
@@ -3660,7 +3661,7 @@ static void e2fsck_pass1(e2fsck_t ctx)
 		e2fsck_read_inode(ctx, EXT2_RESIZE_INO, inode,
 				  "recreate inode");
 		inode->i_mtime = time(0);
-		e2fsck_write_inode(ctx, EXT2_RESIZE_INO, inode, 
+		e2fsck_write_inode(ctx, EXT2_RESIZE_INO, inode,
 				  "recreate inode");
 		fs->block_map = save_bmap;
 		ctx->flags &= ~E2F_FLAG_RESIZE_INODE;
@@ -4308,7 +4309,7 @@ static int process_block(ext2_filsys fs,
 			 * Should never happen, since only directories
 			 * get called with BLOCK_FLAG_HOLE
 			 */
-#if DEBUG_E2FSCK
+#ifdef DEBUG_E2FSCK
 			printf("process_block() called with blk == 0, "
 			       "blockcnt=%d, inode %lu???\n",
 			       blockcnt, p->ino);
@@ -4928,7 +4929,7 @@ static int search_dirent_proc(ext2_ino_t dir, int entry,
 	p->dir = dir;
 	sd->count--;
 
-	return(sd->count ? 0 : DIRENT_ABORT);
+	return sd->count ? 0 : DIRENT_ABORT;
 }
 
 
@@ -5107,7 +5108,7 @@ static int delete_file_block(ext2_filsys fs,
 			p = (struct dup_block *) dnode_get(n);
 			decrement_badcount(ctx, *block_nr, p);
 		} else
-			bb_error_msg(_("internal error; can't find dup_blk for %d\n"),
+			bb_error_msg(_("internal error; can't find dup_blk for %d"),
 				*block_nr);
 	} else {
 		ext2fs_unmark_block_bitmap(ctx->block_found_map, *block_nr);
@@ -5240,7 +5241,7 @@ static int clone_file_block(ext2_filsys fs,
 			ext2fs_mark_block_bitmap(fs->block_map, new_block);
 			return BLOCK_CHANGED;
 		} else
-			bb_error_msg(_("internal error; can't find dup_blk for %d\n"),
+			bb_error_msg(_("internal error; can't find dup_blk for %d"),
 				*block_nr);
 	}
 	return 0;
@@ -6720,7 +6721,7 @@ static int update_dir_block(ext2_filsys fs FSCK_ATTR((unused)),
  * Then, pass3 interates over all directory inodes; for each directory
  * it attempts to trace up the filesystem tree, using dirinfo.parent
  * until it reaches a directory which has been marked "done".  If it
- * can not do so, then the directory must be disconnected, and e2fsck
+ * cannot do so, then the directory must be disconnected, and e2fsck
  * will offer to reconnect it to /lost+found.  While it is chasing
  * parent pointers up the filesystem tree, if pass3 sees a directory
  * twice, then it has detected a filesystem loop, and it will again
@@ -8586,7 +8587,7 @@ static const struct e2fsck_problem problem_table[] = {
 
 	/* Bad primary block */
 	{ PR_1_BAD_PRIMARY_BLOCK,
-	  N_("\nIf the @b is really bad, the @f can not be fixed.\n"),
+	  N_("\nIf the @b is really bad, the @f cannot be fixed.\n"),
 	  PROMPT_NONE, PR_AFTER_CODE, PR_1_BAD_PRIMARY_BLOCK_PROMPT },
 
 	/* Bad primary block prompt */
@@ -8951,7 +8952,7 @@ static const struct e2fsck_problem problem_table[] = {
 
 	/* File has duplicate blocks */
 	{ PR_1D_DUP_FILE,
-	  N_("File %Q (@i #%i, mod time %IM) \n"
+	  N_("File %Q (@i #%i, mod time %IM)\n"
 	  "  has %B @m @b(s), shared with %N file(s):\n"),
 	  PROMPT_NONE, 0 },
 
@@ -9131,7 +9132,7 @@ static const struct e2fsck_problem problem_table[] = {
 
 	/* Internal error: couldn't find dir_info */
 	{ PR_2_NO_DIRINFO,
-	  N_("Internal error: couldn't find dir_info for %i.\n"),
+	  N_("Internal error: cannot find dir_info for %i.\n"),
 	  PROMPT_NONE, PR_FATAL },
 
 	/* Final rec_len is wrong */
@@ -9407,7 +9408,7 @@ static const struct e2fsck_problem problem_table[] = {
 
 	/* Internal error: couldn't find dir_info */
 	{ PR_3_NO_DIRINFO,
-	  N_("Internal error: couldn't find dir_info for %i.\n"),
+	  N_("Internal error: cannot find dir_info for %i.\n"),
 	  PROMPT_NONE, PR_FATAL },
 
 	/* Lost+found not a directory */
@@ -9817,7 +9818,7 @@ static int jread(struct buffer_head **bhp, journal_t *journal,
 	err = journal_bmap(journal, offset, &blocknr);
 
 	if (err) {
-		printf ("JBD: bad block at offset %u\n", offset);
+		printf("JBD: bad block at offset %u\n", offset);
 		return err;
 	}
 
@@ -9834,7 +9835,7 @@ static int jread(struct buffer_head **bhp, journal_t *journal,
 	}
 
 	if (!buffer_uptodate(bh)) {
-		printf ("JBD: Failed to read block at offset %u\n", offset);
+		printf("JBD: Failed to read block at offset %u\n", offset);
 		brelse(bh);
 		return -EIO;
 	}
@@ -10048,7 +10049,7 @@ static int do_one_pass(journal_t *journal,
 					/* Recover what we can, but
 					 * report failure at the end. */
 					success = err;
-					printf ("JBD: IO error %d recovering "
+					printf("JBD: IO error %d recovering "
 						"block %ld in log\n",
 						err, io_block);
 				} else {
@@ -10073,7 +10074,7 @@ static int do_one_pass(journal_t *journal,
 						       blocknr,
 						     journal->j_blocksize);
 					if (nbh == NULL) {
-						printf ("JBD: Out of memory "
+						printf("JBD: Out of memory "
 						       "during recovery.\n");
 						err = -ENOMEM;
 						brelse(bh);
@@ -10152,7 +10153,7 @@ static int do_one_pass(journal_t *journal,
 		/* It's really bad news if different passes end up at
 		 * different places (but possible due to IO errors). */
 		if (info->end_transaction != next_commit_ID) {
-			printf ("JBD: recovery pass %d ended at "
+			printf("JBD: recovery pass %d ended at "
 				"transaction %u, expected %u\n",
 				pass, next_commit_ID, info->end_transaction);
 			if (!success)
@@ -11073,7 +11074,7 @@ struct jbd_revoke_table_s
 /* Utility functions to maintain the revoke table */
 
 /* Borrowed from buffer.c: this is a tried and tested block hash function */
-static inline int hash(journal_t *journal, unsigned long block)
+static int hash(journal_t *journal, unsigned long block)
 {
 	struct jbd_revoke_table_s *table = journal->j_revoke;
 	int hash_shift = table->hash_shift;
@@ -12334,15 +12335,15 @@ static int ask_yn(const char * string, int def)
 int ask (e2fsck_t ctx, const char * string, int def)
 {
 	if (ctx->options & E2F_OPT_NO) {
-		printf (_("%s? no\n\n"), string);
+		printf(_("%s? no\n\n"), string);
 		return 0;
 	}
 	if (ctx->options & E2F_OPT_YES) {
-		printf (_("%s? yes\n\n"), string);
+		printf(_("%s? yes\n\n"), string);
 		return 1;
 	}
 	if (ctx->options & E2F_OPT_PREEN) {
-		printf ("%s? %s\n\n", string, def ? _("yes") : _("no"));
+		printf("%s? %s\n\n", string, def ? _("yes") : _("no"));
 		return def;
 	}
 	return ask_yn(string, def);
@@ -12519,7 +12520,7 @@ cleanup:
 	if (io)
 		io_channel_close(io);
 	ext2fs_free_mem(&buf);
-	return (ret_sb);
+	return ret_sb;
 }
 
 
@@ -12605,26 +12606,26 @@ static void show_stats(e2fsck_t ctx)
 		       blocks_used, blocks);
 		return;
 	}
-	printf ("\n%8d inode%s used (%d%%)\n", P_E2("", "s", inodes_used),
+	printf("\n%8d inode%s used (%d%%)\n", P_E2("", "s", inodes_used),
 		100 * inodes_used / inodes);
-	printf ("%8d non-contiguous inode%s (%0d.%d%%)\n",
+	printf("%8d non-contiguous inode%s (%0d.%d%%)\n",
 		P_E2("", "s", ctx->fs_fragmented),
 		frag_percent / 10, frag_percent % 10);
-	printf (_("         # of inodes with ind/dind/tind blocks: %d/%d/%d\n"),
+	printf(_("         # of inodes with ind/dind/tind blocks: %d/%d/%d\n"),
 		ctx->fs_ind_count, ctx->fs_dind_count, ctx->fs_tind_count);
-	printf ("%8d block%s used (%d%%)\n", P_E2("", "s", blocks_used),
+	printf("%8d block%s used (%d%%)\n", P_E2("", "s", blocks_used),
 		(int) ((long long) 100 * blocks_used / blocks));
-	printf ("%8d large file%s\n", P_E2("", "s", ctx->large_files));
-	printf ("\n%8d regular file%s\n", P_E2("", "s", ctx->fs_regular_count));
-	printf ("%8d director%s\n", P_E2("y", "ies", ctx->fs_directory_count));
-	printf ("%8d character device file%s\n", P_E2("", "s", ctx->fs_chardev_count));
-	printf ("%8d block device file%s\n", P_E2("", "s", ctx->fs_blockdev_count));
-	printf ("%8d fifo%s\n", P_E2("", "s", ctx->fs_fifo_count));
-	printf ("%8d link%s\n", P_E2("", "s", ctx->fs_links_count - dir_links));
-	printf ("%8d symbolic link%s", P_E2("", "s", ctx->fs_symlinks_count));
-	printf (" (%d fast symbolic link%s)\n", P_E2("", "s", ctx->fs_fast_symlinks_count));
-	printf ("%8d socket%s--------\n\n", P_E2("", "s", ctx->fs_sockets_count));
-	printf ("%8d file%s\n", P_E2("", "s", ctx->fs_total_count - dir_links));
+	printf("%8d large file%s\n", P_E2("", "s", ctx->large_files));
+	printf("\n%8d regular file%s\n", P_E2("", "s", ctx->fs_regular_count));
+	printf("%8d director%s\n", P_E2("y", "ies", ctx->fs_directory_count));
+	printf("%8d character device file%s\n", P_E2("", "s", ctx->fs_chardev_count));
+	printf("%8d block device file%s\n", P_E2("", "s", ctx->fs_blockdev_count));
+	printf("%8d fifo%s\n", P_E2("", "s", ctx->fs_fifo_count));
+	printf("%8d link%s\n", P_E2("", "s", ctx->fs_links_count - dir_links));
+	printf("%8d symbolic link%s", P_E2("", "s", ctx->fs_symlinks_count));
+	printf(" (%d fast symbolic link%s)\n", P_E2("", "s", ctx->fs_fast_symlinks_count));
+	printf("%8d socket%s--------\n\n", P_E2("", "s", ctx->fs_sockets_count));
+	printf("%8d file%s\n", P_E2("", "s", ctx->fs_total_count - dir_links));
 }
 
 static void check_mount(e2fsck_t ctx)
@@ -12656,13 +12657,13 @@ static void check_mount(e2fsck_t ctx)
 
 	printf(_("%s is mounted.  "), ctx->filesystem_name);
 	if (!ctx->interactive)
-		bb_error_msg_and_die(_("Cannot continue, aborting.\n\n"));
+		bb_error_msg_and_die(_("Cannot continue, aborting."));
 	printf(_("\n\n\007\007\007\007WARNING!!!  "
 	       "Running e2fsck on a mounted filesystem may cause\n"
 	       "SEVERE filesystem damage.\007\007\007\n\n"));
 	cont = ask_yn(_("Do you really want to continue"), -1);
 	if (!cont) {
-		printf (_("check aborted.\n"));
+		printf(_("check aborted.\n"));
 		exit (0);
 	}
 	return;
@@ -12914,7 +12915,7 @@ static void reserve_stdio_fds(void)
 		if (fd > 2)
 			break;
 		if (fd < 0) {
-			fprintf(stderr, _("ERROR: Couldn't open "
+			fprintf(stderr, _("ERROR: Cannot open "
 				"/dev/null (%s)\n"),
 				strerror(errno));
 			break;
@@ -13376,7 +13377,7 @@ restart:
 				 * happen, unless the hardware or
 				 * device driver is being bogus.
 				 */
-				bb_error_msg(_("unable to set superblock flags on %s\n"), ctx->device_name);
+				bb_error_msg(_("cannot set superblock flags on %s"), ctx->device_name);
 				bb_error_msg_and_die(0);
 			}
 			retval = e2fsck_run_ext3_journal(ctx);
@@ -13408,12 +13409,12 @@ restart:
 #ifdef ENABLE_COMPRESSION
 	/* FIXME - do we support this at all? */
 	if (sb->s_feature_incompat & EXT2_FEATURE_INCOMPAT_COMPRESSION)
-		bb_error_msg(_("Warning: compression support is experimental.\n"));
+		bb_error_msg(_("Warning: compression support is experimental."));
 #endif
 #ifndef ENABLE_HTREE
 	if (sb->s_feature_compat & EXT2_FEATURE_COMPAT_DIR_INDEX) {
 		bb_error_msg(_("E2fsck not compiled with HTREE support,\n\t"
-			  "but filesystem %s has HTREE directories.\n"),
+			  "but filesystem %s has HTREE directories."),
 			ctx->device_name);
 		goto get_newer;
 	}
