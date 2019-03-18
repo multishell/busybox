@@ -40,7 +40,7 @@ struct host_info {
 };
 
 static void parse_url(char *url, struct host_info *h);
-static FILE *open_socket(struct sockaddr_in *s_in, int port);
+static FILE *open_socket(struct sockaddr_in *s_in);
 static char *gethdr(char *buf, size_t bufsiz, FILE *fp, int *istrunc);
 static int ftpcmd(char *s1, char *s2, FILE *fp, char *buf);
 
@@ -142,9 +142,29 @@ char *base64enc(char *p, char *buf, int len) {
 }
 #endif
 
+#define WGET_OPT_CONTINUE	1
+#define WGET_OPT_QUIET	2
+#define WGET_OPT_PASSIVE	4
+#define WGET_OPT_OUTNAME	8
+#define WGET_OPT_HEADER	16
+#define WGET_OPT_PREFIX	32
+#define WGET_OPT_PROXY	64
+
+static const struct option wget_long_options[] = {
+	{ "continue",        0, NULL, 'c' },
+	{ "quiet",           0, NULL, 'q' },
+	{ "passive-ftp",     0, NULL, 139 },
+	{ "output-document", 1, NULL, 'O' },
+	{ "header",	         1, NULL, 131 },
+	{ "directory-prefix",1, NULL, 'P' },
+	{ "proxy",           1, NULL, 'Y' },
+	{ 0,                 0, 0, 0 }
+};
+
 int wget_main(int argc, char **argv)
 {
 	int n, try=5, status;
+	unsigned long opt;
 	int port;
 	char *proxy = 0;
 	char *dir_prefix=NULL;
@@ -153,9 +173,9 @@ int wget_main(int argc, char **argv)
 	char extra_headers[1024];
 	char *extra_headers_ptr = extra_headers;
 	int extra_headers_left = sizeof(extra_headers);
-	int which_long_opt = 0, option_index = -1;
 	struct host_info server, target;
 	struct sockaddr_in s_in;
+	llist_t *headers_llist = NULL;
 
 	FILE *sfp = NULL;			/* socket to web/ftp server			*/
 	FILE *dfp = NULL;			/* socket to ftp server (data)		*/
@@ -166,68 +186,40 @@ int wget_main(int argc, char **argv)
 	FILE *output;				/* socket to web server				*/
 	int quiet_flag = FALSE;		/* Be verry, verry quiet...			*/
 	int noproxy = 0;            /* Use proxies if env vars are set  */
+	char *proxy_flag = "on";	/* Use proxies if env vars are set  */
 
-#define LONG_HEADER    1
-#define LONG_PASSIVE   2
-
-	struct option long_options[] = {
-		{ "continue",        0, NULL, 'c' },
-		{ "quiet",           0, NULL, 'q' },
-		{ "output-document", 1, NULL, 'O' },
-		{ "header",	         1, &which_long_opt, LONG_HEADER },
-		{ "proxy",           1, NULL, 'Y' },
-		{ "passive-ftp",     0, &which_long_opt, LONG_PASSIVE },
-		{ 0,                 0, 0, 0 }
-	};
 	/*
 	 * Crack command line.
 	 */
-	while ((n = getopt_long(argc, argv, "cqO:P:Y:", long_options, &option_index)) != EOF) {
-		switch (n) {
-		case 'c':
-			++do_continue;
-			break;
-		case 'P':
-			dir_prefix = optarg;
-			break;
-		case 'q':
-			quiet_flag = TRUE;
-			break;
-		case 'O':
-			/* can't set fname_out to NULL if outputting to stdout, because
-			 * this gets interpreted as the auto-gen output filename
-			 * case below  - tausq@debian.org
-			 */
-			fname_out = optarg;
-			break;
-		case 'Y':
-			if (strcmp(optarg, "off") == 0)
-				noproxy=1;	
-			break;
-		case 0:
-			switch (which_long_opt) {
-				case LONG_HEADER: {
-					int arglen = strlen(optarg);
-					if(extra_headers_left - arglen - 2 <= 0)
-						bb_error_msg_and_die("extra_headers buffer too small(need %i)", extra_headers_left - arglen);
-					strcpy(extra_headers_ptr, optarg);
-					extra_headers_ptr += arglen;
-					extra_headers_left -= ( arglen + 2 );
-					*extra_headers_ptr++ = '\r';
-					*extra_headers_ptr++ = '\n';
-					*(extra_headers_ptr + 1) = 0;
-					break;
-				}
-				case LONG_PASSIVE:
-					// ignore -- we always use passive mode
-					break;
-			}
-			break;
-		default:
-			bb_show_usage();
+	bb_opt_complementaly = "\203*";
+	bb_applet_long_options = wget_long_options;
+	opt = bb_getopt_ulflags(argc, argv, "cq\213O:\203:P:Y:", &fname_out, &headers_llist, &dir_prefix, &proxy_flag);
+	if (opt & WGET_OPT_CONTINUE) {
+		++do_continue;
+	}
+	if (opt & WGET_OPT_QUIET) {
+		quiet_flag = TRUE;
+	}
+	if (strcmp(proxy_flag, "on") == 0) {
+		/* Use the proxy if necessary. */
+		proxy = getenv(target.is_ftp ? "ftp_proxy" : "http_proxy");
+		if (proxy)
+			parse_url(bb_xstrdup(proxy), &server);
+	}
+	if (opt & WGET_OPT_HEADER) {
+		while (headers_llist) {
+			int arglen = strlen(headers_llist->data);
+			if (extra_headers_left - arglen - 2 <= 0)
+				bb_error_msg_and_die("extra_headers buffer too small(need %i)", extra_headers_left - arglen);
+			strcpy(extra_headers_ptr, headers_llist->data);
+			extra_headers_ptr += arglen;
+			extra_headers_left -= ( arglen + 2 );
+			*extra_headers_ptr++ = '\r';
+			*extra_headers_ptr++ = '\n';
+			*(extra_headers_ptr + 1) = 0;
+			headers_llist = headers_llist->link;
 		}
 	}
-
 	if (argc - optind != 1)
 			bb_show_usage();
 
@@ -294,10 +286,11 @@ int wget_main(int argc, char **argv)
 	/* We want to do exactly _one_ DNS lookup, since some
 	 * sites (i.e. ftp.us.debian.org) use round-robin DNS
 	 * and we want to connect to only one IP... */
-	bb_lookup_host(&s_in, server.host, NULL);
+	bb_lookup_host(&s_in, server.host);
+	s_in.sin_port = server.port;
 	if (quiet_flag==FALSE) {
 		fprintf(stdout, "Connecting to %s[%s]:%d\n",
-				server.host, inet_ntoa(s_in.sin_addr), server.port);
+				server.host, inet_ntoa(s_in.sin_addr), ntohs(server.port));
 	}
 
 	if (proxy || !target.is_ftp) {
@@ -314,7 +307,7 @@ int wget_main(int argc, char **argv)
 			 * Open socket to http server
 			 */
 			if (sfp) fclose(sfp);
-			sfp = open_socket(&s_in, server.port);
+			sfp = open_socket(&s_in);
 			
 			/*
 			 * Send HTTP request.
@@ -426,7 +419,7 @@ read_response:
 		if (! target.user)
 			target.user = bb_xstrdup("anonymous:busybox@");
 
-		sfp = open_socket(&s_in, server.port);
+		sfp = open_socket(&s_in);
 		if (ftpcmd(NULL, NULL, sfp, buf) != 220)
 			close_delete_and_die("%s", buf+4);
 
@@ -469,7 +462,8 @@ read_response:
 		port = atoi(s+1);
 		s = strrchr(buf, ',');
 		port += atoi(s+1) * 256;
-		dfp = open_socket(&s_in, port);
+		s_in.sin_port = htons(port);
+		dfp = open_socket(&s_in);
 
 		if (do_continue) {
 			sprintf(buf, "REST %ld", beg_range);
@@ -543,11 +537,11 @@ void parse_url(char *url, struct host_info *h)
 	char *cp, *sp, *up, *pp;
 
 	if (strncmp(url, "http://", 7) == 0) {
-		h->port = 80;
+		h->port = bb_lookup_port("http", 80);
 		h->host = url + 7;
 		h->is_ftp = 0;
 	} else if (strncmp(url, "ftp://", 6) == 0) {
-		h->port = 21;
+		h->port = bb_lookup_port("ftp", 21);
 		h->host = url + 6;
 		h->is_ftp = 1;
 	} else
@@ -594,21 +588,12 @@ void parse_url(char *url, struct host_info *h)
 }
 
 
-FILE *open_socket(struct sockaddr_in *s_in, int port)
+FILE *open_socket(struct sockaddr_in *s_in)
 {
-	int fd;
 	FILE *fp;
 
-	if (port>0 && port < 65536) {
-		s_in->sin_port=htons(port);
-	}
-
-	fd=xconnect(s_in);
-
-	/*
-	 * Get the server onto a stdio stream.
-	 */
-	if ((fp = fdopen(fd, "r+")) == NULL)
+	fp = fdopen(xconnect(s_in), "r+");
+	if (fp == NULL)
 		bb_perror_msg_and_die("fdopen()");
 
 	return fp;
@@ -850,7 +835,7 @@ progressmeter(int flag)
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	$Id: wget.c,v 1.61 2003/10/31 09:31:43 andersen Exp $
+ *	$Id: wget.c,v 1.63 2003/12/20 01:47:18 bug1 Exp $
  */
 
 

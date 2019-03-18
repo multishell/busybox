@@ -12,6 +12,7 @@
 #include "dhcpd.h"
 #include "files.h"
 #include "options.h"
+#include "leases.h"
 #include "arpping.h"
 #include "common.h"
 
@@ -115,6 +116,7 @@ static int check_ip(u_int32_t addr)
 		return 1;
 	} else return 0;
 }
+
 
 /* find an assignable address, it check_expired is true, we check all the expired leases as well.
  * Maybe this should try expired leases by age... */

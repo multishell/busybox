@@ -50,7 +50,8 @@ static time_t askremotedate(const char *host)
 	struct sockaddr_in s_in;
 	int fd;
 
-	bb_lookup_host(&s_in, host, "time");
+	bb_lookup_host(&s_in, host);
+	s_in.sin_port = bb_lookup_port("time", 37);
 
 	/* Add a timeout for dead or non accessable servers */
 	alarm(10);
@@ -103,8 +104,14 @@ int rdate_main(int argc, char **argv)
 	remote_time = askremotedate(argv[optind]);
 
 	if (setdate) {
-		if (stime(&remote_time) < 0)
-			bb_perror_msg_and_die("Could not set time of day");
+		time_t current_time;
+
+		time(&current_time);
+		if (current_time == remote_time)
+			bb_error_msg("Current time matches remote time.");
+		else
+			if (stime(&remote_time) < 0)
+				bb_perror_msg_and_die("Could not set time of day");
 	}
 
 	if (printdate)

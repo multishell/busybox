@@ -338,17 +338,25 @@
 #define deluser_full_usage \
 	 "Deletes user USER from the system"
 
+#ifdef CONFIG_DEVFSD_FG_NP
+  #define USAGE_DEVFSD_FG_NP(a) a
+#else
+  #define USAGE_DEVFSD_FG_NP(a)
+#endif
+
 #define devfsd_trivial_usage \
-	"mntpnt [-v] [-fg] [-np]"
+	"mntpnt [-v]"\
+	USAGE_DEVFSD_FG_NP("[-fg][-np]" )
 #define devfsd_full_usage \
 	"Optional daemon for managing devfs (the Linux Device Filesystem).\n" \
 	"\nOptions:\n" \
 	"\tmntpnt\tThe mount point where devfs is mounted.\n\n" \
 	"\t-v\tPrint the protocol version numbers for devfsd\n" \
-	"\t\tand the kernel-side protocol version and exits.\n" \
-	"\t-fg\tRun the daemon in the foreground.\n\n" \
-	"\t-np\tExit  after  parsing  the configuration file and processing syn-\n" \
-	"\t\tthetic REGISTER events. Do not poll for events." 
+	"\t\tand the kernel-side protocol version and exits." \
+	USAGE_DEVFSD_FG_NP( "\n\n\t-fg\tRun the daemon in the foreground.\n\n" \
+	"\t-np\tExit  after  parsing  the configuration file\n" \
+	"\t\tand processing synthetic REGISTER events.\n" \
+	"\t\tDo not poll for events.")
 
 #ifdef CONFIG_FEATURE_HUMAN_READABLE
   #define USAGE_HUMAN_READABLE(a) a
@@ -1399,13 +1407,6 @@
 	"$ ls -l /tmp/ls\n" \
 	"lrwxrwxrwx    1 root     root            7 Apr 12 18:39 ls -> BusyBox*\n" 
 
-#define loadacm_trivial_usage \
-	"< mapfile"
-#define loadacm_full_usage \
-	"Loads an acm from standard input."
-#define loadacm_example_usage \
-	"$ loadacm < /etc/i18n/acmname\n" 
-
 #define loadfont_trivial_usage \
 	"< font"
 #define loadfont_full_usage \
@@ -1450,10 +1451,12 @@
 	"root\n" 
 
 #define logread_trivial_usage \
-        ""
+	"[OPTION]..."
 
 #define logread_full_usage \
-        "Shows the messages from syslogd (using circular buffer)."
+        "Shows the messages from syslogd (using circular buffer).\n\n"
+	"Options:\n" \
+	"\t-f\t\toutput data as the log grows"
 
 #define losetup_trivial_usage \
 	"[OPTION]... LOOPDEVICE FILE\n" \
@@ -2064,6 +2067,13 @@
 	"\t-a ARG\tPass ARG as an argument for every program invoked.\n" \
 	"\t-u MASK\tSet the umask to MASK before executing every program."
 
+#define rx_trivial_usage \
+	"FILE"
+#define rx_full_usage \
+	"Receive a file using the xmodem protocol."
+#define rx_example_usage \
+	"$ rx /tmp/foo\n"
+
 #define sed_trivial_usage \
 	"[-nef] pattern [files...]"
 #define sed_full_usage \
@@ -2272,7 +2282,7 @@
 	"\n\t-R HOST[:PORT]\tLog to IP or hostname on PORT (default PORT=514/UDP)\n" \
 	"\t-L\t\tLog locally and via network logging (default is network only)") \
 	USAGE_IPC_LOG( \
-	"\n\t-C\t\tLog to a circular buffer (read the buffer using logread)")
+	"\n\t-C [size(KiB)]\tLog to a circular buffer (read the buffer using logread)")
 #define syslogd_example_usage \
 	"$ syslogd -R masterlog:514\n" \
 	"$ syslogd -R 192.168.1.1:601\n"
