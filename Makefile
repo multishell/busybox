@@ -1,5 +1,5 @@
 
-VERSION=0.27
+VERSION=0.28
 BUILDTIME=$(shell date "+%Y%m%d-%H%M")
 
 #This will choke on a non-debian system
