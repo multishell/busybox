@@ -2,8 +2,8 @@
 /*
  * Utility routines.
  *
- * Copyright (C) many different people.  If you wrote this, please
- * acknowledge your work.
+ * Copyright (C) many different people.
+ * If you wrote this, please acknowledge your work.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,7 +34,7 @@ void xregcomp(regex_t *preg, const char *regex, int cflags)
 		int errmsgsz = regerror(ret, preg, NULL, 0);
 		char *errmsg = xmalloc(errmsgsz);
 		regerror(ret, preg, errmsg, errmsgsz);
-		error_msg_and_die("xregcomp: %s", errmsg);
+		bb_error_msg_and_die("xregcomp: %s", errmsg);
 	}
 }
 
