@@ -133,13 +133,6 @@ typedef int socklen_t;
 #endif
 
 /* ---- Compiler dependent settings ------------------------- */
-#ifndef __GNUC__
-#if defined __INTEL_COMPILER
-__extension__ typedef __signed__ long long __s64;
-__extension__ typedef unsigned long long __u64;
-#endif /* __INTEL_COMPILER */
-#endif /* ifndef __GNUC__ */
-
 #if (defined __digital__ && defined __unix__)
 # undef HAVE_MNTENT_H
 #else
@@ -179,6 +172,17 @@ typedef unsigned long long int  uintmax_t;
 #endif
 #endif
 
+/* Size-saving "small" ints (arch-dependent) */
+#if defined(i386) || defined(__x86_64__) || defined(__mips__) || defined(__cris__)
+/* add other arches which benefit from this... */
+typedef signed char smallint;
+typedef unsigned char smalluint;
+#else
+/* for arches where byte accesses generate larger code: */
+typedef int smallint;
+typedef unsigned smalluint;
+#endif
+
 /* uclibc does not implement daemon() for no-mmu systems.
  * For 0.9.29 and svn, __ARCH_USE_MMU__ indicates no-mmu reliably.
  * For earlier versions there is no reliable way to check if we are building
@@ -193,9 +197,21 @@ typedef unsigned long long int  uintmax_t;
 /* Platforms that haven't got dprintf need to implement fdprintf() in
  * libbb.  This would require a platform.c.  It's not going to be cleaned
  * out of the tree, so stop saying it should be. */
+#if !defined(__dietlibc__)
+/* Needed for: glibc */
+/* Not needed for: dietlibc */
+/* Others: ?? (add as needed) */
 #define fdprintf dprintf
+#endif
 
-/* Don't use lchown with glibc older then 2.1.x ... uC-libc lacks it */
+#if defined(__dietlibc__)
+static ATTRIBUTE_ALWAYS_INLINE char* strchrnul(const char *s, char c) {
+	while (*s && *s != c) ++s;
+	return (char*)s;
+}
+#endif
+
+/* Don't use lchown with glibc older than 2.1.x ... uC-libc lacks it */
 #if (defined __GLIBC__ && __GLIBC__ <= 2 && __GLIBC_MINOR__ < 1) || \
     defined __UC_LIBC__
 # define lchown chown
@@ -215,7 +231,7 @@ typedef unsigned long long int  uintmax_t;
 #define PRIu32 "u"
 
 /* use legacy setpgrp(pidt_,pid_t) for now.  move to platform.c */
-#define bb_setpgrp do{pid_t __me = getpid();setpgrp(__me,__me);}while(0)
+#define bb_setpgrp do { pid_t __me = getpid(); setpgrp(__me,__me); } while (0)
 
 #if !defined ADJ_OFFSET_SINGLESHOT && defined MOD_CLKA && defined MOD_OFFSET
 #define ADJ_OFFSET_SINGLESHOT (MOD_CLKA | MOD_OFFSET)

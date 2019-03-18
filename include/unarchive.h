@@ -24,7 +24,7 @@ typedef struct file_headers_s {
 } file_header_t;
 
 typedef struct archive_handle_s {
-	/* define if the header and data component should processed */
+	/* define if the header and data component should be processed */
 	char (*filter)(struct archive_handle_s *);
 	llist_t *accept;
 	/* List of files that have been rejected */
@@ -64,6 +64,7 @@ typedef struct archive_handle_s {
 
 } archive_handle_t;
 
+
 extern archive_handle_t *init_handle(void);
 
 extern char filter_accept_all(archive_handle_t *archive_handle);
@@ -101,14 +102,17 @@ extern const llist_t *find_list_entry(const llist_t *list, const char *filename)
 extern const llist_t *find_list_entry2(const llist_t *list, const char *filename);
 
 extern USE_DESKTOP(long long) int uncompressStream(int src_fd, int dst_fd);
-extern void inflate_init(unsigned int bufsize);
-extern void inflate_cleanup(void);
-extern USE_DESKTOP(long long) int inflate_unzip(int in, int out);
+
+typedef struct inflate_unzip_result {
+	off_t bytes_out;
+	uint32_t crc;
+} inflate_unzip_result;
+
+extern USE_DESKTOP(long long) int inflate_unzip(inflate_unzip_result *res, unsigned bufsize, int in, int out);
 extern USE_DESKTOP(long long) int inflate_gunzip(int in, int out);
 extern USE_DESKTOP(long long) int unlzma(int src_fd, int dst_fd);
 
 extern int open_transformer(int src_fd,
 	USE_DESKTOP(long long) int (*transformer)(int src_fd, int dst_fd));
-
 
 #endif

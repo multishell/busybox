@@ -75,11 +75,6 @@ USE_DESKTOP(            ACTS(prune))
 static action ***actions;
 static int need_print = 1;
 
-static inline int one_char(const char* str, char c)
-{
-	return (str[0] == c && str[1] == '\0');
-}
-
 
 #if ENABLE_FEATURE_FIND_EXEC
 static int count_subst(const char *str)
@@ -199,9 +194,8 @@ ACTF(exec)
 	for (i = 0; i < ap->exec_argc; i++)
 		argv[i] = subst(ap->exec_argv[i], ap->subst_count[i], fileName);
 	argv[i] = NULL; /* terminate the list */
-	errno = 0;
 	rc = wait4pid(spawn(argv));
-	if (errno)
+	if (rc)
 		bb_perror_msg("%s", argv[0]);
 	for (i = 0; i < ap->exec_argc; i++)
 		free(argv[i]);
@@ -458,7 +452,7 @@ action*** parse_params(char **argv)
 			while (1) {
 				if (!*argv) /* did not see ';' till end */
 					bb_error_msg_and_die(bb_msg_requires_arg, arg);
-				if (one_char(argv[0], ';'))
+				if (LONE_CHAR(argv[0], ';'))
 					break;
 				argv++;
 				ap->exec_argc++;
@@ -472,7 +466,7 @@ action*** parse_params(char **argv)
 		}
 #endif
 #if ENABLE_DESKTOP
-		else if (one_char(arg, '(')) {
+		else if (LONE_CHAR(arg, '(')) {
 			action_paren *ap;
 			char **endarg;
 			int nested = 1;
@@ -481,9 +475,9 @@ action*** parse_params(char **argv)
 			while (1) {
 				if (!*++endarg)
 					bb_error_msg_and_die("unpaired '('");
-				if (one_char(*endarg, '('))
+				if (LONE_CHAR(*endarg, '('))
 					nested++;
-				else if (one_char(*endarg, ')') && !--nested) {
+				else if (LONE_CHAR(*endarg, ')') && !--nested) {
 					*endarg = NULL;
 					break;
 				}
@@ -525,7 +519,7 @@ int find_main(int argc, char **argv)
 		if (argv[firstopt][0] == '-')
 			break;
 #if ENABLE_DESKTOP
-		if (one_char(argv[firstopt], '('))
+		if (LONE_CHAR(argv[firstopt], '('))
 			break;
 #endif
 	}
@@ -557,14 +551,15 @@ int find_main(int argc, char **argv)
 				for (i = 1; i < firstopt; i++) {
 					/* not xstat(): shouldn't bomb out on
 					 * "find not_exist exist -xdev" */
-					if (stat(argv[i], &stbuf)) stbuf.st_dev = -1L;
+					if (stat(argv[i], &stbuf))
+						stbuf.st_dev = -1L;
 					xdev_dev[i-1] = stbuf.st_dev;
 				}
 			}
 			argp[0] = "-a";
 		}
-		argp++;
 #endif
+		argp++;
 	}
 
 	actions = parse_params(&argv[firstopt]);

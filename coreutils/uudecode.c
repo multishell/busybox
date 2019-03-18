@@ -146,7 +146,7 @@ int uudecode_main(int argc, char **argv)
 		FILE *dst_stream;
 		int mode;
 		int ret;
-		
+
 		if (strncmp(line, "begin-base64 ", 13) == 0) {
 			line_ptr = line + 13;
 			decode_fn_ptr = read_base64;
@@ -166,7 +166,7 @@ int uudecode_main(int argc, char **argv)
 			}
 			outname++;
 		}
-		if (strcmp(outname, "-") == 0) {
+		if (LONE_DASH(outname)) {
 			dst_stream = stdout;
 		} else {
 			dst_stream = xfopen(outname, "w");

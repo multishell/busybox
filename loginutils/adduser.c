@@ -115,7 +115,7 @@ static int adduser(struct passwd *p, unsigned long flags)
 	fseek(file, 0, SEEK_END);
 	fprintf(file, "%s:!:%ld:%d:%d:%d:::\n",
 			p->pw_name,             /* username */
-			time(NULL) / 86400,     /* sp->sp_lstchg */ 
+			time(NULL) / 86400,     /* sp->sp_lstchg */
 			0,                      /* sp->sp_min */
 			99999,                  /* sp->sp_max */
 			7);                     /* sp->sp_warn */
@@ -157,12 +157,17 @@ static int adduser(struct passwd *p, unsigned long flags)
  * gecos
  *
  * can be customized via command-line parameters.
- * ________________________________________________________________________ */
+ */
 int adduser_main(int argc, char **argv)
 {
 	struct passwd pw;
 	const char *usegroup = NULL;
 	unsigned long flags;
+
+	/* got root? */
+	if (geteuid()) {
+		bb_error_msg_and_die(bb_msg_perm_denied_are_you_root);
+	}
 
 	pw.pw_gecos = "Linux User,,,";
 	pw.pw_shell = (char *)DEFAULT_SHELL;
@@ -172,22 +177,17 @@ int adduser_main(int argc, char **argv)
 	opt_complementary = "-1:?1:?";
 	flags = getopt32(argc, argv, "h:g:s:G:DSH", &pw.pw_dir, &pw.pw_gecos, &pw.pw_shell, &usegroup);
 
-	/* got root? */
-	if(geteuid()) {
-		bb_error_msg_and_die(bb_msg_perm_denied_are_you_root);
-	}
-
 	/* create string for $HOME if not specified already */
 	if (!pw.pw_dir) {
 		snprintf(bb_common_bufsiz1, BUFSIZ, "/home/%s", argv[optind]);
-		pw.pw_dir = &bb_common_bufsiz1[0];
+		pw.pw_dir = bb_common_bufsiz1;
 	}
 
 	/* create a passwd struct */
 	pw.pw_name = argv[optind];
 	pw.pw_passwd = "x";
 	pw.pw_uid = 0;
-	pw.pw_gid = (usegroup) ? bb_xgetgrnam(usegroup) : 0; /* exits on failure */
+	pw.pw_gid = usegroup ? xgroup2gid(usegroup) : 0; /* exits on failure */
 
 	/* grand finale */
 	return adduser(&pw, flags);

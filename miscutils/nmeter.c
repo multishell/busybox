@@ -104,7 +104,7 @@ static const char* get_file(proc_file *pf)
 		// but allows us to allocate only once (at first sample)
 		// per proc file, and reuse buffer for each sample
 		if (!pf->file)
-			pf->file = (char*)xmalloc(proc_file_size);
+			pf->file = xmalloc(proc_file_size);
 		readfile_z(pf->file, proc_file_size, pf->name);
 	}
 	return pf->file;
@@ -594,7 +594,7 @@ static void collect_mem(mem_stat *s)
 	}
 
 	m_free += m_bufs + m_cached + m_slab;
-	switch(s->opt) {
+	switch (s->opt) {
 	case 'f':
 		scale(m_free << 10); break;
 	default:

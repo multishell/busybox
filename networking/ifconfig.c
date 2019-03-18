@@ -29,7 +29,7 @@
 #include <net/if.h>
 #include <net/if_arp.h>
 #include <netinet/in.h>
-#if __GLIBC__ >=2 && __GLIBC_MINOR__ >= 1
+#if defined(__GLIBC__) && __GLIBC__ >=2 && __GLIBC_MINOR__ >= 1
 #include <netpacket/packet.h>
 #include <net/ethernet.h>
 #else
@@ -255,11 +255,6 @@ static const struct options OptArray[] = {
 
 #if ENABLE_FEATURE_IFCONFIG_HW
 static int in_ether(const char *bufp, struct sockaddr *sap);
-#endif
-
-#if ENABLE_FEATURE_IFCONFIG_STATUS
-extern int interface_opt_a;
-extern int display_interfaces(char *ifname);
 #endif
 
 /*
@@ -497,7 +492,7 @@ int ifconfig_main(int argc, char **argv)
 			ifr.ifr_flags &= ~selector;
 		if (ioctl(sockfd, SIOCSIFFLAGS, &ifr) < 0)
 			bb_perror_msg_and_die("SIOCSIFFLAGS");
-	} /* while() */
+	} /* while () */
 
 	if (ENABLE_FEATURE_CLEAN_UP)
 		close(sockfd);

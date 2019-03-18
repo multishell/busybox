@@ -789,7 +789,7 @@ static int expand_arguments(char *command)
 	src = command;
 	while((dst = strchr(src,'$')) != NULL){
 		var = NULL;
-		switch(*(dst+1)) {
+		switch (*(dst+1)) {
 			case '?':
 				var = itoa(last_return_code);
 				break;
@@ -1163,7 +1163,7 @@ static int pseudo_exec(struct child_prog *child)
 		char **argv_l = child->argv;
 		int argc_l;
 
-		for(argc_l=0; *argv_l; argv_l++, argc_l++);
+		for (argc_l=0; *argv_l; argv_l++, argc_l++);
 		optind = 1;
 		run_applet_by_name(child->argv[0], argc_l, child->argv);
 	}
@@ -1377,7 +1377,7 @@ static int busy_loop(FILE * input)
 			}
 			else {
 				free(command);
-				command = (char *) xzalloc(BUFSIZ);
+				command = xzalloc(BUFSIZ);
 				next_command = NULL;
 			}
 		} else {
@@ -1486,7 +1486,7 @@ static void setup_job_control(void)
 
 	/* Put ourselves in our own process group.  */
 	setsid();
-	shell_pgrp = getpid ();
+	shell_pgrp = getpid();
 	setpgid(shell_pgrp, shell_pgrp);
 
 	/* Grab control of the terminal.  */

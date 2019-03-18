@@ -26,7 +26,7 @@ struct pid_list {
 	pid_t pid;
 };
 
-static struct pid_list *found = NULL;
+static struct pid_list *found;
 
 static inline void push(pid_t pid)
 {
@@ -42,13 +42,16 @@ static int pid_is_exec(pid_t pid, const char *name)
 {
 	char buf[sizeof("/proc//exe") + sizeof(int)*3];
 	char *execbuf;
+	int sz;
 	int equal;
 
 	sprintf(buf, "/proc/%d/exe", pid);
-	execbuf = xstrdup(name);
-	readlink(buf, execbuf, strlen(name)+1);
+	sz = strlen(name) + 1;
+	execbuf = xzalloc(sz);
+	readlink(buf, execbuf, sz);
 
-	equal = ! strcmp(execbuf, name);
+	/* if readlink fails, execbuf still contains "" */
+	equal = !strcmp(execbuf, name);
 	if (ENABLE_FEATURE_CLEAN_UP)
 		free(execbuf);
 	return equal;
@@ -59,7 +62,7 @@ static int pid_is_user(int pid, int uid)
 	struct stat sb;
 	char buf[sizeof("/proc/") + sizeof(int)*3];
 
-	sprintf(buf, "/proc/%d", pid);
+	sprintf(buf, "/proc/%u", pid);
 	if (stat(buf, &sb) != 0)
 		return 0;
 	return (sb.st_uid == uid);
@@ -67,25 +70,24 @@ static int pid_is_user(int pid, int uid)
 
 static int pid_is_cmd(pid_t pid, const char *name)
 {
-	char buf[sizeof("/proc//stat") + sizeof(int)*3];
-	FILE *f;
-	int c;
+	char fname[sizeof("/proc//stat") + sizeof(int)*3];
+	char *buf;
+	int r = 0;
 
-	sprintf(buf, "/proc/%d/stat", pid);
-	f = fopen(buf, "r");
-	if (!f)
-		return 0;
-	while ((c = getc(f)) != EOF && c != '(')
-		;
-	if (c != '(') {
-		fclose(f);
-		return 0;
+	sprintf(fname, "/proc/%u/stat", pid);
+	buf = xmalloc_open_read_close(fname, NULL);
+	if (buf) {
+		char *p = strchr(buf, '(');
+		if (p) {
+			char *pe = strrchr(++p, ')');
+			if (pe) {
+				*pe = '\0';
+				r = !strcmp(p, name);
+			}
+		}
+		free(buf);
 	}
-	/* this hopefully handles command names containing ')' */
-	while ((c = getc(f)) != EOF && c == *name)
-		name++;
-	fclose(f);
-	return (c == ')' && *name == '\0');
+	return r;
 }
 
 
@@ -111,7 +113,7 @@ static void do_pidfile(void)
 
 	f = fopen(pidfile, "r");
 	if (f) {
-		if (fscanf(f, "%d", &pid) == 1)
+		if (fscanf(f, "%u", &pid) == 1)
 			check(pid);
 		fclose(f);
 	} else if (errno != ENOENT)
@@ -133,7 +135,8 @@ static void do_procinit(void)
 
 	foundany = 0;
 	while ((entry = readdir(procdir)) != NULL) {
-		if (sscanf(entry->d_name, "%d", &pid) != 1)
+		pid = bb_strtou(entry->d_name, NULL, 10);
+		if (errno)
 			continue;
 		foundany++;
 		check(pid);
@@ -191,7 +194,7 @@ static int do_stop(void)
 }
 
 #if ENABLE_FEATURE_START_STOP_DAEMON_LONG_OPTIONS
-static const struct option ssd_long_options[] = {
+static const struct option long_options[] = {
 	{ "stop",               0,      NULL,   'K' },
 	{ "start",              0,      NULL,   'S' },
 	{ "background",         0,      NULL,   'b' },
@@ -216,16 +219,16 @@ static const struct option ssd_long_options[] = {
 };
 #endif
 
-#define SSD_CTX_STOP            0x1
-#define SSD_CTX_START           0x2
-#define SSD_OPT_BACKGROUND      0x4
-#define SSD_OPT_QUIET           0x8
-#define SSD_OPT_MAKEPID         0x10
-#if ENABLE_FEATURE_START_STOP_DAEMON_FANCY
-#define SSD_OPT_OKNODO          0x20
-#define SSD_OPT_VERBOSE         0x40
-#define SSD_OPT_NICELEVEL       0x80
-#endif
+enum {
+	CTX_STOP       = 0x1,
+	CTX_START      = 0x2,
+	OPT_BACKGROUND = 0x4,
+	OPT_QUIET      = 0x8,
+	OPT_MAKEPID    = 0x10,
+	OPT_OKNODO     = 0x20 * ENABLE_FEATURE_START_STOP_DAEMON_FANCY,
+	OPT_VERBOSE    = 0x40 * ENABLE_FEATURE_START_STOP_DAEMON_FANCY,
+	OPT_NICELEVEL  = 0x80 * ENABLE_FEATURE_START_STOP_DAEMON_FANCY,
+};
 
 int start_stop_daemon_main(int argc, char **argv)
 {
@@ -238,7 +241,7 @@ int start_stop_daemon_main(int argc, char **argv)
 	char *opt_N;
 #endif
 #if ENABLE_FEATURE_START_STOP_DAEMON_LONG_OPTIONS
-	applet_long_options = ssd_long_options;
+	applet_long_options = long_options;
 #endif
 
 	/* Check required one context option was given */
@@ -251,8 +254,7 @@ int start_stop_daemon_main(int argc, char **argv)
 //		USE_FEATURE_START_STOP_DAEMON_FANCY(,&retry_arg)
 		,&startas, &cmdname, &signame, &userspec, &chuid, &execname, &pidfile);
 
-	quiet = (opt & SSD_OPT_QUIET)
-			USE_FEATURE_START_STOP_DAEMON_FANCY(&& !(opt & SSD_OPT_VERBOSE));
+	quiet = (opt & OPT_QUIET) && !(opt & OPT_VERBOSE);
 
 	if (signame) {
 		signal_nr = get_signum(signame);
@@ -269,14 +271,15 @@ int start_stop_daemon_main(int argc, char **argv)
 	argc -= optind;
 	argv += optind;
 
-	if (userspec && sscanf(userspec, "%d", &user_id) != 1)
-		user_id = bb_xgetpwnam(userspec);
+	if (userspec) {
+		user_id = bb_strtou(userspec, NULL, 10);
+		if (errno)
+			user_id = xuname2uid(userspec);
+	}
 
-	if (opt & SSD_CTX_STOP) {
+	if (opt & CTX_STOP) {
 		int i = do_stop();
-		return
-			USE_FEATURE_START_STOP_DAEMON_FANCY((opt & SSD_OPT_OKNODO)
-				? 0 :) !!(i<=0);
+		return (opt & OPT_OKNODO) ? 0 : (i<=0);
 	}
 
 	do_procinit();
@@ -284,15 +287,14 @@ int start_stop_daemon_main(int argc, char **argv)
 	if (found) {
 		if (!quiet)
 			printf("%s already running\n%d\n", execname, found->pid);
-		USE_FEATURE_START_STOP_DAEMON_FANCY(return !(opt & SSD_OPT_OKNODO);)
-		SKIP_FEATURE_START_STOP_DAEMON_FANCY(return EXIT_FAILURE;)
+		return !(opt & OPT_OKNODO);
 	}
 	*--argv = startas;
-	if (opt & SSD_OPT_BACKGROUND) {
-		xdaemon(0, 0);
+	if (opt & OPT_BACKGROUND) {
 		setsid();
+		bb_daemonize();
 	}
-	if (opt & SSD_OPT_MAKEPID) {
+	if (opt & OPT_MAKEPID) {
 		/* user wants _us_ to make the pidfile */
 		FILE *pidf = xfopen(pidfile, "w");
 
@@ -301,12 +303,13 @@ int start_stop_daemon_main(int argc, char **argv)
 		fclose(pidf);
 	}
 	if (chuid) {
-		if (sscanf(chuid, "%d", &user_id) != 1)
-			user_id = bb_xgetpwnam(chuid);
+		user_id = bb_strtou(chuid, NULL, 10);
+		if (errno)
+			user_id = xuname2uid(chuid);
 		xsetuid(user_id);
 	}
 #if ENABLE_FEATURE_START_STOP_DAEMON_FANCY
-	if (opt & SSD_OPT_NICELEVEL) {
+	if (opt & OPT_NICELEVEL) {
 		/* Set process priority */
 		int prio = getpriority(PRIO_PROCESS, 0) + xatoi_range(opt_N, INT_MIN/2, INT_MAX/2);
 		if (setpriority(PRIO_PROCESS, 0, prio) < 0) {

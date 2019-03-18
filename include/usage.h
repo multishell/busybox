@@ -14,52 +14,72 @@
 #define addgroup_trivial_usage \
        "[-g GID] group_name [user_name]"
 #define addgroup_full_usage \
-       "Adds a group to the system\n\n" \
-       "Options:\n" \
-       "	-g GID		specify gid"
+       "Add a group to the system" \
+       "\n\nOptions:\n" \
+       "	-g GID	Specify gid"
 
 #define adduser_trivial_usage \
        "[OPTIONS] user_name"
 #define adduser_full_usage \
-       "Adds a user to the system\n\n" \
-       "Options:\n" \
+       "Add a user to the system" \
+       "\n\nOptions:\n" \
        "	-h DIR		Assign home directory DIR\n" \
        "	-g GECOS	Assign gecos field GECOS\n" \
        "	-s SHELL	Assign login shell SHELL\n" \
        "	-G		Add the user to existing group GROUP\n" \
-       "	-S		create a system user (ignored)\n" \
+       "	-S		Create a system user (ignored)\n" \
        "	-D		Do not assign a password (logins still possible via ssh)\n" \
        "	-H		Do not create the home directory"
 
 #define adjtimex_trivial_usage \
        "[-q] [-o offset] [-f frequency] [-p timeconstant] [-t tick]"
 #define adjtimex_full_usage \
-       "Reads and optionally sets system timebase parameters.\n" \
-       "See adjtimex(2).\n\n" \
-       "Options:\n" \
-       "	-q		quiet mode - do not print\n" \
-       "	-o offset	time offset, microseconds\n" \
-       "	-f frequency	frequency adjust, integer kernel units (65536 is 1ppm)\n" \
+       "Read and optionally set system timebase parameters.\n" \
+       "See adjtimex(2)." \
+       "\n\nOptions:\n" \
+       "	-q		Quiet mode - do not print\n" \
+       "	-o offset	Time offset, microseconds\n" \
+       "	-f frequency	Frequency adjust, integer kernel units (65536 is 1ppm)\n" \
        "			(positive values make the system clock run fast)\n" \
-       "	-t tick		microseconds per tick, usually 10000\n" \
+       "	-t tick		Microseconds per tick, usually 10000\n" \
        "	-p timeconstant"
 
 #define ar_trivial_usage \
        "[-o] [-v] [-p] [-t] [-x] ARCHIVE FILES"
 #define ar_full_usage \
-       "Extract or list FILES from an ar archive.\n\n" \
-       "Options:\n" \
-       "	-o		preserve original dates\n" \
-       "	-p		extract to stdout\n" \
-       "	-t		list\n" \
-       "	-x		extract\n" \
-       "	-v		verbosely list files processed"
+       "Extract or list FILES from an ar archive" \
+       "\n\nOptions:\n" \
+       "	-o	Preserve original dates\n" \
+       "	-p	Extract to stdout\n" \
+       "	-t	List\n" \
+       "	-x	Extract\n" \
+       "	-v	Verbosely list files processed"
+
+#define arp_trivial_usage \
+       "\n" \
+       "[-vn]	[-H type] [-i if] -a [hostname]\n" \
+       "[-v]		  [-i if] -d hostname [pub]\n" \
+       "[-v]	[-H type] [-i if] -s hostname hw_addr [temp]\n" \
+       "[-v] 	[-H type] [-i if] -s hostname hw_addr [netmask nm] pub\n" \
+       "[-v]	[-H type] [-i if] -Ds hostname ifa [netmask nm] pub\n"
+#define arp_full_usage \
+       "Manipulate the system ARP cache" \
+       "\n\nOptions:" \
+       "\n	-a		Display (all) hosts" \
+       "\n	-s		Set a new ARP entry" \
+       "\n	-d		Delete a specified entry" \
+       "\n	-v		Verbose" \
+       "\n	-n		Don't resolve names" \
+       "\n	-i if		Specify network interface (e.g. eth0)" \
+       "\n	-D		Read <hwaddr> from given device" \
+       "\n	-A, -p		Specify protocol family" \
+       "\n	-H hwtype	Specify hardware address type"
 
 #define arping_trivial_usage \
        "[-fqbDUA] [-c count] [-w timeout] [-i device] [-s sender] target"
 #define arping_full_usage \
-       "Ping hosts by ARP requests/replies.\n\n" \
-       "Options:\n" \
+       "Ping hosts by ARP requests/replies" \
+       "\n\nOptions:\n" \
        "	-f		Quit on first ARP reply\n" \
        "	-q		Be quiet\n" \
        "	-b		Keep broadcasting, don't go unicast\n" \
@@ -82,15 +102,15 @@
        "[OPTION]... [program-text] [FILE ...]"
 #define awk_full_usage \
        "Options:\n" \
-       "	-v var=val	assign value 'val' to variable 'var'\n" \
-       "	-F sep		use 'sep' as field separator\n" \
-       "	-f progname	read program source from file 'progname'"
+       "	-v var=val	Assign value 'val' to variable 'var'\n" \
+       "	-F sep		Use 'sep' as field separator\n" \
+       "	-f progname	Read program source from file 'progname'"
 
 #define basename_trivial_usage \
        "FILE [SUFFIX]"
 #define basename_full_usage \
-       "Strips directory path and suffixes from FILE.\n" \
-       "If specified, also removes any trailing SUFFIX."
+       "Strip directory path and suffixes from FILE.\n" \
+       "If specified, also remove any trailing SUFFIX."
 #define basename_example_usage \
        "$ basename /usr/local/bin/foo\n" \
        "foo\n" \
@@ -102,8 +122,8 @@
 #define bunzip2_trivial_usage \
        "[OPTION]... [FILE]"
 #define bunzip2_full_usage \
-       "Uncompress FILE (or standard input if FILE is '-' or omitted).\n\n" \
-       "Options:\n" \
+       "Uncompress FILE (or standard input if FILE is '-' or omitted)" \
+       "\n\nOptions:\n" \
        "	-c	Write output to standard output\n" \
        "	-f	Force"
 
@@ -113,35 +133,35 @@
 #define bzcat_trivial_usage \
        "FILE"
 #define bzcat_full_usage \
-       "Uncompress to stdout."
+       "Uncompress to stdout"
 
 #define unlzma_trivial_usage \
        "[OPTION]... [FILE]"
 #define unlzma_full_usage \
-       "Uncompress FILE (or standard input if FILE is '-' or omitted).\n\n" \
-       "Options:\n" \
+       "Uncompress FILE (or standard input if FILE is '-' or omitted)" \
+       "\n\nOptions:\n" \
        "	-c	Write output to standard output\n" \
        "	-f	Force"
 
 #define lzmacat_trivial_usage \
        "FILE"
 #define lzmacat_full_usage \
-       "Uncompress to stdout."
+       "Uncompress to stdout"
 
 #define cal_trivial_usage \
        "[-jy] [[month] year]"
 #define cal_full_usage \
-       "Display a calendar.\n" \
-       "\nOptions:\n" \
+       "Display a calendar" \
+       "\n\nOptions:\n" \
        "	-j	Use julian dates\n" \
        "	-y	Display the entire year"
 
 #define cat_trivial_usage \
        "[-u] [FILE]..."
 #define cat_full_usage \
-       "Concatenates FILE(s) and prints them to stdout.\n\n" \
-       "Options:\n" \
-       "	-u	ignored since unbuffered i/o is always used"
+       "Concatenate FILE(s) and print them to stdout" \
+       "\n\nOptions:\n" \
+       "	-u	Ignored since unbuffered i/o is always used"
 #define cat_example_usage \
        "$ cat /proc/uptime\n" \
        "110716.72 17.67"
@@ -149,39 +169,40 @@
 #define catv_trivial_usage \
        "[-etv] [FILE]..."
 #define catv_full_usage \
-       "Display nonprinting characters as ^x or M-x.\n\n"\
+       "Display nonprinting characters as ^x or M-x" \
+       "\n\nOptions:\n" \
        "	-e	End each line with $\n" \
        "	-t	Show tabs as ^I\n" \
-       "	-v	Don't use ^x or M-x escapes."
+       "	-v	Don't use ^x or M-x escapes"
 #define chattr_trivial_usage \
        "[-R] [-+=AacDdijsStTu] [-v version] files..."
 #define chattr_full_usage \
-       "change file attributes on an ext2 fs\n\n" \
+       "Change file attributes on an ext2 fs\n\n" \
        "Modifiers:\n" \
-       "	-	remove attributes\n" \
-       "	+	add attributes\n" \
-       "	=	set attributes\n" \
+       "	-	Remove attributes\n" \
+       "	+	Add attributes\n" \
+       "	=	Set attributes\n" \
        "Attributes:\n" \
-       "	A	don't track atime\n" \
-       "	a	append mode only\n" \
-       "	c	enable compress\n" \
-       "	D	write dir contents synchronously\n" \
-       "	d	do not backup with dump\n" \
-       "	i	cannot be modified (immutable)\n" \
-       "	j	write all data to journal first\n" \
-       "	s	zero disk storage when deleted\n" \
-       "	S	write file contents synchronously\n" \
-       "	t	disable tail-merging of partial blocks with other files\n" \
-       "	u	allow file to be undeleted\n" \
+       "	A	Don't track atime\n" \
+       "	a	Append mode only\n" \
+       "	c	Enable compress\n" \
+       "	D	Write dir contents synchronously\n" \
+       "	d	Do not backup with dump\n" \
+       "	i	Cannot be modified (immutable)\n" \
+       "	j	Write all data to journal first\n" \
+       "	s	Zero disk storage when deleted\n" \
+       "	S	Write file contents synchronously\n" \
+       "	t	Disable tail-merging of partial blocks with other files\n" \
+       "	u	Allow file to be undeleted\n" \
        "Options:\n" \
-       "	-R	recursively list subdirectories\n" \
-       "	-v	set the file's version/generation number"
+       "	-R	Recursively list subdirectories\n" \
+       "	-v	Set the file's version/generation number"
 
 #define chgrp_trivial_usage \
        "[-Rh"USE_DESKTOP("cvf")"]... GROUP FILE..."
 #define chgrp_full_usage \
-       "Change the group membership of each FILE to GROUP.\n" \
-       "\nOptions:\n" \
+       "Change the group membership of each FILE to GROUP" \
+       "\n\nOptions:\n" \
        "	-R	Changes files and directories recursively\n" \
        "	-h	Do not dereference symbolic links" \
 	USE_DESKTOP( \
@@ -200,9 +221,9 @@
        "[-R"USE_DESKTOP("cvf")"] MODE[,MODE]... FILE..."
 #define chmod_full_usage \
        "Each MODE is one or more of the letters ugoa, one of the\n" \
-       "symbols +-= and one or more of the letters rwxst.\n\n" \
-       "Options:\n" \
-       "	-R	Changes files and directories recursively" \
+       "symbols +-= and one or more of the letters rwxst" \
+       "\n\nOptions:" \
+       "\n	-R	Changes files and directories recursively" \
 	USE_DESKTOP( \
        "\n	-c	List changed files" \
        "\n	-v	List all files" \
@@ -221,10 +242,10 @@
 #define chown_trivial_usage \
        "[-Rh"USE_DESKTOP("cvf")"]...  OWNER[<.|:>[GROUP]] FILE..."
 #define chown_full_usage \
-       "Change the owner and/or group of each FILE to OWNER and/or GROUP.\n" \
-       "\nOptions:\n" \
-       "	-R	Changes files and directories recursively\n" \
-       "	-h	Do not dereference symbolic links" \
+       "Change the owner and/or group of each FILE to OWNER and/or GROUP" \
+       "\n\nOptions:" \
+       "\n	-R	Changes files and directories recursively" \
+       "\n	-h	Do not dereference symbolic links" \
 	USE_DESKTOP( \
        "\n	-c	List changed files" \
        "\n	-v	List all files" \
@@ -245,61 +266,62 @@
        "[-/ dir] [-n nice] [-m bytes] [-d bytes] [-o files] " \
        "[-p processes] [-f bytes] [-c bytes] prog args"
 #define chpst_full_usage \
-       "Change the process state and run specified program.\n\n" \
-       "-u user[:grp]	set uid and gid\n" \
-       "-U user[:grp] 	set environment variables UID and GID\n" \
-       "-e dir		set environment variables as specified by files\n" \
-       "		in the directory: file=1st_line_of_file\n" \
-       "-/ dir		chroot to dir\n" \
-       "-n inc		add inc to nice value\n" \
-       "-m bytes	limit data segment, stack segment, locked physical pages,\n" \
-       "		and total of all segment per process to bytes bytes each\n" \
-       "-d bytes	limit data segment\n" \
-       "-o n		limit the number of open file descriptors per process to n\n" \
-       "-p n		limit number of processes per uid to n\n" \
-       "-f bytes	limit output file size to bytes bytes\n" \
-       "-c bytes	limit core file size to bytes bytes\n" \
-       "-v		verbose\n" \
-       "-P		run prog in a new process group\n" \
-       "-0		close standard input\n" \
-       "-1		close standard output\n" \
-       "-2		close standard error"
+       "Change the process state and run specified program" \
+       "\n\nOptions:\n" \
+       "	-u user[:grp]	Set uid and gid\n" \
+       "	-U user[:grp] 	Set environment variables UID and GID\n" \
+       "	-e dir		Set environment variables as specified by files\n" \
+       "			in the directory: file=1st_line_of_file\n" \
+       "	-/ dir		Chroot to dir\n" \
+       "	-n inc		Add inc to nice value\n" \
+       "	-m bytes	Limit data segment, stack segment, locked physical pages,\n" \
+       "			and total of all segment per process to bytes bytes each\n" \
+       "	-d bytes	Limit data segment\n" \
+       "	-o n		Limit the number of open file descriptors per process to n\n" \
+       "	-p n		Limit number of processes per uid to n\n" \
+       "	-f bytes	Limit output file size to bytes bytes\n" \
+       "	-c bytes	Limit core file size to bytes bytes\n" \
+       "	-v		Verbose\n" \
+       "	-P		Run prog in a new process group\n" \
+       "	-0		Close standard input\n" \
+       "	-1		Close standard output\n" \
+       "	-2		Close standard error"
 #define setuidgid_trivial_usage \
        "account prog args"
 #define setuidgid_full_usage \
-       "Sets uid and gid to account's uid and gid, removing all supplementary\n" \
-       "groups, then runs prog"
+       "Set uid and gid to account's uid and gid, removing all supplementary\n" \
+       "groups, then run prog"
 #define envuidgid_trivial_usage \
        "account prog args"
 #define envuidgid_full_usage \
-       "Sets $UID to account's uid and $GID to account's gid, then runs prog"
+       "Set $UID to account's uid and $GID to account's gid, then run prog"
 #define envdir_trivial_usage \
        "dir prog args"
 #define envdir_full_usage \
-       "Sets various environment variables as specified by files\n" \
-       "in the directory dir, then runs prog"
+       "Set various environment variables as specified by files\n" \
+       "in the directory dir, then run prog"
 #define softlimit_trivial_usage \
        "[-a allbytes] [-c corebytes] [-d databytes] [-f filebytes] " \
        "[-l lockbytes] [-m membytes] [-o openfiles] [-p processes] " \
        "[-r residentbytes] [-s stackbytes] [-t cpusecs] prog args"
 #define softlimit_full_usage \
-       "Sets soft resource limits as specified by options, then runs prog\n" \
-       "\n" \
-       "-m n	Same as -d n -s n -l n -a n\n" \
-       "-d n	Limit the data segment per process to n bytes\n" \
-       "-s n	Limit the stack segment per process to n bytes\n" \
-       "-l n	Limit the locked physical pages per process to n bytes\n" \
-       "-a n	Limit the total of all segments per process to n bytes\n" \
-       "-o n	Limit  the number of open file descriptors per process to n\n" \
-       "-p n	Limit the number of processes per uid to n\n" \
+       "Set soft resource limits, then run prog" \
+       "\n\nOptions:\n" \
+       "	-m n	Same as -d n -s n -l n -a n\n" \
+       "	-d n	Limit the data segment per process to n bytes\n" \
+       "	-s n	Limit the stack segment per process to n bytes\n" \
+       "	-l n	Limit the locked physical pages per process to n bytes\n" \
+       "	-a n	Limit the total of all segments per process to n bytes\n" \
+       "	-o n	Limit  the number of open file descriptors per process to n\n" \
+       "	-p n	Limit the number of processes per uid to n\n" \
        "Options controlling file sizes:\n" \
-       "-f n	Limit output file sizes to n bytes\n" \
-       "-c n	Limit core file sizes to n bytes\n" \
+       "	-f n	Limit output file sizes to n bytes\n" \
+       "	-c n	Limit core file sizes to n bytes\n" \
        "Efficiency opts:\n" \
-       "-r n	Limit the resident set size to n bytes. This limit is not\n" \
-       "	enforced unless physical memory is full\n" \
-       "-t n	Limit the CPU time to n seconds. This limit is not enforced\n" \
-       "	except that the process receives a SIGXCPU signal after n seconds\n" \
+       "	-r n	Limit the resident set size to n bytes. This limit is not\n" \
+       "		enforced unless physical memory is full\n" \
+       "	-t n	Limit the CPU time to n seconds. This limit is not enforced\n" \
+       "		except that the process receives a SIGXCPU signal after n seconds\n" \
        "\n" \
        "Some options may have no effect on some operating systems\n" \
        "n may be =, indicating that soft limit should be set equal to hard limit"
@@ -307,7 +329,7 @@
 #define chroot_trivial_usage \
        "NEWROOT [COMMAND...]"
 #define chroot_full_usage \
-       "Run COMMAND with root directory set to NEWROOT."
+       "Run COMMAND with root directory set to NEWROOT"
 #define chroot_example_usage \
        "$ ls -l /bin/ls\n" \
        "lrwxrwxrwx    1 root     root          12 Apr 13 00:46 /bin/ls -> /BusyBox\n" \
@@ -319,32 +341,32 @@
 #define chvt_trivial_usage \
        "N"
 #define chvt_full_usage \
-       "Changes the foreground virtual terminal to /dev/ttyN"
+       "Change the foreground virtual terminal to /dev/ttyN"
 
 #define cksum_trivial_usage \
        "FILES..."
 #define cksum_full_usage \
-       "Calculates the CRC32 checksums of FILES."
+       "Calculate the CRC32 checksums of FILES"
 
 #define clear_trivial_usage \
        ""
 #define clear_full_usage \
-       "Clear screen."
+       "Clear screen"
 
 #define cmp_trivial_usage \
        "[-l] [-s] FILE1 [FILE2]"
 #define cmp_full_usage \
-       "Compares FILE1 vs stdin if FILE2 is not specified.\n\n" \
-       "Options:\n" \
+       "Compares FILE1 vs stdin if FILE2 is not specified" \
+       "\n\nOptions:\n" \
        "	-l	Write the byte numbers (decimal) and values (octal)\n" \
        "		for all differing bytes\n" \
-       "	-s	quiet mode - do not print"
+       "	-s	Quiet mode - do not print"
 
 #define comm_trivial_usage \
        "[-123] FILE1 FILE2"
 #define comm_full_usage \
-       "Compares FILE1 to FILE2, or to stdin if = is specified.\n\n" \
-       "Options:\n" \
+       "Compare FILE1 to FILE2, or to stdin if - is specified" \
+       "\n\nOptions:\n" \
        "	-1	Suppress lines unique to FILE1\n" \
        "	-2	Suppress lines unique to FILE2\n" \
        "	-3	Suppress lines common to both files"
@@ -363,14 +385,14 @@
 #define cp_trivial_usage \
        "[OPTION]... SOURCE DEST"
 #define cp_full_usage \
-       "Copies SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.\n" \
-       "\n" \
+       "Copy SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY" \
+       "\n\nOptions:\n" \
        "	-a	Same as -dpR\n" \
        "	-d,-P	Preserve links\n" \
        "	-H,-L	Dereference all symlinks (implied by default)\n" \
        "	-p	Preserve file attributes if possible\n" \
-       "	-f	force, overwrite\n" \
-       "	-i	interactive, prompt before overwrite\n" \
+       "	-f	Force, overwrite\n" \
+       "	-i	Interactive, prompt before overwrite\n" \
        "	-R,-r	Copy directories recursively\n" \
        "	-l,-s	Create (sym)links"
 
@@ -379,30 +401,30 @@
 #define cpio_full_usage \
        "Extract or list files from a cpio archive\n" \
        "Main operation mode:\n" \
-       "	d	make leading directories\n" \
-       "	i	extract\n" \
-       "	m	preserve mtime\n" \
-       "	t	list\n" \
-       "	v	verbose\n" \
-       "	u	unconditional overwrite\n" \
-       "	F	input from file"
+       "	d	Make leading directories\n" \
+       "	i	Extract\n" \
+       "	m	Preserve mtime\n" \
+       "	t	List\n" \
+       "	v	Verbose\n" \
+       "	u	Unconditional overwrite\n" \
+       "	F	Input from file"
 
 #define crond_trivial_usage \
        "-d[#] -c <crondir> -f -b"
 #define crond_full_usage \
        "	-d [#] -l [#] -S -L logfile -f -b -c dir\n" \
-       "	-d num	debug level\n" \
-       "	-l num	log level (8 - default)\n" \
-       "	-S	log to syslogd (default)\n" \
-       "	-L file	log to file\n" \
-       "	-f	run in foreground\n" \
-       "	-b	run in background (default)\n" \
-       "	-c dir	working dir"
+       "	-d num	Debug level\n" \
+       "	-l num	Log level (8 - default)\n" \
+       "	-S	Log to syslogd (default)\n" \
+       "	-L file	Log to file\n" \
+       "	-f	Run in foreground\n" \
+       "	-b	Run in background (default)\n" \
+       "	-c dir	Working dir"
 
 #define crontab_trivial_usage \
        "[-c dir] {file|-}|[-u|-l|-e|-d user]"
 #define crontab_full_usage \
-       "	file <opts>  replace crontab from file\n" \
+       "	File <opts>  replace crontab from file\n" \
        "	-    <opts>  replace crontab from stdin\n" \
        "	-u user      specify user\n" \
        "	-l [user]    list crontab for user\n" \
@@ -414,8 +436,8 @@
 #define cut_trivial_usage \
        "[OPTION]... [FILE]..."
 #define cut_full_usage \
-       "Prints selected fields from each input FILE to standard output.\n\n" \
-       "Options:\n" \
+       "Print selected fields from each input FILE to standard output" \
+       "\n\nOptions:\n" \
        "	-b LIST	Output only bytes from LIST\n" \
        "	-c LIST	Output only characters from LIST\n" \
        "	-d CHAR	Use CHAR instead of tab as the field delimiter\n" \
@@ -431,17 +453,17 @@
 #define date_trivial_usage \
        "[OPTION]... [MMDDhhmm[[CC]YY][.ss]] [+FORMAT]"
 #define date_full_usage \
-       "Displays the current time in the given FORMAT, or sets the system date.\n" \
-       "\nOptions:\n" \
+       "Display current time in the given FORMAT, or set system date" \
+       "\n\nOptions:\n" \
        "	-R		Outputs RFC-822 compliant date string\n" \
        "	-d STRING	Displays time described by STRING, not 'now'\n" \
-USE_FEATURE_DATE_ISOFMT( \
+	USE_FEATURE_DATE_ISOFMT( \
        "	-I[TIMESPEC]	Outputs an ISO-8601 compliant date/time string\n" \
        "			TIMESPEC='date' (or missing) for date only,\n" \
        "			'hours', 'minutes', or 'seconds' for date and,\n" \
        "			time to the indicated precision\n" \
        "	-D hint		Use 'hint' as date format, via strptime()\n" \
-) \
+	) \
        "	-s		Sets time described by STRING\n" \
        "	-r FILE		Displays the last modification time of FILE\n" \
        "	-u		Prints or sets Coordinated Universal Time"
@@ -455,8 +477,8 @@ USE_FEATURE_DATE_ISOFMT( \
        "This is a Tiny RPN calculator that understands the\n" \
        "following operations: +, add, -, sub, *, mul, /, div, %, mod, " \
        "**, exp, and, or, not, eor.\n" \
-       "For example: 'dc 2 2 add' -> 4, and 'dc 8 8 \\* 2 2 + /' -> 16.\n" \
-       "\nOptions:\n" \
+       "For example: 'dc 2 2 add' -> 4, and 'dc 8 8 \\* 2 2 + /' -> 16." \
+       "\n\nOptions:\n" \
        "p - Prints the value on the top of the stack, without altering the stack\n" \
        "f - Prints the entire contents of the stack without altering anything\n" \
        "o - Pops the value off the top of the stack and uses it to set the output radix\n" \
@@ -477,21 +499,22 @@ USE_FEATURE_DATE_ISOFMT( \
        "[if=FILE] [of=FILE] " USE_FEATURE_DD_IBS_OBS("[ibs=N] [obs=N] ") "[bs=N] [count=N] [skip=N]\n" \
        "	  [seek=N]" USE_FEATURE_DD_IBS_OBS(" [conv=notrunc|noerror|sync]")
 #define dd_full_usage \
-       "Copy a file, converting and formatting according to options\n\n" \
-       "	if=FILE		read from FILE instead of stdin\n" \
-       "	of=FILE		write to FILE instead of stdout\n" \
-       "	bs=N		read and write N bytes at a time\n" \
+       "Copy a file with converting and formatting" \
+       "\n\nOptions:\n" \
+       "	if=FILE		Read from FILE instead of stdin\n" \
+       "	of=FILE		Write to FILE instead of stdout\n" \
+       "	bs=N		Read and write N bytes at a time\n" \
 	USE_FEATURE_DD_IBS_OBS( \
-       "	ibs=N		read N bytes at a time\n") \
+       "	ibs=N		Read N bytes at a time\n") \
 	USE_FEATURE_DD_IBS_OBS( \
-       "	obs=N		write N bytes at a time\n") \
-       "	count=N		copy only N input blocks\n" \
-       "	skip=N		skip N input blocks\n" \
-       "	seek=N		skip N output blocks\n" \
+       "	obs=N		Write N bytes at a time\n") \
+       "	count=N		Copy only N input blocks\n" \
+       "	skip=N		Skip N input blocks\n" \
+       "	seek=N		Skip N output blocks\n" \
 	USE_FEATURE_DD_IBS_OBS( \
-       "	conv=notrunc	don't truncate output file\n" \
-       "	conv=noerror	continue after read errors\n" \
-       "	conv=sync	pad blocks with zeros\n") \
+       "	conv=notrunc	Don't truncate output file\n" \
+       "	conv=noerror	Continue after read errors\n" \
+       "	conv=sync	Pad blocks with zeros\n") \
        "\n" \
        "Numbers may be suffixed by c (x1), w (x2), b (x512), kD (x1000), k (x1024),\n" \
        "MD (x1000000), M (x1048576), GD (x1000000000) or G (x1073741824)"
@@ -508,37 +531,39 @@ USE_FEATURE_DATE_ISOFMT( \
 #define delgroup_trivial_usage \
        "GROUP"
 #define delgroup_full_usage \
-       "Deletes group GROUP from the system"
+       "Delete group GROUP from the system"
 
 #define deluser_trivial_usage \
        "USER"
 #define deluser_full_usage \
-       "Deletes user USER from the system"
+       "Delete user USER from the system"
 
 #define devfsd_trivial_usage \
        "mntpnt [-v]" \
 	USE_DEVFSD_FG_NP("[-fg][-np]" )
 #define devfsd_full_usage \
-       "Optional daemon for managing devfs permissions and old device name symlinks.\n" \
-       "\nOptions:\n" \
-       "	mntpnt	The mount point where devfs is mounted.\n\n" \
-       "	-v	Print the protocol version numbers for devfsd\n" \
-       "		and the kernel-side protocol version and exits." \
-	USE_DEVFSD_FG_NP( "\n\n	-fg	Run the daemon in the foreground.\n\n" \
-       "	-np	Exit  after  parsing  the configuration file\n" \
-       "		and processing synthetic REGISTER events.\n" \
-       "		Do not poll for events.")
+       "Manage devfs permissions and old device name symlinks" \
+       "\n\nOptions:" \
+       "\n	mntpnt	The mount point where devfs is mounted" \
+       "\n	-v	Print the protocol version numbers for devfsd" \
+       "\n		and the kernel-side protocol version and exits" \
+	USE_DEVFSD_FG_NP( \
+       "\n	-fg	Run the daemon in the foreground" \
+       "\n	-np	Exit after parsing the configuration file" \
+       "\n		and processing synthetic REGISTER events," \
+       "\n		do not poll for events")
 
 #define df_trivial_usage \
        "[-" USE_FEATURE_HUMAN_READABLE("hm") "k] [FILESYSTEM ...]"
 #define df_full_usage \
-       "Print the filesystem space used and space available.\n\n" \
-       "Options:\n" \
+       "Print the filesystem space used and space available" \
+       "\n\nOptions:\n" \
 	USE_FEATURE_HUMAN_READABLE( \
-       "\n	-h	print sizes in human readable format (e.g., 1K 243M 2G )\n" \
-       "	-m	print sizes in megabytes\n" \
-       "	-k	print sizes in kilobytes(default)") \
-	SKIP_FEATURE_HUMAN_READABLE("\n	-k	ignored")
+       "\n	-h	Print sizes in human readable format (e.g., 1K 243M 2G )\n" \
+       "	-m	Print sizes in megabytes\n" \
+       "	-k	Print sizes in kilobytes(default)") \
+	SKIP_FEATURE_HUMAN_READABLE( \
+       "\n	-k	Ignored")
 #define df_example_usage \
        "$ df\n" \
        "Filesystem           1k-blocks      Used Available Use% Mounted on\n" \
@@ -551,19 +576,19 @@ USE_FEATURE_DATE_ISOFMT( \
 #define dhcprelay_trivial_usage \
        "[client_device_list] [server_device]"
 #define dhcprelay_full_usage \
-       "Relays dhcp requests from client devices to server device"
+       "Relay dhcp requests from client devices to server device"
 
 #define dhcprelay_trivial_usage \
        "[client_device_list] [server_device]"
 #define dhcprelay_full_usage \
-       "Relays dhcp requests from client devices to server device"
+       "Relay dhcp requests from client devices to server device"
 
 #define diff_trivial_usage \
        "[-abdiNqrTstw] [-L LABEL] [-S FILE] [-U LINES] FILE1 FILE2"
 #define diff_full_usage \
        "Compare files line by line and output the differences between them.\n" \
-       "This diff implementation only supports unified diffs.\n\n" \
-       "Options:\n" \
+       "This diff implementation only supports unified diffs." \
+       "\n\nOptions:\n" \
        "	-a	Treat all files as text\n" \
        "	-b	Ignore changes in the amount of whitespace\n" \
        "	-d	Try hard to find a smaller set of changes\n" \
@@ -571,18 +596,18 @@ USE_FEATURE_DATE_ISOFMT( \
        "	-L	Use LABEL instead of the filename in the unified header\n" \
        "	-N	Treat absent files as empty\n" \
        "	-q	Output only whether files differ\n" \
-       "	-r	Recursively compare any subdirectories\n" \
+       "	-r	Recursively compare subdirectories\n" \
        "	-S	Start with FILE when comparing directories\n" \
        "	-T	Make tabs line up by prefixing a tab when necessary\n" \
        "	-s	Report when two files are the same\n" \
        "	-t	Expand tabs to spaces in output\n" \
        "	-U	Output LINES lines of context\n" \
-       "	-w	Ignore all whitespace\n"
+       "	-w	Ignore all whitespace"
 
 #define dirname_trivial_usage \
        "FILENAME"
 #define dirname_full_usage \
-       "Strips non-directory suffix from FILENAME"
+       "Strip non-directory suffix from FILENAME"
 #define dirname_example_usage \
        "$ dirname /tmp/foo\n" \
        "/tmp\n" \
@@ -592,8 +617,8 @@ USE_FEATURE_DATE_ISOFMT( \
 #define dmesg_trivial_usage \
        "[-c] [-n LEVEL] [-s SIZE]"
 #define dmesg_full_usage \
-       "Prints or controls the kernel ring buffer\n\n" \
-       "Options:\n" \
+       "Print or control the kernel ring buffer" \
+       "\n\nOptions:\n" \
        "	-c		Clears the ring buffer's contents after printing\n" \
        "	-n LEVEL	Sets console logging level\n" \
        "	-s SIZE		Use a buffer of size SIZE"
@@ -601,29 +626,29 @@ USE_FEATURE_DATE_ISOFMT( \
 #define dnsd_trivial_usage \
        "[-c config] [-t seconds] [-p port] [-i iface-ip] [-d]"
 #define dnsd_full_usage \
-       "Small and static DNS server daemon\n\n" \
-       "Options:\n" \
-       "	-c		config filename\n" \
-       "	-t		TTL in seconds\n" \
-       "	-p		listening port\n" \
-       "	-i		listening iface ip (default all)\n" \
-       "	-d		daemonize"
+       "Small and static DNS server daemon" \
+       "\n\nOptions:\n" \
+       "	-c	Config filename\n" \
+       "	-t	TTL in seconds\n" \
+       "	-p	Listening port\n" \
+       "	-i	Listening iface ip (default all)\n" \
+       "	-d	Daemonize"
 
 #define dos2unix_trivial_usage \
        "[option] [FILE]"
 #define dos2unix_full_usage \
-       "Converts FILE from dos format to unix format.  When no option\n" \
+       "Convert FILE from dos format to unix format.  When no option\n" \
        "is given, the input is converted to the opposite output format.\n" \
-       "When no file is given, uses stdin for input and stdout for output.\n\n" \
-       "Options:\n" \
-       "	-u	output will be in UNIX format\n" \
-       "	-d	output will be in DOS format"
+       "When no file is given, use stdin for input and stdout for output." \
+       "\n\nOptions:\n" \
+       "	-u	Output will be in UNIX format\n" \
+       "	-d	Output will be in DOS format"
 
 #define dpkg_trivial_usage \
        "[-ilCPru] [-F option] package_name"
 #define dpkg_full_usage \
-       "dpkg is a utility to install, remove and manage Debian packages.\n\n" \
-       "Options:\n" \
+       "Install, remove and manage Debian packages" \
+       "\n\nOptions:\n" \
        "	-i		Install the package\n" \
        "	-l		List of installed packages\n" \
        "	-C		Configure an unpackaged package\n" \
@@ -635,8 +660,8 @@ USE_FEATURE_DATE_ISOFMT( \
 #define dpkg_deb_trivial_usage \
        "[-cefxX] FILE [argument]"
 #define dpkg_deb_full_usage \
-       "Perform actions on Debian packages (.debs)\n\n" \
-       "Options:\n" \
+       "Perform actions on Debian packages (.debs)" \
+       "\n\nOptions:\n" \
        "	-c	List contents of filesystem tree\n" \
        "	-e	Extract control files to [argument] directory\n" \
        "	-f	Display control field name starting with [argument]\n" \
@@ -648,25 +673,25 @@ USE_FEATURE_DATE_ISOFMT( \
 #define du_trivial_usage \
        "[-aHLdclsx" USE_FEATURE_HUMAN_READABLE("hm") "k] [FILE]..."
 #define du_full_usage \
-       "Summarizes disk space used for each FILE and/or directory.\n" \
+       "Summarize disk space used for each FILE and/or directory.\n" \
        "Disk space is printed in units of " \
 	USE_FEATURE_DU_DEFAULT_BLOCKSIZE_1K("1024") \
 	SKIP_FEATURE_DU_DEFAULT_BLOCKSIZE_1K("512") \
-       " bytes.\n\n" \
-       "Options:\n" \
-       "	-a	show sizes of files in addition to directories\n" \
-       "	-H	follow symbolic links that are FILE command line args\n" \
-       "	-L	follow all symbolic links encountered\n" \
-       "	-d N	limit output to directories (and files with -a) of depth < N\n" \
-       "	-c	output a grand total\n" \
-       "	-l	count sizes many times if hard linked\n" \
-       "	-s	display only a total for each argument\n" \
-       "	-x	skip directories on different filesystems\n" \
+       " bytes." \
+       "\n\nOptions:\n" \
+       "	-a	Show sizes of files in addition to directories\n" \
+       "	-H	Follow symbolic links that are FILE command line args\n" \
+       "	-L	Follow all symbolic links encountered\n" \
+       "	-d N	Limit output to directories (and files with -a) of depth < N\n" \
+       "	-c	Output a grand total\n" \
+       "	-l	Count sizes many times if hard linked\n" \
+       "	-s	Display only a total for each argument\n" \
+       "	-x	Skip directories on different filesystems\n" \
 	USE_FEATURE_HUMAN_READABLE( \
-       "	-h	print sizes in human readable format (e.g., 1K 243M 2G )\n" \
-       "	-m	print sizes in megabytes\n" \
+       "	-h	Print sizes in human readable format (e.g., 1K 243M 2G )\n" \
+       "	-m	Print sizes in megabytes\n" \
 	) \
-       "	-k	print sizes in kilobytes" \
+       "	-k	Print sizes in kilobytes" \
 	USE_FEATURE_DU_DEFAULT_BLOCKSIZE_1K("(default)")
 #define du_example_usage \
        "$ du\n" \
@@ -684,18 +709,18 @@ USE_FEATURE_DATE_ISOFMT( \
 #define dumpkmap_trivial_usage \
        "> keymap"
 #define dumpkmap_full_usage \
-       "Prints out a binary keyboard translation table to standard output."
+       "Print out a binary keyboard translation table to standard output"
 #define dumpkmap_example_usage \
        "$ dumpkmap > keymap\n"
 
 #define dumpleases_trivial_usage \
        "[-r|-a] [-f LEASEFILE]"
 #define dumpleases_full_usage \
-       "Displays the DHCP leases granted by udhcpd.\n\n" \
-       "Options:\n" \
-       "	-f,	--file=FILENAME	Leases file to load\n" \
-       "	-r,	--remaining	Interpret lease times as time remaining\n" \
-       "	-a,	--absolute	Interpret lease times as expire time"
+       "Display DHCP leases granted by udhcpd" \
+       "\n\nOptions:\n" \
+       "	-f, --file=FILENAME	Leases file to load\n" \
+       "	-r, --remaining		Interpret lease times as time remaining\n" \
+       "	-a, --absolute		Interpret lease times as expire time"
 
 #define e2fsck_trivial_usage \
        "[-panyrcdfvstDFSV] [-b superblock] [-B blocksize] " \
@@ -703,29 +728,29 @@ USE_FEATURE_DATE_ISOFMT( \
        "[-l|-L bad_blocks_file] [-C fd] [-j external_journal] " \
        "[-E extended-options] device"
 #define e2fsck_full_usage \
-       "Check a Linux ext2/ext3 file system.\n\n" \
-       "Options:\n" \
-       "	-p	Automatic repair (no questions)\n" \
-       "	-n	Make no changes to the filesystem\n" \
-       "	-y	Assume 'yes' to all questions\n" \
-       "	-c	Check for bad blocks and add them to the badblock list\n" \
-       "	-f	Force checking even if filesystem is marked clean\n" \
-       "	-v	Be verbose\n" \
+       "Check ext2/ext3 file system" \
+       "\n\nOptions:\n" \
+       "	-p		Automatic repair (no questions)\n" \
+       "	-n		Make no changes to the filesystem\n" \
+       "	-y		Assume 'yes' to all questions\n" \
+       "	-c		Check for bad blocks and add them to the badblock list\n" \
+       "	-f		Force checking even if filesystem is marked clean\n" \
+       "	-v		Be verbose\n" \
        "	-b superblock	Use alternative superblock\n" \
        "	-B blocksize	Force blocksize when looking for superblock\n" \
        "	-j journal	Set location of the external journal\n" \
-       "	-l file	Add to badblocks list\n" \
-       "	-L file	Set badblocks list"
+       "	-l file		Add to badblocks list\n" \
+       "	-L file		Set badblocks list"
 
 #define echo_trivial_usage \
 	USE_FEATURE_FANCY_ECHO("[-neE] ") "[ARG ...]"
 #define echo_full_usage \
-       "Prints the specified ARGs to stdout\n\n" \
+       "Print the specified ARGs to stdout" \
 	USE_FEATURE_FANCY_ECHO( \
-		"Options:\n" \
-		"	-n	suppress trailing newline\n" \
-		"	-e	interpret backslash-escaped characters (i.e., \\t=tab)\n" \
-		"	-E	disable interpretation of backslash-escaped characters" \
+       "\n\nOptions:\n" \
+       "	-n	Suppress trailing newline\n" \
+       "	-e	Interpret backslash-escaped characters (i.e., \\t=tab)\n" \
+       "	-E	Disable interpretation of backslash-escaped characters" \
 	)
 #define echo_example_usage \
        "$ echo \"Erik is cool\"\n" \
@@ -740,10 +765,10 @@ USE_FEATURE_DATE_ISOFMT( \
 #define eject_trivial_usage \
        "[-t] [-T] [DEVICE]"
 #define eject_full_usage \
-       "Eject specified DEVICE (or default /dev/cdrom).\n\n" \
-       "Options:\n" \
-       "	-t	close tray\n" \
-       "	-T	open/close tray (toggle)"
+       "Eject specified DEVICE (or default /dev/cdrom)" \
+       "\n\nOptions:\n" \
+       "	-t	Close tray\n" \
+       "	-T	Open/close tray (toggle)"
 
 #define ed_trivial_usage ""
 #define ed_full_usage ""
@@ -751,27 +776,27 @@ USE_FEATURE_DATE_ISOFMT( \
 #define env_trivial_usage \
        "[-iu] [-] [name=value]... [command]"
 #define env_full_usage \
-       "Prints the current environment or runs a program after setting\n" \
-       "up the specified environment.\n\n" \
-       "Options:\n" \
-       "	-, -i	start with an empty environment\n" \
-       "	-u	remove variable from the environment"
+       "Print the current environment or run a program after setting\n" \
+       "up the specified environment" \
+       "\n\nOptions:\n" \
+       "	-, -i	Start with an empty environment\n" \
+       "	-u	Remove variable from the environment"
 
 #define ether_wake_trivial_usage \
        "[-b] [-i iface] [-p aa:bb:cc:dd[:ee:ff]] MAC"
 #define ether_wake_full_usage \
        "Send a magic packet to wake up sleeping machines.\n" \
        "MAC must be a station address (00:11:22:33:44:55) or\n" \
-       "    a hostname with a known 'ethers' entry.\n\n" \
-       "Options:\n" \
+       "a hostname with a known 'ethers' entry." \
+       "\n\nOptions:\n" \
        "	-b		Send wake-up packet to the broadcast address\n" \
        "	-i iface	Use interface ifname instead of the default \"eth0\"\n" \
-       "	-p pass	Append the four or six byte password PW to the packet"
+       "	-p pass		Append the four or six byte password PW to the packet"
 
 #define expr_trivial_usage \
        "EXPRESSION"
 #define expr_full_usage \
-       "Prints the value of EXPRESSION to standard output.\n\n" \
+       "Print the value of EXPRESSION to standard output.\n\n" \
        "EXPRESSION may be:\n" \
        "	ARG1 |  ARG2	ARG1 if it is neither null nor 0, otherwise ARG2\n" \
        "	ARG1 &  ARG2	ARG1 if neither argument is null or 0, otherwise 0\n" \
@@ -781,21 +806,20 @@ USE_FEATURE_DATE_ISOFMT( \
        "	ARG1 != ARG2	ARG1 is unequal to ARG2\n" \
        "	ARG1 >= ARG2	ARG1 is greater than or equal to ARG2\n" \
        "	ARG1 >  ARG2	ARG1 is greater than ARG2\n" \
-       "	ARG1 +  ARG2	arithmetic sum of ARG1 and ARG2\n" \
-       "	ARG1 -  ARG2	arithmetic difference of ARG1 and ARG2\n" \
-       "	ARG1 *  ARG2	arithmetic product of ARG1 and ARG2\n" \
-       "	ARG1 /  ARG2	arithmetic quotient of ARG1 divided by ARG2\n" \
-       "	ARG1 %  ARG2	arithmetic remainder of ARG1 divided by ARG2\n" \
-       "	STRING : REGEXP             anchored pattern match of REGEXP in STRING\n" \
-       "	match STRING REGEXP         same as STRING : REGEXP\n" \
-       "	substr STRING POS LENGTH    substring of STRING, POS counted from 1\n" \
-       "	index STRING CHARS          index in STRING where any CHARS is found,\n" \
-       "	                            or 0\n" \
-       "	length STRING               length of STRING\n" \
-       "	quote TOKEN                 interpret TOKEN as a string, even if\n" \
-       "	                            it is a keyword like 'match' or an\n" \
-       "	                            operator like '/'\n" \
-       "	( EXPRESSION )              value of EXPRESSION\n\n" \
+       "	ARG1 +  ARG2	Sum of ARG1 and ARG2\n" \
+       "	ARG1 -  ARG2	Difference of ARG1 and ARG2\n" \
+       "	ARG1 *  ARG2	Product of ARG1 and ARG2\n" \
+       "	ARG1 /  ARG2	Quotient of ARG1 divided by ARG2\n" \
+       "	ARG1 %  ARG2	Remainder of ARG1 divided by ARG2\n" \
+       "	STRING : REGEXP		Anchored pattern match of REGEXP in STRING\n" \
+       "	match STRING REGEXP	Same as STRING : REGEXP\n" \
+       "	substr STRING POS LENGTH Substring of STRING, POS counted from 1\n" \
+       "	index STRING CHARS	Index in STRING where any CHARS is found, or 0\n" \
+       "	length STRING		Length of STRING\n" \
+       "	quote TOKEN		Interpret TOKEN as a string, even if\n" \
+       "				it is a keyword like 'match' or an\n" \
+       "				operator like '/'\n" \
+       "	(EXPRESSION)		Value of EXPRESSION\n\n" \
        "Beware that many operators need to be escaped or quoted for shells.\n" \
        "Comparisons are arithmetic if both ARGs are numbers, else\n" \
        "lexicographical.  Pattern matches return the string matched between\n" \
@@ -803,16 +827,20 @@ USE_FEATURE_DATE_ISOFMT( \
        "of characters matched or 0."
 
 #define fakeidentd_trivial_usage \
-       "[-b ip] [STRING]"
+       "[-fiw] [-b ADDR] [STRING]"
 #define fakeidentd_full_usage \
-       "Returns a set string to auth requests\n\n" \
-       "	-b	Bind to ip address\n" \
-       "	STRING	The ident answer string (default is nobody)"
+       "Provide fake ident (auth) service" \
+       "\n\nOptions:" \
+       "\n	-f	Run in foreground" \
+       "\n	-i	Inetd mode" \
+       "\n	-w	Inetd 'wait' mode" \
+       "\n	-b ADDR	Bind to specified address" \
+       "\n	STRING	Ident answer string (default is 'nobody')"
 
 #define false_trivial_usage \
        ""
 #define false_full_usage \
-       "Return an exit code of FALSE (1)."
+       "Return an exit code of FALSE (1)"
 #define false_example_usage \
        "$ false\n" \
        "$ echo $?\n" \
@@ -835,28 +863,28 @@ USE_FEATURE_DATE_ISOFMT( \
 #define fdflush_trivial_usage \
        "DEVICE"
 #define fdflush_full_usage \
-       "Forces floppy disk drive to detect disk change"
+       "Force floppy disk drive to detect disk change"
 
 #define fdformat_trivial_usage \
        "[-n] DEVICE"
 #define fdformat_full_usage \
-       "Low-level formats a floppy disk\n\n" \
-       "Options:\n" \
+       "Format floppy disk" \
+       "\n\nOptions:\n" \
        "	-n	Don't verify after format"
 
 #define fdisk_trivial_usage \
        "[-luv] [-C CYLINDERS] [-H HEADS] [-S SECTORS] [-b SSZ] DISK"
 #define fdisk_full_usage \
-       "Change partition table\n" \
-       "Options:\n" \
-       "	-l  List partition table(s)\n" \
-       "	-u  Give Start and End in sector (instead of cylinder) units\n" \
-       "	-s PARTITION  Give partition size(s) in blocks\n" \
-       "	-b 2048: (for certain MO disks) use 2048-byte sectors\n" \
-       "	-C CYLINDERS  Set the number of cylinders\n" \
-       "	-H HEADS  Set the number of heads\n" \
-       "	-S SECTORS  Set the number of sectors\n" \
-       "	-v  Give fdisk version"
+       "Change partition table" \
+       "\n\nOptions:\n" \
+       "	-l		List partition table(s)\n" \
+       "	-u		Give Start and End in sector (instead of cylinder) units\n" \
+       "	-s PARTITION	Give partition size(s) in blocks\n" \
+       "	-b 2048		(for certain MO disks) use 2048-byte sectors\n" \
+       "	-C CYLINDERS	Set the number of cylinders\n" \
+       "	-H HEADS	Set the number of heads\n" \
+       "	-S SECTORS	Set the number of sectors\n" \
+       "	-v		Give fdisk version"
 
 #define find_trivial_usage \
        "[PATH...] [EXPRESSION]"
@@ -877,7 +905,7 @@ USE_FEATURE_DATE_ISOFMT( \
        "\n			or exactly (NNN)" \
 	) USE_FEATURE_FIND_MTIME( \
        "\n	-mtime DAYS	Modified time is greater than (+N); less than (-N);" \
-       "\n			or exactly (N) days" \
+       "\n			Or exactly (N) days" \
 	) USE_FEATURE_FIND_MMIN( \
        "\n	-mmin MINS	Modified time is greater than (+N); less than (-N);" \
        "\n			or exactly (N) minutes" \
@@ -902,16 +930,16 @@ USE_FEATURE_DATE_ISOFMT( \
        "[-bs] [-w WIDTH] [FILE]"
 #define fold_full_usage \
        "Wrap input lines in each FILE (standard input by default), writing to\n" \
-       "standard output.\n\n" \
-       "Options:\n" \
-       "	-b	count bytes rather than columns\n" \
-       "	-s	break at spaces\n" \
-       "	-w	use WIDTH columns instead of 80"
+       "standard output" \
+       "\n\nOptions:\n" \
+       "	-b	Count bytes rather than columns\n" \
+       "	-s	Break at spaces\n" \
+       "	-w	Use WIDTH columns instead of 80"
 
 #define free_trivial_usage \
        ""
 #define free_full_usage \
-       "Displays the amount of free and used system memory"
+       "Display the amount of free and used system memory"
 #define free_example_usage \
        "$ free\n" \
        "              total         used         free       shared      buffers\n" \
@@ -922,33 +950,33 @@ USE_FEATURE_DATE_ISOFMT( \
 #define freeramdisk_trivial_usage \
        "DEVICE"
 #define freeramdisk_full_usage \
-       "Frees all memory used by the specified ramdisk."
+       "Free all memory used by the specified ramdisk"
 #define freeramdisk_example_usage \
        "$ freeramdisk /dev/ram2\n"
 
 #define fsck_trivial_usage \
-       "[-ANPRTV] [ -C [ fd ] ] [-t fstype] [fs-options] [filesys ...]"
+       "[-ANPRTV] [ -C fd ] [-t fstype] [fs-options] [filesys ...]"
 #define fsck_full_usage \
-       "Check and repair filesystems.\n\n" \
-       "Options:\n" \
+       "Check and repair filesystems" \
+       "\n\nOptions:\n" \
        "	-A	Walk /etc/fstab and check all filesystems\n" \
        "	-N	Don't execute, just show what would be done\n" \
        "	-P	When using -A, check filesystems in parallel\n" \
        "	-R	When using -A, skip the root filesystem\n" \
        "	-T	Don't show title on startup\n" \
-       "	-V	Verbose mode\n" \
-       "	-C	Write status information to specified filedescriptor\n" \
-       "	-t	List of filesystem types to check"
+       "	-V	Verbose\n" \
+       "	-C n	Write status information to specified filedescriptor\n" \
+       "	-t type	List of filesystem types to check"
 
 #define fsck_minix_trivial_usage \
        "[-larvsmf] /dev/name"
 #define fsck_minix_full_usage \
-       "Performs a consistency check for MINIX filesystems.\n\n" \
-       "Options:\n" \
+       "Perform a consistency check for MINIX filesystems" \
+       "\n\nOptions:\n" \
        "	-l	Lists all filenames\n" \
        "	-r	Perform interactive repairs\n" \
        "	-a	Perform automatic repairs\n" \
-       "	-v	verbose\n" \
+       "	-v	Verbose\n" \
        "	-s	Outputs super-block information\n" \
        "	-m	Activates MINIX-like \"mode not cleared\" warnings\n" \
        "	-f	Force file system check"
@@ -956,34 +984,34 @@ USE_FEATURE_DATE_ISOFMT( \
 #define ftpget_trivial_usage \
        "[options] remote-host local-file remote-file"
 #define ftpget_full_usage \
-       "Retrieve a remote file via FTP.\n\n" \
-       "Options:\n" \
-       "	-c, --continue         Continue a previous transfer\n" \
-       "	-v, --verbose          Verbose\n" \
-       "	-u, --username         Username to be used\n" \
-       "	-p, --password         Password to be used\n" \
-       "	-P, --port             Port number to be used"
+       "Retrieve a remote file via FTP" \
+       "\n\nOptions:\n" \
+       "	-c, --continue	Continue a previous transfer\n" \
+       "	-v, --verbose	Verbose\n" \
+       "	-u, --username	Username to be used\n" \
+       "	-p, --password	Password to be used\n" \
+       "	-P, --port	Port number to be used"
 
 #define ftpput_trivial_usage \
        "[options] remote-host remote-file local-file"
 #define ftpput_full_usage \
-       "Store a local file on a remote machine via FTP.\n\n" \
-       "Options:\n" \
-       "	-v, --verbose          Verbose\n" \
-       "	-u, --username         Username to be used\n" \
-       "	-p, --password         Password to be used\n" \
-       "	-P, --port             Port number to be used"
+       "Store a local file on a remote machine via FTP" \
+       "\n\nOptions:\n" \
+       "	-v, --verbose	Verbose\n" \
+       "	-u, --username	Username to be used\n" \
+       "	-p, --password	Password to be used\n" \
+       "	-P, --port	Port number to be used"
 
 #define fuser_trivial_usage \
        "[options] file OR port/proto"
 #define fuser_full_usage \
        "Options:\n" \
-       "	-m         Show all processes on the same mounted fs\n" \
-       "	-k         Kill all processes that match.\n" \
-       "	-s         Don't print or kill anything.\n" \
-       "	-4         When using port/proto only search IPv4 space\n" \
-       "	-6         When using port/proto only search IPv6 space\n" \
-       "	-SIGNAL    When used with -k, this signal will be used to kill"
+       "	-m	Show all processes on the same mounted fs\n" \
+       "	-k	Kill all processes that match\n" \
+       "	-s	Don't print or kill anything\n" \
+       "	-4	When using port/proto only search IPv4 space\n" \
+       "	-6	When using port/proto only search IPv6 space\n" \
+       "	-SIGNAL	When used with -k, this signal will be used to kill"
 
 #define getopt_trivial_usage \
        "[OPTIONS]..."
@@ -992,12 +1020,12 @@ USE_FEATURE_DATE_ISOFMT( \
        "	-a, --alternative		Allow long options starting with single -\n" \
        "	-l, --longoptions=longopts	Long options to be recognized\n" \
        "	-n, --name=progname		The name under which errors are reported\n" \
-       "	-o, --options=optstring	Short options to be recognized\n" \
+       "	-o, --options=optstring		Short options to be recognized\n" \
        "	-q, --quiet			Disable error reporting by getopt(3)\n" \
        "	-Q, --quiet-output		No normal output\n" \
        "	-s, --shell=shell		Set shell quoting conventions\n" \
        "	-T, --test			Test for getopt(1) version\n" \
-       "	-u, --unquoted		Do not quote the output"
+       "	-u, --unquoted			Do not quote the output"
 #define getopt_example_usage \
        "$ cat getopt.test\n" \
        "#!/bin/sh\n" \
@@ -1022,8 +1050,8 @@ USE_FEATURE_DATE_ISOFMT( \
 #define getty_trivial_usage \
        "[OPTIONS]... baud_rate,... line [termtype]"
 #define getty_full_usage \
-       "Opens a tty, prompts for a login name, then invokes /bin/login\n\n" \
-       "Options:\n" \
+       "Open a tty, prompt for a login name, then invoke /bin/login" \
+       "\n\nOptions:\n" \
        "	-h		Enable hardware (RTS/CTS) flow control\n" \
        "	-i		Do not display /etc/issue before running login\n" \
        "	-L		Local line, so do not do carrier detect\n" \
@@ -1042,27 +1070,31 @@ USE_FEATURE_DATE_ISOFMT( \
 	USE_FEATURE_GREP_CONTEXT("ABC") \
        "] PATTERN [FILEs...]"
 #define grep_full_usage \
-       "Search for PATTERN in each FILE or standard input.\n\n" \
-       "Options:\n" \
-       "	-H	prefix output lines with filename where match was found\n" \
-       "	-h	suppress the prefixing filename on output\n" \
-       "	-r	recurse subdirectories\n" \
-       "	-i	ignore case distinctions\n" \
-       "	-l	list names of files that match\n" \
-       "	-L	list names of files that do not match\n" \
-       "	-n	print line number with output lines\n" \
-       "	-q	be quiet. Returns 0 if PATTERN was found, 1 otherwise\n" \
-       "	-v	select non-matching lines\n" \
-       "	-s	suppress file open/read error messages\n" \
-       "	-c	only print count of matching lines\n" \
-       "	-f	read PATTERN from file\n" \
-       "	-o	show only the part of a line that matches PATTERN\n" \
+       "Search for PATTERN in each FILE or standard input" \
+       "\n\nOptions:\n" \
+       "	-H	Prefix output lines with filename where match was found\n" \
+       "	-h	Suppress the prefixing filename on output\n" \
+       "	-r	Recurse subdirectories\n" \
+       "	-i	Ignore case distinctions\n" \
+       "	-l	List names of files that match\n" \
+       "	-L	List names of files that do not match\n" \
+       "	-n	Print line number with output lines\n" \
+       "	-q	Be quiet. Returns 0 if PATTERN was found, 1 otherwise\n" \
+       "	-v	Select non-matching lines\n" \
+       "	-s	Suppress file open/read error messages\n" \
+       "	-c	Only print count of matching lines\n" \
+       "	-f	Read PATTERN from file\n" \
+       "	-o	Show only the part of a line that matches PATTERN\n" \
        "	-e	PATTERN is a regular expression\n" \
        "	-F	PATTERN is a set of newline-separated strings" \
-	USE_FEATURE_GREP_EGREP_ALIAS("\n	-E	PATTERN is an extended regular expression") \
-	USE_FEATURE_GREP_CONTEXT("\n	-A	print NUM lines of trailing context") \
-	USE_FEATURE_GREP_CONTEXT("\n	-B	print NUM lines of leading context") \
-	USE_FEATURE_GREP_CONTEXT("\n	-C	print NUM lines of output context")
+	USE_FEATURE_GREP_EGREP_ALIAS( \
+       "\n	-E	PATTERN is an extended regular expression") \
+	USE_FEATURE_GREP_CONTEXT( \
+       "\n	-A	Print NUM lines of trailing context") \
+	USE_FEATURE_GREP_CONTEXT( \
+       "\n	-B	Print NUM lines of leading context") \
+	USE_FEATURE_GREP_CONTEXT( \
+       "\n	-C	Print NUM lines of output context")
 
 #define grep_example_usage \
        "$ grep root /etc/passwd\n" \
@@ -1073,8 +1105,8 @@ USE_FEATURE_DATE_ISOFMT( \
 #define gunzip_trivial_usage \
        "[OPTION]... FILE"
 #define gunzip_full_usage \
-       "Uncompress FILE (or standard input if FILE is '-').\n\n" \
-       "Options:\n" \
+       "Uncompress FILE (or standard input if FILE is '-')" \
+       "\n\nOptions:\n" \
        "	-c	Write output to standard output\n" \
        "	-f	Force read when source is a terminal\n" \
        "	-t	Test compressed file integrity"
@@ -1089,8 +1121,8 @@ USE_FEATURE_DATE_ISOFMT( \
        "[OPTION]... [FILE]..."
 #define gzip_full_usage \
        "Compress FILE(s) with maximum compression.\n" \
-       "When FILE is '-' or unspecified, reads standard input.  Implies -c.\n\n" \
-       "Options:\n" \
+       "When FILE is '-' or unspecified, reads standard input.  Implies -c." \
+       "\n\nOptions:\n" \
        "	-c	Write output to standard output instead of FILE.gz\n" \
        "	-d	Decompress\n" \
        "	-f	Force write when destination is a terminal"
@@ -1104,69 +1136,77 @@ USE_FEATURE_DATE_ISOFMT( \
 #define halt_trivial_usage \
        "[-d<delay>] [-n<nosync>] [-f<force>]"
 #define halt_full_usage \
-       "Halt the system.\n" \
-       "Options:\n" \
-       "	-d		delay interval for halting\n" \
-       "	-n		no call to sync()\n" \
-       "	-f		force halt (don't go through init)"
+       "Halt the system" \
+       "\n\nOptions:\n" \
+       "	-d	Delay interval for halting\n" \
+       "	-n	No call to sync()\n" \
+       "	-f	Force halt (don't go through init)"
 
 #define hdparm_trivial_usage \
        "[options] [device] .."
 #define hdparm_full_usage \
-	USE_FEATURE_HDPARM_GET_IDENTITY("	If no device name is specified try to read from stdin.\n") \
-       "\nOptions:\n" \
-       "	-a   get/set fs readahead\n" \
-       "	-A   set drive read-lookahead flag (0/1)\n" \
-       "	-b   get/set bus state (0 == off, 1 == on, 2 == tristate)\n" \
-       "	-B   set Advanced Power Management setting (1-255)\n" \
-       "	-c   get/set IDE 32-bit IO setting\n" \
-       "	-C   check IDE power mode status\n" \
-	USE_FEATURE_HDPARM_HDIO_GETSET_DMA("	-d   get/set using_dma flag\n") \
-       "	-D   enable/disable drive defect-mgmt\n" \
-       "	-f   flush buffer cache for device on exit\n" \
-       "	-g   display drive geometry\n" \
-       "	-h   display terse usage information\n" \
-	USE_FEATURE_HDPARM_GET_IDENTITY("	-i   display drive identification\n") \
-	USE_FEATURE_HDPARM_GET_IDENTITY("	-I   detailed/current information directly from drive\n") \
-       "	-k   get/set keep_settings_over_reset flag (0/1)\n" \
-       "	-K   set drive keep_features_over_reset flag (0/1)\n" \
-       "	-L   set drive doorlock (0/1) (removable harddisks only)\n" \
-       "	-m   get/set multiple sector count\n" \
-       "	-n   get/set ignore-write-errors flag (0/1)\n" \
-       "	-p   set PIO mode on IDE interface chipset (0,1,2,3,4,...)\n" \
-       "	-P   set drive prefetch count\n" \
-       "	-q   change next setting quietly\n" \
-       "	-Q   get/set DMA tagged-queuing depth (if supported)\n" \
-       "	-r   get/set readonly flag (DANGEROUS to set)\n" \
-	USE_FEATURE_HDPARM_HDIO_SCAN_HWIF("	-R   register an IDE interface (DANGEROUS)\n") \
-       "	-S   set standby (spindown) timeout\n" \
-       "	-t   perform device read timings\n" \
-       "	-T   perform cache read timings\n" \
-       "	-u   get/set unmaskirq flag (0/1)\n" \
-	USE_FEATURE_HDPARM_HDIO_UNREGISTER_HWIF("	-U   un-register an IDE interface (DANGEROUS)\n") \
-       "	-v   defaults; same as -mcudkrag for IDE drives\n" \
-       "	-V   display program version and exit immediately\n" \
-	USE_FEATURE_HDPARM_HDIO_DRIVE_RESET("	-w   perform device reset (DANGEROUS)\n") \
-       "	-W   set drive write-caching flag (0/1) (DANGEROUS)\n" \
-	USE_FEATURE_HDPARM_HDIO_TRISTATE_HWIF("	-x   tristate device for hotswap (0/1) (DANGEROUS)\n") \
-       "	-X   set IDE xfer mode (DANGEROUS)\n" \
-       "	-y   put IDE drive in standby mode\n" \
-       "	-Y   put IDE drive to sleep\n" \
-       "	-Z   disable Seagate auto-powersaving mode\n" \
-       "	-z   re-read partition table"
+	USE_FEATURE_HDPARM_GET_IDENTITY( \
+       "If no device name is specified try to read from stdin.\n\n") \
+       "Options:\n" \
+       "	-a	Get/set fs readahead\n" \
+       "	-A	Set drive read-lookahead flag (0/1)\n" \
+       "	-b	Get/set bus state (0 == off, 1 == on, 2 == tristate)\n" \
+       "	-B	Set Advanced Power Management setting (1-255)\n" \
+       "	-c	Get/set IDE 32-bit IO setting\n" \
+       "	-C	Check IDE power mode status\n" \
+	USE_FEATURE_HDPARM_HDIO_GETSET_DMA( \
+       "	-d	Get/set using_dma flag\n") \
+       "	-D	Enable/disable drive defect-mgmt\n" \
+       "	-f	Flush buffer cache for device on exit\n" \
+       "	-g	Display drive geometry\n" \
+       "	-h	Display terse usage information\n" \
+	USE_FEATURE_HDPARM_GET_IDENTITY( \
+       "	-i	Display drive identification\n") \
+	USE_FEATURE_HDPARM_GET_IDENTITY( \
+       "	-I	Detailed/current information directly from drive\n") \
+       "	-k	Get/set keep_settings_over_reset flag (0/1)\n" \
+       "	-K	Set drive keep_features_over_reset flag (0/1)\n" \
+       "	-L	Set drive doorlock (0/1) (removable harddisks only)\n" \
+       "	-m	Get/set multiple sector count\n" \
+       "	-n	Get/set ignore-write-errors flag (0/1)\n" \
+       "	-p	Set PIO mode on IDE interface chipset (0,1,2,3,4,...)\n" \
+       "	-P	Set drive prefetch count\n" \
+       "	-q	Change next setting quietly\n" \
+       "	-Q	Get/set DMA tagged-queuing depth (if supported)\n" \
+       "	-r	Get/set readonly flag (DANGEROUS to set)\n" \
+	USE_FEATURE_HDPARM_HDIO_SCAN_HWIF( \
+       "	-R	Register an IDE interface (DANGEROUS)\n") \
+       "	-S	Set standby (spindown) timeout\n" \
+       "	-t	Perform device read timings\n" \
+       "	-T	Perform cache read timings\n" \
+       "	-u	Get/set unmaskirq flag (0/1)\n" \
+	USE_FEATURE_HDPARM_HDIO_UNREGISTER_HWIF( \
+       "	-U	Un-register an IDE interface (DANGEROUS)\n") \
+       "	-v	Defaults; same as -mcudkrag for IDE drives\n" \
+       "	-V	Display program version and exit immediately\n" \
+	USE_FEATURE_HDPARM_HDIO_DRIVE_RESET( \
+       "	-w	Perform device reset (DANGEROUS)\n") \
+       "	-W	Set drive write-caching flag (0/1) (DANGEROUS)\n" \
+	USE_FEATURE_HDPARM_HDIO_TRISTATE_HWIF( \
+       "	-x	Tristate device for hotswap (0/1) (DANGEROUS)\n") \
+       "	-X	Set IDE xfer mode (DANGEROUS)\n" \
+       "	-y	Put IDE drive in standby mode\n" \
+       "	-Y	Put IDE drive to sleep\n" \
+       "	-Z	Disable Seagate auto-powersaving mode\n" \
+       "	-z	Re-read partition table"
 
 #define head_trivial_usage \
        "[OPTION]... [FILE]..."
 #define head_full_usage \
        "Print first 10 lines of each FILE to standard output.\n" \
        "With more than one FILE, precede each with a header giving the\n" \
-       "file name. With no FILE, or when FILE is -, read standard input.\n\n" \
-       "Options:\n" \
-       "	-n NUM		Print first NUM lines instead of first 10" \
+       "file name. With no FILE, or when FILE is -, read standard input." \
+       "\n\nOptions:" \
+       "\n	-n NUM	Print first NUM lines instead of first 10" \
 	USE_FEATURE_FANCY_HEAD( \
-       "\n	-c NUM		output the first NUM bytes\n" \
-       "	-q		never output headers giving file names\n" \
-       "	-v		always output headers giving file names" )
+       "\n	-c NUM	Output the first NUM bytes" \
+       "\n	-q	Never output headers giving file names" \
+       "\n	-v	Always output headers giving file names")
 #define head_example_usage \
        "$ head -n 2 /etc/passwd\n" \
        "root:x:0:0:root:/root:/bin/bash\n" \
@@ -1175,9 +1215,8 @@ USE_FEATURE_DATE_ISOFMT( \
 #define hexdump_trivial_usage \
        "[-[bcCdefnosvx]] [OPTION] FILE"
 #define hexdump_full_usage \
-       "The hexdump utility is a filter which displays the specified files,\n" \
-       "or the standard input, if no files are specified, in a user specified\n" \
-       "format\n" \
+       "Display file(s) or standard input in a user specified format" \
+       "\n\nOptions:\n" \
        "	-b		One-byte octal display\n" \
        "	-c		One-byte character display\n" \
        "	-C		Canonical hex+ASCII, 16 bytes per line\n" \
@@ -1186,21 +1225,21 @@ USE_FEATURE_DATE_ISOFMT( \
        "	-f FORMAT FILE\n" \
        "	-n LENGTH	Interpret only length bytes of input\n" \
        "	-o		Two-byte octal display\n" \
-       "	-s OFFSET	Skip offset byte\n" \
-       "	-v		display all input data\n" \
+       "	-s OFFSET	Skip offset bytes\n" \
+       "	-v		Display all input data\n" \
        "	-x		Two-byte hexadecimal display"
 
 #define hostid_trivial_usage \
        ""
 #define hostid_full_usage \
-       "Print out a unique 32-bit identifier for the machine."
+       "Print out a unique 32-bit identifier for the machine"
 
 #define hostname_trivial_usage \
        "[OPTION] {hostname | -F FILE}"
 #define hostname_full_usage \
        "Get or set the hostname or DNS domain name. If a hostname is given\n" \
-       "(or FILE with the -F parameter), the host name will be set.\n\n" \
-       "Options:\n" \
+       "(or FILE with the -F parameter), the host name will be set." \
+       "\n\nOptions:\n" \
        "	-s	Short\n" \
        "	-i	Addresses for the hostname\n" \
        "	-d	DNS domain name\n" \
@@ -1220,15 +1259,18 @@ USE_FEATURE_DATE_ISOFMT( \
        " [-h home]" \
        " [-d/-e <string>]"
 #define httpd_full_usage \
-       "Listens for incoming http server requests.\n\n" \
-       "Options:\n" \
+       "Listen for incoming http server requests" \
+       "\n\nOptions:\n" \
        "	-c FILE		Specifies configuration file. (default httpd.conf)\n" \
        "	-p PORT		Server port (default 80)\n" \
        "	-i		Assume that we are started from inetd\n" \
        "	-f		Do not daemonize\n" \
-	USE_FEATURE_HTTPD_SETUID("	-u USER[:GRP]	Set uid/gid after binding to port\n") \
-	USE_FEATURE_HTTPD_BASIC_AUTH("	-r REALM	Authentication Realm for Basic Authentication\n") \
-	USE_FEATURE_HTTPD_AUTH_MD5("	-m PASS		Crypt PASS with md5 algorithm\n") \
+	USE_FEATURE_HTTPD_SETUID( \
+       "	-u USER[:GRP]	Set uid/gid after binding to port\n") \
+	USE_FEATURE_HTTPD_BASIC_AUTH( \
+       "	-r REALM	Authentication Realm for Basic Authentication\n") \
+	USE_FEATURE_HTTPD_AUTH_MD5( \
+       "	-m PASS		Crypt PASS with md5 algorithm\n") \
        "	-h HOME		Specifies http HOME directory (default ./)\n" \
        "	-e STRING	HTML encode STRING\n" \
        "	-d STRING	URL decode STRING"
@@ -1236,24 +1278,25 @@ USE_FEATURE_DATE_ISOFMT( \
 #define hwclock_trivial_usage \
        "[-r|--show] [-s|--hctosys] [-w|--systohc] [-l|--localtime] [-u|--utc]"
 #define hwclock_full_usage \
-       "Query and set the hardware clock (RTC)\n\n" \
-       "Options:\n" \
-       "	-r	read hardware clock and print result\n" \
-       "	-s	set the system time from the hardware clock\n" \
-       "	-w	set the hardware clock to the current system time\n" \
-       "	-u	the hardware clock is kept in coordinated universal time\n" \
-       "	-l	the hardware clock is kept in local time"
+       "Query and set the hardware clock (RTC)" \
+       "\n\nOptions:\n" \
+       "	-r	Read hardware clock and print result\n" \
+       "	-s	Set the system time from the hardware clock\n" \
+       "	-w	Set the hardware clock to the current system time\n" \
+       "	-u	The hardware clock is kept in coordinated universal time\n" \
+       "	-l	The hardware clock is kept in local time"
 
 #define id_trivial_usage \
        "[OPTIONS]... [USERNAME]"
 #define id_full_usage \
-       "Print information for USERNAME or the current user\n\n" \
-       "Options:\n" \
-	USE_SELINUX("	-c	prints only the security context\n") \
-       "	-g	prints only the group ID\n" \
-       "	-u	prints only the user ID\n" \
-       "	-n	print a name instead of a number\n" \
-       "	-r	prints the real user ID instead of the effective ID"
+       "Print information for USERNAME or the current user" \
+       "\n\nOptions:\n" \
+	USE_SELINUX( \
+       "	-c	Prints only the security context\n") \
+       "	-g	Prints only the group ID\n" \
+       "	-u	Prints only the user ID\n" \
+       "	-n	Print a name instead of a number\n" \
+       "	-r	Prints the real user ID instead of the effective ID"
 #define id_example_usage \
        "$ id\n" \
        "uid=1000(andersen) gid=1000(andersen)\n"
@@ -1261,61 +1304,60 @@ USE_FEATURE_DATE_ISOFMT( \
 #define ifconfig_trivial_usage \
 	USE_FEATURE_IFCONFIG_STATUS("[-a]") " <interface> [<address>]"
 #define ifconfig_full_usage \
-       "configure a network interface\n\n" \
-       "Options:\n" \
-	USE_FEATURE_IPV6("	[add <address>[/<prefixlen>]]\n") \
-	USE_FEATURE_IPV6("	[del <address>[/<prefixlen>]]\n") \
-       "	[[-]broadcast [<address>]]  [[-]pointopoint [<address>]]\n" \
-       "	[netmask <address>]  [dstaddr <address>]\n" \
-	USE_FEATURE_IFCONFIG_SLIP("	[outfill <NN>] [keepalive <NN>]\n") \
-       "	" USE_FEATURE_IFCONFIG_HW("[hw ether <address>]  ") \
-       "[metric <NN>]  [mtu <NN>]\n" \
-       "	[[-]trailers]  [[-]arp]  [[-]allmulti]\n" \
-       "	[multicast]  [[-]promisc]  [txqueuelen <NN>]  [[-]dynamic]\n" \
-	USE_FEATURE_IFCONFIG_MEMSTART_IOADDR_IRQ("	[mem_start <NN>]  [io_addr <NN>]  [irq <NN>]\n") \
+       "Configure a network interface" \
+       "\n\nOptions:\n" \
+	USE_FEATURE_IPV6( \
+       "	[add <address>[/<prefixlen>]]\n") \
+	USE_FEATURE_IPV6( \
+       "	[del <address>[/<prefixlen>]]\n") \
+       "	[[-]broadcast [<address>]] [[-]pointopoint [<address>]]\n" \
+       "	[netmask <address>] [dstaddr <address>]\n" \
+	USE_FEATURE_IFCONFIG_SLIP( \
+       "	[outfill <NN>] [keepalive <NN>]\n") \
+       "	" USE_FEATURE_IFCONFIG_HW("[hw ether <address>] ") "[metric <NN>] [mtu <NN>]\n" \
+       "	[[-]trailers] [[-]arp] [[-]allmulti]\n" \
+       "	[multicast] [[-]promisc] [txqueuelen <NN>] [[-]dynamic]\n" \
+	USE_FEATURE_IFCONFIG_MEMSTART_IOADDR_IRQ( \
+       "	[mem_start <NN>] [io_addr <NN>] [irq <NN>]\n") \
        "	[up|down] ..."
 
 #define ifup_trivial_usage \
        "<-ahinv> <ifaces...>"
 #define ifup_full_usage \
-       "ifup <options> <ifaces...>\n\n" \
        "Options:\n" \
-       "	-h	this help\n" \
-       "	-a	de/configure all interfaces automatically\n" \
-       "	-i FILE	use FILE for interface definitions\n" \
-       "	-n	print out what would happen, but don't do it\n" \
+       "	-a	De/configure all interfaces automatically\n" \
+       "	-i FILE	Use FILE for interface definitions\n" \
+       "	-n	Print out what would happen, but don't do it\n" \
        "		(note that this option doesn't disable mappings)\n" \
-       "	-v	print out what would happen before doing it\n" \
-       "	-m	don't run any mappings\n" \
-       "	-f	force de/configuration"
+       "	-v	Print out what would happen before doing it\n" \
+       "	-m	Don't run any mappings\n" \
+       "	-f	Force de/configuration"
 
 #define ifdown_trivial_usage \
        "<-ahinv> <ifaces...>"
 #define ifdown_full_usage \
-       "ifdown <options> <ifaces...>\n\n" \
        "Options:\n" \
-       "	-h	this help\n" \
-       "	-a	de/configure all interfaces automatically\n" \
-       "	-i FILE	use FILE for interface definitions\n" \
-       "	-n	print out what would happen, but don't do it\n" \
+       "	-a	De/configure all interfaces automatically\n" \
+       "	-i FILE	Use FILE for interface definitions\n" \
+       "	-n	Print out what would happen, but don't do it\n" \
        "		(note that this option doesn't disable mappings)\n" \
-       "	-v	print out what would happen before doing it\n" \
-       "	-m	don't run any mappings\n" \
-       "	-f	force de/configuration"
+       "	-v	Print out what would happen before doing it\n" \
+       "	-m	Don't run any mappings\n" \
+       "	-f	Force de/configuration"
 
 #define inetd_trivial_usage \
        "[-f] [-q len] [conf]"
 #define inetd_full_usage \
-       "Listens for network connections and launches programs\n\n" \
-       "Option:\n" \
-       "	-f	Run as a foreground progress\n" \
-       "	-q	Sets the size of the socket listen queue to\n" \
-       "		the specified value. Default is 128"
+       "Listen for network connections and launch programs" \
+       "\n\nOptions:\n" \
+       "	-f	Run in foreground\n" \
+       "	-q N	Set the size of the socket listen queue to N\n" \
+       "		(default: 128)"
 
 #define init_trivial_usage \
        ""
 #define init_full_usage \
-       "Init is the parent of all processes."
+       "Init is the parent of all processes"
 #define init_notes_usage \
 "This version of init is designed to be run only by the kernel.\n" \
 "\n" \
@@ -1374,18 +1416,18 @@ USE_FEATURE_DATE_ISOFMT( \
 "			'sysinit' is the first item run on boot.  init waits until all\n" \
 "			sysinit actions are completed before continuing.  Following the\n" \
 "			completion of all sysinit actions, all 'wait' actions are run.\n" \
-"			'wait' actions, like  'sysinit' actions, cause init to wait until\n" \
+"			'wait' actions, like 'sysinit' actions, cause init to wait until\n" \
 "			the specified task completes.  'once' actions are asynchronous,\n" \
 "			therefore, init does not wait for them to complete.  'restart' is\n" \
 "			the action taken to restart the init process.  By default this should\n" \
 "			simply run /sbin/init, but can be a script which runs pivot_root or it\n" \
 "			can do all sorts of other interesting things.  The 'ctrlaltdel' init\n" \
 "			actions are run when the system detects that someone on the system\n" \
-"                       console has pressed the CTRL-ALT-DEL key combination.  Typically one\n" \
-"                       wants to run 'reboot' at this point to cause the system to reboot.\n" \
+"			console has pressed the CTRL-ALT-DEL key combination.  Typically one\n" \
+"			wants to run 'reboot' at this point to cause the system to reboot.\n" \
 "			Finally the 'shutdown' action specifies the actions to taken when\n" \
-"                       init is told to reboot.  Unmounting filesystems and disabling swap\n" \
-"                       is a very good here\n" \
+"			init is told to reboot.  Unmounting filesystems and disabling swap\n" \
+"			is a very good here.\n" \
 "\n" \
 "		Run repeatedly actions:\n" \
 "\n" \
@@ -1408,7 +1450,7 @@ USE_FEATURE_DATE_ISOFMT( \
 "\n" \
 "Example /etc/inittab file:\n" \
 "\n" \
-"	# This is run first except when booting in single-user mode.\n" \
+"	# This is run first except when booting in single-user mode\n" \
 "	#\n" \
 "	::sysinit:/etc/init.d/rcS\n" \
 "	\n" \
@@ -1432,7 +1474,7 @@ USE_FEATURE_DATE_ISOFMT( \
 "	#::respawn:/sbin/getty -L ttyS0 9600 vt100\n" \
 "	#::respawn:/sbin/getty -L ttyS1 9600 vt100\n" \
 "	#\n" \
-"	# Example how to put a getty on a modem line.\n" \
+"	# Example how to put a getty on a modem line\n" \
 "	#::respawn:/sbin/getty 57600 ttyS2\n" \
 "	\n" \
 "	# Stuff to do when restarting the init process\n" \
@@ -1446,29 +1488,30 @@ USE_FEATURE_DATE_ISOFMT( \
 #define insmod_trivial_usage \
        "[OPTION]... MODULE [symbol=value]..."
 #define insmod_full_usage \
-       "Loads the specified kernel modules into the kernel.\n\n" \
-       "Options:\n" \
+       "Load the specified kernel modules into the kernel" \
+       "\n\nOptions:\n" \
        "	-f	Force module to load into the wrong kernel version\n" \
        "	-k	Make module autoclean-able\n" \
-       "	-v	verbose output\n"  \
-       "	-q	quiet output\n" \
+       "	-v	Verbose output\n"  \
+       "	-q	Quiet output\n" \
        "	-L	Lock to prevent simultaneous loads of a module\n" \
-	USE_FEATURE_INSMOD_LOAD_MAP("	-m	Output load map to stdout\n") \
+	USE_FEATURE_INSMOD_LOAD_MAP( \
+       "	-m	Output load map to stdout\n") \
        "	-o NAME	Set internal module name to NAME\n" \
-       "	-x	do not export externs"
+       "	-x	Do not export externs"
 
 #define install_trivial_usage \
        "[-cgmops] [sources] <dest|directory>"
 #define install_full_usage \
-       "Copies files and set attributes\n\n" \
-       "Options:\n" \
-       "	-c	copy the file, default\n" \
-       "	-d	create directories\n" \
-       "	-g	set group ownership\n" \
-       "	-m	set permission modes\n" \
-       "	-o	set ownership\n" \
-       "	-p	preserve date\n" \
-       "	-s	strip symbol tables"
+       "Copy files and set attributes" \
+       "\n\nOptions:\n" \
+       "	-c	Copy the file, default\n" \
+       "	-d	Create directories\n" \
+       "	-g	Set group ownership\n" \
+       "	-m	Set permission modes\n" \
+       "	-o	Set ownership\n" \
+       "	-p	Preserve date\n" \
+       "	-s	Strip symbol tables"
 
 #define ip_trivial_usage \
        "[OPTIONS] {address | link | route | tunnel | rule} {COMMAND}"
@@ -1483,24 +1526,24 @@ USE_FEATURE_DATE_ISOFMT( \
 #define ipaddr_full_usage \
        "ipaddr {add|delete} IFADDR dev STRING\n" \
        "ipaddr {show|flush} [ dev STRING ] [ scope SCOPE-ID ]\n" \
-       "			[ to PREFIX ] [ label PATTERN ]\n" \
-       "			IFADDR := PREFIX | ADDR peer PREFIX\n" \
-       "			[ broadcast ADDR ] [ anycast ADDR ]\n" \
-       "			[ label STRING ] [ scope SCOPE-ID ]\n" \
-       "			SCOPE-ID := [ host | link | global | NUMBER ]"
+       "	[ to PREFIX ] [ label PATTERN ]\n" \
+       "	IFADDR := PREFIX | ADDR peer PREFIX\n" \
+       "	[ broadcast ADDR ] [ anycast ADDR ]\n" \
+       "	[ label STRING ] [ scope SCOPE-ID ]\n" \
+       "	SCOPE-ID := [ host | link | global | NUMBER ]"
 
 #define ipcalc_trivial_usage \
        "[OPTION]... <ADDRESS>[[/]<NETMASK>] [NETMASK]"
 #define ipcalc_full_usage \
-       "Calculate IP network settings from a IP address\n\n" \
-       "Options:\n" \
-       "	-b	--broadcast	Display calculated broadcast address\n" \
-       "	-n	--network	Display calculated network address\n" \
-       "	-m	--netmask	Display default netmask for IP" \
+       "Calculate IP network settings from a IP address" \
+       "\n\nOptions:" \
+       "\n	-b	--broadcast	Display calculated broadcast address" \
+       "\n	-n	--network	Display calculated network address" \
+       "\n	-m	--netmask	Display default netmask for IP" \
 	USE_FEATURE_IPCALC_FANCY( \
-       "\n	-p	--prefix	Display the prefix for IP/NETMASK\n" \
-       "	-h	--hostname	Display first resolved host name\n" \
-       "	-s	--silent	Don't ever display error messages")
+       "\n	-p	--prefix	Display the prefix for IP/NETMASK" \
+       "\n	-h	--hostname	Display first resolved host name" \
+       "\n	-s	--silent	Don't ever display error messages")
 
 #define ipcrm_trivial_usage \
        "[-[MQS] key] [-[mqs] id]"
@@ -1508,6 +1551,7 @@ USE_FEATURE_DATE_ISOFMT( \
        "The upper-case options MQS are used to remove a shared memory segment by a\n" \
        "segment by a shmkey value. The lower-case options mqs are used\n" \
        "to remove a segment by shmid value.\n" \
+       "\n\nOptions:\n" \
        "	-[mM]	Remove the memory segment after the last detach\n" \
        "	-[qQ]	Remove the message queue\n" \
        "	-[sS]	Remove the semaphore"
@@ -1515,18 +1559,18 @@ USE_FEATURE_DATE_ISOFMT( \
 #define ipcs_trivial_usage \
        "[[-smq] -i shmid] | [[-asmq] [-tcplu]]"
 #define ipcs_full_usage \
-       "	-i	specify a specific resource id\n" \
+       "	-i	Specify a specific resource id\n" \
        "Resource specification:\n" \
-       "	-m	shared memory segments\n" \
-       "	-q	message queues\n" \
-       "	-s	semaphore arrays\n" \
-       "	-a	all (default)\n" \
+       "	-m	Shared memory segments\n" \
+       "	-q	Message queues\n" \
+       "	-s	Semaphore arrays\n" \
+       "	-a	All (default)\n" \
        "Output format:\n" \
-       "	-t	time\n" \
-       "	-c	creator\n" \
-       "	-p	pid\n" \
-       "	-l	limits\n" \
-       "	-u	summary"
+       "	-t	Time\n" \
+       "	-c	Creator\n" \
+       "	-p	Pid\n" \
+       "	-l	Limits\n" \
+       "	-u	Summary"
 
 #define iplink_trivial_usage \
        "{ set DEVICE { up | down | arp { on | off } | show [ DEVICE ] }"
@@ -1534,7 +1578,7 @@ USE_FEATURE_DATE_ISOFMT( \
        "iplink set DEVICE { up | down | arp { on | off } |\n" \
        "			dynamic { on | off } |\n" \
        "			mtu MTU }\n" \
-       "	iplink show [ DEVICE ]"
+       "iplink show [ DEVICE ]"
 
 #define iproute_trivial_usage \
        "{ list | flush | { add | del | change | append |\n" \
@@ -1543,7 +1587,7 @@ USE_FEATURE_DATE_ISOFMT( \
        "iproute { list | flush } SELECTOR\n" \
        "iproute get ADDRESS [ from ADDRESS iif STRING ]\n" \
        "			[ oif STRING ]  [ tos TOS ]\n" \
-       "	iproute { add | del | change | append | replace | monitor } ROUTE\n" \
+       "iproute { add | del | change | append | replace | monitor } ROUTE\n" \
        "			SELECTOR := [ root PREFIX ] [ match PREFIX ] [ proto RTPROTO ]\n" \
        "			ROUTE := [ TYPE ] PREFIX [ tos TOS ] [ proto RTPROTO ]"
 
@@ -1560,19 +1604,19 @@ USE_FEATURE_DATE_ISOFMT( \
 
 #define iptunnel_trivial_usage \
        "{ add | change | del | show } [ NAME ]\n" \
-       "		[ mode { ipip | gre | sit } ]\n" \
-       "		[ remote ADDR ] [ local ADDR ] [ ttl TTL ]"
+       "	[ mode { ipip | gre | sit } ]\n" \
+       "	[ remote ADDR ] [ local ADDR ] [ ttl TTL ]"
 #define iptunnel_full_usage \
        "iptunnel { add | change | del | show } [ NAME ]\n" \
-       "			[ mode { ipip | gre | sit } ] [ remote ADDR ] [ local ADDR ]\n" \
-       "			[ [i|o]seq ] [ [i|o]key KEY ] [ [i|o]csum ]\n" \
-       "			[ ttl TTL ] [ tos TOS ] [ [no]pmtudisc ] [ dev PHYS_DEV ]"
+       "	[ mode { ipip | gre | sit } ] [ remote ADDR ] [ local ADDR ]\n" \
+       "	[ [i|o]seq ] [ [i|o]key KEY ] [ [i|o]csum ]\n" \
+       "	[ ttl TTL ] [ tos TOS ] [ [no]pmtudisc ] [ dev PHYS_DEV ]"
 
 #define kill_trivial_usage \
        "[-l] [-signal] process-id [process-id ...]"
 #define kill_full_usage \
-       "Send a signal (default is TERM) to the specified process(es).\n\n" \
-       "Options:\n" \
+       "Send a signal (default is TERM) to the specified process(es)" \
+       "\n\nOptions:\n" \
        "	-l	List all signal names and numbers"
 #define kill_example_usage \
        "$ ps | grep apache\n" \
@@ -1587,8 +1631,8 @@ USE_FEATURE_DATE_ISOFMT( \
 #define killall_trivial_usage \
        "[-l] [-q] [-signal] process-name [process-name ...]"
 #define killall_full_usage \
-       "Send a signal (default is TERM) to the specified process(es).\n\n" \
-       "Options:\n" \
+       "Send a signal (default is TERM) to the specified process(es)" \
+       "\n\nOptions:\n" \
        "	-l	List all signal names and numbers\n" \
        "	-q	Do not complain if no processes were killed"
 #define killall_example_usage \
@@ -1597,22 +1641,22 @@ USE_FEATURE_DATE_ISOFMT( \
 #define killall5_trivial_usage \
        "[-l] [-signal]"
 #define killall5_full_usage \
-       "Send a signal (default is TERM) to all processes outside current session.\n\n" \
-       "Options:\n" \
+       "Send a signal (default is TERM) to all processes outside current session" \
+       "\n\nOptions:\n" \
        "	-l	List all signal names and numbers\n" \
 
 #define klogd_trivial_usage \
        "[-c n] [-n]"
 #define klogd_full_usage \
-       "Kernel logger.\n" \
-       "Options:\n" \
+       "Kernel logger" \
+       "\n\nOptions:\n" \
        "	-c n	Sets the default log level of console messages to n\n" \
-       "	-n	Run as a foreground process"
+       "	-n	Run as foreground process"
 
 #define length_trivial_usage \
        "STRING"
 #define length_full_usage \
-       "Prints out the length of the specified STRING."
+       "Print out the length of the specified STRING"
 #define length_example_usage \
        "$ length Hello\n" \
        "5\n"
@@ -1621,8 +1665,8 @@ USE_FEATURE_DATE_ISOFMT( \
        "[-EMNmh~?] FILE1 FILE2..."
 #define less_full_usage \
        "View a file or list of files. The position within files can be\n" \
-       "changed, and files can be manipulated in various ways with the\n" \
-       "following options:\n\n" \
+       "changed, and files can be manipulated in various ways." \
+       "\n\nOptions:\n" \
        "	-E	Quit once the end of a file is reached\n" \
        "	-M	Display a status line containing the current line numbers\n" \
        "		and the percentage through the file\n" \
@@ -1630,27 +1674,26 @@ USE_FEATURE_DATE_ISOFMT( \
        "	-m	Display a status line containing the percentage through the\n" \
        "		file\n" \
        "	-~	Suppress ~s displayed when input past the end of the file is\n" \
-       "		reached.\n" \
-       "	-h, -?	Display this help message"
+       "		reached"
 
 #define setarch_trivial_usage \
        "<personality> <program> [args ...]"
 #define setarch_full_usage \
        "Personality may be:\n" \
-       "	linux32	Set 32bit uname emulation\n" \
-       "	linux64	Set 64bit uname emulation"
+       "	linux32		Set 32bit uname emulation\n" \
+       "	linux64		Set 64bit uname emulation"
 
 #define ln_trivial_usage \
        "[OPTION] TARGET... LINK_NAME|DIRECTORY"
 #define ln_full_usage \
-       "Create a link named LINK_NAME or DIRECTORY to the specified TARGET\n" \
-       "\nYou may use '--' to indicate that all following arguments are non-options.\n\n" \
-       "Options:\n" \
-       "	-s	make symbolic links instead of hard links\n" \
-       "	-f	remove existing destination files\n" \
-       "	-n	no dereference symlinks - treat like normal file\n" \
-       "	-b	make a backup of the target (if exists) before link operation\n" \
-       "	-S suffix	use suffix instead of ~ when making backup files"
+       "Create a link named LINK_NAME or DIRECTORY to the specified TARGET.\n" \
+       "You may use '--' to indicate that all following arguments are non-options." \
+       "\n\nOptions:\n" \
+       "	-s	Make symbolic links instead of hard links\n" \
+       "	-f	Remove existing destination files\n" \
+       "	-n	No dereference symlinks - treat like normal file\n" \
+       "	-b	Make a backup of the target (if exists) before link operation\n" \
+       "	-S suf	Use suffix instead of ~ when making backup files"
 #define ln_example_usage \
        "$ ln -s BusyBox /tmp/ls\n" \
        "$ ls -l /tmp/ls\n" \
@@ -1659,34 +1702,34 @@ USE_FEATURE_DATE_ISOFMT( \
 #define loadfont_trivial_usage \
        "< font"
 #define loadfont_full_usage \
-       "Loads a console font from standard input."
+       "Load a console font from standard input"
 #define loadfont_example_usage \
        "$ loadfont < /etc/i18n/fontname\n"
 
 #define loadkmap_trivial_usage \
        "< keymap"
 #define loadkmap_full_usage \
-       "Loads a binary keyboard translation table from standard input."
+       "Load a binary keyboard translation table from standard input"
 #define loadkmap_example_usage \
        "$ loadkmap < /etc/i18n/lang-keymap\n"
 
 #define logger_trivial_usage \
        "[OPTION]... [MESSAGE]"
 #define logger_full_usage \
-       "Write MESSAGE to the system log.  If MESSAGE is omitted, log stdin.\n\n" \
-       "Options:\n" \
+       "Write MESSAGE to the system log.  If MESSAGE is omitted, log stdin." \
+       "\n\nOptions:\n" \
        "	-s	Log to stderr as well as the system log\n" \
        "	-t TAG	Log using the specified tag (defaults to user name)\n" \
-       "	-p PRIORITY	Enter the message with the specified priority\n" \
-       "		This may be numerical or a 'facility.level' pair"
+       "	-p PRIO	Enter the message with the specified priority.\n" \
+       "		This may be numerical or a 'facility.level' pair."
 #define logger_example_usage \
        "$ logger \"hello\"\n"
 
 #define login_trivial_usage \
        "[OPTION]... [username] [ENV=VAR ...]"
 #define login_full_usage \
-       "Begin a new session on the system\n\n" \
-       "Options:\n" \
+       "Begin a new session on the system" \
+       "\n\nOptions:\n" \
        "	-f	Do not authenticate (user already authenticated)\n" \
        "	-h	Name of the remote host for this login\n" \
        "	-p	Preserve environment"
@@ -1694,7 +1737,7 @@ USE_FEATURE_DATE_ISOFMT( \
 #define logname_trivial_usage \
        ""
 #define logname_full_usage \
-       "Print the name of the current user."
+       "Print the name of the current user"
 #define logname_example_usage \
        "$ logname\n" \
        "root\n"
@@ -1702,15 +1745,15 @@ USE_FEATURE_DATE_ISOFMT( \
 #define logread_trivial_usage \
        "[OPTION]..."
 #define logread_full_usage \
-       "Shows the messages from syslogd (using circular buffer).\n\n" \
-       "Options:\n" \
-       "	-f		output data as the log grows"
+       "Show the messages from syslogd (using circular buffer)" \
+       "\n\nOptions:\n" \
+       "	-f	Output data as the log grows"
 
 #define losetup_trivial_usage \
        "[-o OFFSET] [-d] LOOPDEVICE [FILE]]"
 #define losetup_full_usage \
-       "(Dis)associate LOOPDEVICE with FILE, or display current associations.\n\n" \
-       "Options:\n" \
+       "(Dis)associate LOOPDEVICE with FILE, or display current associations" \
+       "\n\nOptions:\n" \
        "	-d		Disassociate LOOPDEVICE\n" \
        "	-o OFFSET	Start OFFSET bytes into FILE"
 #define losetup_notes_usage \
@@ -1731,63 +1774,81 @@ USE_FEATURE_DATE_ISOFMT( \
 	USE_FEATURE_LS_SORTFILES("X") USE_FEATURE_HUMAN_READABLE("h") "k" \
 	USE_SELINUX("K") "] [filenames...]"
 #define ls_full_usage \
-       "List directory contents\n\n" \
-       "Options:\n" \
-       "	-1	list files in a single column\n" \
-       "	-A	do not list implied . and ..\n" \
-       "	-a	do not hide entries starting with .\n" \
-       "	-C	list entries by columns\n" \
-	USE_FEATURE_LS_TIMESTAMPS("	-c	with -l: show ctime\n") \
-	USE_FEATURE_LS_COLOR("	--color[={always,never,auto}]	to control coloring\n") \
-       "	-d	list directory entries instead of contents\n" \
-	USE_FEATURE_LS_TIMESTAMPS("	-e	list both full date and full time\n") \
-	USE_FEATURE_LS_FILETYPES("	-F	append indicator (one of */=@|) to entries\n") \
-       "	-i	list the i-node for each file\n" \
-       "	-l	use a long listing format\n" \
-       "	-n	list numeric UIDs and GIDs instead of names\n" \
-	USE_FEATURE_LS_FILETYPES("	-p	append indicator (one of /=@|) to entries\n") \
-	USE_FEATURE_LS_FOLLOWLINKS("	-L	list entries pointed to by symbolic links\n") \
-	USE_FEATURE_LS_RECURSIVE("	-R	list subdirectories recursively\n") \
-	USE_FEATURE_LS_SORTFILES("	-r	sort the listing in reverse order\n") \
-	USE_FEATURE_LS_SORTFILES("	-S	sort the listing by file size\n") \
-       "	-s	list the size of each file, in blocks\n" \
-	USE_FEATURE_AUTOWIDTH("	-T NUM	assume Tabstop every NUM columns\n") \
-	USE_FEATURE_LS_TIMESTAMPS("	-t	with -l: show modification time\n") \
-	USE_FEATURE_LS_TIMESTAMPS("	-u	with -l: show access time\n") \
-	USE_FEATURE_LS_SORTFILES("	-v	sort the listing by version\n") \
-	USE_FEATURE_AUTOWIDTH("	-w NUM	assume the terminal is NUM columns wide\n") \
-       "	-x	list entries by lines instead of by columns\n" \
-	USE_FEATURE_LS_SORTFILES("	-X	sort the listing by extension\n") \
+       "List directory contents" \
+       "\n\nOptions:" \
+       "\n	-1	List files in a single column" \
+       "\n	-A	Do not list implied . and .." \
+       "\n	-a	Do not hide entries starting with ." \
+       "\n	-C	List entries by columns" \
+	USE_FEATURE_LS_TIMESTAMPS( \
+       "\n	-c	With -l: show ctime") \
+	USE_FEATURE_LS_COLOR( \
+       "\n	--color[={always,never,auto}]	Control coloring") \
+       "\n	-d	List directory entries instead of contents" \
+	USE_FEATURE_LS_TIMESTAMPS( \
+       "\n	-e	List both full date and full time") \
+	USE_FEATURE_LS_FILETYPES( \
+       "\n	-F	Append indicator (one of */=@|) to entries") \
+       "\n	-i	List the i-node for each file" \
+       "\n	-l	Use a long listing format" \
+       "\n	-n	List numeric UIDs and GIDs instead of names" \
+	USE_FEATURE_LS_FILETYPES( \
+       "\n	-p	Append indicator (one of /=@|) to entries") \
+	USE_FEATURE_LS_FOLLOWLINKS( \
+       "\n	-L	List entries pointed to by symbolic links") \
+	USE_FEATURE_LS_RECURSIVE( \
+       "\n	-R	List subdirectories recursively") \
+	USE_FEATURE_LS_SORTFILES( \
+       "\n	-r	Sort the listing in reverse order") \
+	USE_FEATURE_LS_SORTFILES( \
+       "\n	-S	Sort the listing by file size") \
+       "\n	-s	List the size of each file, in blocks" \
+	USE_FEATURE_AUTOWIDTH( \
+       "\n	-T NUM	Assume Tabstop every NUM columns") \
+	USE_FEATURE_LS_TIMESTAMPS( \
+       "\n	-t	With -l: show modification time") \
+	USE_FEATURE_LS_TIMESTAMPS( \
+       "\n	-u	With -l: show access time") \
+	USE_FEATURE_LS_SORTFILES( \
+       "\n	-v	Sort the listing by version") \
+	USE_FEATURE_AUTOWIDTH( \
+       "\n	-w NUM	Assume the terminal is NUM columns wide") \
+       "\n	-x	List entries by lines instead of by columns" \
+	USE_FEATURE_LS_SORTFILES( \
+       "\n	-X	Sort the listing by extension") \
 	USE_FEATURE_HUMAN_READABLE( \
-       "	-h	print sizes in human readable format (e.g., 1K 243M 2G )\n") \
-	USE_SELINUX("	-k	print security context\n") \
-	USE_SELINUX("	-K	print security context in long format\n")
+       "\n	-h	Print sizes in human readable format (e.g., 1K 243M 2G)") \
+	USE_SELINUX( \
+       "\n	-k	Print security context") \
+	USE_SELINUX( \
+       "\n	-K	Print security context in long format")
 
 #define lsattr_trivial_usage \
        "[-Radlv] [files...]"
 #define lsattr_full_usage \
-       "list file attributes on an ext2 fs\n\n" \
-       "Options:\n" \
-       "	-R	recursively list subdirectories\n" \
-       "	-a	do not hide entries starting with .\n" \
-       "	-d	list directory entries instead of contents\n" \
-       "	-l	print long flag names\n" \
-       "	-v	list the file's version/generation number"
+       "List file attributes on an ext2 fs" \
+       "\n\nOptions:\n" \
+       "	-R	Recursively list subdirectories\n" \
+       "	-a	Do not hide entries starting with .\n" \
+       "	-d	List directory entries instead of contents\n" \
+       "	-l	Print long flag names\n" \
+       "	-v	List the file's version/generation number"
 
 #define lsmod_trivial_usage \
        ""
 #define lsmod_full_usage \
-       "List the currently loaded kernel modules."
+       "List the currently loaded kernel modules"
 
 #ifdef CONFIG_FEATURE_MAKEDEVS_LEAF
 #define makedevs_trivial_usage \
        "NAME TYPE MAJOR MINOR FIRST LAST [s]"
 #define makedevs_full_usage \
-       "Creates a range of block or character special files\n\n" \
+       "Create a range of block or character special files\n\n" \
        "TYPEs include:\n" \
-       "	b:	Make a block (buffered) device.\n" \
-       "	c or u:	Make a character (un-buffered) device.\n" \
-       "	p:	Make a named pipe. MAJOR and MINOR are ignored for named pipes.\n\n" \
+       "	b:	Make a block (buffered) device\n" \
+       "	c or u:	Make a character (un-buffered) device\n" \
+       "	p:	Make a named pipe. MAJOR and MINOR are ignored for named pipes\n" \
+       "\n" \
        "FIRST specifies the number appended to NAME to create the first device.\n" \
        "LAST specifies the number of the last item that should be created\n" \
        "If 's' is the last argument, the base device is created as well.\n\n" \
@@ -1805,15 +1866,15 @@ USE_FEATURE_DATE_ISOFMT( \
 #define makedevs_trivial_usage \
        "[-d device_table] rootdir"
 #define makedevs_full_usage \
-       "Creates a range of special files as specified in a device table.\n" \
+       "Create a range of special files as specified in a device table.\n" \
        "Device table entries take the form of:\n" \
        "<type> <mode> <uid> <gid> <major> <minor> <start> <inc> <count>\n" \
-       "Where name is the file name,  type can be one of:\n" \
-       "      f       A regular file\n" \
-       "      d       Directory\n" \
-       "      c       Character special device file\n" \
-       "      b       Block special device file\n" \
-       "      p       Fifo (named pipe)\n" \
+       "Where name is the file name, type can be one of:\n" \
+       "	f	A regular file\n" \
+       "	d	Directory\n" \
+       "	c	Character special device file\n" \
+       "	b	Block special device file\n" \
+       "	p	Fifo (named pipe)\n" \
        "uid is the user id for the target file, gid is the group id for the\n" \
        "target file.  The rest of the entries (major, minor, etc) apply to\n" \
        "to device special files.  A '-' may be used for blank entries."
@@ -1839,14 +1900,14 @@ USE_FEATURE_DATE_ISOFMT( \
        "[OPTION] [FILEs...]" \
 	USE_FEATURE_MD5_SHA1_SUM_CHECK("\n   or: md5sum [OPTION] -c [FILE]")
 #define md5sum_full_usage \
-       "Print" USE_FEATURE_MD5_SHA1_SUM_CHECK(" or check") " MD5 checksums.\n\n" \
-       "Options:\n" \
+       "Print" USE_FEATURE_MD5_SHA1_SUM_CHECK(" or check") " MD5 checksums" \
+       "\n\nOptions:\n" \
        "With no FILE, or when FILE is -, read standard input." \
 	USE_FEATURE_MD5_SHA1_SUM_CHECK("\n\n" \
-       "	-c	check MD5 sums against given list\n" \
+       "	-c	Check MD5 sums against given list\n" \
        "\nThe following two options are useful only when verifying checksums:\n" \
-       "	-s	don't output anything, status code shows success\n" \
-       "	-w	warn about improperly formatted MD5 checksum lines")
+       "	-s	Don't output anything, status code shows success\n" \
+       "	-w	Warn about improperly formatted MD5 checksum lines")
 #define md5sum_example_usage \
        "$ md5sum < busybox\n" \
        "6fd11e98b98a58f64ff3398d7b324003\n" \
@@ -1864,7 +1925,7 @@ USE_FEATURE_DATE_ISOFMT( \
        "Called with no options (via hotplug) it uses environment variables\n" \
        "to determine which device to add/remove."
 #define mdev_notes_usage "" \
-USE_FEATURE_MDEV_CONFIG( \
+	USE_FEATURE_MDEV_CONFIG( \
        "The mdev config file contains lines that look like:\n" \
        "  hd[a-z][0-9]* 0:3 660\n\n" \
        "That's device name (with regex match), uid:gid, and permissions.\n\n" \
@@ -1881,22 +1942,22 @@ USE_FEATURE_MDEV_CONFIG( \
        "Config file parsing stops on the first matching line.  If no config\n"\
        "entry is matched, devices are created with default 0:0 660.  (Make\n"\
        "the last line match .* to override this.)\n\n" \
-)
+	)
 
 #define mesg_trivial_usage \
        "[y|n]"
 #define mesg_full_usage \
-       "mesg controls write access to your terminal\n" \
+       "Control write access to your terminal\n" \
        "	y	Allow write access to your terminal\n" \
        "	n	Disallow write access to your terminal"
 
 #define mkdir_trivial_usage \
        "[OPTION] DIRECTORY..."
 #define mkdir_full_usage \
-       "Create the DIRECTORY(ies) if they do not already exist\n\n" \
-       "Options:\n" \
-       "	-m	set permission mode (as in chmod), not rwxrwxrwx - umask\n" \
-       "	-p	no error if existing, make parent directories as needed"
+       "Create the DIRECTORY(ies) if they do not already exist" \
+       "\n\nOptions:\n" \
+       "	-m	Set permission mode (as in chmod), not rwxrwxrwx - umask\n" \
+       "	-p	No error if existing, make parent directories as needed"
 #define mkdir_example_usage \
        "$ mkdir /tmp/foo\n" \
        "$ mkdir /tmp/foo\n" \
@@ -1913,41 +1974,41 @@ USE_FEATURE_MDEV_CONFIG( \
        "[-M last-mounted-directory] [-S] [-T filesystem-type] " \
        "device [blocks-count]"
 #define mke2fs_full_usage \
-       "	-b size	block size in bytes\n" \
-       "	-c	check for bad blocks before creating\n" \
-       "	-E opts	set extended options\n" \
-       "	-f size	fragment size in bytes\n" \
-       "	-F	force (ignore sanity checks)\n" \
-       "	-g num	number of blocks in a block group\n" \
-       "	-i ratio	the bytes/inode ratio\n" \
-       "	-j	create a journal (ext3)\n" \
-       "	-J opts	set journal options (size/device)\n" \
-       "	-l file	read bad blocks list from file\n" \
-       "	-L lbl	set the volume label\n" \
-       "	-m percent	percent of fs blocks to reserve for admin\n" \
-       "	-M dir	set last mounted directory\n" \
-       "	-n	do not actually create anything\n" \
-       "	-N num	number of inodes to create\n" \
-       "	-o os	set the 'creator os' field\n" \
-       "	-O features	dir_index/filetype/has_journal/journal_dev/sparse_super\n" \
-       "	-q	quiet execution\n" \
-       "	-r rev	set filesystem revision\n" \
-       "	-S	write superblock and group descriptors only\n" \
-       "	-T fs-type	set usage type (news/largefile/largefile4)\n" \
-       "	-v	verbose execution"
+       "	-b size		Block size in bytes\n" \
+       "	-c		Check for bad blocks before creating\n" \
+       "	-E opts		Set extended options\n" \
+       "	-f size		Fragment size in bytes\n" \
+       "	-F		Force (ignore sanity checks)\n" \
+       "	-g num		Number of blocks in a block group\n" \
+       "	-i ratio	The bytes/inode ratio\n" \
+       "	-j		Create a journal (ext3)\n" \
+       "	-J opts		Set journal options (size/device)\n" \
+       "	-l file		Read bad blocks list from file\n" \
+       "	-L lbl		Set the volume label\n" \
+       "	-m percent	Percent of fs blocks to reserve for admin\n" \
+       "	-M dir		Set last mounted directory\n" \
+       "	-n		Do not actually create anything\n" \
+       "	-N num		Number of inodes to create\n" \
+       "	-o os		Set the 'creator os' field\n" \
+       "	-O features	Dir_index/filetype/has_journal/journal_dev/sparse_super\n" \
+       "	-q		Quiet execution\n" \
+       "	-r rev		Set filesystem revision\n" \
+       "	-S		Write superblock and group descriptors only\n" \
+       "	-T fs-type	Set usage type (news/largefile/largefile4)\n" \
+       "	-v		Verbose execution"
 
 #define mkfifo_trivial_usage \
        "[OPTIONS] name"
 #define mkfifo_full_usage \
-       "Creates a named pipe (identical to 'mknod name p')\n\n" \
-       "Options:\n" \
-       "	-m	create the pipe using the specified mode (default a=rw)"
+       "Create a named pipe (identical to 'mknod name p')" \
+       "\n\nOptions:\n" \
+       "	-m	Create the pipe using the specified mode (default a=rw)"
 
 #define mkfs_minix_trivial_usage \
        "[-c | -l filename] [-nXX] [-iXX] /dev/name [blocks]"
 #define mkfs_minix_full_usage \
-       "Make a MINIX filesystem.\n\n" \
-       "Options:\n" \
+       "Make a MINIX filesystem" \
+       "\n\nOptions:\n" \
        "	-c		Check the device for bad blocks\n" \
        "	-n [14|30]	Specify the maximum length of filenames\n" \
        "	-i INODES	Specify the number of inodes for the filesystem\n" \
@@ -1957,10 +2018,10 @@ USE_FEATURE_MDEV_CONFIG( \
 #define mknod_trivial_usage \
        "[OPTIONS] NAME TYPE MAJOR MINOR"
 #define mknod_full_usage \
-       "Create a special file (block, character, or pipe).\n\n" \
-       "Options:\n" \
-       "	-m	create the special file using the specified mode (default a=rw)\n\n" \
-       "TYPEs include:\n" \
+       "Create a special file (block, character, or pipe)" \
+       "\n\nOptions:\n" \
+       "	-m	Create the special file using the specified mode (default a=rw)" \
+       "\n\nTYPEs include:\n" \
        "	b:	Make a block (buffered) device\n" \
        "	c or u:	Make a character (un-buffered) device\n" \
        "	p:	Make a named pipe. MAJOR and MINOR are ignored for named pipes"
@@ -1971,20 +2032,19 @@ USE_FEATURE_MDEV_CONFIG( \
 #define mkswap_trivial_usage \
        "[-c] [-v0|-v1] device [block-count]"
 #define mkswap_full_usage \
-       "Prepare a disk partition to be used as a swap partition.\n\n" \
-       "Options:\n" \
+       "Prepare a disk partition to be used as swap partition" \
+       "\n\nOptions:\n" \
        "	-c		Check for read-ability\n" \
        "	-v0		Make version 0 swap [max 128 Megs]\n" \
-       "	-v1		Make version 1 swap [big!] (default for kernels >\n" \
-       "			2.1.117)\n" \
+       "	-v1		Make version 1 swap [big!] (default for kernels > 2.1.117)\n" \
        "	block-count	Number of block to use (default is entire partition)"
 
 #define mktemp_trivial_usage \
        "[-dq] TEMPLATE"
 #define mktemp_full_usage \
-       "Creates a temporary file with its name based on TEMPLATE.\n" \
-       "TEMPLATE is any name with six 'Xs' (i.e., /tmp/temp.XXXXXX).\n\n" \
-       "Options:\n" \
+       "Create a temporary file with its name based on TEMPLATE.\n" \
+       "TEMPLATE is any name with six 'Xs' (i.e., /tmp/temp.XXXXXX)." \
+       "\n\nOptions:\n" \
        "	-d	Make a directory instead of a file\n" \
        "	-q	Fail silently if an error occurs"
 #define mktemp_example_usage \
@@ -2066,46 +2126,47 @@ USE_FEATURE_MDEV_CONFIG( \
 #define more_trivial_usage \
        "[FILE ...]"
 #define more_full_usage \
-       "More is a filter for viewing FILE one screenful at a time."
+       "View FILE or standard input one screenful at a time"
 #define more_example_usage \
        "$ dmesg | more\n"
 
 #define mount_trivial_usage \
        "[flags] DEVICE NODE [-o options,more-options]"
 #define mount_full_usage \
-       "Mount a filesystem.  Filesystem autodetection requires /proc be mounted.\n\n" \
-       "Flags:\n"  \
-       "	-a:		Mount all filesystems in fstab\n" \
+       "Mount a filesystem.  Filesystem autodetection requires /proc be mounted." \
+       "\n\nOptions:\n"  \
+       "	-a		Mount all filesystems in fstab\n" \
 	USE_FEATURE_MTAB_SUPPORT( \
-		"	-f:		\"Fake\" Add entry to mount table but don't mount it\n" \
-		"	-n:		Don't write a mount table entry\n" \
+       "	-f		\"Fake\" Add entry to mount table but don't mount it\n" \
+       "	-n		Don't write a mount table entry\n" \
 	) \
-       "	-o option:	One of many filesystem options, listed below\n" \
-       "	-r:		Mount the filesystem read-only\n" \
-       "	-t fs-type:	Specify the filesystem type\n" \
-       "	-w:		Mount for reading and writing (default)\n" \
+       "	-o option	One of many filesystem options, listed below\n" \
+       "	-r		Mount the filesystem read-only\n" \
+       "	-t fs-type	Specify the filesystem type\n" \
+       "	-w		Mount for reading and writing (default)\n" \
        "\n" \
        "Options for use with the \"-o\" flag:\n" \
 	USE_FEATURE_MOUNT_LOOP( \
-		"	loop:		Ignored (loop devices are autodetected)\n" \
+       "	loop		Ignored (loop devices are autodetected)\n" \
 	) \
 	USE_FEATURE_MOUNT_FLAGS( \
-		"	[a]sync:	Writes are asynchronous / synchronous\n" \
-		"	[no]atime:	Disable / enable updates to inode access times\n" \
-		"	[no]diratime:	Disable / enable atime updates to directories\n" \
-		"	[no]dev:	Allow use of special device files / disallow them\n" \
-		"	[no]exec:	Allow use of executable files / disallow them\n" \
-		"	[no]suid:	Allow set-user-id-root programs / disallow them\n" \
-		"	[r]shared:	Convert [recursively] to a shared subtree.\n" \
-		"	[r]slave:	Convert [recursively] to a slave subtree.\n" \
-		"	[r]private:	Convert [recursively] to a private subtree\n" \
-		"	[un]bindable:	Make mount point [un]able to be bind mounted.\n" \
-		"	bind:		Bind a directory to an additional location\n" \
-		"	move:		Relocate an existing mount point.\n" \
+       "	[a]sync		Writes are asynchronous / synchronous\n" \
+       "	[no]atime	Disable / enable updates to inode access times\n" \
+       "	[no]diratime	Disable / enable atime updates to directories\n" \
+       "	[no]dev		Allow use of special device files / disallow them\n" \
+       "	[no]exec	Allow use of executable files / disallow them\n" \
+       "	[no]suid	Allow set-user-id-root programs / disallow them\n" \
+       "	[r]shared	Convert [recursively] to a shared subtree\n" \
+       "	[r]slave	Convert [recursively] to a slave subtree\n" \
+       "	[r]private	Convert [recursively] to a private subtree\n" \
+       "	[un]bindable	Make mount point [un]able to be bind mounted\n" \
+       "	bind		Bind a directory to an additional location\n" \
+       "	move		Relocate an existing mount point\n" \
 	) \
-       "	remount:	Re-mount a mounted filesystem, changing its flags\n" \
-       "	ro/rw:		Mount for read-only / read-write\n" \
-       "\nThere are EVEN MORE flags that are specific to each filesystem\n" \
+       "	remount		Remount a mounted filesystem, changing its flags\n" \
+       "	ro/rw		Mount for read-only / read-write\n" \
+       "\n" \
+       "There are EVEN MORE flags that are specific to each filesystem\n" \
        "You'll have to see the written documentation for those filesystems"
 #define mount_example_usage \
        "$ mount\n" \
@@ -2121,8 +2182,8 @@ USE_FEATURE_MDEV_CONFIG( \
 #define mountpoint_trivial_usage \
        "[-q] <[-d] DIR | -x DEVICE>"
 #define mountpoint_full_usage \
-       "mountpoint checks if the directory is a mountpoint\n\n" \
-       "Options:\n"  \
+       "mountpoint checks if the directory is a mountpoint" \
+       "\n\nOptions:\n"  \
        "	-q	Be more quiet\n" \
        "	-d	Print major/minor device number of the filesystem\n" \
        "	-x	Print major/minor device number of the blockdevice"
@@ -2146,18 +2207,18 @@ USE_FEATURE_MDEV_CONFIG( \
        "[OPTION]... SOURCE DEST\n" \
        "or: mv [OPTION]... SOURCE... DIRECTORY"
 #define mv_full_usage \
-       "Rename SOURCE to DEST, or move SOURCE(s) to DIRECTORY.\n\n" \
-       "Options:\n" \
-       "	-f	don't prompt before overwriting\n" \
-       "	-i	interactive, prompt before overwrite"
+       "Rename SOURCE to DEST, or move SOURCE(s) to DIRECTORY" \
+       "\n\nOptions:\n" \
+       "	-f	Don't prompt before overwriting\n" \
+       "	-i	Interactive, prompt before overwrite"
 #define mv_example_usage \
        "$ mv /tmp/foo /bin/bar\n"
 
 #define nameif_trivial_usage \
        "[-s] [-c FILE] [{IFNAME MACADDR}]"
 #define nameif_full_usage \
-       "Nameif renames network interface while it in the down state.\n\n" \
-       "Options:\n" \
+       "Rename network interface while it in the down state" \
+       "\n\nOptions:\n" \
        "	-c FILE		Use configuration file (default is /etc/mactab)\n" \
        "	-s		Use syslog (LOCAL0 facility)\n" \
        "	IFNAME MACADDR	new_interface_name interface_mac_address"
@@ -2176,26 +2237,27 @@ USE_FEATURE_MDEV_CONFIG( \
 	USE_NC_EXTRA("[-iN] [-wN] ")USE_NC_SERVER("[-l] [-p PORT] ") \
        "["USE_NC_EXTRA("-f FILENAME|")"IPADDR PORTNUM]"USE_NC_EXTRA(" [-e COMMAND]")
 #define nc_full_usage \
-       "Netcat opens a pipe to IP:port" USE_NC_EXTRA(" or file") \
+       "Open a pipe to IP:port" USE_NC_EXTRA(" or file") \
 	NC_OPTIONS_STR \
 	USE_NC_EXTRA( \
-		"\n	-e	exec rest of command line after connect\n" \
-		"	-i SECS	delay interval for lines sent\n" \
-		"	-w SECS	timeout for connect\n" \
-		"	-f file	use file (ala /dev/ttyS0) instead of network" \
+       "\n	-e	Exec rest of command line after connect" \
+       "\n	-i SECS	Delay interval for lines sent" \
+       "\n	-w SECS	Timeout for connect" \
+       "\n	-f FILE	Use file (ala /dev/ttyS0) instead of network" \
 	) \
 	USE_NC_SERVER( \
-		"\n	-l	listen mode, for inbound connects\n" \
-		USE_NC_EXTRA("		(use -l twice with -e for persistent server)\n") \
-		"	-p PORT	local port number" \
+       "\n	-l	Listen mode, for inbound connects" \
+	USE_NC_EXTRA( \
+       "\n		(use -l twice with -e for persistent server)") \
+       "\n	-p PORT	Local port number" \
 	)
 
 #define nc_notes_usage "" \
 	USE_NC_EXTRA( \
-		"To use netcat as a terminal emulator on a serial port:\n\n" \
-		"$ stty 115200 -F /dev/ttyS0\n" \
-		"$ stty raw -echo -ctlecho && nc -f /dev/ttyS0\n" \
-	) ""
+       "To use netcat as a terminal emulator on a serial port:\n\n" \
+       "$ stty 115200 -F /dev/ttyS0\n" \
+       "$ stty raw -echo -ctlecho && nc -f /dev/ttyS0\n" \
+	)
 
 #define nc_example_usage \
        "$ nc foobar.somedomain.com 25\n" \
@@ -2210,60 +2272,60 @@ USE_FEATURE_MDEV_CONFIG( \
 #define netstat_trivial_usage \
        "[-laenrtuwx]"
 #define netstat_full_usage \
-       "Netstat displays Linux networking information.\n\n" \
-       "Options:\n" \
-       "	-l display listening server sockets\n" \
-       "	-a display all sockets (default: connected)\n" \
-       "	-e display other/more information\n" \
-       "	-n don't resolve names\n" \
-       "	-r display routing table\n" \
-       "	-t tcp sockets\n" \
-       "	-u udp sockets\n" \
-       "	-w raw sockets\n" \
-       "	-x unix sockets"
+       "Display networking information" \
+       "\n\nOptions:\n" \
+       "	-l	Display listening server sockets\n" \
+       "	-a	Display all sockets (default: connected)\n" \
+       "	-e	Display other/more information\n" \
+       "	-n	Don't resolve names\n" \
+       "	-r	Display routing table\n" \
+       "	-t	Tcp sockets\n" \
+       "	-u	Udp sockets\n" \
+       "	-w	Raw sockets\n" \
+       "	-x	Unix sockets"
 
 #define nice_trivial_usage \
        "[-n ADJUST] [COMMAND [ARG] ...]"
 #define nice_full_usage \
-       "Nice runs a program with modified scheduling priority.\n\n" \
-       "Options:\n" \
+       "Run a program with modified scheduling priority" \
+       "\n\nOptions:\n" \
        "	-n ADJUST	Adjust the scheduling priority by ADJUST"
 
 #define nmeter_trivial_usage \
        "format_string"
 #define nmeter_full_usage \
-       "Nmeter monitors your system in real time.\n\n" \
+       "Monitor system in real time\n\n" \
        "Format specifiers:\n" \
-       "%Nc or %[cN]	monitor CPU. N - bar size, default 10\n" \
+       "%Nc or %[cN]	Monitor CPU. N - bar size, default 10\n" \
        "		(displays: S:system U:user N:niced D:iowait I:irq i:softirq)\n" \
-       "%[niface]	monitor network interface 'iface'\n" \
-       "%m		monitor allocated memory\n" \
-       "%[mf]		monitor free memory\n" \
-       "%[mt]		monitor total memory\n" \
-       "%s		monitor allocated swap\n" \
-       "%f		monitor number of used file descriptors\n" \
-       "%Ni		monitor total/specific IRQ rate\n" \
-       "%x		monitor context switch rate\n" \
-       "%p		monitor forks\n" \
-       "%[pn]		monitor # of processes\n" \
-       "%b		monitor block io\n" \
-       "%Nt		show time (with N decimal points)\n" \
-       "%Nd		milliseconds between updates (default=1000)\n" \
-       "%r		print <cr> instead of <lf> at EOL"
+       "%[niface]	Monitor network interface 'iface'\n" \
+       "%m		Monitor allocated memory\n" \
+       "%[mf]		Monitor free memory\n" \
+       "%[mt]		Monitor total memory\n" \
+       "%s		Monitor allocated swap\n" \
+       "%f		Monitor number of used file descriptors\n" \
+       "%Ni		Monitor total/specific IRQ rate\n" \
+       "%x		Monitor context switch rate\n" \
+       "%p		Monitor forks\n" \
+       "%[pn]		Monitor # of processes\n" \
+       "%b		Monitor block io\n" \
+       "%Nt		Show time (with N decimal points)\n" \
+       "%Nd		Milliseconds between updates (default=1000)\n" \
+       "%r		Print <cr> instead of <lf> at EOL"
 #define nmeter_example_usage \
        "nmeter '%250d%t %20c int %i bio %b mem %m forks%p'"
 
 #define nohup_trivial_usage \
        "COMMAND [ARGS]"
 #define nohup_full_usage \
-       "run a command immune to hangups, with output to a non-tty"
+       "Run a command immune to hangups, with output to a non-tty"
 #define nohup_example_usage \
        "$ nohup make &"
 
 #define nslookup_trivial_usage \
        "[HOST] [SERVER]"
 #define nslookup_full_usage \
-       "Queries the nameserver for the IP address of the given HOST\n" \
+       "Query the nameserver for the IP address of the given HOST\n" \
        "optionally using a specified DNS server"
 #define nslookup_example_usage \
        "$ nslookup localhost\n" \
@@ -2290,10 +2352,10 @@ USE_FEATURE_MDEV_CONFIG( \
        "[OPTION] [name]"
 #define passwd_full_usage \
        "Change a user password. If no name is specified,\n" \
-       "changes the password for the current user.\n" \
-       "Options:\n" \
+       "changes the password for the current user." \
+       "\n\nOptions:\n" \
        "	-a	Define which algorithm shall be used for the password\n" \
-       "			(Choices: des, md5, sha1)\n" \
+       "		(choices: des, md5)\n" /* ", sha1)" */ \
        "	-d	Delete the password for the specified user account\n" \
        "	-l	Locks (disables) the specified user account\n" \
        "	-u	Unlocks (re-enables) the specified user account"
@@ -2301,8 +2363,8 @@ USE_FEATURE_MDEV_CONFIG( \
 #define patch_trivial_usage \
        "[-p<num>] [-i <diff>]"
 #define patch_full_usage \
-       "	-p <num>	Strip <num> leading components from file names\n" \
-       "	-i <diff>	Read <diff> instead of stdin"
+       "	-p NUM	Strip NUM leading components from file names\n" \
+       "	-i DIFF	Read DIFF instead of stdin"
 #define patch_example_usage \
        "$ patch -p1 < example.diff\n" \
        "$ patch -p0 -i example.diff"
@@ -2310,39 +2372,46 @@ USE_FEATURE_MDEV_CONFIG( \
 #if (ENABLE_FEATURE_PIDOF_SINGLE || ENABLE_FEATURE_PIDOF_OMIT)
 #define USAGE_PIDOF "Options:"
 #else
-#define USAGE_PIDOF "\n	This version of pidof accepts no options."
+#define USAGE_PIDOF "\nThis version of pidof accepts no options."
 #endif
 
 #define pidof_trivial_usage \
        "process-name [OPTION] [process-name ...]"
 
 #define pidof_full_usage \
-       "Lists the PIDs of all processes with names that match the\n" \
-       "names on the command line.\n" \
+       "List the PIDs of all processes with names that match the\n" \
+       "names on the command line\n" \
 	USAGE_PIDOF \
-	USE_FEATURE_PIDOF_SINGLE("\n	-s		display only a single PID") \
-	USE_FEATURE_PIDOF_OMIT("\n	-o		omit given pid.") \
-	USE_FEATURE_PIDOF_OMIT("\n			Use %PPID to omit the parent pid of pidof itself")
+	USE_FEATURE_PIDOF_SINGLE( \
+       "\n	-s	Display only a single PID") \
+	USE_FEATURE_PIDOF_OMIT( \
+       "\n	-o	Omit given pid") \
+	USE_FEATURE_PIDOF_OMIT( \
+       "\n		Use %PPID to omit the parent pid of pidof itself")
 #define pidof_example_usage \
        "$ pidof init\n" \
        "1\n" \
-	USE_FEATURE_PIDOF_OMIT("$ pidof /bin/sh\n20351 5973 5950\n") \
-	USE_FEATURE_PIDOF_OMIT("$ pidof /bin/sh -o %PPID\n20351 5950")
+	USE_FEATURE_PIDOF_OMIT( \
+       "$ pidof /bin/sh\n20351 5973 5950\n") \
+	USE_FEATURE_PIDOF_OMIT( \
+       "$ pidof /bin/sh -o %PPID\n20351 5950")
 
 #ifndef CONFIG_FEATURE_FANCY_PING
-#define ping_trivial_usage "host"
-#define ping_full_usage    "Send ICMP ECHO_REQUEST packets to network hosts"
+#define ping_trivial_usage \
+       "host"
+#define ping_full_usage \
+       "Send ICMP ECHO_REQUEST packets to network hosts"
 #else
 #define ping_trivial_usage \
        "[OPTION]... host"
 #define ping_full_usage \
-       "Send ICMP ECHO_REQUEST packets to network hosts.\n\n" \
-       "Options:\n" \
-       "	-c COUNT	Send only COUNT pings\n" \
-       "	-s SIZE		Send SIZE data bytes in packets (default=56)\n" \
-       "	-I IPADDR	Use IPADDR as source address\n" \
-       "	-q		Quiet mode, only displays output at start\n" \
-       "			and when finished"
+       "Send ICMP ECHO_REQUEST packets to network hosts" \
+       "\n\nOptions:\n" \
+       "	-c CNT	Send only CNT pings\n" \
+       "	-s SIZE	Send SIZE data bytes in packets (default=56)\n" \
+       "	-I IP	Use IP as source address\n" \
+       "	-q	Quiet mode, only displays output at start\n" \
+       "		and when finished"
 #endif
 #define ping_example_usage \
        "$ ping localhost\n" \
@@ -2354,18 +2423,20 @@ USE_FEATURE_MDEV_CONFIG( \
        "round-trip min/avg/max = 20.1/20.1/20.1 ms\n"
 
 #ifndef CONFIG_FEATURE_FANCY_PING6
-#define ping6_trivial_usage "host"
-#define ping6_full_usage    "Send ICMP ECHO_REQUEST packets to network hosts"
+#define ping6_trivial_usage \
+       "host"
+#define ping6_full_usage \
+       "Send ICMP ECHO_REQUEST packets to network hosts"
 #else
 #define ping6_trivial_usage \
        "[OPTION]... host"
 #define ping6_full_usage \
-       "Send ICMP ECHO_REQUEST packets to network hosts.\n\n" \
-       "Options:\n" \
-       "	-c COUNT	Send only COUNT pings\n" \
-       "	-s SIZE		Send SIZE data bytes in packets (default=56)\n" \
-       "	-q		Quiet mode, only displays output at start\n" \
-       "			and when finished"
+       "Send ICMP ECHO_REQUEST packets to network hosts" \
+       "\n\nOptions:\n" \
+       "	-c CNT	Send only CNT pings\n" \
+       "	-s SIZE	Send SIZE data bytes in packets (default=56)\n" \
+       "	-q	Quiet mode, only displays output at start\n" \
+       "		and when finished"
 #endif
 #define ping6_example_usage \
        "$ ping6 ip6-localhost\n" \
@@ -2380,28 +2451,28 @@ USE_FEATURE_MDEV_CONFIG( \
        "NEW_ROOT PUT_OLD"
 #define pivot_root_full_usage \
        "Move the current root file system to PUT_OLD and make NEW_ROOT\n" \
-       "the new root file system."
+       "the new root file system"
 
 #define poweroff_trivial_usage \
        "[-d<delay>] [-n<nosync>] [-f<force>]"
 #define poweroff_full_usage \
-       "Halt and shut off power.\n" \
-       "Options:\n" \
-       "	-d		delay interval for halting\n" \
-       "	-n		no call to sync()\n" \
-       "	-f		force power off (don't go through init)"
+       "Halt and shut off power" \
+       "\n\nOptions:\n" \
+       "	-d	Delay interval for halting\n" \
+       "	-n	No call to sync()\n" \
+       "	-f	Force power off (don't go through init)"
 
 #define printenv_trivial_usage \
        "[VARIABLES...]"
 #define printenv_full_usage \
-       "print all or part of environment\n\n" \
+       "Print all or part of environment.\n" \
        "If no environment VARIABLE specified, print them all."
 
 #define printf_trivial_usage \
        "FORMAT [ARGUMENT...]"
 #define printf_full_usage \
-       "Formats and prints ARGUMENT(s) according to FORMAT,\n" \
-       "Where FORMAT controls the output exactly as in C printf."
+       "Format and print ARGUMENT(s) according to FORMAT,\n" \
+       "where FORMAT controls the output exactly as in C printf"
 #define printf_example_usage \
        "$ printf \"Val=%d\\n\" 5\n" \
        "Val=5\n"
@@ -2412,14 +2483,14 @@ USE_FEATURE_MDEV_CONFIG( \
 #define ps_trivial_usage \
        ""
 #define ps_full_usage \
-       "Report process status\n" \
-       "\nOptions:" \
+       "Report process status" \
+       "\n\nOptions:" \
        "\n	-o col1,col2=header	Select columns for display" \
 
 #else /* !ENABLE_DESKTOP */
 
 #if !defined CONFIG_SELINUX && !ENABLE_FEATURE_PS_WIDE
-#define USAGE_PS "\n	This version of ps accepts no options."
+#define USAGE_PS "\nThis version of ps accepts no options"
 #else
 #define USAGE_PS "\nOptions:"
 #endif
@@ -2429,8 +2500,10 @@ USE_FEATURE_MDEV_CONFIG( \
 #define ps_full_usage \
        "Report process status\n" \
 	USAGE_PS \
-	USE_SELINUX("\n	-c	show SE Linux context") \
-	USE_FEATURE_PS_WIDE("\n	w	wide output")
+	USE_SELINUX( \
+       "\n	-c	Show SE Linux context") \
+	USE_FEATURE_PS_WIDE( \
+       "\n	w	Wide output")
 
 #endif /* ENABLE_DESKTOP */
 
@@ -2451,7 +2524,7 @@ USE_FEATURE_MDEV_CONFIG( \
 #define pwd_trivial_usage \
        ""
 #define pwd_full_usage \
-       "Print the full filename of the current working directory."
+       "Print the full filename of the current working directory"
 #define pwd_example_usage \
        "$ pwd\n" \
        "/root\n"
@@ -2459,104 +2532,105 @@ USE_FEATURE_MDEV_CONFIG( \
 #define raidautorun_trivial_usage \
        "DEVICE"
 #define raidautorun_full_usage \
-       "Tells the kernel to automatically search and start RAID arrays"
+       "Tell the kernel to automatically search and start RAID arrays"
 #define raidautorun_example_usage \
        "$ raidautorun /dev/md0"
 
 #define rdate_trivial_usage \
        "[-sp] HOST"
 #define rdate_full_usage \
-       "Get and possibly set the system date and time from a remote HOST.\n\n" \
-       "Options:\n" \
+       "Get and possibly set the system date and time from a remote HOST" \
+       "\n\nOptions:\n" \
        "	-s	Set the system date and time (default)\n" \
        "	-p	Print the date and time"
 
 #define readahead_trivial_usage \
        "[FILE]..."
 #define readahead_full_usage \
-       "Preloads FILE(s) in RAM cache so that subsequent reads for those" \
-       "files do not block on disk I/O."
+       "Preload FILE(s) in RAM cache so that subsequent reads for those" \
+       "files do not block on disk I/O"
 
 #define readlink_trivial_usage \
 	USE_FEATURE_READLINK_FOLLOW("[-f] ") "FILE"
 #define readlink_full_usage \
-       "Displays the value of a symbolic link." \
-	USE_FEATURE_READLINK_FOLLOW("\n\nOptions:\n" \
-       "	-f	canonicalize by following all symlinks")
+       "Display the value of a symbolic link" \
+	USE_FEATURE_READLINK_FOLLOW( \
+       "\n\nOptions:\n" \
+       "	-f	Canonicalize by following all symlinks")
 
 #define readprofile_trivial_usage \
        "[OPTIONS]..."
 #define readprofile_full_usage \
        "Options:\n" \
-       "	 -m <mapfile>  (default: /boot/System.map)\n" \
-       "	 -p <profile>  (default: /proc/profile)\n" \
-       "	 -M <mult>     set the profiling multiplier to <mult>\n" \
-       "	 -i            print only info about the sampling step\n" \
-       "	 -v            print verbose data\n" \
-       "	 -a            print all symbols, even if count is 0\n" \
-       "	 -b            print individual histogram-bin counts\n" \
-       "	 -s            print individual counters within functions\n" \
-       "	 -r            reset all the counters (root only)\n" \
-       "	 -n            disable byte order auto-detection"
+       "	-m <mapfile>	(Default: /boot/System.map)\n" \
+       "	-p <profile>	(Default: /proc/profile)\n" \
+       "	-M <mult>	Set the profiling multiplier to <mult>\n" \
+       "	-i		Print only info about the sampling step\n" \
+       "	-v		Print verbose data\n" \
+       "	-a		Print all symbols, even if count is 0\n" \
+       "	-b		Print individual histogram-bin counts\n" \
+       "	-s		Print individual counters within functions\n" \
+       "	-r		Reset all the counters (root only)\n" \
+       "	-n		Disable byte order auto-detection"
 
 #define realpath_trivial_usage \
        "pathname  ..."
 #define realpath_full_usage \
-       "Returns the absolute pathnames of given argument."
+       "Return the absolute pathnames of given argument"
 
 #define reboot_trivial_usage \
        "[-d<delay>] [-n<nosync>] [-f<force>]"
 #define reboot_full_usage \
-       "Reboot the system.\n" \
-       "Options:\n" \
-       "	-d		delay interval for rebooting\n" \
-       "	-n		no call to sync()\n" \
-       "	-f		force reboot (don't go through init)"
+       "Reboot the system" \
+       "\n\nOptions:\n" \
+       "	-d	Delay interval for rebooting\n" \
+       "	-n	No call to sync()\n" \
+       "	-f	Force reboot (don't go through init)"
 
 #define renice_trivial_usage \
        "{{-n INCREMENT} | PRIORITY} [[ -p | -g | -u ] ID ...]"
 #define renice_full_usage \
-       "Changes priority of running processes.\n\n" \
-       "Options:\n" \
-       "	-n	adjusts current nice value (smaller is faster)\n" \
-       "	-p	process id(s) (default)\n" \
-       "	-g	process group id(s)\n" \
-       "	-u	process user name(s) and/or id(s)"
+       "Change priority of running processes" \
+       "\n\nOptions:\n" \
+       "	-n	Adjusts current nice value (smaller is faster)\n" \
+       "	-p	Process id(s) (default)\n" \
+       "	-g	Process group id(s)\n" \
+       "	-u	Process user name(s) and/or id(s)"
 
 #define reset_trivial_usage \
        ""
 #define reset_full_usage \
-       "Resets the screen."
+       "Reset the screen"
 
 #define resize_trivial_usage \
        ""
 #define resize_full_usage \
-       "Resizes the screen."
+       "Resize the screen"
 
 #define rm_trivial_usage \
        "[OPTION]... FILE..."
 #define rm_full_usage \
        "Remove (unlink) the FILE(s).  You may use '--' to\n" \
-       "indicate that all following arguments are non-options.\n\n" \
-       "Options:\n" \
-       "	-i		always prompt before removing each destination\n" \
-       "	-f		remove existing destinations, never prompt\n" \
-       "	-r or -R	remove the contents of directories recursively"
+       "indicate that all following arguments are non-options." \
+       "\n\nOptions:\n" \
+       "	-i	Always prompt before removing each destination\n" \
+       "	-f	Remove existing destinations, never prompt\n" \
+       "	-r,-R	Remove the contents of directories recursively"
 #define rm_example_usage \
        "$ rm -rf /tmp/foo\n"
 
 #define rmdir_trivial_usage \
        "[OPTION]... DIRECTORY..."
 #define rmdir_full_usage \
-       "Remove the DIRECTORY(ies), if they are empty."
+       "Remove the DIRECTORY, if it is empty"
 #define rmdir_example_usage \
        "# rmdir /tmp/foo\n"
 
 #define rmmod_trivial_usage \
        "[OPTION]... [MODULE]..."
 #define rmmod_full_usage \
-       "Unloads the specified kernel modules from the kernel.\n\n" \
-       "Options:\n" \
+       "Unload the specified kernel modules from the kernel" \
+       "\n\nOptions:\n" \
        "	-a	Remove all unused modules (recursively)"
 #define rmmod_example_usage \
        "$ rmmod tulip\n"
@@ -2564,8 +2638,8 @@ USE_FEATURE_MDEV_CONFIG( \
 #define route_trivial_usage \
        "[{add|del|delete}]"
 #define route_full_usage \
-       "Edit the kernel's routing tables.\n\n" \
-       "Options:\n" \
+       "Edit the kernel's routing tables" \
+       "\n\nOptions:\n" \
        "	-n	Dont resolve names\n" \
        "	-e	Display other/more information\n" \
        "	-A inet" USE_FEATURE_IPV6("{6}") "	Select address family"
@@ -2573,26 +2647,26 @@ USE_FEATURE_MDEV_CONFIG( \
 #define rpm_trivial_usage \
        "-i -q[ildc]p package.rpm"
 #define rpm_full_usage \
-       "Manipulates RPM packages" \
+       "Manipulate RPM packages" \
        "\n\nOptions:" \
-       "\n	-i Install package" \
-       "\n	-q Query package" \
-       "\n	-p Query uninstalled package" \
-       "\n	-i Show information" \
-       "\n	-l List contents" \
-       "\n	-d List documents" \
-       "\n	-c List config files"
+       "\n	-i	Install package" \
+       "\n	-q	Query package" \
+       "\n	-p	Query uninstalled package" \
+       "\n	-i	Show information" \
+       "\n	-l	List contents" \
+       "\n	-d	List documents" \
+       "\n	-c	List config files"
 
 #define rpm2cpio_trivial_usage \
        "package.rpm"
 #define rpm2cpio_full_usage \
-       "Outputs a cpio archive of the rpm file."
+       "Output a cpio archive of the rpm file"
 
 #define run_parts_trivial_usage \
        "[-t] [-a ARG] [-u MASK] DIRECTORY"
 #define run_parts_full_usage \
-       "Run a bunch of scripts in a directory.\n\n" \
-       "Options:\n" \
+       "Run a bunch of scripts in a directory" \
+       "\n\nOptions:\n" \
        "	-t	Prints what would be run, but does not actually run anything\n" \
        "	-a ARG	Pass ARG as an argument for every program invoked\n" \
        "	-u MASK	Set the umask to MASK before executing every program"
@@ -2602,7 +2676,7 @@ USE_FEATURE_MDEV_CONFIG( \
 #define runlevel_full_usage \
        "Find the current and previous system runlevel.\n\n" \
        "If no utmp file exists or if no runlevel record can be found,\n" \
-       "runlevel prints \"unknown\""
+       "print \"unknown\""
 #define runlevel_example_usage \
        "$ runlevel /var/run/utmp\n" \
        "N 2"
@@ -2610,17 +2684,17 @@ USE_FEATURE_MDEV_CONFIG( \
 #define runsv_trivial_usage \
        "dir"
 #define runsv_full_usage \
-       "Start and monitor a service and optionally an appendant log service."
+       "Start and monitor a service and optionally an appendant log service"
 
 #define runsvdir_trivial_usage \
        "[-P] dir"
 #define runsvdir_full_usage \
-       "Start a runsv process for each subdirectory."
+       "Start a runsv process for each subdirectory"
 
 #define rx_trivial_usage \
        "FILE"
 #define rx_full_usage \
-       "Receive a file using the xmodem protocol."
+       "Receive a file using the xmodem protocol"
 #define rx_example_usage \
        "$ rx /tmp/foo\n"
 
@@ -2628,12 +2702,12 @@ USE_FEATURE_MDEV_CONFIG( \
        "[-efinr] pattern [files...]"
 #define sed_full_usage \
        "Options:\n" \
-       "	-e script	add the script to the commands to be executed\n" \
-       "	-f scriptfile	add script-file contents to the\n" \
+       "	-e script	Add the script to the commands to be executed\n" \
+       "	-f scriptfile	Add script-file contents to the\n" \
        "			commands to be executed\n" \
-       "	-i		edit files in-place\n" \
-       "	-n		suppress automatic printing of pattern space\n" \
-       "	-r		use extended regular expression syntax\n" \
+       "	-i		Edit files in-place\n" \
+       "	-n		Suppress automatic printing of pattern space\n" \
+       "	-r		Use extended regular expression syntax\n" \
        "\n" \
        "If no -e or -f is given, the first non-option argument is taken as the sed\n" \
        "script to interpret. All remaining arguments are names of input files; if no\n" \
@@ -2648,18 +2722,18 @@ USE_FEATURE_MDEV_CONFIG( \
        "[first [increment]] last"
 #define seq_full_usage \
        "Print numbers from FIRST to LAST, in steps of INCREMENT.\n" \
-       "FIRST, INCREMENT default to 1\n" \
-       "Arguments:\n" \
+       "FIRST, INCREMENT default to 1" \
+       "\n\nArguments:\n" \
        "	LAST\n" \
-       "	FIRST	LAST\n" \
-       "	FIRST	INCREMENT	LAST"
+       "	FIRST LAST\n" \
+       "	FIRST INCREMENT LAST"
 
 #define setconsole_trivial_usage \
        "[-r|--reset] [DEVICE]"
 #define setconsole_full_usage \
-       "Redirects system console output to DEVICE (default: /dev/tty).\n\n" \
-       "Options:\n" \
-       "	-r	Reset output to /dev/console."
+       "Redirect system console output to DEVICE (default: /dev/tty)" \
+       "\n\nOptions:\n" \
+       "	-r	Reset output to /dev/console"
 
 #define setkeycodes_trivial_usage \
        "SCANCODE KEYCODE ..."
@@ -2674,12 +2748,12 @@ USE_FEATURE_MDEV_CONFIG( \
 #define setlogcons_trivial_usage \
        "N"
 #define setlogcons_full_usage \
-       "Redirects the kernel output to console N (0 for current)."
+       "Redirect the kernel output to console N (0 for current)"
 
 #define setsid_trivial_usage \
        "program [arg ...]"
 #define setsid_full_usage \
-       "Runs any program in a new session by calling setsid() before\n" \
+       "Run any program in a new session by calling setsid() before\n" \
        "exec'ing the rest of its arguments.  See setsid(2) for details."
 
 #define lash_trivial_usage \
@@ -2699,60 +2773,64 @@ USE_FEATURE_MDEV_CONFIG( \
 #define last_trivial_usage \
        ""
 #define last_full_usage \
-       "Shows listing of the last users that logged into the system"
+       "Show listing of the last users that logged into the system"
 
 #define sha1sum_trivial_usage \
        "[OPTION] [FILEs...]" \
 	USE_FEATURE_MD5_SHA1_SUM_CHECK("\n   or: sha1sum [OPTION] -c [FILE]")
 #define sha1sum_full_usage \
-       "Print" USE_FEATURE_MD5_SHA1_SUM_CHECK(" or check") " SHA1 checksums.\n\n" \
-       "Options:\n" \
+       "Print" USE_FEATURE_MD5_SHA1_SUM_CHECK(" or check") " SHA1 checksums.\n" \
        "With no FILE, or when FILE is -, read standard input." \
-	USE_FEATURE_MD5_SHA1_SUM_CHECK("\n\n" \
-       "	-c	check SHA1 sums against given list\n" \
+       "\n\nOptions:\n" \
+	USE_FEATURE_MD5_SHA1_SUM_CHECK( \
+       "	-c	Check SHA1 sums against given list\n" \
        "\nThe following two options are useful only when verifying checksums:\n" \
-       "	-s	don't output anything, status code shows success\n" \
-       "	-w	warn about improperly formatted SHA1 checksum lines")
+       "	-s	Don't output anything, status code shows success\n" \
+       "	-w	Warn about improperly formatted SHA1 checksum lines")
 
 #define sleep_trivial_usage \
 	USE_FEATURE_FANCY_SLEEP("[") "N" USE_FEATURE_FANCY_SLEEP("]...")
 #define sleep_full_usage \
-	SKIP_FEATURE_FANCY_SLEEP("Pause for N seconds.") \
+	SKIP_FEATURE_FANCY_SLEEP("Pause for N seconds") \
 	USE_FEATURE_FANCY_SLEEP( \
        "Pause for a time equal to the total of the args given, where each arg can\n" \
-       "		have an optional suffix of (s)econds, (m)inutes, (h)ours, or (d)ays.")
+       "have an optional suffix of (s)econds, (m)inutes, (h)ours, or (d)ays")
 #define sleep_example_usage \
        "$ sleep 2\n" \
        "[2 second delay results]\n" \
-	USE_FEATURE_FANCY_SLEEP("$ sleep 1d 3h 22m 8s\n" \
+	USE_FEATURE_FANCY_SLEEP( \
+       "$ sleep 1d 3h 22m 8s\n" \
        "[98528 second delay results]\n")
 
 #define sort_trivial_usage \
-       "[-nru" USE_FEATURE_SORT_BIG("gMcszbdfimSTokt] [-o outfile] [-k start[.offset][opts][,end[.offset][opts]] [-t char") "] [FILE]..."
+       "[-nru" \
+	USE_FEATURE_SORT_BIG("gMcszbdfimSTokt] [-o outfile] [-k start[.offset][opts][,end[.offset][opts]] [-t char") \
+       "] [FILE]..."
 #define sort_full_usage \
-       "Sorts lines of text in the specified files\n\n" \
-       "Options:\n" \
+       "Sort lines of text in the specified files" \
+       "\n\nOptions:\n" \
 	USE_FEATURE_SORT_BIG( \
-		"	-b	ignore leading blanks\n" \
-		"	-c	check whether input is sorted\n" \
-		"	-d	dictionary order (blank or alphanumeric only)\n" \
-		"	-f	ignore case\n" \
-		"	-g	general numerical sort\n" \
-		"	-i	ignore unprintable characters\n" \
-		"	-k	specify sort key\n" \
-		"	-M	sort month\n" \
-	) \
-       "	-n	sort numbers\n" \
+       "	-b	Ignore leading blanks\n" \
+       "	-c	Check whether input is sorted\n" \
+       "	-d	Dictionary order (blank or alphanumeric only)\n" \
+       "	-f	Ignore case\n" \
+       "	-g	General numerical sort\n" \
+       "	-i	Ignore unprintable characters\n" \
+       "	-k	Specify sort key\n" \
+       "	-M	Sort month\n") \
+       "	-n	Sort numbers\n" \
 	USE_FEATURE_SORT_BIG( \
-		"	-o	output to file\n" \
-		"	-k	sort by key\n" \
-		"	-t	use key separator other than whitespace\n" \
-	) \
-       "	-r	reverse sort order\n" \
-	USE_FEATURE_SORT_BIG("	-s	stable (don't sort ties alphabetically)\n") \
-       "	-u	suppress duplicate lines" \
-	USE_FEATURE_SORT_BIG("\n	-z	input terminated by nulls, not newlines\n") \
-	USE_FEATURE_SORT_BIG("	-mST	ignored for GNU compatibility") \
+       "	-o	Output to file\n" \
+       "	-k	Sort by key\n" \
+       "	-t	Use key separator other than whitespace\n") \
+       "	-r	Reverse sort order\n" \
+	USE_FEATURE_SORT_BIG( \
+       "	-s	Stable (don't sort ties alphabetically)\n") \
+       "	-u	Suppress duplicate lines" \
+	USE_FEATURE_SORT_BIG( \
+       "\n	-z	Input terminated by nulls, not newlines\n") \
+	USE_FEATURE_SORT_BIG( \
+       "	-mST	Ignored for GNU compatibility") \
        ""
 #define sort_example_usage \
        "$ echo -e \"e\\nf\\nb\\nd\\nc\\na\" | sort\n" \
@@ -2773,168 +2851,169 @@ USE_FEATURE_MDEV_CONFIG( \
 #define start_stop_daemon_trivial_usage \
        "[OPTIONS] [--start|--stop] ... [-- arguments...]"
 #define start_stop_daemon_full_usage \
-       "Program to start and stop services." \
+       "Start and stop services" \
        "\n\nOptions:" \
-       "\n	-S|--start			start" \
-       "\n	-K|--stop			stop" \
-       "\n	-a|--startas <pathname>		starts process specified by pathname" \
-       "\n	-b|--background			force process into background" \
-       "\n	-u|--user <username>|<uid>	stop this user's processes" \
-       "\n	-x|--exec <executable>		program to either start or check" \
-       "\n	-m|--make-pidfile	create the -p file and enter pid in it" \
-       "\n	-n|--name <process-name>	stop processes with this name" \
-       "\n	-p|--pidfile <pid-file>		save or load pid using a pid-file" \
-       "\n	-q|--quiet			be quiet" \
-USE_FEATURE_START_STOP_DAEMON_FANCY( \
-       "\n	-o|--oknodo			exit status 0 if nothing done" \
-       "\n	-v|--verbose			be verbose" \
-       "\n	-N|--nicelevel <N>		add N to process's nice level" \
-) \
-       "\n	-s|--signal <signal>		signal to send (default TERM)" \
-       "\n	-U|--chuid <username>|<uid>	start process with this name"
+       "\n	-S|--start			Start" \
+       "\n	-K|--stop			Stop" \
+       "\n	-a|--startas <pathname>		Starts process specified by pathname" \
+       "\n	-b|--background			Force process into background" \
+       "\n	-u|--user <username>|<uid>	Stop this user's processes" \
+       "\n	-x|--exec <executable>		Program to either start or check" \
+       "\n	-m|--make-pidfile		Create the -p file and enter pid in it" \
+       "\n	-n|--name <process-name>	Stop processes with this name" \
+       "\n	-p|--pidfile <pid-file>		Save or load pid using a pid-file" \
+       "\n	-q|--quiet			Be quiet" \
+	USE_FEATURE_START_STOP_DAEMON_FANCY( \
+       "\n	-o|--oknodo			Exit status 0 if nothing done" \
+       "\n	-v|--verbose			Be verbose" \
+       "\n	-N|--nicelevel <N>		Add N to process's nice level" \
+	) \
+       "\n	-s|--signal <signal>		Signal to send (default TERM)" \
+       "\n	-U|--chuid <username>|<uid>	Start process with this name"
 
 #define stat_trivial_usage \
        "[OPTION] FILE..."
 #define stat_full_usage \
-       "display file (default) or filesystem status.\n\n" \
-       "Options:\n" \
-	USE_FEATURE_STAT_FORMAT("	-c fmt	use the specified format\n") \
-       "	-f	display filesystem status\n" \
-       "	-L,-l	dereference links\n" \
-       "	-t	display info in terse form\n" \
+       "Display file (default) or filesystem status" \
+       "\n\nOptions:\n" \
 	USE_FEATURE_STAT_FORMAT( \
-       "\nValid format sequences for files:\n" \
-       "  %a   Access rights in octal\n" \
-       "  %A   Access rights in human readable form\n" \
-       "  %b   Number of blocks allocated (see %B)\n" \
-       "  %B   The size in bytes of each block reported by %b\n" \
-       "  %d   Device number in decimal\n" \
-       "  %D   Device number in hex\n" \
-       "  %f   Raw mode in hex\n" \
-       "  %F   File type\n" \
-       "  %g   Group ID of owner\n" \
-       "  %G   Group name of owner\n" \
-       "  %h   Number of hard links\n" \
-       "  %i   Inode number\n" \
-       "  %n   File name\n" \
-       "  %N   Quoted file name with dereference if symbolic link\n" \
-       "  %o   I/O block size\n" \
-       "  %s   Total size, in bytes\n" \
-       "  %t   Major device type in hex\n" \
-       "  %T   Minor device type in hex\n" \
-       "  %u   User ID of owner\n" \
-       "  %U   User name of owner\n" \
-       "  %x   Time of last access\n" \
-       "  %X   Time of last access as seconds since Epoch\n" \
-       "  %y   Time of last modification\n" \
-       "  %Y   Time of last modification as seconds since Epoch\n" \
-       "  %z   Time of last change\n" \
-       "  %Z   Time of last change as seconds since Epoch\n" \
+       "	-c fmt	Use the specified format\n") \
+       "	-f	Display filesystem status\n" \
+       "	-L,-l	Dereference links\n" \
+       "	-t	Display info in terse form" \
+	USE_FEATURE_STAT_FORMAT( \
+       "\n\nValid format sequences for files:\n" \
+       " %a	Access rights in octal\n" \
+       " %A	Access rights in human readable form\n" \
+       " %b	Number of blocks allocated (see %B)\n" \
+       " %B	The size in bytes of each block reported by %b\n" \
+       " %d	Device number in decimal\n" \
+       " %D	Device number in hex\n" \
+       " %f	Raw mode in hex\n" \
+       " %F	File type\n" \
+       " %g	Group ID of owner\n" \
+       " %G	Group name of owner\n" \
+       " %h	Number of hard links\n" \
+       " %i	Inode number\n" \
+       " %n	File name\n" \
+       " %N	Quoted file name with dereference if symbolic link\n" \
+       " %o	I/O block size\n" \
+       " %s	Total size, in bytes\n" \
+       " %t	Major device type in hex\n" \
+       " %T	Minor device type in hex\n" \
+       " %u	User ID of owner\n" \
+       " %U	User name of owner\n" \
+       " %x	Time of last access\n" \
+       " %X	Time of last access as seconds since Epoch\n" \
+       " %y	Time of last modification\n" \
+       " %Y	Time of last modification as seconds since Epoch\n" \
+       " %z	Time of last change\n" \
+       " %Z	Time of last change as seconds since Epoch\n" \
        "\nValid format sequences for file systems:\n" \
-       "  %a   Free blocks available to non-superuser\n" \
-       "  %b   Total data blocks in file system\n" \
-       "  %c   Total file nodes in file system\n" \
-       "  %d   Free file nodes in file system\n" \
-       "  %f   Free blocks in file system\n" \
-       "  %i   File System ID in hex\n" \
-       "  %l   Maximum length of filenames\n" \
-       "  %n   File name\n" \
-       "  %s   Block size (for faster transfers)\n" \
-       "  %S   Fundamental block size (for block counts)\n" \
-       "  %t   Type in hex\n" \
-       "  %T   Type in human readable form\n" \
+       " %a	Free blocks available to non-superuser\n" \
+       " %b	Total data blocks in file system\n" \
+       " %c	Total file nodes in file system\n" \
+       " %d	Free file nodes in file system\n" \
+       " %f	Free blocks in file system\n" \
+       " %i	File System ID in hex\n" \
+       " %l	Maximum length of filenames\n" \
+       " %n	File name\n" \
+       " %s	Block size (for faster transfers)\n" \
+       " %S	Fundamental block size (for block counts)\n" \
+       " %t	Type in hex\n" \
+       " %T	Type in human readable form" \
 	)
 
 #define strings_trivial_usage \
        "[-afo] [-n length] [file ... ]"
 #define strings_full_usage \
-       "Display printable strings in a binary file." \
+       "Display printable strings in a binary file" \
        "\n\nOptions:" \
-       "\n	-a	Scan the whole files (this is the default)." \
-       "\n	-f	Precede each string with the name of the file where it was found." \
+       "\n	-a	Scan the whole files (this is the default)" \
+       "\n	-f	Precede each string with the name of the file where it was found" \
        "\n	-n N	Specifies that at least N characters forms a sequence (default 4)" \
        "\n	-o	Each string is preceded by its decimal offset in the file"
 
 #define stty_trivial_usage \
        "[-a|g] [-F DEVICE] [SETTING]..."
 #define stty_full_usage \
-       "Without arguments, prints baud rate, line discipline," \
-       "\nand deviations from stty sane." \
+       "Without arguments, prints baud rate, line discipline,\n" \
+       "and deviations from stty sane" \
        "\n\nOptions:" \
-       "\n	-F DEVICE	open device instead of stdin" \
-       "\n	-a		print all current settings in human-readable form" \
-       "\n	-g		print in stty-readable form" \
-       "\n	[SETTING]	see manpage"
+       "\n	-F DEVICE	Open device instead of stdin" \
+       "\n	-a		Print all current settings in human-readable form" \
+       "\n	-g		Print in stty-readable form" \
+       "\n	[SETTING]	See manpage"
 
 #define su_trivial_usage \
        "[OPTION]... [-] [username]"
 #define su_full_usage \
-       "Change user id or become root.\n" \
-       "Options:\n" \
-       "	-p, -m	Preserve environment" \
+       "Change user id or become root" \
+       "\n\nOptions:" \
+       "\n	-p, -m	Preserve environment" \
        "\n	-c	Command to pass to 'sh -c'" \
        "\n	-s	Shell to use instead of default shell"
 
 #define sulogin_trivial_usage \
        "[OPTION]... [tty-device]"
 #define sulogin_full_usage \
-       "Single user login\n" \
-       "Options:\n" \
-       "	-t	Timeout"
+       "Single user login" \
+       "\n\nOptions:" \
+       "\n	-t	Timeout"
 
 #define sum_trivial_usage \
        "[rs] [files...]"
 #define sum_full_usage \
-       "checksum and count the blocks in a file\n\n" \
-       "Options:\n" \
-       "	-r	use BSD sum algorithm (1K blocks)\n" \
-       "	-s	use System V sum algorithm (512byte blocks)"
+       "Checksum and count the blocks in a file" \
+       "\n\nOptions:\n" \
+       "	-r	Use BSD sum algorithm (1K blocks)\n" \
+       "	-s	Use System V sum algorithm (512byte blocks)"
 
 #define sv_trivial_usage \
        "[-v] [-w sec] command service..."
 #define sv_full_usage \
        "Report the current status and control the state of services " \
-       "monitored by the runsv supervisor."
+       "monitored by the runsv supervisor"
 
 #define svlogd_trivial_usage \
        "[-ttv] [-r c] [-R abc] [-l len] [-b buflen] dir..."
 #define svlogd_full_usage \
        "Continuously read log data from standard input, optionally " \
        "filter log messages, and write the data to one or more automatically " \
-       "rotated logs."
+       "rotated logs"
 
 #define swapoff_trivial_usage \
        "[-a] [DEVICE]"
 #define swapoff_full_usage \
-       "Stop swapping virtual memory pages on DEVICE.\n\n" \
-       "Options:\n" \
+       "Stop swapping virtual memory pages on DEVICE" \
+       "\n\nOptions:\n" \
        "	-a	Stop swapping on all swap devices"
 
 #define swapon_trivial_usage \
        "[-a] [DEVICE]"
 #define swapon_full_usage \
-       "Start swapping virtual memory pages on DEVICE.\n\n" \
-       "Options:\n" \
+       "Start swapping virtual memory pages on DEVICE" \
+       "\n\nOptions:\n" \
        "	-a	Start swapping on all swap devices"
 
 #define switch_root_trivial_usage \
        "[-c /dev/console] NEW_ROOT NEW_INIT [ARGUMENTS_TO_INIT]"
 #define switch_root_full_usage \
        "Use from PID 1 under initramfs to free initramfs, chroot to NEW_ROOT,\n" \
-       "and exec NEW_INIT.\n\n" \
-       "Options:\n" \
+       "and exec NEW_INIT" \
+       "\n\nOptions:\n" \
        "	-c	Redirect console to device on new root"
 
 #define sync_trivial_usage \
        ""
 #define sync_full_usage \
-       "Write all buffered filesystem blocks to disk."
+       "Write all buffered filesystem blocks to disk"
 
 #define sysctl_trivial_usage \
        "[OPTIONS]... [VALUE]..."
 #define sysctl_full_usage \
-       "configure kernel parameters at runtime\n\n" \
-       "Options:\n" \
+       "Configure kernel parameters at runtime" \
+       "\n\nOptions:\n" \
        "	-n	Use this option to disable printing of the key name when printing values\n" \
        "	-w	Use this option when you want to change a sysctl setting\n" \
        "	-p	Load in sysctl settings from the file specified or /etc/sysctl.conf if none given\n" \
@@ -2950,22 +3029,23 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
 #define syslogd_trivial_usage \
        "[OPTION]..."
 #define syslogd_full_usage \
-       "Linux system and kernel logging utility.\n" \
-       "Note that this version of syslogd ignores /etc/syslog.conf.\n\n" \
-       "Options:\n" \
-       "	-m MIN		Minutes between MARK lines (default=20, 0=off)\n" \
-       "	-n		Run as a foreground process\n" \
-       "	-O FILE		Use an alternate log file (default=/var/log/messages)\n" \
-       "	-l n	Sets the local log level of messages to n\n" \
-       "	-S		Make logging output smaller" \
+       "System logging utility.\n" \
+       "Note that this version of syslogd ignores /etc/syslog.conf." \
+       "\n\nOptions:" \
+       "\n	-m MIN		Minutes between MARK lines (default=20, 0=off)" \
+       "\n	-n		Run as foreground process" \
+       "\n	-O FILE		Use an alternate log file (default=/var/log/messages)" \
+       "\n	-l n		Sets the local log level of messages to n" \
+       "\n	-S		Make logging output smaller" \
 	USE_FEATURE_ROTATE_LOGFILE( \
-       "\n	-s SIZE		Max size (KB) before rotate (default=200KB, 0=off)\n" \
-       "	-b NUM		Number of rotated logs to keep (default=1, max=99, 0=purge)") \
+       "\n	-s SIZE		Max size (KB) before rotate (default=200KB, 0=off)" \
+       "\n	-b NUM		Number of rotated logs to keep (default=1, max=99, 0=purge)") \
 	USE_FEATURE_REMOTE_LOG( \
-       "\n	-R HOST[:PORT]	Log to IP or hostname on PORT (default PORT=514/UDP)\n" \
-       "	-L		Log locally and via network logging (default is network only)") \
+       "\n	-R HOST[:PORT]	Log to IP or hostname on PORT (default PORT=514/UDP)" \
+       "\n	-L		Log locally and via network logging (default is network only)") \
 	USE_FEATURE_IPC_SYSLOG( \
-       "\n	-C [size(KiB)]	Log to a circular buffer (read the buffer using logread)")
+       "\n	-C[size(KiB)]	Log to a shared mem buffer (read the buffer using logread)")
+	/* NB: -Csize shouldn't have space (because size is optional) */
 #define syslogd_example_usage \
        "$ syslogd -R masterlog:514\n" \
        "$ syslogd -R 192.168.1.1:601\n"
@@ -2975,14 +3055,17 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
 #define tail_full_usage \
        "Print last 10 lines of each FILE to standard output.\n" \
        "With more than one FILE, precede each with a header giving the\n" \
-       "file name. With no FILE, or when FILE is -, read standard input.\n\n" \
-       "Options:\n" \
-	USE_FEATURE_FANCY_TAIL("	-c N[kbm]	output the last N bytes\n") \
-       "	-n N[kbm]	print last N lines instead of last 10\n" \
-       "	-f		output data as the file grows" \
-	USE_FEATURE_FANCY_TAIL( "\n	-q		never output headers giving file names\n" \
-       "	-s SEC		wait SEC seconds between reads with -f\n" \
-       "	-v		always output headers giving file names\n\n" \
+       "file name. With no FILE, or when FILE is -, read standard input." \
+       "\n\nOptions:" \
+	USE_FEATURE_FANCY_TAIL( \
+       "\n	-c N[kbm]	Output the last N bytes") \
+       "\n	-n N[kbm]	Print last N lines instead of last 10" \
+       "\n	-f		Output data as the file grows" \
+	USE_FEATURE_FANCY_TAIL( \
+       "\n	-q		Never output headers giving file names" \
+       "\n	-s SEC		Wait SEC seconds between reads with -f" \
+       "\n	-v		Always output headers giving file names" \
+       "\n\n" \
        "If the first character of N (bytes or lines) is a '+', output begins with\n" \
        "the Nth item from the start of each file, otherwise, print the last N items\n" \
        "in the file. N bytes may be suffixed by k (x1024), b (x512), or m (1024^2)." )
@@ -2997,53 +3080,57 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
 	USE_FEATURE_TAR_FROM("[-X FILE] ") \
        "[-f TARFILE] [-C DIR] [FILE(s)] ..."
 #define tar_full_usage \
-       "Create, extract, or list files from a tar file.\n\n" \
-       "Options:\n" \
-	USE_FEATURE_TAR_CREATE("	c		create\n") \
-       "	x		extract\n" \
-       "	t		list\n" \
+       "Create, extract, or list files from a tar file" \
+       "\n\nOptions:\n" \
+	USE_FEATURE_TAR_CREATE( \
+       "	c	Create\n") \
+       "	x	Extract\n" \
+       "	t	List\n" \
        "\nArchive format selection:\n" \
-	USE_FEATURE_TAR_GZIP("	z		Filter the archive through gzip\n") \
-	USE_FEATURE_TAR_BZIP2("	j		Filter the archive through bzip2\n") \
-	USE_FEATURE_TAR_LZMA("	a		Filter the archive through lzma\n") \
-	USE_FEATURE_TAR_COMPRESS("	Z		Filter the archive through compress\n") \
+	USE_FEATURE_TAR_GZIP( \
+       "	z	Filter the archive through gzip\n") \
+	USE_FEATURE_TAR_BZIP2( \
+       "	j	Filter the archive through bzip2\n") \
+	USE_FEATURE_TAR_LZMA( \
+       "	a	Filter the archive through lzma\n") \
+	USE_FEATURE_TAR_COMPRESS( \
+       "	Z	Filter the archive through compress\n") \
        "\nFile selection:\n" \
-       "	f		name of TARFILE or \"-\" for stdin\n" \
-       "	O		extract to stdout\n" \
+       "	f	Name of TARFILE or \"-\" for stdin\n" \
+       "	O	Extract to stdout\n" \
 	USE_FEATURE_TAR_FROM( \
-       "	exclude		file to exclude\n" \
-       "	X		file with names to exclude\n" \
-	) \
-       "	C		change to directory DIR before operation\n" \
-       "	v		verbosely list files processed"
+       "	exclude	File to exclude\n" \
+       "	X	File with names to exclude\n") \
+       "	C	Change to directory DIR before operation\n" \
+       "	v	Verbosely list files processed"
 #define tar_example_usage \
        "$ zcat /tmp/tarball.tar.gz | tar -xf -\n" \
        "$ tar -cf /tmp/tarball.tar /usr/local\n"
 
 #define taskset_trivial_usage \
-	        "[OPTIONS] [mask] [pid | command [arg]...]"
+       "[OPTIONS] [mask] [pid | command [arg]...]"
 #define taskset_full_usage \
-	        "Set or get CPU affinity.\n\n" \
-        "Options:\n" \
-        "	-p	operate on an existing PID"
+       "Set or get CPU affinity" \
+       "\n\nOptions:\n" \
+       "	-p	Operate on an existing PID"
 #define taskset_example_usage \
-	        "$ taskset 0x7 ./dgemm_test&\n" \
-        "$ taskset -p 0x1 $!\n" \
-        "pid 4790's current affinity mask: 7\n" \
-        "pid 4790's new affinity mask: 1\n" \
-        "$ taskset 0x7 /bin/sh -c './taskset -p 0x1 $$'\n" \
-        "pid 6671's current affinity mask: 1\n" \
-        "pid 6671's new affinity mask: 1\n" \
-        "$ taskset -p 1\n"
-        "pid 1's current affinity mask: 3\n"
+       "$ taskset 0x7 ./dgemm_test&\n" \
+       "$ taskset -p 0x1 $!\n" \
+       "pid 4790's current affinity mask: 7\n" \
+       "pid 4790's new affinity mask: 1\n" \
+       "$ taskset 0x7 /bin/sh -c './taskset -p 0x1 $$'\n" \
+       "pid 6671's current affinity mask: 1\n" \
+       "pid 6671's new affinity mask: 1\n" \
+       "$ taskset -p 1\n" \
+       "pid 1's current affinity mask: 3\n"
 
 #define tee_trivial_usage \
        "[OPTION]... [FILE]..."
 #define tee_full_usage \
-       "Copy standard input to each FILE, and also to standard output.\n\n" \
-       "Options:\n" \
-       "	-a	append to the given FILEs, do not overwrite\n" \
-       "	-i	ignore interrupt signals (SIGINT)"
+       "Copy standard input to each FILE, and also to standard output" \
+       "\n\nOptions:\n" \
+       "	-a	Append to the given FILEs, do not overwrite\n" \
+       "	-i	Ignore interrupt signals (SIGINT)"
 #define tee_example_usage \
        "$ echo \"Hello\" | tee /tmp/foo\n" \
        "$ cat /tmp/foo\n" \
@@ -3053,49 +3140,41 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
 #define telnet_trivial_usage \
        "[-a] [-l USER] HOST [PORT]"
 #define telnet_full_usage \
-       "Telnet is used to establish interactive communication with another\n" \
-       "computer over a network using the TELNET protocol.\n\n" \
-       "Options:\n" \
+       "Connect to remote telnet server" \
+       "\n\nOptions:\n" \
        "	-a	Attempt an automatic login with the USER variable\n" \
        "	-l USER	Attempt an automatic login with the USER argument\n" \
        "	HOST	The official name, alias or the IP address of the\n" \
-       "		remote host.\n" \
+       "		remote host\n" \
        "	PORT	The remote port number to connect to.  If it is not\n" \
        "		specified, the default telnet (23) port is used."
 #else
 #define telnet_trivial_usage \
        "HOST [PORT]"
 #define telnet_full_usage \
-       "Telnet is used to establish interactive communication with another\n" \
-       "computer over a network using the TELNET protocol."
+       "Connect to remote telnet server"
 #endif
 
-#ifdef CONFIG_FEATURE_TELNETD_STANDALONE
 #define telnetd_trivial_usage \
        "[OPTION]"
 #define telnetd_full_usage \
-       "Telnetd listens for incoming TELNET connections on PORT.\n" \
-       "Options:\n" \
-       "	-p PORT		listen for connections on PORT (default 23)\n" \
-       "	-l LOGIN	exec LOGIN on connect\n" \
-       "	-f issue_file	Display issue_file instead of /etc/issue\n" \
-       "	-F		Foreground mode\n" \
-       "	-i		Inetd mode"
-#else
-#define telnetd_trivial_usage \
-       "[OPTION]"
-#define telnetd_full_usage \
-       "Telnetd uses incoming TELNET connections via inetd.\n" \
-       "Options:\n" \
-       "	-l LOGIN	exec LOGIN on connect\n" \
-       "	-f issue_file	Display issue_file instead of /etc/issue"
-#endif
+       "Handle incoming telnet connections" \
+	SKIP_FEATURE_TELNETD_STANDALONE(" via inetd") \
+       "\n\nOptions:" \
+       "\n	-l LOGIN	Exec LOGIN on connect" \
+       "\n	-f issue_file	Display issue_file instead of /etc/issue" \
+	USE_FEATURE_TELNETD_STANDALONE( \
+       "\n	-p PORT		Port to listen to" \
+       "\n	-b ADDR		Address to bind to" \
+       "\n	-F		Stay in foreground" \
+       "\n	-i		Run as inetd subservice" \
+	)
 
 #define test_trivial_usage \
        "EXPRESSION\n  or   [ EXPRESSION ]"
 #define test_full_usage \
-       "Checks file types and compares values returning an exit\n" \
-       "code determined by the value of EXPRESSION."
+       "Check file types and compares values returning an exit code\n" \
+       "determined by the value of EXPRESSION"
 #define test_example_usage \
        "$ test 1 -eq 2\n" \
        "$ echo $?\n" \
@@ -3113,10 +3192,10 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
 #define tftp_trivial_usage \
        "[OPTION]... HOST [PORT]"
 #define tftp_full_usage \
-       "Transfers a file from/to a tftp server using \"octet\" mode.\n\n" \
-       "Options:\n" \
-       "	-l FILE	Local FILE\n" \
-       "	-r FILE	Remote FILE" \
+       "Transfer a file from/to tftp server using \"octet\" mode" \
+       "\n\nOptions:" \
+       "\n	-l FILE	Local FILE" \
+       "\n	-r FILE	Remote FILE" \
 	USE_FEATURE_TFTP_GET( \
        "\n	-g	Get file" \
 	) \
@@ -3129,23 +3208,23 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
 #define time_trivial_usage \
        "[OPTION]... COMMAND [ARGS...]"
 #define time_full_usage \
-       "Runs the program COMMAND with arguments ARGS.  When COMMAND finishes,\n" \
-       "COMMAND's resource usage information is displayed\n\n" \
-       "Options:\n" \
-       "	-v	Displays verbose resource usage information"
+       "Run the program COMMAND with arguments ARGS.  When COMMAND finishes,\n" \
+       "COMMAND's resource usage information is displayed." \
+       "\n\nOptions:\n" \
+       "	-v	Display verbose resource usage information"
 
 #define top_trivial_usage \
        "[-b] [-n count] [-d seconds]"
 #define top_full_usage \
-       "top provides a view of process activity in real time.\n" \
-       "It reads the status of all processes from /proc each <seconds>\n" \
-       "and shows the status for however many processes will fit on the screen."
+       "Provide a view of process activity in real time.\n" \
+       "Read the status of all processes from /proc each <seconds>\n" \
+       "and show the status for however many processes will fit on the screen."
 
 #define touch_trivial_usage \
        "[-c] FILE [FILE ...]"
 #define touch_full_usage \
-       "Update the last-modified date on the given FILE[s].\n\n" \
-       "Options:\n" \
+       "Update the last-modified date on the given FILE[s]" \
+       "\n\nOptions:\n" \
        "	-c	Do not create any files"
 #define touch_example_usage \
        "$ ls -l /tmp/foo\n" \
@@ -3158,11 +3237,11 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
        "[-cds] STRING1 [STRING2]"
 #define tr_full_usage \
        "Translate, squeeze, and/or delete characters from\n" \
-       "standard input, writing to standard output.\n\n" \
-       "Options:\n" \
-       "	-c	take complement of STRING1\n" \
-       "	-d	delete input characters coded STRING1\n" \
-       "	-s	squeeze multiple output characters of STRING2 into one character"
+       "standard input, writing to standard output" \
+       "\n\nOptions:\n" \
+       "	-c	Take complement of STRING1\n" \
+       "	-d	Delete input characters coded STRING1\n" \
+       "	-s	Squeeze multiple output characters of STRING2 into one character"
 #define tr_example_usage \
        "$ echo \"gdkkn vnqkc\" | tr [a-y] [b-z]\n" \
        "hello world\n"
@@ -3172,8 +3251,8 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
        "	[-s src_addr] [-t tos] [-w wait] [-g gateway] [-i iface]\n" \
        "	[-z pausemsecs] host [data size]"
 #define traceroute_full_usage \
-       "trace the route ip packets follow going to \"host\"\n" \
-       "Options:\n" \
+       "Trace the route ip packets follow going to \"host\"" \
+       "\n\nOptions:\n" \
        "	-F	Set the don't fragment bit\n" \
        "	-I	Use ICMP ECHO instead of UDP datagrams\n" \
        "	-l	Display the ttl value of the returned packet\n" \
@@ -3197,7 +3276,7 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
 #define true_trivial_usage \
        ""
 #define true_full_usage \
-       "Return an exit code of TRUE (0)."
+       "Return an exit code of TRUE (0)"
 #define true_example_usage \
        "$ true\n" \
        "$ echo $?\n" \
@@ -3206,9 +3285,9 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
 #define tty_trivial_usage \
        ""
 #define tty_full_usage \
-       "Print the file name of the terminal connected to standard input.\n\n" \
-       "Options:\n" \
-       "	-s	print nothing, only return an exit status"
+       "Print the file name of the terminal connected to standard input" \
+       "\n\nOptions:\n" \
+       "	-s	Print nothing, only return an exit status"
 #define tty_example_usage \
        "$ tty\n" \
        "/dev/tty2\n"
@@ -3221,7 +3300,7 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
        "[-L volume-label] [-M last-mounted-dir] [-O [^]feature[,...]] " \
        "[-T last-check-time] [-U UUID] device"
 #define tune2fs_full_usage \
-       "Adjust filesystem options on ext[23] filesystems."
+       "Adjust filesystem options on ext[23] filesystems"
 
 #define udhcpc_trivial_usage \
        "[-Cfbnqtv] [-c CID] [-V VCLS] [-H HOSTNAME] [-i INTERFACE]\n[-p pidfile] [-r IP] [-s script]"
@@ -3251,28 +3330,31 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
 #define umount_trivial_usage \
        "[flags] FILESYSTEM|DIRECTORY"
 #define umount_full_usage \
-       "Unmount file systems\n" \
-       "\nFlags:\n" "	-a	Unmount all file systems" \
-	USE_FEATURE_MTAB_SUPPORT(" in /etc/mtab\n	-n	Don't erase /etc/mtab entries") \
+       "Unmount file systems" \
+       "\n\nOptions:\n" \
+       "\n	-a	Unmount all file systems" USE_FEATURE_MTAB_SUPPORT(" in /etc/mtab") \
+	USE_FEATURE_MTAB_SUPPORT( \
+       "\n	-n	Don't erase /etc/mtab entries") \
        "\n	-r	Try to remount devices as read-only if mount is busy" \
        "\n	-l	Lazy umount (detach filesystem)" \
        "\n	-f	Force umount (i.e., unreachable NFS server)" \
-	USE_FEATURE_MOUNT_LOOP("\n	-D	Do not free loop device (if a loop device has been used)")
+	USE_FEATURE_MOUNT_LOOP( \
+       "\n	-D	Do not free loop device (if a loop device has been used)")
 #define umount_example_usage \
        "$ umount /dev/hdc1\n"
 
 #define uname_trivial_usage \
        "[OPTION]..."
 #define uname_full_usage \
-       "Print certain system information.  With no OPTION, same as -s.\n\n" \
-       "Options:\n" \
-       "	-a	print all information\n" \
-       "	-m	the machine (hardware) type\n" \
-       "	-n	print the machine's network node hostname\n" \
-       "	-r	print the operating system release\n" \
-       "	-s	print the operating system name\n" \
-       "	-p	print the host processor type\n" \
-       "	-v	print the operating system version"
+       "Print certain system information.  With no OPTION, same as -s." \
+       "\n\nOptions:\n" \
+       "	-a	Print all information\n" \
+       "	-m	The machine (hardware) type\n" \
+       "	-n	Print the machine's network node hostname\n" \
+       "	-r	Print the operating system release\n" \
+       "	-s	Print the operating system name\n" \
+       "	-p	Print the host processor type\n" \
+       "	-v	Print the operating system version"
 #define uname_example_usage \
        "$ uname -a\n" \
        "Linux debian 2.4.23 #2 Tue Dec 23 17:09:10 MST 2003 i686 GNU/Linux\n"
@@ -3280,22 +3362,22 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
 #define uncompress_trivial_usage \
        "[-c] [-f] [ name ... ]"
 #define uncompress_full_usage \
-       "Uncompress .Z file[s]\n" \
-       "Options:\n" \
-       "	-c	extract to stdout\n" \
-       "	-f	force overwrite an existing file"
+       "Uncompress .Z file[s]" \
+       "\n\nOptions:\n" \
+       "	-c	Extract to stdout\n" \
+       "	-f	Force overwrite an existing file"
 
 #define uniq_trivial_usage \
        "[-fscdu]... [INPUT [OUTPUT]]"
 #define uniq_full_usage \
        "Discard all but one of successive identical lines from INPUT\n" \
-       "(or standard input), writing to OUTPUT (or standard output).\n\n" \
-       "Options:\n" \
-       "	-c	prefix lines by the number of occurrences\n" \
-       "	-d	only print duplicate lines\n" \
-       "	-u	only print unique lines\n" \
-       "	-f N	skip the first N fields\n" \
-       "	-s N	skip the first N chars (after any skipped fields)"
+       "(or standard input), writing to OUTPUT (or standard output)" \
+       "\n\nOptions:\n" \
+       "	-c	Prefix lines by the number of occurrences\n" \
+       "	-d	Only print duplicate lines\n" \
+       "	-u	Only print unique lines\n" \
+       "	-f N	Skip the first N fields\n" \
+       "	-s N	Skip the first N chars (after any skipped fields)"
 #define uniq_example_usage \
        "$ echo -e \"a\\na\\nb\\nc\\nc\\na\" | sort | uniq\n" \
        "a\n" \
@@ -3305,30 +3387,30 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
 #define unix2dos_trivial_usage \
        "[option] [FILE]"
 #define unix2dos_full_usage \
-       "Converts FILE from unix format to dos format.  When no option\n" \
+       "Convert FILE from unix format to dos format.  When no option\n" \
        "is given, the input is converted to the opposite output format.\n" \
-       "When no file is given, uses stdin for input and stdout for output.\n" \
-       "Options:\n" \
-       "	-u	output will be in UNIX format\n" \
-       "	-d	output will be in DOS format"
+       "When no file is given, use stdin for input and stdout for output." \
+       "\n\nOptions:\n" \
+       "	-u	Output will be in UNIX format\n" \
+       "	-d	Output will be in DOS format"
 
 #define unzip_trivial_usage \
        "[-opts[modifiers]] file[.zip] [list] [-x xlist] [-d exdir]"
 #define unzip_full_usage \
-       "Extracts files from ZIP archives.\n\n" \
-       "Options:\n" \
-       "	-l	list archive contents (short form)\n" \
-       "	-n	never overwrite existing files (default)\n" \
-       "	-o	overwrite files without prompting\n" \
-       "	-p	send output to stdout\n" \
-       "	-q	be quiet\n" \
-       "	-x	exclude these files\n" \
-       "	-d	extract files into this directory"
+       "Extract files from ZIP archives" \
+       "\n\nOptions:\n" \
+       "	-l	List archive contents (short form)\n" \
+       "	-n	Never overwrite existing files (default)\n" \
+       "	-o	Overwrite files without prompting\n" \
+       "	-p	Send output to stdout\n" \
+       "	-q	Be quiet\n" \
+       "	-x	Exclude these files\n" \
+       "	-d	Extract files into this directory"
 
 #define uptime_trivial_usage \
        ""
 #define uptime_full_usage \
-       "Display the time since the last boot."
+       "Display the time since the last boot"
 #define uptime_example_usage \
        "$ uptime\n" \
        "  1:55pm  up  2:30, load average: 0.09, 0.04, 0.00\n"
@@ -3336,7 +3418,7 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
 #define usleep_trivial_usage \
        "N"
 #define usleep_full_usage \
-       "Pause for N microseconds."
+       "Pause for N microseconds"
 #define usleep_example_usage \
        "$ usleep 1000000\n" \
        "[pauses for 1 second]\n"
@@ -3344,9 +3426,9 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
 #define uudecode_trivial_usage \
        "[FILE]..."
 #define uudecode_full_usage \
-       "Uudecode a file that is uuencoded.\n\n" \
-       "Options:\n" \
-       "	-o FILE	direct output to FILE"
+       "Uudecode a file" \
+       "\n\nOptions:\n" \
+       "	-o FILE	Direct output to FILE"
 #define uudecode_example_usage \
        "$ uudecode -o busybox busybox.uu\n" \
        "$ ls -l busybox\n" \
@@ -3355,9 +3437,9 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
 #define uuencode_trivial_usage \
        "[OPTION] [INFILE] REMOTEFILE"
 #define uuencode_full_usage \
-       "Uuencode a file.\n\n" \
-       "Options:\n" \
-       "	-m	use base64 encoding per RFC1521"
+       "Uuencode a file" \
+       "\n\nOptions:\n" \
+       "	-m	Use base64 encoding per RFC1521"
 #define uuencode_example_usage \
        "$ uuencode busybox busybox\n" \
        "begin 755 busybox\n" \
@@ -3368,8 +3450,8 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
 #define vconfig_trivial_usage \
        "COMMAND [OPTIONS] ..."
 #define vconfig_full_usage \
-       "vconfig lets you create and remove virtual ethernet devices.\n\n" \
-       "Options:\n" \
+       "Create and remove virtual ethernet devices" \
+       "\n\nOptions:\n" \
        "	add             [interface-name] [vlan_id]\n" \
        "	rem             [vlan-name]\n" \
        "	set_flag        [interface-name] [flag-num]       [0 | 1]\n" \
@@ -3380,23 +3462,23 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
 #define vi_trivial_usage \
        "[OPTION] [FILE]..."
 #define vi_full_usage \
-       "edit FILE.\n\n" \
-       "Options:\n" \
-       "	-R	Read-only- do not write to the file"
+       "Edit FILE" \
+       "\n\nOptions:\n" \
+       "	-R	Read-only - do not write to the file"
 
 #define vlock_trivial_usage \
        "[OPTIONS]"
 #define vlock_full_usage \
-       "Lock a virtual terminal.  A password is required to unlock\n" \
-       "Options:\n" \
+       "Lock a virtual terminal.  A password is required to unlock." \
+       "\n\nOptions:\n" \
        "	-a	Lock all VTs"
 
 #define watch_trivial_usage \
        "[-n <seconds>] [-t] COMMAND..."
 #define watch_full_usage \
-       "Executes a program periodically\n\n" \
-       "Options:\n" \
-       "	-n	Loop period in seconds - default is 2\n"
+       "Execute a program periodically" \
+       "\n\nOptions:\n" \
+       "	-n	Loop period in seconds - default is 2\n" \
        "	-t	Don't print header"
 #define watch_example_usage \
        "$ watch date\n" \
@@ -3407,8 +3489,8 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
 #define watchdog_trivial_usage \
        "[-t <seconds>] [-F] DEV"
 #define watchdog_full_usage \
-       "Periodically write to watchdog device DEV.\n" \
-       "Options:\n" \
+       "Periodically write to watchdog device DEV" \
+       "\n\nOptions:\n" \
        "	-t	Timer period in seconds - default is 30\n" \
        "	-F	Stay in the foreground and don't fork"
 
@@ -3416,12 +3498,12 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
        "[OPTION]... [FILE]..."
 #define wc_full_usage \
        "Print line, word, and byte counts for each FILE, and a total line if\n" \
-       "more than one FILE is specified.  With no FILE, read standard input.\n\n" \
-       "Options:\n" \
-       "	-c	print the byte counts\n" \
-       "	-l	print the newline counts\n" \
-       "	-L	print the length of the longest line\n" \
-       "	-w	print the word counts"
+       "more than one FILE is specified.  With no FILE, read standard input." \
+       "\n\nOptions:\n" \
+       "	-c	Print the byte counts\n" \
+       "	-l	Print the newline counts\n" \
+       "	-L	Print the length of the longest line\n" \
+       "	-w	Print the word counts"
 #define wc_example_usage \
        "$ wc /etc/passwd\n" \
        "     31      46    1365 /etc/passwd\n"
@@ -3431,19 +3513,19 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
        "		[--header 'header: value'] [-Y|--proxy on/off] [-P DIR]\n" \
        "		[-U|--user-agent agent] url"
 #define wget_full_usage \
-       "wget retrieves files via HTTP or FTP\n\n" \
-       "Options:\n" \
-       "	-c	continue retrieval of aborted transfers\n" \
-       "	-q	quiet mode - do not print\n" \
+       "Retrieve files via HTTP or FTP" \
+       "\n\nOptions:\n" \
+       "	-c	Continue retrieval of aborted transfers\n" \
+       "	-q	Quiet mode - do not print\n" \
        "	-P	Set directory prefix to DIR\n" \
-       "	-O	save to filename ('-' for stdout)\n" \
-       "	-U	adjust 'User-Agent' field\n" \
-       "	-Y	use proxy ('on' or 'off')"
+       "	-O	Save to filename ('-' for stdout)\n" \
+       "	-U	Adjust 'User-Agent' field\n" \
+       "	-Y	Use proxy ('on' or 'off')"
 
 #define which_trivial_usage \
        "[COMMAND ...]"
 #define which_full_usage \
-       "Locates a COMMAND."
+       "Locate a COMMAND"
 #define which_example_usage \
        "$ which login\n" \
        "/bin/login\n"
@@ -3451,22 +3533,25 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
 #define who_trivial_usage \
        " "
 #define who_full_usage \
-       "Prints the current user names and related information"
+       "Print the current user names and related information"
 
 #define whoami_trivial_usage \
        ""
 #define whoami_full_usage \
-       "Prints the user name associated with the current effective user id."
+       "Print the user name associated with the current effective user id"
 
 #define xargs_trivial_usage \
        "[OPTIONS] [COMMAND] [ARGS...]"
 #define xargs_full_usage \
-       "Executes COMMAND on every item given by standard input.\n\n" \
-       "Options:\n" \
-	USE_FEATURE_XARGS_SUPPORT_CONFIRMATION("	-p	Prompt the user about whether to run each command\n") \
+       "Execute COMMAND on every item given by standard input" \
+       "\n\nOptions:\n" \
+	USE_FEATURE_XARGS_SUPPORT_CONFIRMATION( \
+       "	-p	Prompt the user about whether to run each command\n") \
        "	-r	Do not run command for empty read lines\n" \
-	USE_FEATURE_XARGS_SUPPORT_TERMOPT("	-x	Exit if the size is exceeded\n") \
-	USE_FEATURE_XARGS_SUPPORT_ZERO_TERM("	-0	Input filenames are terminated by a null character\n") \
+	USE_FEATURE_XARGS_SUPPORT_TERMOPT( \
+       "	-x	Exit if the size is exceeded\n") \
+	USE_FEATURE_XARGS_SUPPORT_ZERO_TERM( \
+       "	-0	Input filenames are terminated by a null character\n") \
        "	-t	Print the command line on stderr before executing it"
 #define xargs_example_usage \
        "$ ls | xargs gzip\n" \
@@ -3475,18 +3560,18 @@ USE_FEATURE_START_STOP_DAEMON_FANCY( \
 #define yes_trivial_usage \
        "[OPTION]... [STRING]..."
 #define yes_full_usage \
-       "Repeatedly outputs a line with all specified STRING(s), or 'y'."
+       "Repeatedly output a line with all specified STRING(s), or 'y'"
 
 #define zcat_trivial_usage \
        "FILE"
 #define zcat_full_usage \
-       "Uncompress to stdout."
+       "Uncompress to stdout"
 
 #define zcip_trivial_usage \
        "[OPTIONS] ifname script"
 #define zcip_full_usage \
-       "zcip manages a ZeroConf IPv4 link-local address.\n" \
-       "Options:\n" \
+       "Manage a ZeroConf IPv4 link-local address" \
+       "\n\nOptions:\n" \
        "	-f              foreground mode\n" \
        "	-q              quit after address (no daemon)\n" \
        "	-r 169.254.x.x  request this address first\n" \

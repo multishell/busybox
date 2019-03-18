@@ -1381,15 +1381,7 @@ static const struct builtincmd builtincmd[] = {
 	{ BUILTIN_REGULAR       "wait", waitcmd },
 };
 
-#define NUMBUILTINS  (sizeof (builtincmd) / sizeof (struct builtincmd) )
-
-static const char *safe_applets[] = { 
-	"[", "test", "echo", "cat",
-	"ln", "cp", "touch", "mkdir", "rm",
-	"cut", "hexdump", "awk", "sort",
-	"find", "xargs", "ls", "dd",
-	"chown", "chmod"
-};
+#define NUMBUILTINS (sizeof(builtincmd) / sizeof(builtincmd[0]))
 
 
 struct cmdentry {
@@ -2042,7 +2034,30 @@ static void exitshell(void) ATTRIBUTE_NORETURN;
 
 static int is_safe_applet(char *name)
 {
-	int n = sizeof(safe_applets) / sizeof(char *);
+	/* It isn't a bug to have non-existent applet here... */
+	/* ...just a waste of space... */
+	static const char safe_applets[][8] = {
+		"["
+		USE_AWK    (, "awk"    )
+		USE_CAT    (, "cat"    )
+		USE_CHMOD  (, "chmod"  )
+		USE_CHOWN  (, "chown"  )
+		USE_CP     (, "cp"     )
+		USE_CUT    (, "cut"    )
+		USE_DD     (, "dd"     )
+		USE_ECHO   (, "echo"   )
+		USE_FIND   (, "find"   )
+		USE_HEXDUMP(, "hexdump")
+		USE_LN     (, "ln"     )
+		USE_LS     (, "ls"     )
+		USE_MKDIR  (, "mkdir"  )
+		USE_RM     (, "rm"     )
+		USE_SORT   (, "sort"   )
+		USE_TEST   (, "test"   )
+		USE_TOUCH  (, "touch"  )
+		USE_XARGS  (, "xargs"  )
+	};
+	int n = sizeof(safe_applets) / sizeof(safe_applets[0]);
 	int i;
 	for (i = 0; i < n; i++)
 		if (strcmp(safe_applets[i], name) == 0)
@@ -2315,7 +2330,7 @@ cdcmd(int argc, char **argv)
 	dest = *argptr;
 	if (!dest)
 		dest = bltinlookup(homestr);
-	else if (dest[0] == '-' && dest[1] == '\0') {
+	else if (LONE_DASH(dest)) {
 		dest = bltinlookup("OLDPWD");
 		flags |= CD_PRINT;
 	}
@@ -2402,7 +2417,7 @@ static const char * updatepwd(const char *dir)
 	}
 	p = strtok(cdcomppath, "/");
 	while (p) {
-		switch(*p) {
+		switch (*p) {
 		case '.':
 			if (p[1] == '.' && p[2] == '\0') {
 				while (new > lim) {
@@ -3702,12 +3717,11 @@ shellexec(char **argv, const char *path, int idx)
 
 	clearredir(1);
 	envp = environment();
-	if (strchr(argv[0], '/') != NULL
-		|| is_safe_applet(argv[0])
+	if (strchr(argv[0], '/') || is_safe_applet(argv[0])
 #ifdef CONFIG_FEATURE_SH_STANDALONE_SHELL
-		|| find_applet_by_name(argv[0])
+	 || find_applet_by_name(argv[0])
 #endif
-						) {
+	) {
 		tryexec(argv[0], argv, envp);
 		e = errno;
 	} else {
@@ -3749,8 +3763,11 @@ tryexec(char *cmd, char **argv, char **envp)
 	struct BB_applet *a;
 	int argc = 0;
 	char **c;
-	
-	if(strchr(cmd, '/') == NULL && is_safe_applet(cmd) && (a = find_applet_by_name(cmd)) != NULL) {
+
+	if (strchr(cmd, '/') == NULL
+	 && (a = find_applet_by_name(cmd)) != NULL
+	 && is_safe_applet(cmd)
+	) {
 		c = argv;
 		while (*c != NULL) {
 			c++; argc++;
@@ -3759,7 +3776,7 @@ tryexec(char *cmd, char **argv, char **envp)
 		exit(a->main(argc, argv));
 	}
 #ifdef CONFIG_FEATURE_SH_STANDALONE_SHELL
-	if(find_applet_by_name(cmd) != NULL) {
+	if (find_applet_by_name(cmd) != NULL) {
 		/* re-exec ourselves with the new arguments */
 		execve(CONFIG_BUSYBOX_EXEC_PATH,argv,envp);
 		/* If they called chroot or otherwise made the binary no longer
@@ -4802,7 +4819,7 @@ exptilde(char *startp, char *p, int flag)
 	name = p + 1;
 
 	while ((c = *++p) != '\0') {
-		switch(c) {
+		switch (c) {
 		case CTLESC:
 			return startp;
 		case CTLQUOTEMARK:
@@ -5851,7 +5868,7 @@ _rmescapes(char *str, int flag)
 		}
 		q = r;
 		if (len > 0) {
-			q = mempcpy(q, str, len);
+			q = memcpy(q, str, len) + len;
 		}
 	}
 	inquotes = (flag & RMESCAPE_QUOTED) ^ RMESCAPE_QUOTED;
@@ -8172,7 +8189,7 @@ exitcmd(int argc, char **argv)
 static int
 echocmd(int argc, char **argv)
 {
-	return bb_echo(argc, argv);
+	return bb_echo(argv);
 }
 #endif
 
@@ -8433,7 +8450,7 @@ char *
 stnputs(const char *s, size_t n, char *p)
 {
 	p = makestrspace(n, p);
-	p = mempcpy(p, s, n);
+	p = memcpy(p, s, n) + n;
 	return p;
 }
 
@@ -8517,7 +8534,7 @@ single_quote(const char *s) {
 		q = p = makestrspace(len + 3, p);
 
 		*q++ = '\'';
-		q = mempcpy(q, s, len);
+		q = memcpy(q, s, len) + len;
 		*q++ = '\'';
 		s += len;
 
@@ -8530,7 +8547,7 @@ single_quote(const char *s) {
 		q = p = makestrspace(len + 3, p);
 
 		*q++ = '"';
-		q = mempcpy(q, s, len);
+		q = memcpy(q, s, len) + len;
 		*q++ = '"';
 		s += len;
 
@@ -8754,11 +8771,12 @@ copynodelist(struct nodelist *lp)
 
 
 static char *
-nodesavestr(char   *s)
+nodesavestr(char *s)
 {
-	char   *rtn = funcstring;
+	char *rtn = funcstring;
 
-	funcstring = stpcpy(funcstring, s) + 1;
+	strcpy(funcstring, s);
+	funcstring += strlen(s) + 1;
 	return rtn;
 }
 
@@ -8889,7 +8907,7 @@ options(int cmdline)
 		argptr++;
 		if ((c = *p++) == '-') {
 			val = 1;
-			if (p[0] == '\0' || (p[0] == '-' && p[1] == '\0')) {
+			if (p[0] == '\0' || LONE_DASH(p)) {
 				if (!cmdline) {
 					/* "-" means turn off -x and -v */
 					if (p[0] == '\0')
@@ -9114,7 +9132,7 @@ atend:
 			goto out;
 		}
 		optnext++;
-		if (p[0] == '-' && p[1] == '\0')        /* check for "--" */
+		if (LONE_DASH(p))        /* check for "--" */
 			goto atend;
 	}
 
@@ -9232,7 +9250,7 @@ nextopt(const char *optstring)
 		if (p == NULL || *p != '-' || *++p == '\0')
 			return '\0';
 		argptr++;
-		if (p[0] == '-' && p[1] == '\0')        /* check for "--" */
+		if (LONE_DASH(p))        /* check for "--" */
 			return '\0';
 	}
 	c = *p++;
@@ -9825,7 +9843,7 @@ void fixredir(union node *n, const char *text, int err)
 
 	if (is_digit(text[0]) && text[1] == '\0')
 		n->ndup.dupfd = digit_val(text[0]);
-	else if (text[0] == '-' && text[1] == '\0')
+	else if (LONE_DASH(text))
 		n->ndup.dupfd = -1;
 	else {
 
@@ -10210,7 +10228,7 @@ readtoken1(int firstc, int syntax, char *eofmark, int striptabs)
 		CHECKEND();     /* set c to PEOF if at end of here document */
 		for (;;) {      /* until end of line or end of word */
 			CHECKSTRSPACE(4, out);  /* permit 4 calls to USTPUTC */
-			switch(SIT(c, syntax)) {
+			switch (SIT(c, syntax)) {
 			case CNL:       /* '\n' */
 				if (syntax == BASESYNTAX)
 					goto endword;   /* exit outer loop */
@@ -11281,7 +11299,7 @@ shtree(union node *n, int ind, char *pfx, FILE *fp)
 		return;
 
 	indent(ind, pfx, fp);
-	switch(n->type) {
+	switch (n->type) {
 	case NSEMI:
 		s = "; ";
 		goto binop;
@@ -11650,7 +11668,7 @@ trapcmd(int argc, char **argv)
 			sh_error("%s: bad trap", *ap);
 		INTOFF;
 		if (action) {
-			if (action[0] == '-' && action[1] == '\0')
+			if (LONE_DASH(action))
 				action = NULL;
 			else
 				action = savestr(action);
@@ -11892,17 +11910,11 @@ static int helpcmd(int argc, char **argv)
 		}
 	}
 #ifdef CONFIG_FEATURE_SH_STANDALONE_SHELL
-	{
-		extern const struct BB_applet applets[];
-		extern const size_t NUM_APPLETS;
-
-		for (i = 0; i < NUM_APPLETS; i++) {
-
-			col += out1fmt("%c%s", ((col == 0) ? '\t' : ' '), applets[i].name);
-			if (col > 60) {
-				out1fmt("\n");
-				col = 0;
-			}
+	for (i = 0; i < NUM_APPLETS; i++) {
+		col += out1fmt("%c%s", ((col == 0) ? '\t' : ' '), applets[i].name);
+		if (col > 60) {
+			out1fmt("\n");
+			col = 0;
 		}
 	}
 #endif
@@ -11926,7 +11938,11 @@ exitshell(void)
 	TRACE(("pid %d, exitshell(%d)\n", getpid(), status));
 	if (setjmp(loc.loc)) {
 		if (exception == EXEXIT)
-			_exit(exitstatus);
+/* dash bug: it just does _exit(exitstatus) here
+ * but we have to do setjobctl(0) first!
+ * (bug is still not fixed in dash-0.5.3 - if you run dash
+ * under Midnight Commander, on exit MC is backgrounded) */
+			status = exitstatus;
 		goto out;
 	}
 	handler = &loc;
@@ -11935,16 +11951,16 @@ exitshell(void)
 		evalstring(p, 0);
 	}
 	flushall();
-	setjobctl(0);
 #ifdef CONFIG_FEATURE_COMMAND_SAVEHISTORY
 	if (iflag && rootshell) {
 		const char *hp = lookupvar("HISTFILE");
 
-		if(hp != NULL )
-			save_history ( hp );
+		if (hp != NULL)
+			save_history(hp);
 	}
 #endif
 out:
+	setjobctl(0);
 	_exit(status);
 	/* NOTREACHED */
 }
@@ -12013,10 +12029,11 @@ setvar(const char *name, const char *val, int flags)
 		vallen = strlen(val);
 	}
 	INTOFF;
-	p = mempcpy(nameeq = ckmalloc(namelen + vallen + 2), name, namelen);
+	nameeq = ckmalloc(namelen + vallen + 2);
+	p = memcpy(nameeq, name, namelen) + namelen;
 	if (val) {
 		*p++ = '=';
-		p = mempcpy(p, val, vallen);
+		p = memcpy(p, val, vallen) + vallen;
 	}
 	*p = '\0';
 	setvareq(nameeq, flags | VNOSAVE);
@@ -12257,7 +12274,7 @@ static void mklocal(char *name)
 
 	INTOFF;
 	lvp = ckmalloc(sizeof (struct localvar));
-	if (name[0] == '-' && name[1] == '\0') {
+	if (LONE_DASH(name)) {
 		char *p;
 		p = ckmalloc(sizeof(optlist));
 		lvp->text = memcpy(p, optlist, sizeof(optlist));
@@ -12567,10 +12584,8 @@ letcmd(int argc, char **argv)
 
 #undef rflag
 
-#ifdef __GLIBC__
-#if __GLIBC__ == 2 && __GLIBC_MINOR__ < 1
+#if defined(__GLIBC__) && __GLIBC__ == 2 && __GLIBC_MINOR__ < 1
 typedef enum __rlimit_resource rlim_t;
-#endif
 #endif
 
 
@@ -12619,7 +12634,7 @@ readcmd(int argc, char **argv)
 	while ((i = nextopt("p:r")) != '\0')
 #endif
 	{
-		switch(i) {
+		switch (i) {
 		case 'p':
 			prompt = optionarg;
 			break;
@@ -12693,7 +12708,7 @@ readcmd(int argc, char **argv)
 		FD_ZERO (&set);
 		FD_SET (0, &set);
 
-		i = select (FD_SETSIZE, &set, NULL, NULL, &ts);
+		i = select(FD_SETSIZE, &set, NULL, NULL, &ts);
 		if (!i) {
 #if defined(CONFIG_ASH_READ_NCHARS)
 			if (nch_flag)
@@ -13585,7 +13600,7 @@ static arith_t arith (const char *expr, int *perrcode)
 		 * a number, since it evaluates to one). Think about it.
 		 * It makes sense. */
 		if (lasttok != TOK_NUM) {
-			switch(op) {
+			switch (op) {
 				case TOK_ADD:
 				    op = TOK_UPLUS;
 				    break;

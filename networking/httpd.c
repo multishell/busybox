@@ -91,9 +91,12 @@
  *
 */
 
-
 #include "busybox.h"
 
+/* amount of buffering in a pipe */
+#ifndef PIPE_BUF
+# define PIPE_BUF 4096
+#endif
 
 static const char httpdVersion[] = "busybox httpd/1.35 6-Oct-2004";
 static const char default_path_httpd_conf[] = "/etc";
@@ -108,10 +111,7 @@ static const char home[] = "./";
 //       is checked rigorously
 
 //#define DEBUG 1
-
-#ifndef DEBUG
-# define DEBUG 0
-#endif
+#define DEBUG 0
 
 #define MAX_MEMORY_BUFF 8192    /* IO buffer */
 
@@ -142,7 +142,7 @@ typedef struct {
 
 	unsigned int rmt_ip;
 #if ENABLE_FEATURE_HTTPD_CGI || DEBUG
-	char rmt_ip_str[16];     /* for set env REMOTE_ADDR */
+	char *rmt_ip_str;        /* for set env REMOTE_ADDR */
 #endif
 	unsigned port;           /* server initial port and for
 						      set env REMOTE_PORT */
@@ -338,7 +338,9 @@ static int scan_ip_mask(const char *ipm, unsigned int *ip, unsigned int *mask)
 	return 0;
 }
 
-#if ENABLE_FEATURE_HTTPD_BASIC_AUTH || ENABLE_FEATURE_HTTPD_CONFIG_WITH_MIME_TYPES
+#if ENABLE_FEATURE_HTTPD_BASIC_AUTH \
+ || ENABLE_FEATURE_HTTPD_CONFIG_WITH_MIME_TYPES \
+ || ENABLE_FEATURE_HTTPD_CONFIG_WITH_SCRIPT_INTERPR
 static void free_config_lines(Htaccess **pprev)
 {
 	Htaccess *prev = *pprev;
@@ -387,8 +389,11 @@ static void parse_conf(const char *path, int flag)
 {
 	FILE *f;
 #if ENABLE_FEATURE_HTTPD_BASIC_AUTH
-	Htaccess *prev, *cur;
-#elif ENABLE_FEATURE_HTTPD_CONFIG_WITH_MIME_TYPES
+	Htaccess *prev;
+#endif
+#if ENABLE_FEATURE_HTTPD_BASIC_AUTH \
+ || ENABLE_FEATURE_HTTPD_CONFIG_WITH_MIME_TYPES \
+ || ENABLE_FEATURE_HTTPD_CONFIG_WITH_SCRIPT_INTERPR
 	Htaccess *cur;
 #endif
 
@@ -410,7 +415,9 @@ static void parse_conf(const char *path, int flag)
 
 	config->flg_deny_all = 0;
 
-#if ENABLE_FEATURE_HTTPD_BASIC_AUTH || ENABLE_FEATURE_HTTPD_CONFIG_WITH_MIME_TYPES || ENABLE_FEATURE_HTTPD_CONFIG_WITH_SCRIPT_INTERPR
+#if ENABLE_FEATURE_HTTPD_BASIC_AUTH \
+ || ENABLE_FEATURE_HTTPD_CONFIG_WITH_MIME_TYPES \
+ || ENABLE_FEATURE_HTTPD_CONFIG_WITH_SCRIPT_INTERPR
 	/* retain previous auth and mime config only for subdir parse */
 	if (flag != SUBDIR_PARSE) {
 #if ENABLE_FEATURE_HTTPD_BASIC_AUTH
@@ -492,7 +499,7 @@ static void parse_conf(const char *path, int flag)
 			 continue;
 		if (*p0 == 'A' || *p0 == 'D') {
 			/* storing current config IP line */
-			pip = calloc(1, sizeof(Htaccess_IP));
+			pip = xzalloc(sizeof(Htaccess_IP));
 			if (pip) {
 				if (scan_ip_mask(c, &(pip->ip), &(pip->mask))) {
 					/* syntax IP{/mask} error detected, protect all */
@@ -559,9 +566,11 @@ static void parse_conf(const char *path, int flag)
 		}
 #endif
 
-#if ENABLE_FEATURE_HTTPD_BASIC_AUTH || ENABLE_FEATURE_HTTPD_CONFIG_WITH_MIME_TYPES || ENABLE_FEATURE_HTTPD_CONFIG_WITH_SCRIPT_INTERPR
+#if ENABLE_FEATURE_HTTPD_BASIC_AUTH \
+ || ENABLE_FEATURE_HTTPD_CONFIG_WITH_MIME_TYPES \
+ || ENABLE_FEATURE_HTTPD_CONFIG_WITH_SCRIPT_INTERPR
 		/* storing current config line */
-		cur = calloc(1, sizeof(Htaccess) + strlen(p0));
+		cur = xzalloc(sizeof(Htaccess) + strlen(p0));
 		if (cur) {
 			cf = strcpy(cur->before_colon, p0);
 			c = strchr(cf, ':');
@@ -706,7 +715,7 @@ static char *decodeString(char *orig, int option_d)
 		}
 		value1 = value1 * 16 + value2;
 		if (!option_d && (value1 == '/' || value1 == '\0')) {
-			/* caller takes it as indication of invalid 
+			/* caller takes it as indication of invalid
 			 * (dangerous wrt exploits) chars */
 			return orig + 1;
 		}
@@ -808,30 +817,11 @@ static void decodeBase64(char *Data)
  ****************************************************************************/
 static int openServer(void)
 {
-	struct sockaddr_in lsocket;
 	int fd;
 
 	/* create the socket right now */
-	/* inet_addr() returns a value that is already in network order */
-	memset(&lsocket, 0, sizeof(lsocket));
-	lsocket.sin_family = AF_INET;
-	lsocket.sin_addr.s_addr = INADDR_ANY;
-	lsocket.sin_port = htons(config->port);
-	fd = xsocket(AF_INET, SOCK_STREAM, 0);
-	/* tell the OS it's OK to reuse a previous address even though */
-	/* it may still be in a close down state.  Allows bind to succeed. */
-#ifdef SO_REUSEPORT
-	{
-		static const int on = 1;
-		setsockopt(fd, SOL_SOCKET, SO_REUSEPORT,
-				(void *)&on, sizeof(on));
-	}
-#else
-	setsockopt_reuseaddr(fd);
-#endif
-	xbind(fd, (struct sockaddr *)&lsocket, sizeof(lsocket));
+	fd = create_and_bind_stream_or_die(NULL, config->port);
 	xlisten(fd, 9);
-	signal(SIGCHLD, SIG_IGN);   /* prevent zombie (defunct) processes */
 	return fd;
 }
 
@@ -856,7 +846,7 @@ static int sendHeaders(HttpResponseNum responseNum)
 	const char *responseString = "";
 	const char *infoString = 0;
 	const char *mime_type;
-	unsigned int i;
+	unsigned i;
 	time_t timer = time(0);
 	char timeStr[80];
 	int len;
@@ -878,8 +868,8 @@ static int sendHeaders(HttpResponseNum responseNum)
 	/* emit the current date */
 	strftime(timeStr, sizeof(timeStr), RFC1123FMT, gmtime(&timer));
 	len = sprintf(buf,
-		"HTTP/1.0 %d %s\r\nContent-type: %s\r\n"
-		"Date: %s\r\nConnection: close\r\n",
+			"HTTP/1.0 %d %s\r\nContent-type: %s\r\n"
+			"Date: %s\r\nConnection: close\r\n",
 			responseNum, responseString, mime_type, timeStr);
 
 #if ENABLE_FEATURE_HTTPD_BASIC_AUTH
@@ -911,7 +901,9 @@ static int sendHeaders(HttpResponseNum responseNum)
 	}
 	if (DEBUG)
 		fprintf(stderr, "headers: '%s'\n", buf);
-	return full_write(config->accepted_socket, buf, len);
+	i = config->accepted_socket;
+	if (i == 0) i++; /* write to fd# 1 in inetd mode */
+	return full_write(i, buf, len);
 }
 
 /****************************************************************************
@@ -979,7 +971,7 @@ static int sendCgi(const char *url,
 	int outFd;
 	int firstLine = 1;
 	int status;
-	size_t post_readed_size, post_readed_idx;
+	size_t post_read_size, post_read_idx;
 
 	if (pipe(fromCgi) != 0)
 		return 0;
@@ -989,11 +981,11 @@ static int sendCgi(const char *url,
 	pid = fork();
 	if (pid < 0)
 		return 0;
-	
+
 	if (!pid) {
 		/* child process */
 		char *script;
-		char *purl = strdup(url);
+		char *purl = xstrdup(url);
 		char realpath_buff[MAXPATHLEN];
 
 		if (purl == NULL)
@@ -1056,12 +1048,24 @@ static int sendCgi(const char *url,
 		 * It should not be decoded in any fashion. This variable
 		 * should always be set when there is query information,
 		 * regardless of command line decoding. */
-		/* (Older versions of bbox seemed to do some decoding) */
+		/* (Older versions of bbox seem to do some decoding) */
 		setenv1("QUERY_STRING", config->query);
 		setenv1("SERVER_SOFTWARE", httpdVersion);
 		putenv("SERVER_PROTOCOL=HTTP/1.0");
 		putenv("GATEWAY_INTERFACE=CGI/1.1");
-		setenv1("REMOTE_ADDR", config->rmt_ip_str);
+		/* Having _separate_ variables for IP and port defeats
+		 * the purpose of having socket abstraction. Which "port"
+		 * are you using on Unix domain socket?
+		 * IOW - REMOTE_PEER="1.2.3.4:56" makes much more sense.
+		 * Oh well... */
+		{
+			char *p = config->rmt_ip_str ? : "";
+			char *cp = strrchr(p, ':');
+			if (ENABLE_FEATURE_IPV6 && cp && strchr(cp, ']'))
+				cp = NULL;
+			if (cp) *cp = '\0'; /* delete :PORT */
+			setenv1("REMOTE_ADDR", p);
+		}
 #if ENABLE_FEATURE_HTTPD_SET_REMOTE_PORT_TO_ENV
 		setenv_long("REMOTE_PORT", config->port);
 #endif
@@ -1088,7 +1092,7 @@ static int sendCgi(const char *url,
 			goto error_execing_cgi;
 		*script = '\0';
 		if (chdir(realpath_buff) == 0) {
-			// now run the program.  If it fails,
+			// Now run the program.  If it fails,
 			// use _exit() so no destructors
 			// get called and make a mess.
 #if ENABLE_FEATURE_HTTPD_CONFIG_WITH_SCRIPT_INTERPR
@@ -1122,8 +1126,8 @@ static int sendCgi(const char *url,
 
 	/* parent process */
 
-	post_readed_size = 0;
-	post_readed_idx = 0;
+	post_read_size = 0;
+	post_read_idx = 0; /* for gcc */
 	inFd = fromCgi[0];
 	outFd = toCgi[1];
 	close(fromCgi[1]);
@@ -1140,94 +1144,108 @@ static int sendCgi(const char *url,
 		FD_ZERO(&readSet);
 		FD_ZERO(&writeSet);
 		FD_SET(inFd, &readSet);
-		if (bodyLen > 0 || post_readed_size > 0) {
+		if (bodyLen > 0 || post_read_size > 0) {
 			FD_SET(outFd, &writeSet);
 			nfound = outFd > inFd ? outFd : inFd;
-			if (post_readed_size == 0) {
+			if (post_read_size == 0) {
 				FD_SET(config->accepted_socket, &readSet);
 				if (nfound < config->accepted_socket)
 					nfound = config->accepted_socket;
 			}
 			/* Now wait on the set of sockets! */
-			nfound = select(nfound + 1, &readSet, &writeSet, 0, NULL);
+			nfound = select(nfound + 1, &readSet, &writeSet, NULL, NULL);
 		} else {
 			if (!bodyLen) {
-				close(outFd);
+				close(outFd); /* no more POST data to CGI */
 				bodyLen = -1;
 			}
-			nfound = select(inFd + 1, &readSet, 0, 0, NULL);
+			nfound = select(inFd + 1, &readSet, NULL, NULL, NULL);
 		}
 
 		if (nfound <= 0) {
-			if (waitpid(pid, &status, WNOHANG) > 0) {
-				close(inFd);
-				if (DEBUG && WIFEXITED(status))
-					bb_error_msg("piped has exited with status=%d", WEXITSTATUS(status));
-				if (DEBUG && WIFSIGNALED(status))
-					bb_error_msg("piped has exited with signal=%d", WTERMSIG(status));
-				break;
-			}
-		} else if (post_readed_size > 0 && FD_ISSET(outFd, &writeSet)) {
-			count = full_write(outFd, wbuf + post_readed_idx, post_readed_size);
+			if (waitpid(pid, &status, WNOHANG) <= 0)
+				/* Weird. CGI didn't exit and no fd's
+				 *  are ready, yet select returned?! */
+				continue;
+			close(inFd);
+			if (DEBUG && WIFEXITED(status))
+				bb_error_msg("piped has exited with status=%d", WEXITSTATUS(status));
+			if (DEBUG && WIFSIGNALED(status))
+				bb_error_msg("piped has exited with signal=%d", WTERMSIG(status));
+			break;
+		}
+
+		if (post_read_size > 0 && FD_ISSET(outFd, &writeSet)) {
+			/* Have data from peer and can write to CGI */
+		// huh? why full_write? what if we will block?
+		// (imagine that CGI does not read its stdin...)
+			count = full_write(outFd, wbuf + post_read_idx, post_read_size);
 			if (count > 0) {
-				post_readed_size -= count;
-				post_readed_idx += count;
-				if (post_readed_size == 0)
-					post_readed_idx = 0;
+				post_read_idx += count;
+				post_read_size -= count;
 			} else {
-				post_readed_size = post_readed_idx = bodyLen = 0; /* broken pipe to CGI */
+				post_read_size = bodyLen = 0; /* broken pipe to CGI */
 			}
-		} else if (bodyLen > 0 && post_readed_size == 0 && FD_ISSET(config->accepted_socket, &readSet)) {
+		} else if (bodyLen > 0 && post_read_size == 0
+		 && FD_ISSET(config->accepted_socket, &readSet)
+		) {
+			/* We expect data, prev data portion is eaten by CGI
+			 * and there *is* data to read from the peer
+			 * (POST data?) */
 			count = bodyLen > (int)sizeof(wbuf) ? (int)sizeof(wbuf) : bodyLen;
 			count = safe_read(config->accepted_socket, wbuf, count);
 			if (count > 0) {
-				post_readed_size += count;
+				post_read_size = count;
+				post_read_idx = 0;
 				bodyLen -= count;
 			} else {
 				bodyLen = 0;    /* closed */
 			}
 		}
+
 		if (FD_ISSET(inFd, &readSet)) {
+			/* There is something to read from CGI */
 			int s = config->accepted_socket;
 			char *rbuf = config->buf;
-
-#ifndef PIPE_BUF
-# define PIPESIZE 4096          /* amount of buffering in a pipe */
-#else
-# define PIPESIZE PIPE_BUF
-#endif
+#define PIPESIZE PIPE_BUF
 #if PIPESIZE >= MAX_MEMORY_BUFF
 # error "PIPESIZE >= MAX_MEMORY_BUFF"
 #endif
-
-			/* There is something to read */
-			count = safe_read(inFd, rbuf, PIPESIZE);
+			/* NB: was safe_read. If it *has to be* safe_read, */
+			/* please explain why in this comment... */
+			count = full_read(inFd, rbuf, PIPESIZE);
 			if (count == 0)
 				break;  /* closed */
-			if (count > 0) {
-				if (firstLine) {
-					rbuf[count] = 0;
-					/* check to see if the user script added headers */
-					if (strncmp(rbuf, "HTTP/1.0 200 OK\r\n", 4) != 0) {
-						full_write(s, "HTTP/1.0 200 OK\r\n", 17);
-					}
-					/* Sometimes CGI is writing to pipe in small chunks
-					 * and we don't see Content-type (because the read
-					 * is too short) and we emit bogus "text/plain"!
-					 * Is it a bug or CGI *has to* write it in one piece? */
-					if (strstr(rbuf, "ontent-") == 0) {
-						full_write(s, "Content-type: text/plain\r\n\r\n", 28);
-					}
-					firstLine = 0;
-				}
-				if (full_write(s, rbuf, count) != count)
-					break;
+			if (count < 0)
+				continue; /* huh, error, why continue?? */
 
-				if (DEBUG)
-					fprintf(stderr, "cgi read %d bytes: '%.*s'\n", count, count, rbuf);
+			if (firstLine) {
+				/* full_read (above) avoids
+				 * "chopped up into small chunks" syndrome here */
+				rbuf[count] = '\0';
+				/* check to see if the user script added headers */
+#define HTTP_200 "HTTP/1.0 200 OK\r\n\r\n"
+				if (memcmp(rbuf, HTTP_200, 4) != 0) {
+					/* there is no "HTTP", do it ourself */
+					full_write(s, HTTP_200, sizeof(HTTP_200)-1);
+				}
+#undef HTTP_200
+				/* Example of valid GCI without "Content-type:"
+				 * echo -en "HTTP/1.0 302 Found\r\n"
+				 * echo -en "Location: http://www.busybox.net\r\n"
+				 * echo -en "\r\n"
+				 */
+				//if (!strstr(rbuf, "ontent-")) {
+				//	full_write(s, "Content-type: text/plain\r\n\r\n", 28);
+				//}
+				firstLine = 0;
 			}
-		}
-	}
+			if (full_write(s, rbuf, count) != count)
+				break;
+			if (DEBUG)
+				fprintf(stderr, "cgi read %d bytes: '%.*s'\n", count, count, rbuf);
+		} /* if (FD_ISSET(inFd)) */
+	} /* while (1) */
 	return 0;
 }
 #endif          /* FEATURE_HTTPD_CGI */
@@ -1286,7 +1304,9 @@ static int sendFile(const char *url)
 		sendHeaders(HTTP_OK);
 		/* TODO: sendfile() */
 		while ((count = full_read(f, buf, MAX_MEMORY_BUFF)) > 0) {
-			if (full_write(config->accepted_socket, buf, count) != count)
+			int fd = config->accepted_socket;
+			if (fd == 0) fd++; /* write to fd# 1 in inetd mode */
+			if (full_write(fd, buf, count) != count)
 				break;
 		}
 		close(f);
@@ -1305,18 +1325,21 @@ static int checkPermIP(void)
 
 	/* This could stand some work */
 	for (cur = config->ip_a_d; cur; cur = cur->next) {
-		if (DEBUG)
-			fprintf(stderr, "checkPermIP: '%s' ? ", config->rmt_ip_str);
-		if (DEBUG)
-			fprintf(stderr, "'%u.%u.%u.%u/%u.%u.%u.%u'\n",
-				(unsigned char)(cur->ip >> 24),
-				(unsigned char)(cur->ip >> 16),
-				(unsigned char)(cur->ip >> 8),
-				                cur->ip & 0xff,
-				(unsigned char)(cur->mask >> 24),
-				(unsigned char)(cur->mask >> 16),
-				(unsigned char)(cur->mask >> 8),
-				                cur->mask & 0xff);
+#if ENABLE_FEATURE_HTTPD_CGI && DEBUG
+		fprintf(stderr, "checkPermIP: '%s' ? ", config->rmt_ip_str);
+#endif
+#if DEBUG
+		fprintf(stderr, "'%u.%u.%u.%u/%u.%u.%u.%u'\n",
+			(unsigned char)(cur->ip >> 24),
+			(unsigned char)(cur->ip >> 16),
+			(unsigned char)(cur->ip >> 8),
+			(unsigned char)(cur->ip),
+			(unsigned char)(cur->mask >> 24),
+			(unsigned char)(cur->mask >> 16),
+			(unsigned char)(cur->mask >> 8),
+			(unsigned char)(cur->mask)
+		);
+#endif
 		if ((config->rmt_ip & cur->mask) == cur->ip)
 			return cur->allow_deny == 'A';   /* Allow/Deny */
 	}
@@ -1589,7 +1612,8 @@ static void handleIncoming(void)
 					/* extra read only for POST */
 					if (prequest != request_GET) {
 						test = buf + sizeof("Content-length:")-1;
-						if (!test[0]) goto bail_out;
+						if (!test[0])
+							goto bail_out;
 						errno = 0;
 						/* not using strtoul: it ignores leading munis! */
 						length = strtol(test, &test, 10);
@@ -1690,7 +1714,9 @@ static void handleIncoming(void)
 		config->ContentLength = -1;
 	} while (0);
 
+#if ENABLE_FEATURE_HTTPD_CGI
  bail_out:
+#endif
 
 	if (DEBUG)
 		fprintf(stderr, "closing socket\n\n");
@@ -1738,6 +1764,8 @@ static void handleIncoming(void)
  ****************************************************************************/
 static int miniHttpd(int server)
 {
+	static const int on = 1;
+
 	fd_set readfd, portfd;
 
 	FD_ZERO(&portfd);
@@ -1745,9 +1773,13 @@ static int miniHttpd(int server)
 
 	/* copy the ports we are watching to the readfd set */
 	while (1) {
-		int on, s;
-		socklen_t fromAddrLen;
-		struct sockaddr_in fromAddr;
+		int s;
+		union {
+			struct sockaddr sa;
+			struct sockaddr_in sin;
+			USE_FEATURE_IPV6(struct sockaddr_in6 sin6;)
+		} fromAddr;
+		socklen_t fromAddrLen = sizeof(fromAddr);
 
 		/* Now wait INDEFINITELY on the set of sockets! */
 		readfd = portfd;
@@ -1755,27 +1787,31 @@ static int miniHttpd(int server)
 			continue;
 		if (!FD_ISSET(server, &readfd))
 			continue;
-		fromAddrLen = sizeof(fromAddr);
-		s = accept(server, (struct sockaddr *)&fromAddr, &fromAddrLen);
+		s = accept(server, &fromAddr.sa, &fromAddrLen);
 		if (s < 0)
 			continue;
 		config->accepted_socket = s;
-		config->rmt_ip = ntohl(fromAddr.sin_addr.s_addr);
+		config->rmt_ip = 0;
+		config->port = 0;
 #if ENABLE_FEATURE_HTTPD_CGI || DEBUG
-		sprintf(config->rmt_ip_str, "%u.%u.%u.%u",
-				(unsigned char)(config->rmt_ip >> 24),
-				(unsigned char)(config->rmt_ip >> 16),
-				(unsigned char)(config->rmt_ip >> 8),
-				config->rmt_ip & 0xff);
-		config->port = ntohs(fromAddr.sin_port);
+		free(config->rmt_ip_str);
+		config->rmt_ip_str = xmalloc_sockaddr2dotted(&fromAddr.sa, fromAddrLen);
 #if DEBUG
-		bb_error_msg("connection from IP=%s, port %u",
-				config->rmt_ip_str, config->port);
+		bb_error_msg("connection from '%s'", config->rmt_ip_str);
 #endif
 #endif /* FEATURE_HTTPD_CGI */
+		if (fromAddr.sa.sa_family == AF_INET) {
+			config->rmt_ip = ntohl(fromAddr.sin.sin_addr.s_addr);
+			config->port = ntohs(fromAddr.sin.sin_port);
+		}
+#if ENABLE_FEATURE_IPV6
+		if (fromAddr.sa.sa_family == AF_INET6) {
+			//config->rmt_ip = ntohl(fromAddr.sin.sin_addr.s_addr);
+			config->port = ntohs(fromAddr.sin6.sin6_port);
+		}
+#endif
 
 		/* set the KEEPALIVE option to cull dead connections */
-		on = 1;
 		setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, (void *)&on, sizeof(on));
 
 		if (DEBUG || fork() == 0) {
@@ -1796,19 +1832,30 @@ static int miniHttpd(int server)
 /* from inetd */
 static int miniHttpd_inetd(void)
 {
-	struct sockaddr_in fromAddrLen;
-	socklen_t sinlen = sizeof(struct sockaddr_in);
+	union {
+		struct sockaddr sa;
+		struct sockaddr_in sin;
+		USE_FEATURE_IPV6(struct sockaddr_in6 sin6;)
+	} fromAddr;
+	socklen_t fromAddrLen = sizeof(fromAddr);
 
-	getpeername(0, (struct sockaddr *)&fromAddrLen, &sinlen);
-	config->rmt_ip = ntohl(fromAddrLen.sin_addr.s_addr);
-#if ENABLE_FEATURE_HTTPD_CGI
-	sprintf(config->rmt_ip_str, "%u.%u.%u.%u",
-				(unsigned char)(config->rmt_ip >> 24),
-				(unsigned char)(config->rmt_ip >> 16),
-				(unsigned char)(config->rmt_ip >> 8),
-				                config->rmt_ip & 0xff);
+	getpeername(0, &fromAddr.sa, &fromAddrLen);
+	config->rmt_ip = 0;
+	config->port = 0;
+#if ENABLE_FEATURE_HTTPD_CGI || DEBUG
+	free(config->rmt_ip_str);
+	config->rmt_ip_str = xmalloc_sockaddr2dotted(&fromAddr.sa, fromAddrLen);
 #endif
-	config->port = ntohs(fromAddrLen.sin_port);
+	if (fromAddr.sa.sa_family == AF_INET) {
+		config->rmt_ip = ntohl(fromAddr.sin.sin_addr.s_addr);
+		config->port = ntohs(fromAddr.sin.sin_port);
+	}
+#if ENABLE_FEATURE_IPV6
+	if (fromAddr.sa.sa_family == AF_INET6) {
+		//config->rmt_ip = ntohl(fromAddr.sin.sin_addr.s_addr);
+		config->port = ntohs(fromAddr.sin6.sin6_port);
+	}
+#endif
 	handleIncoming();
 	return 0;
 }
@@ -1910,25 +1957,15 @@ int httpd_main(int argc, char *argv[])
 
 #if ENABLE_FEATURE_HTTPD_SETUID
 	if (opt & OPT_SETUID) {
-		char *e;
-		// FIXME: what the default group should be?
-		ugid.gid = -1;
-		ugid.uid = bb_strtoul(s_ugid, &e, 0);
-		if (*e == ':') {
-			e++;
-			ugid.gid = bb_strtoul(e, NULL, 0);
-		}
-		if (errno) {
-			/* not integer */
-			if (!uidgid_get(&ugid, s_ugid))
-				bb_error_msg_and_die("unrecognized user[:group] "
+		if (!get_uidgid(&ugid, s_ugid, 1))
+			bb_error_msg_and_die("unrecognized user[:group] "
 						"name '%s'", s_ugid);
-		}
 	}
 #endif
 
 	xchdir(home_httpd);
 	if (!(opt & OPT_INETD)) {
+		signal(SIGCHLD, SIG_IGN);
 		config->server_socket = openServer();
 #if ENABLE_FEATURE_HTTPD_SETUID
 		/* drop privileges */

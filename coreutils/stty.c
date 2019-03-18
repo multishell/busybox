@@ -158,12 +158,17 @@ static const char stty_dec  [] = "dec";
 
 /* Each mode */
 struct mode_info {
-	const char *name;       /* Name given on command line            */
-	char type;              /* Which structure element to change     */
-	char flags;             /* Setting and display options           */
-	unsigned short mask;    /* Other bits to turn off for this mode */
-	unsigned long bits;     /* Bits to set for this mode             */
+	const char * const name;      /* Name given on command line           */
+	const unsigned char type;     /* Which structure element to change    */
+	const unsigned char flags;    /* Setting and display options          */
+	/* were using short here, but ppc32 was unhappy: */
+	const tcflag_t mask;          /* Other bits to turn off for this mode */
+	const tcflag_t bits;          /* Bits to set for this mode            */
 };
+
+/* We can optimize it further by using name[8] instead of char *name */
+/* but beware of "if (info->name == evenp)" checks! */
+/* Need to replace them with "if (info == &mode_info[EVENP_INDX])" */
 
 #define MI_ENTRY(N,T,F,B,M) { N, T, F, M, B }
 
@@ -319,9 +324,9 @@ enum {
 
 /* Control character settings */
 struct control_info {
-	const char *name;                       /* Name given on command line */
-	unsigned char saneval;          /* Value to set for 'stty sane' */
-	unsigned char offset;                           /* Offset in c_cc */
+	const char * const name;               /* Name given on command line */
+	const unsigned char saneval;          /* Value to set for 'stty sane' */
+	const unsigned char offset;           /* Offset in c_cc */
 };
 
 /* Control characters */
@@ -420,17 +425,12 @@ static tcflag_t *mode_type_flag(unsigned type, const struct termios *mode)
 	return NULL;
 }
 
-static speed_t string_to_baud_or_die(const char *arg)
-{
-	return tty_value_to_baud(xatou(arg));
-}
-
-static void set_speed_or_die(enum speed_setting type, const char *arg,
-					struct termios *mode)
+static void set_speed_or_die(enum speed_setting type, const char * const arg,
+					struct termios * const mode)
 {
 	speed_t baud;
 
-	baud = string_to_baud_or_die(arg);
+	baud = tty_value_to_baud(xatou(arg));
 
 	if (type != output_speed) {     /* either input or both */
 		cfsetispeed(mode, baud);
@@ -450,9 +450,6 @@ static void perror_on_device(const char *fmt)
 	bb_perror_msg(fmt, device_name);
 }
 
-/* No, inline won't be as efficient (gcc 3.4.3) */
-#define streq(a,b) (!strcmp((a),(b)))
-
 /* Print format string MESSAGE and optional args.
    Wrap to next line first if it won't fit.
    Print a space first unless MESSAGE will start a new line */
@@ -463,10 +460,11 @@ static void wrapf(const char *message, ...)
 	int buflen;
 
 	va_start(args, message);
-	vsnprintf(buf, sizeof(buf), message, args);
+	buflen = vsnprintf(buf, sizeof(buf), message, args);
 	va_end(args);
-	buflen = strlen(buf);
-	if (!buflen) return;
+	/* We seem to be called only with suitable lengths, but check if
+	   somebody failed to adhere to this assumption just to be sure.  */
+	if (!buflen || buflen >= sizeof(buf)) return;
 
 	if (current_col > 0) {
 		current_col++;
@@ -484,21 +482,13 @@ static void wrapf(const char *message, ...)
 		current_col = 0;
 }
 
-#ifdef TIOCGWINSZ
-
-static int get_win_size(int fd, struct winsize *win)
+static void set_window_size(const int rows, const int cols)
 {
-	return ioctl(fd, TIOCGWINSZ, (char *) win);
-}
+	struct winsize win = { 0, 0, 0, 0};
 
-static void set_window_size(int rows, int cols)
-{
-	struct winsize win;
-
-	if (get_win_size(STDIN_FILENO, &win)) {
+	if (ioctl(STDIN_FILENO, TIOCGWINSZ, &win)) {
 		if (errno != EINVAL) {
-			perror_on_device("%s");
-			return;
+			goto bail;
 		}
 		memset(&win, 0, sizeof(win));
 	}
@@ -508,75 +498,24 @@ static void set_window_size(int rows, int cols)
 	if (cols >= 0)
 		win.ws_col = cols;
 
-# ifdef TIOCSSIZE
-	/* Alexander Dupuy <dupuy@cs.columbia.edu> wrote:
-	   The following code deals with a bug in the SunOS 4.x (and 3.x?) kernel.
-	   This comment from sys/ttold.h describes Sun's twisted logic - a better
-	   test would have been (ts_lines > 64k || ts_cols > 64k || ts_cols == 0).
-	   At any rate, the problem is gone in Solaris 2.x */
-
-	if (win.ws_row == 0 || win.ws_col == 0) {
-		struct ttysize ttysz;
-
-		ttysz.ts_lines = win.ws_row;
-		ttysz.ts_cols = win.ws_col;
-
-		win.ws_row = win.ws_col = 1;
-
-		if ((ioctl(STDIN_FILENO, TIOCSWINSZ, (char *) &win) != 0)
-		|| (ioctl(STDIN_FILENO, TIOCSSIZE, (char *) &ttysz) != 0)) {
-			perror_on_device("%s");
-		}
-		return;
-	}
-# endif
-
 	if (ioctl(STDIN_FILENO, TIOCSWINSZ, (char *) &win))
+bail:
 		perror_on_device("%s");
 }
 
-static void display_window_size(int fancy)
+static void display_window_size(const int fancy)
 {
 	const char *fmt_str = "%s\0%s: no size information for this device";
-	struct winsize win;
+	unsigned width, height;
 
-	if (get_win_size(STDIN_FILENO, &win)) {
+	if (get_terminal_width_height(STDIN_FILENO, &width, &height)) {
 		if ((errno != EINVAL) || ((fmt_str += 2), !fancy)) {
 			perror_on_device(fmt_str);
 		}
 	} else {
 		wrapf(fancy ? "rows %d; columns %d;" : "%d %d\n",
-				win.ws_row, win.ws_col);
+				height, width);
 	}
-}
-
-#else /* !TIOCGWINSZ */
-
-static inline void display_window_size(int fancy) {}
-
-#endif /* !TIOCGWINSZ */
-
-static int screen_columns_or_die(void)
-{
-	const char *s;
-
-#ifdef TIOCGWINSZ
-	struct winsize win;
-
-	/* With Solaris 2.[123], this ioctl fails and errno is set to
-	   EINVAL for telnet (but not rlogin) sessions.
-	   On ISC 3.0, it fails for the console and the serial port
-	   (but it works for ptys).
-	   It can also fail on any system when stdout isn't a tty.
-	   In case of any failure, just use the default */
-	if (get_win_size(STDOUT_FILENO, &win) == 0 && win.ws_col > 0)
-		return win.ws_col;
-#endif
-
-	s = getenv("COLUMNS");
-	if (s)
-		return xatoi_u(s);
-	return 80;
 }
 
 static const struct suffix_mult stty_suffixes[] = {
@@ -590,7 +529,7 @@ static const struct mode_info *find_mode(const char *name)
 {
 	int i;
 	for (i = 0; i < NUM_mode_info; ++i)
-		if (streq(name, mode_info[i].name))
+		if (!strcmp(name, mode_info[i].name))
 			return &mode_info[i];
 	return 0;
 }
@@ -599,7 +538,7 @@ static const struct control_info *find_control(const char *name)
 {
 	int i;
 	for (i = 0; i < NUM_control_info; ++i)
-		if (streq(name, control_info[i].name))
+		if (!strcmp(name, control_info[i].name))
 			return &control_info[i];
 	return 0;
 }
@@ -615,313 +554,170 @@ enum {
 	param_ospeed = 7 | 0x80,
 };
 
-static int find_param(const char *name)
+static int find_param(const char * const name)
 {
-#ifdef HAVE_C_LINE
-	if (streq(name, "line")) return param_line;
-#endif
-#ifdef TIOCGWINSZ
-	if (streq(name, "rows")) return param_rows;
-	if (streq(name, "cols")) return param_cols;
-	if (streq(name, "columns")) return param_cols;
-	if (streq(name, "size")) return param_size;
-#endif
-	if (streq(name, "speed")) return param_speed;
-	if (streq(name, "ispeed")) return param_ispeed;
-	if (streq(name, "ospeed")) return param_ospeed;
-	return 0;
+	const char * const params[] = {
+		"line",
+		"rows",
+		"cols",
+		"columns",
+		"size",
+		"speed",
+		"ispeed",
+		"ospeed",
+		NULL
+	};
+	int i = index_in_str_array(params, name);
+	if (i) {
+		if (!(i == 4 || i == 5))
+			i |= 0x80;
+	}
+	return i;
 }
 
-
-static int recover_mode(const char *arg, struct termios *mode);
-static void set_mode(const struct mode_info *info,
-				int reversed, struct termios *mode);
-static void display_all(const struct termios *mode);
-static void display_changed(const struct termios *mode);
-static void display_recoverable(const struct termios *mode);
-static void display_speed(const struct termios *mode, int fancy);
-static void sane_mode(struct termios *mode);
-static void set_control_char_or_die(const struct control_info *info,
-				const char *arg, struct termios *mode);
-
-int stty_main(int argc, char **argv)
+static int recover_mode(const char *arg, struct termios *mode)
 {
-	struct termios mode;
-	void (*output_func)(const struct termios *);
-	const char *file_name = NULL;
-	int require_set_attr;
-	int speed_was_set;
-	int verbose_output;
-	int recoverable_output;
-	int noargs;
-	int k;
+	int i, n;
+	unsigned int chr;
+	unsigned long iflag, oflag, cflag, lflag;
 
-	output_func = display_changed;
-	noargs = 1;
-	speed_was_set = 0;
-	require_set_attr = 0;
-	verbose_output = 0;
-	recoverable_output = 0;
+	/* Scan into temporaries since it is too much trouble to figure out
+	   the right format for 'tcflag_t' */
+	if (sscanf(arg, "%lx:%lx:%lx:%lx%n",
+			   &iflag, &oflag, &cflag, &lflag, &n) != 4)
+		return 0;
+	mode->c_iflag = iflag;
+	mode->c_oflag = oflag;
+	mode->c_cflag = cflag;
+	mode->c_lflag = lflag;
+	arg += n;
+	for (i = 0; i < NCCS; ++i) {
+		if (sscanf(arg, ":%x%n", &chr, &n) != 1)
+			return 0;
+		mode->c_cc[i] = chr;
+		arg += n;
+	}
 
-	/* First pass: only parse/verify command line params */
-	k = 0;
-	while (argv[++k]) {
-		const struct mode_info *mp;
-		const struct control_info *cp;
-		const char *arg = argv[k];
-		const char *argnext = argv[k+1];
-		int param;
+	/* Fail if there are too many fields */
+	if (*arg != '\0')
+		return 0;
 
-		if (arg[0] == '-') {
-			int i;
-			mp = find_mode(arg+1);
-			if (mp) {
-				if (!(mp->flags & REV))
-					bb_error_msg_and_die("invalid argument '%s'", arg);
-				noargs = 0;
-				continue;
-			}
-			/* It is an option - parse it */
-			i = 0;
-			while (arg[++i]) {
-				switch (arg[i]) {
-				case 'a':
-					verbose_output = 1;
-					output_func = display_all;
-					break;
-				case 'g':
-					recoverable_output = 1;
-					output_func = display_recoverable;
-					break;
-				case 'F':
-					if (file_name)
-						bb_error_msg_and_die("only one device may be specified");
-					file_name = &arg[i+1]; /* "-Fdevice" ? */
-					if (!file_name[0]) { /* nope, "-F device" */
-						int p = k+1; /* argv[p] is argnext */
-						file_name = argnext;
-						if (!file_name)
-							bb_error_msg_and_die(bb_msg_requires_arg, "-F");
-						/* remove -F param from arg[vc] */
-						--argc;
-						while (argv[p]) { argv[p] = argv[p+1]; ++p; }
-					}
-					goto end_option;
-				default:
-					bb_error_msg_and_die("invalid argument '%s'", arg);
-				}
-			}
-end_option:
-			continue;
-		}
+	return 1;
+}
 
-		mp = find_mode(arg);
-		if (mp) {
-			noargs = 0;
-			continue;
-		}
+static void display_recoverable(const struct termios *mode,
+								const int ATTRIBUTE_UNUSED dummy)
+{
+	int i;
+	printf("%lx:%lx:%lx:%lx",
+		   (unsigned long) mode->c_iflag, (unsigned long) mode->c_oflag,
+		   (unsigned long) mode->c_cflag, (unsigned long) mode->c_lflag);
+	for (i = 0; i < NCCS; ++i)
+		printf(":%x", (unsigned int) mode->c_cc[i]);
+	putchar('\n');
+}
 
-		cp = find_control(arg);
-		if (cp) {
-			if (!argnext)
-				bb_error_msg_and_die(bb_msg_requires_arg, arg);
-			/* called for the side effect of xfunc death only */
-			set_control_char_or_die(cp, argnext, &mode);
-			noargs = 0;
-			++k;
-			continue;
-		}
+static void display_speed(const struct termios *mode, int fancy)
+{
+	                     //01234567 8 9
+	const char *fmt_str = "%lu %lu\n\0ispeed %lu baud; ospeed %lu baud;";
+	unsigned long ispeed, ospeed;
 
-		param = find_param(arg);
-		if (param & param_need_arg) {
-			if (!argnext)
-				bb_error_msg_and_die(bb_msg_requires_arg, arg);
-			++k;
-		}
+	ospeed = ispeed = cfgetispeed(mode);
+	if (ispeed == 0 || ispeed == (ospeed = cfgetospeed(mode))) {
+		ispeed = ospeed;                /* in case ispeed was 0 */
+	                 //0123 4 5 6 7 8 9
+		fmt_str = "%lu\n\0\0\0\0\0speed %lu baud;";
+	}
+	if (fancy) fmt_str += 9;
+	wrapf(fmt_str, tty_baud_to_value(ispeed), tty_baud_to_value(ospeed));
+}
 
-		switch (param) {
+static void do_display(const struct termios *mode, const int all)
+{
+	int i;
+	tcflag_t *bitsp;
+	unsigned long mask;
+	int prev_type = control;
+
+	display_speed(mode, 1);
+	if (all)
+		display_window_size(1);
 #ifdef HAVE_C_LINE
-		case param_line:
-# ifndef TIOCGWINSZ
-			xatoul_range_sfx(argnext, 1, INT_MAX, stty_suffixes);
-			break;
-# endif /* else fall-through */
+	wrapf("line = %d;\n", mode->c_line);
+#else
+	wrapf("\n");
 #endif
-#ifdef TIOCGWINSZ
-		case param_rows:
-		case param_cols:
-			xatoul_range_sfx(argnext, 1, INT_MAX, stty_suffixes);
-			break;
-		case param_size:
-#endif
-		case param_speed:
-			break;
-		case param_ispeed:
-			/* called for the side effect of xfunc death only */
-			set_speed_or_die(input_speed, argnext, &mode);
-			break;
-		case param_ospeed:
-			/* called for the side effect of xfunc death only */
-			set_speed_or_die(output_speed, argnext, &mode);
-			break;
-		default:
-			if (recover_mode(arg, &mode) == 1) break;
-			if (string_to_baud_or_die(arg) != (speed_t) -1) break;
-			bb_error_msg_and_die("invalid argument '%s'", arg);
-		}
-		noargs = 0;
-	}
 
-	/* Specifying both -a and -g is an error */
-	if (verbose_output && recoverable_output)
-		bb_error_msg_and_die("verbose and stty-readable output styles are mutually exclusive");
-	/* Specifying -a or -g with non-options is an error */
-	if (!noargs && (verbose_output || recoverable_output))
-		bb_error_msg_and_die("modes may not be set when specifying an output style");
-
-	/* Now it is safe to start doing things */
-	if (file_name) {
-		int fd, fdflags;
-		device_name = file_name;
-		fd = xopen(device_name, O_RDONLY | O_NONBLOCK);
-		if (fd != STDIN_FILENO) {
-			dup2(fd, STDIN_FILENO);
-			close(fd);
-		}
-		fdflags = fcntl(STDIN_FILENO, F_GETFL);
-		if (fdflags == -1 || fcntl(STDIN_FILENO, F_SETFL, fdflags & ~O_NONBLOCK) < 0)
-			perror_on_device_and_die("%s: cannot reset non-blocking mode");
-	}
-
-	/* Initialize to all zeroes so there is no risk memcmp will report a
-	   spurious difference in an uninitialized portion of the structure */
-	memset(&mode, 0, sizeof(mode));
-	if (tcgetattr(STDIN_FILENO, &mode))
-		perror_on_device_and_die("%s");
-
-	if (verbose_output || recoverable_output || noargs) {
-		max_col = screen_columns_or_die();
-		output_func(&mode);
-		return EXIT_SUCCESS;
-	}
-
-	/* Second pass: perform actions */
-	k = 0;
-	while (argv[++k]) {
-		const struct mode_info *mp;
-		const struct control_info *cp;
-		const char *arg = argv[k];
-		const char *argnext = argv[k+1];
-		int param;
-
-		if (arg[0] == '-') {
-			mp = find_mode(arg+1);
-			if (mp) {
-				set_mode(mp, 1 /* reversed */, &mode);
-			}
-			/* It is an option - already parsed. Skip it */
+	for (i = 0; control_info[i].name != stty_min; ++i) {
+		/* If swtch is the same as susp, don't print both */
+#if VSWTCH == VSUSP
+		if (control_info[i].name == stty_swtch)
 			continue;
-		}
-
-		mp = find_mode(arg);
-		if (mp) {
-			set_mode(mp, 0 /* non-reversed */, &mode);
-			continue;
-		}
-
-		cp = find_control(arg);
-		if (cp) {
-			++k;
-			set_control_char_or_die(cp, argnext, &mode);
-			continue;
-		}
-
-		param = find_param(arg);
-		if (param & param_need_arg) {
-			++k;
-		}
-
-		switch (param) {
-#ifdef HAVE_C_LINE
-		case param_line:
-			mode.c_line = xatoul_sfx(argnext, stty_suffixes);
-			require_set_attr = 1;
-			break;
 #endif
-#ifdef TIOCGWINSZ
-		case param_cols:
-			set_window_size(-1, xatoul_sfx(argnext, stty_suffixes));
-			break;
-		case param_size:
-			display_window_size(0);
-			break;
-		case param_rows:
-			set_window_size(xatoul_sfx(argnext, stty_suffixes), -1);
-			break;
+		/* If eof uses the same slot as min, only print whichever applies */
+#if VEOF == VMIN
+		if ((mode->c_lflag & ICANON) == 0
+			&& (control_info[i].name == stty_eof
+				|| control_info[i].name == stty_eol)) continue;
 #endif
-		case param_speed:
-			display_speed(&mode, 0);
-			break;
-		case param_ispeed:
-			set_speed_or_die(input_speed, argnext, &mode);
-			speed_was_set = 1;
-			require_set_attr = 1;
-			break;
-		case param_ospeed:
-			set_speed_or_die(output_speed, argnext, &mode);
-			speed_was_set = 1;
-			require_set_attr = 1;
-			break;
-		default:
-			if (recover_mode(arg, &mode) == 1)
-				require_set_attr = 1;
-			else /* true: if (string_to_baud_or_die(arg) != (speed_t) -1) */ {
-				set_speed_or_die(both_speeds, arg, &mode);
-				speed_was_set = 1;
-				require_set_attr = 1;
-			} /* else - impossible (caught in the first pass):
-				bb_error_msg_and_die("invalid argument '%s'", arg); */
+		wrapf("%s = %s;", control_info[i].name,
+			  visible(mode->c_cc[control_info[i].offset]));
+	}
+#if VEOF == VMIN
+	if ((mode->c_lflag & ICANON) == 0)
+#endif
+		wrapf("min = %d; time = %d;", mode->c_cc[VMIN], mode->c_cc[VTIME]);
+	if (current_col) wrapf("\n");
+
+	for (i = 0; i < NUM_mode_info; ++i) {
+		if (mode_info[i].flags & OMIT)
+			continue;
+		if (mode_info[i].type != prev_type) {
+			/* wrapf("\n"); */
+			if (current_col) wrapf("\n");
+			prev_type = mode_info[i].type;
+		}
+
+		bitsp = mode_type_flag(mode_info[i].type, mode);
+		mask = mode_info[i].mask ? mode_info[i].mask : mode_info[i].bits;
+		if ((*bitsp & mask) == mode_info[i].bits) {
+			if (all || (mode_info[i].flags & SANE_UNSET))
+				wrapf("%s", mode_info[i].name);
+		} else {
+			if ((all && mode_info[i].flags & REV) ||
+				 (!all &&
+				  (mode_info[i].flags & (SANE_SET | REV)) == (SANE_SET | REV)))
+				wrapf("-%s", mode_info[i].name);
 		}
 	}
+	if (current_col) wrapf("\n");
+}
 
-	if (require_set_attr) {
-		struct termios new_mode;
+static void sane_mode(struct termios *mode)
+{
+	int i;
+	tcflag_t *bitsp;
 
-		if (tcsetattr(STDIN_FILENO, TCSADRAIN, &mode))
-			perror_on_device_and_die("%s");
-
-		/* POSIX (according to Zlotnick's book) tcsetattr returns zero if
-		   it performs *any* of the requested operations.  This means it
-		   can report 'success' when it has actually failed to perform
-		   some proper subset of the requested operations.  To detect
-		   this partial failure, get the current terminal attributes and
-		   compare them to the requested ones */
-
-		/* Initialize to all zeroes so there is no risk memcmp will report a
-		   spurious difference in an uninitialized portion of the structure */
-		memset(&new_mode, 0, sizeof(new_mode));
-		if (tcgetattr(STDIN_FILENO, &new_mode))
-			perror_on_device_and_die("%s");
-
-		if (memcmp(&mode, &new_mode, sizeof(mode)) != 0) {
-#ifdef CIBAUD
-			/* SunOS 4.1.3 (at least) has the problem that after this sequence,
-			   tcgetattr (&m1); tcsetattr (&m1); tcgetattr (&m2);
-			   sometimes (m1 != m2).  The only difference is in the four bits
-			   of the c_cflag field corresponding to the baud rate.  To save
-			   Sun users a little confusion, don't report an error if this
-			   happens.  But suppress the error only if we haven't tried to
-			   set the baud rate explicitly -- otherwise we'd never give an
-			   error for a true failure to set the baud rate */
-
-			new_mode.c_cflag &= (~CIBAUD);
-			if (speed_was_set || memcmp(&mode, &new_mode, sizeof(mode)) != 0)
+	for (i = 0; i < NUM_control_info; ++i) {
+#if VMIN == VEOF
+		if (control_info[i].name == stty_min)
+			break;
 #endif
-				perror_on_device_and_die("%s: cannot perform all requested operations");
-		}
+		mode->c_cc[control_info[i].offset] = control_info[i].saneval;
 	}
 
-	return EXIT_SUCCESS;
+	for (i = 0; i < NUM_mode_info; ++i) {
+		if (mode_info[i].flags & SANE_SET) {
+			bitsp = mode_type_flag(mode_info[i].type, mode);
+			*bitsp = (*bitsp & ~((unsigned long)mode_info[i].mask))
+				| mode_info[i].bits;
+		} else if (mode_info[i].flags & SANE_UNSET) {
+			bitsp = mode_type_flag(mode_info[i].type, mode);
+			*bitsp = *bitsp & ~((unsigned long)mode_info[i].mask)
+				& ~mode_info[i].bits;
+		}
+	}
 }
 
 /* Save set_mode from #ifdef forest plague */
@@ -968,9 +764,9 @@ static void set_mode(const struct mode_info *info, int reversed,
 
 	if (bitsp) {
 		if (reversed)
-			*bitsp = *bitsp & ~((unsigned long)info->mask) & ~info->bits;
+			*bitsp = *bitsp & ~info->mask & ~info->bits;
 		else
-			*bitsp = (*bitsp & ~((unsigned long)info->mask)) | info->bits;
+			*bitsp = (*bitsp & ~info->mask) | info->bits;
 		return;
 	}
 
@@ -1095,7 +891,7 @@ static void set_control_char_or_die(const struct control_info *info,
 		value = xatoul_range_sfx(arg, 0, 0xff, stty_suffixes);
 	else if (arg[0] == '\0' || arg[1] == '\0')
 		value = arg[0];
-	else if (streq(arg, "^-") || streq(arg, "undef"))
+	else if (!strcmp(arg, "^-") || !strcmp(arg, "undef"))
 		value = _POSIX_VDISABLE;
 	else if (arg[0] == '^') { /* Ignore any trailing junk (^Cjunk) */
 		value = arg[1] & 0x1f; /* Non-letters get weird results */
@@ -1106,197 +902,286 @@ static void set_control_char_or_die(const struct control_info *info,
 	mode->c_cc[info->offset] = value;
 }
 
-static void display_changed(const struct termios *mode)
+#define STTY_require_set_attr   (1<<0)
+#define STTY_speed_was_set      (1<<1)
+#define STTY_verbose_output     (1<<2)
+#define STTY_recoverable_output (1<<3)
+#define STTY_noargs             (1<<4)
+int stty_main(int argc, char **argv)
 {
-	int i;
-	tcflag_t *bitsp;
-	unsigned long mask;
-	int prev_type = control;
+	struct termios mode;
+	void (*output_func)(const struct termios *, const int);
+	const char *file_name = NULL;
+	int display_all = 0;
+	int stty_state;
+	int k;
 
-	display_speed(mode, 1);
-#ifdef HAVE_C_LINE
-	wrapf("line = %d;\n", mode->c_line);
-#else
-	wrapf("\n");
-#endif
+	stty_state = STTY_noargs;
+	output_func = do_display;
 
-	for (i = 0; control_info[i].name != stty_min; ++i) {
-		if (mode->c_cc[control_info[i].offset] == control_info[i].saneval)
-			continue;
-		/* If swtch is the same as susp, don't print both */
-#if VSWTCH == VSUSP
-		if (control_info[i].name == stty_swtch)
-			continue;
-#endif
-		/* If eof uses the same slot as min, only print whichever applies */
-#if VEOF == VMIN
-		if ((mode->c_lflag & ICANON) == 0
-			&& (control_info[i].name == stty_eof
-				|| control_info[i].name == stty_eol)) continue;
-#endif
-		wrapf("%s = %s;", control_info[i].name,
-			  visible(mode->c_cc[control_info[i].offset]));
-	}
-	if ((mode->c_lflag & ICANON) == 0) {
-		wrapf("min = %d; time = %d;", (int) mode->c_cc[VMIN],
-			  (int) mode->c_cc[VTIME]);
-	}
-	if (current_col) wrapf("\n");
+	/* First pass: only parse/verify command line params */
+	k = 0;
+	while (argv[++k]) {
+		const struct mode_info *mp;
+		const struct control_info *cp;
+		const char *arg = argv[k];
+		const char *argnext = argv[k+1];
+		int param;
 
-	for (i = 0; i < NUM_mode_info; ++i) {
-		if (mode_info[i].flags & OMIT)
-			continue;
-		if (mode_info[i].type != prev_type) {
-			if (current_col) wrapf("\n");
-			prev_type = mode_info[i].type;
-		}
-
-		bitsp = mode_type_flag(mode_info[i].type, mode);
-		mask = mode_info[i].mask ? mode_info[i].mask : mode_info[i].bits;
-		if ((*bitsp & mask) == mode_info[i].bits) {
-			if (mode_info[i].flags & SANE_UNSET) {
-				wrapf("%s", mode_info[i].name);
+		if (arg[0] == '-') {
+			int i;
+			mp = find_mode(arg+1);
+			if (mp) {
+				if (!(mp->flags & REV))
+					goto invalid_argument;
+				stty_state &= ~STTY_noargs;
+				continue;
 			}
-		} else if ((mode_info[i].flags & (SANE_SET | REV)) == (SANE_SET | REV)) {
-			wrapf("-%s", mode_info[i].name);
+			/* It is an option - parse it */
+			i = 0;
+			while (arg[++i]) {
+				switch (arg[i]) {
+				case 'a':
+					stty_state |= STTY_verbose_output;
+					output_func = do_display;
+					display_all = 1;
+					break;
+				case 'g':
+					stty_state |= STTY_recoverable_output;
+					output_func = display_recoverable;
+					break;
+				case 'F':
+					if (file_name)
+						bb_error_msg_and_die("only one device may be specified");
+					file_name = &arg[i+1]; /* "-Fdevice" ? */
+					if (!file_name[0]) { /* nope, "-F device" */
+						int p = k+1; /* argv[p] is argnext */
+						file_name = argnext;
+						if (!file_name)
+							bb_error_msg_and_die(bb_msg_requires_arg, "-F");
+						/* remove -F param from arg[vc] */
+						--argc;
+						while (argv[p]) { argv[p] = argv[p+1]; ++p; }
+					}
+					goto end_option;
+				default:
+					goto invalid_argument;
+				}
+			}
+end_option:
+			continue;
 		}
-	}
-	if (current_col) wrapf("\n");
-}
 
-static void display_all(const struct termios *mode)
-{
-	int i;
-	tcflag_t *bitsp;
-	unsigned long mask;
-	int prev_type = control;
+		mp = find_mode(arg);
+		if (mp) {
+			stty_state &= ~STTY_noargs;
+			continue;
+		}
 
-	display_speed(mode, 1);
-	display_window_size(1);
+		cp = find_control(arg);
+		if (cp) {
+			if (!argnext)
+				bb_error_msg_and_die(bb_msg_requires_arg, arg);
+			/* called for the side effect of xfunc death only */
+			set_control_char_or_die(cp, argnext, &mode);
+			stty_state &= ~STTY_noargs;
+			++k;
+			continue;
+		}
+
+		param = find_param(arg);
+		if (param & param_need_arg) {
+			if (!argnext)
+				bb_error_msg_and_die(bb_msg_requires_arg, arg);
+			++k;
+		}
+
+		switch (param) {
 #ifdef HAVE_C_LINE
-	wrapf("line = %d;\n", mode->c_line);
-#else
-	wrapf("\n");
+		case param_line:
+# ifndef TIOCGWINSZ
+			xatoul_range_sfx(argnext, 1, INT_MAX, stty_suffixes);
+			break;
+# endif /* else fall-through */
 #endif
-
-	for (i = 0; control_info[i].name != stty_min; ++i) {
-		/* If swtch is the same as susp, don't print both */
-#if VSWTCH == VSUSP
-		if (control_info[i].name == stty_swtch)
-			continue;
+#ifdef TIOCGWINSZ
+		case param_rows:
+		case param_cols:
+			xatoul_range_sfx(argnext, 1, INT_MAX, stty_suffixes);
+			break;
+		case param_size:
 #endif
-		/* If eof uses the same slot as min, only print whichever applies */
-#if VEOF == VMIN
-		if ((mode->c_lflag & ICANON) == 0
-			&& (control_info[i].name == stty_eof
-				|| control_info[i].name == stty_eol)) continue;
-#endif
-		wrapf("%s = %s;", control_info[i].name,
-			  visible(mode->c_cc[control_info[i].offset]));
+		case param_speed:
+			break;
+		case param_ispeed:
+			/* called for the side effect of xfunc death only */
+			set_speed_or_die(input_speed, argnext, &mode);
+			break;
+		case param_ospeed:
+			/* called for the side effect of xfunc death only */
+			set_speed_or_die(output_speed, argnext, &mode);
+			break;
+		default:
+			if (recover_mode(arg, &mode) == 1) break;
+			if (tty_value_to_baud(xatou(arg)) != (speed_t) -1) break;
+invalid_argument:
+			bb_error_msg_and_die("invalid argument '%s'", arg);
+		}
+		stty_state &= ~STTY_noargs;
 	}
-#if VEOF == VMIN
-	if ((mode->c_lflag & ICANON) == 0)
-#endif
-		wrapf("min = %d; time = %d;", mode->c_cc[VMIN], mode->c_cc[VTIME]);
-	if (current_col) wrapf("\n");
 
-	for (i = 0; i < NUM_mode_info; ++i) {
-		if (mode_info[i].flags & OMIT)
+	/* Specifying both -a and -g is an error */
+	if ((stty_state & (STTY_verbose_output | STTY_recoverable_output)) ==
+		(STTY_verbose_output | STTY_recoverable_output))
+		bb_error_msg_and_die("verbose and stty-readable output styles are mutually exclusive");
+	/* Specifying -a or -g with non-options is an error */
+	if (!(stty_state & STTY_noargs) &&
+		(stty_state & (STTY_verbose_output | STTY_recoverable_output)))
+		bb_error_msg_and_die("modes may not be set when specifying an output style");
+
+	/* Now it is safe to start doing things */
+	if (file_name) {
+		int fd, fdflags;
+		device_name = file_name;
+		fd = xopen(device_name, O_RDONLY | O_NONBLOCK);
+		if (fd != STDIN_FILENO) {
+			dup2(fd, STDIN_FILENO);
+			close(fd);
+		}
+		fdflags = fcntl(STDIN_FILENO, F_GETFL);
+		if (fdflags < 0 ||
+			fcntl(STDIN_FILENO, F_SETFL, fdflags & ~O_NONBLOCK) < 0)
+			perror_on_device_and_die("%s: cannot reset non-blocking mode");
+	}
+
+	/* Initialize to all zeroes so there is no risk memcmp will report a
+	   spurious difference in an uninitialized portion of the structure */
+	memset(&mode, 0, sizeof(mode));
+	if (tcgetattr(STDIN_FILENO, &mode))
+		perror_on_device_and_die("%s");
+
+	if (stty_state & (STTY_verbose_output | STTY_recoverable_output | STTY_noargs)) {
+		get_terminal_width_height(STDOUT_FILENO, &max_col, NULL);
+		output_func(&mode, display_all);
+		return EXIT_SUCCESS;
+	}
+
+	/* Second pass: perform actions */
+	k = 0;
+	while (argv[++k]) {
+		const struct mode_info *mp;
+		const struct control_info *cp;
+		const char *arg = argv[k];
+		const char *argnext = argv[k+1];
+		int param;
+
+		if (arg[0] == '-') {
+			mp = find_mode(arg+1);
+			if (mp) {
+				set_mode(mp, 1 /* reversed */, &mode);
+				stty_state |= STTY_require_set_attr;
+			}
+			/* It is an option - already parsed. Skip it */
 			continue;
-		if (mode_info[i].type != prev_type) {
-			wrapf("\n");
-			prev_type = mode_info[i].type;
 		}
 
-		bitsp = mode_type_flag(mode_info[i].type, mode);
-		mask = mode_info[i].mask ? mode_info[i].mask : mode_info[i].bits;
-		if ((*bitsp & mask) == mode_info[i].bits)
-			wrapf("%s", mode_info[i].name);
-		else if (mode_info[i].flags & REV)
-			wrapf("-%s", mode_info[i].name);
-	}
-	if (current_col) wrapf("\n");
-}
+		mp = find_mode(arg);
+		if (mp) {
+			set_mode(mp, 0 /* non-reversed */, &mode);
+			stty_state |= STTY_require_set_attr;
+			continue;
+		}
 
-static void display_speed(const struct termios *mode, int fancy)
-{
-	                     //01234567 8 9
-	const char *fmt_str = "%lu %lu\n\0ispeed %lu baud; ospeed %lu baud;";
-	unsigned long ispeed, ospeed;
+		cp = find_control(arg);
+		if (cp) {
+			++k;
+			set_control_char_or_die(cp, argnext, &mode);
+			stty_state |= STTY_require_set_attr;
+			continue;
+		}
 
-	ospeed = ispeed = cfgetispeed(mode);
-	if (ispeed == 0 || ispeed == (ospeed = cfgetospeed(mode))) {
-		ispeed = ospeed;                /* in case ispeed was 0 */
-	                 //0123 4 5 6 7 8 9
-		fmt_str = "%lu\n\0\0\0\0\0speed %lu baud;";
-	}
-	if (fancy) fmt_str += 9;
-	wrapf(fmt_str, tty_baud_to_value(ispeed), tty_baud_to_value(ospeed));
-}
+		param = find_param(arg);
+		if (param & param_need_arg) {
+			++k;
+		}
 
-static void display_recoverable(const struct termios *mode)
-{
-	int i;
-	printf("%lx:%lx:%lx:%lx",
-		   (unsigned long) mode->c_iflag, (unsigned long) mode->c_oflag,
-		   (unsigned long) mode->c_cflag, (unsigned long) mode->c_lflag);
-	for (i = 0; i < NCCS; ++i)
-		printf(":%x", (unsigned int) mode->c_cc[i]);
-	putchar('\n');
-}
-
-static int recover_mode(const char *arg, struct termios *mode)
-{
-	int i, n;
-	unsigned int chr;
-	unsigned long iflag, oflag, cflag, lflag;
-
-	/* Scan into temporaries since it is too much trouble to figure out
-	   the right format for 'tcflag_t' */
-	if (sscanf(arg, "%lx:%lx:%lx:%lx%n",
-			   &iflag, &oflag, &cflag, &lflag, &n) != 4)
-		return 0;
-	mode->c_iflag = iflag;
-	mode->c_oflag = oflag;
-	mode->c_cflag = cflag;
-	mode->c_lflag = lflag;
-	arg += n;
-	for (i = 0; i < NCCS; ++i) {
-		if (sscanf(arg, ":%x%n", &chr, &n) != 1)
-			return 0;
-		mode->c_cc[i] = chr;
-		arg += n;
-	}
-
-	/* Fail if there are too many fields */
-	if (*arg != '\0')
-		return 0;
-
-	return 1;
-}
-
-static void sane_mode(struct termios *mode)
-{
-	int i;
-	tcflag_t *bitsp;
-
-	for (i = 0; i < NUM_control_info; ++i) {
-#if VMIN == VEOF
-		if (control_info[i].name == stty_min)
+		switch (param) {
+#ifdef HAVE_C_LINE
+		case param_line:
+			mode.c_line = xatoul_sfx(argnext, stty_suffixes);
+			stty_state |= STTY_require_set_attr;
 			break;
 #endif
-		mode->c_cc[control_info[i].offset] = control_info[i].saneval;
-	}
-
-	for (i = 0; i < NUM_mode_info; ++i) {
-		if (mode_info[i].flags & SANE_SET) {
-			bitsp = mode_type_flag(mode_info[i].type, mode);
-			*bitsp = (*bitsp & ~((unsigned long)mode_info[i].mask))
-				| mode_info[i].bits;
-		} else if (mode_info[i].flags & SANE_UNSET) {
-			bitsp = mode_type_flag(mode_info[i].type, mode);
-			*bitsp = *bitsp & ~((unsigned long)mode_info[i].mask)
-				& ~mode_info[i].bits;
+#ifdef TIOCGWINSZ
+		case param_cols:
+			set_window_size(-1, xatoul_sfx(argnext, stty_suffixes));
+			break;
+		case param_size:
+			display_window_size(0);
+			break;
+		case param_rows:
+			set_window_size(xatoul_sfx(argnext, stty_suffixes), -1);
+			break;
+#endif
+		case param_speed:
+			display_speed(&mode, 0);
+			break;
+		case param_ispeed:
+			set_speed_or_die(input_speed, argnext, &mode);
+			stty_state |= (STTY_require_set_attr | STTY_speed_was_set);
+			break;
+		case param_ospeed:
+			set_speed_or_die(output_speed, argnext, &mode);
+			stty_state |= (STTY_require_set_attr | STTY_speed_was_set);
+			break;
+		default:
+			if (recover_mode(arg, &mode) == 1)
+				stty_state |= STTY_require_set_attr;
+			else /* true: if (tty_value_to_baud(xatou(arg)) != (speed_t) -1) */{
+				set_speed_or_die(both_speeds, arg, &mode);
+				stty_state |= (STTY_require_set_attr | STTY_speed_was_set);
+			} /* else - impossible (caught in the first pass):
+				bb_error_msg_and_die("invalid argument '%s'", arg); */
 		}
 	}
+
+	if (stty_state & STTY_require_set_attr) {
+		struct termios new_mode;
+
+		if (tcsetattr(STDIN_FILENO, TCSADRAIN, &mode))
+			perror_on_device_and_die("%s");
+
+		/* POSIX (according to Zlotnick's book) tcsetattr returns zero if
+		   it performs *any* of the requested operations.  This means it
+		   can report 'success' when it has actually failed to perform
+		   some proper subset of the requested operations.  To detect
+		   this partial failure, get the current terminal attributes and
+		   compare them to the requested ones */
+
+		/* Initialize to all zeroes so there is no risk memcmp will report a
+		   spurious difference in an uninitialized portion of the structure */
+		memset(&new_mode, 0, sizeof(new_mode));
+		if (tcgetattr(STDIN_FILENO, &new_mode))
+			perror_on_device_and_die("%s");
+
+		if (memcmp(&mode, &new_mode, sizeof(mode)) != 0) {
+#ifdef CIBAUD
+			/* SunOS 4.1.3 (at least) has the problem that after this sequence,
+			   tcgetattr (&m1); tcsetattr (&m1); tcgetattr (&m2);
+			   sometimes (m1 != m2).  The only difference is in the four bits
+			   of the c_cflag field corresponding to the baud rate.  To save
+			   Sun users a little confusion, don't report an error if this
+			   happens.  But suppress the error only if we haven't tried to
+			   set the baud rate explicitly -- otherwise we'd never give an
+			   error for a true failure to set the baud rate */
+
+			new_mode.c_cflag &= (~CIBAUD);
+			if ((stty_state & STTY_speed_was_set)
+			 || memcmp(&mode, &new_mode, sizeof(mode)) != 0)
+#endif
+				perror_on_device_and_die("%s: cannot perform all requested operations");
+		}
+	}
+
+	return EXIT_SUCCESS;
 }

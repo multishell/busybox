@@ -616,7 +616,7 @@ int ipaddr_list_or_flush(int argc, char **argv, int flush)
 static int default_scope(inet_prefix *lcl)
 {
 	if (lcl->family == AF_INET) {
-		if (lcl->bytelen >= 1 && *(__u8*)&lcl->data == 127)
+		if (lcl->bytelen >= 1 && *(uint8_t*)&lcl->data == 127)
 			return RT_SCOPE_HOST;
 	}
 	return 0;
@@ -678,10 +678,10 @@ static int ipaddr_modify(int cmd, int argc, char **argv)
 				if (brd_len) {
 					duparg("broadcast", *argv);
 				}
-				if (strcmp(*argv, "+") == 0) {
+				if (LONE_CHAR(*argv, '+')) {
 					brd_len = -1;
 				}
-				else if (strcmp(*argv, "-") == 0) {
+				else if (LONE_DASH(*argv)) {
 					brd_len = -2;
 				} else {
 					get_addr(&addr, *argv, req.ifa.ifa_family);

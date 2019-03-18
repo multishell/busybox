@@ -19,26 +19,8 @@
  * 98/12/29	- Display version info only when -V specified (G M Sipe)
  */
 
-#include <sys/types.h>
-#include <dirent.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <string.h>
-#include <errno.h>
-#include <sys/param.h>
-#include <sys/stat.h>
-#include "ext2fs/ext2_fs.h"
-
-#ifdef __GNUC__
-# define EXT2FS_ATTR(x) __attribute__(x)
-#else
-# define EXT2FS_ATTR(x)
-#endif
-
-#include "e2fsbb.h"
-#include "e2p/e2p.h"
+#include "busybox.h"
+#include "e2fs_lib.h"
 
 #define OPT_ADD 1
 #define OPT_REM 2
@@ -77,14 +59,13 @@ static const struct flags_char flags_array[] = {
 static unsigned long get_flag(char c)
 {
 	const struct flags_char *fp;
-	for (fp = flags_array; fp->flag; fp++)
+	for (fp = flags_array; fp->optchar; fp++)
 		if (fp->optchar == c)
 			return fp->flag;
 	bb_show_usage();
-	return 0;
 }
 
-static int decode_arg(char *arg)
+static int decode_arg(const char *arg)
 {
 	unsigned long *fl;
 	char opt = *arg++;
@@ -99,23 +80,35 @@ static int decode_arg(char *arg)
 		flags |= OPT_SET;
 		fl = &sf;
 	} else
-		return EOF;
+		return 0;
 
-	for (; *arg ; ++arg)
-		(*fl) |= get_flag(*arg);
+	while (*arg)
+		*fl |= get_flag(*arg++);
 
 	return 1;
 }
 
-static int chattr_dir_proc(const char *, struct dirent *, void *);
+static void change_attributes(const char *name);
 
-static void change_attributes(const char * name)
+static int chattr_dir_proc(const char *dir_name, struct dirent *de,
+			void *private ATTRIBUTE_UNUSED)
+{
+	char *path = concat_subpath_file(dir_name, de->d_name);
+	/* path is NULL if de->d_name is "." or "..", else... */
+	if (path) {
+		change_attributes(path);
+		free(path);
+	}
+	return 0;
+}
+
+static void change_attributes(const char *name)
 {
 	unsigned long fsflags;
 	struct stat st;
 
 	if (lstat(name, &st) == -1) {
-		bb_error_msg("stat %s failed", name);
+		bb_perror_msg("stat %s", name);
 		return;
 	}
 	if (S_ISLNK(st.st_mode) && recursive)
@@ -130,13 +123,13 @@ static void change_attributes(const char * name)
 
 	if (flags & OPT_SET_VER)
 		if (fsetversion(name, version) == -1)
-			bb_error_msg("setting version on %s", name);
+			bb_perror_msg("setting version on %s", name);
 
 	if (flags & OPT_SET) {
 		fsflags = sf;
 	} else {
 		if (fgetflags(name, &fsflags) == -1) {
-			bb_error_msg("reading flags on %s", name);
+			bb_perror_msg("reading flags on %s", name);
 			goto skip_setflags;
 		}
 		if (flags & OPT_REM)
@@ -147,72 +140,50 @@ static void change_attributes(const char * name)
 			fsflags &= ~EXT2_DIRSYNC_FL;
 	}
 	if (fsetflags(name, fsflags) == -1)
-		bb_error_msg("setting flags on %s", name);
+		bb_perror_msg("setting flags on %s", name);
 
-skip_setflags:
-	if (S_ISDIR(st.st_mode) && recursive)
+ skip_setflags:
+	if (recursive && S_ISDIR(st.st_mode))
 		iterate_on_dir(name, chattr_dir_proc, NULL);
-}
-
-static int chattr_dir_proc(const char *dir_name, struct dirent *de,
-			   void *private EXT2FS_ATTR((unused)))
-{
-	/*if (strcmp(de->d_name, ".") && strcmp(de->d_name, "..")) {*/
-	if (de->d_name[0] == '.' && (de->d_name[1] == '\0' || \
-	   (de->d_name[1] == '.' && de->d_name[2] == '\0'))) {
-		char *path = concat_subpath_file(dir_name, de->d_name);
-		if (path) {
-			change_attributes(path);
-			free(path);
-		}
-	}
-	return 0;
 }
 
 int chattr_main(int argc, char **argv)
 {
-	int i;
 	char *arg;
 
 	/* parse the args */
-	for (i = 1; i < argc; ++i) {
-		arg = argv[i];
-
+	while ((arg = *++argv)) {
 		/* take care of -R and -v <version> */
 		if (arg[0] == '-') {
 			if (arg[1] == 'R' && arg[2] == '\0') {
 				recursive = 1;
 				continue;
-			} else if (arg[1] == 'v' && arg[2] == '\0') {
-				char *tmp;
-				++i;
-				if (i >= argc)
+			}
+			if (arg[1] == 'v' && arg[2] == '\0') {
+				if (!*++argv)
 					bb_show_usage();
-				version = strtol(argv[i], &tmp, 0);
-				if (*tmp)
-					bb_error_msg_and_die("bad version '%s'", arg);
+				version = xatoul(*argv);
 				flags |= OPT_SET_VER;
 				continue;
 			}
 		}
 
-		if (decode_arg(arg) == EOF)
+		if (!decode_arg(arg))
 			break;
 	}
 
 	/* run sanity checks on all the arguments given us */
-	if (i >= argc)
+	if (!*argv)
 		bb_show_usage();
-	if ((flags & OPT_SET) && ((flags & OPT_ADD) || (flags & OPT_REM)))
+	if ((flags & OPT_SET) && (flags & (OPT_ADD|OPT_REM)))
 		bb_error_msg_and_die("= is incompatible with - and +");
-	if ((rf & af) != 0)
-		bb_error_msg_and_die("Can't set and unset a flag");
+	if (rf & af)
+		bb_error_msg_and_die("can't set and unset a flag");
 	if (!flags)
-		bb_error_msg_and_die("Must use '-v', =, - or +");
+		bb_error_msg_and_die("must use '-v', =, - or +");
 
 	/* now run chattr on all the files passed to us */
-	while (i < argc)
-		change_attributes(argv[i++]);
+	do change_attributes(*argv); while (*++argv);
 
 	return EXIT_SUCCESS;
 }

@@ -4,7 +4,7 @@
  *
  * Based in part on code from sash, Copyright (c) 1999 by David I. Bell
  * Permission has been granted to redistribute this code under the GPL.
- * 
+ *
  * Licensed under the GPL version 2, see the file LICENSE in this tarball.
  */
 #ifndef	__LIBBUSYBOX_H__
@@ -39,11 +39,11 @@
 #include <unistd.h>
 #include <utime.h>
 
-#ifdef CONFIG_SELINUX
+#if ENABLE_SELINUX
 #include <selinux/selinux.h>
 #endif
 
-#ifdef CONFIG_LOCALE_SUPPORT
+#if ENABLE_LOCALE_SUPPORT
 #include <locale.h>
 #else
 #define setlocale(x,y) ((void)0)
@@ -121,6 +121,38 @@
 /* scary. better ideas? (but do *test* them first!) */
 #define OFF_T_MAX  ((off_t)~((off_t)1 << (sizeof(off_t)*8-1)))
 
+/* This structure defines protocol families and their handlers. */
+struct aftype {
+	char *name;
+	char *title;
+	int af;
+	int alen;
+	char *(*print) (unsigned char *);
+	char *(*sprint) (struct sockaddr *, int numeric);
+	int (*input) (int type, char *bufp, struct sockaddr *);
+	void (*herror) (char *text);
+	int (*rprint) (int options);
+	int (*rinput) (int typ, int ext, char **argv);
+
+	/* may modify src */
+	int (*getmask) (char *src, struct sockaddr * mask, char *name);
+
+	int fd;
+	char *flag_file;
+};
+
+/* This structure defines hardware protocols and their handlers. */
+struct hwtype {
+	char *name;
+	char *title;
+	int type;
+	int alen;
+	char *(*print) (unsigned char *);
+	int (*input) (char *, struct sockaddr *);
+	int (*activate) (int fd);
+	int suppress_null_addr;
+};
+
 /* Some useful definitions */
 #undef FALSE
 #define FALSE   ((int) 0)
@@ -146,12 +178,12 @@
 #endif
 
 /* buffer allocation schemes */
-#ifdef CONFIG_FEATURE_BUFFERS_GO_ON_STACK
+#if ENABLE_FEATURE_BUFFERS_GO_ON_STACK
 #define RESERVE_CONFIG_BUFFER(buffer,len)           char buffer[len]
 #define RESERVE_CONFIG_UBUFFER(buffer,len) unsigned char buffer[len]
 #define RELEASE_CONFIG_BUFFER(buffer)      ((void)0)
 #else
-#ifdef CONFIG_FEATURE_BUFFERS_GO_IN_BSS
+#if ENABLE_FEATURE_BUFFERS_GO_IN_BSS
 #define RESERVE_CONFIG_BUFFER(buffer,len)  static          char buffer[len]
 #define RESERVE_CONFIG_UBUFFER(buffer,len) static unsigned char buffer[len]
 #define RELEASE_CONFIG_BUFFER(buffer)      ((void)0)
@@ -163,7 +195,7 @@
 #endif
 
 
-#if (__GLIBC__ < 2)
+#if defined(__GLIBC__) && __GLIBC__ < 2
 int vdprintf(int d, const char *format, va_list ap);
 #endif
 // This is declared here rather than #including <libgen.h> in order to avoid
@@ -194,6 +226,7 @@ extern int sysinfo(struct sysinfo* info);
 extern void chomp(char *s);
 extern void trim(char *s);
 extern char *skip_whitespace(const char *);
+extern char *skip_non_whitespace(const char *);
 
 extern const char *bb_mode_string(int mode);
 extern int is_directory(const char *name, int followLinks, struct stat *statBuf);
@@ -207,11 +240,17 @@ extern int recursive_action(const char *fileName, int recurse,
 extern int device_open(const char *device, int mode);
 extern int get_console_fd(void);
 extern char *find_block_device(char *path);
-extern off_t bb_copyfd_size(int fd1, int fd2, off_t size);
+/* bb_copyfd_XX print read/write errors and return -1 if they occur */
 extern off_t bb_copyfd_eof(int fd1, int fd2);
+extern off_t bb_copyfd_size(int fd1, int fd2, off_t size);
+extern void bb_copyfd_exact_size(int fd1, int fd2, off_t size);
+/* "short" copy can be detected by return value < size */
+/* this helper yells "short read!" if param is not -1 */
+extern void complain_copyfd_and_die(off_t sz) ATTRIBUTE_NORETURN;
 extern char bb_process_escape_sequence(const char **ptr);
 extern char *bb_get_last_path_component(char *path);
 extern int ndelay_on(int fd);
+extern int ndelay_off(int fd);
 
 
 extern DIR *xopendir(const char *path);
@@ -219,6 +258,7 @@ extern DIR *warn_opendir(const char *path);
 
 char *xgetcwd(char *cwd);
 char *xreadlink(const char *path);
+char *xmalloc_realpath(const char *path);
 extern void xstat(char *filename, struct stat *buf);
 extern pid_t spawn(char **argv);
 extern pid_t xspawn(char **argv);
@@ -226,6 +266,10 @@ extern int wait4pid(int pid);
 extern void xsetgid(gid_t gid);
 extern void xsetuid(uid_t uid);
 extern void xdaemon(int nochdir, int noclose);
+/* More clever/thorough xdaemon */
+extern void bb_sanitize_stdio_maybe_daemonize(int daemonize);
+extern void bb_sanitize_stdio(void);
+extern void bb_daemonize(void);
 extern void xchdir(const char *path);
 extern void xsetenv(const char *key, const char *value);
 extern int xopen(const char *pathname, int flags);
@@ -241,24 +285,64 @@ extern void xconnect(int s, const struct sockaddr *s_addr, socklen_t addrlen);
 extern int xconnect_tcp_v4(struct sockaddr_in *s_addr);
 extern struct hostent *xgethostbyname(const char *name);
 extern struct hostent *xgethostbyname2(const char *name, int af);
-extern int xsocket_stream_ip4or6(sa_family_t *fp);
-typedef union {
-	struct sockaddr sa;
-	struct sockaddr_in sin;
-#if ENABLE_FEATURE_IPV6
-	struct sockaddr_in6 sin6;
-#endif
-} sockaddr_inet;
-extern int dotted2sockaddr(const char *dotted, struct sockaddr* sp, int socklen);
-extern int create_and_bind_socket_ip4or6(const char *hostaddr, int port);
 extern int setsockopt_reuseaddr(int fd);
 extern int setsockopt_broadcast(int fd);
+
+/* "new" (ipv4+ipv6) API */
+typedef struct len_and_sockaddr {
+	int len;
+	union {
+		struct sockaddr sa;
+		struct sockaddr_in sin;
+#if ENABLE_FEATURE_IPV6
+		struct sockaddr_in6 sin6;
+#endif
+	};
+} len_and_sockaddr;
+/* Create stream socket, and allocated suitable lsa
+ * (lsa of correct size and lsa->sa.sa_family (AF_INET/AF_INET6)) */
+int xsocket_stream(len_and_sockaddr **lsap);
+/* Create server TCP socket bound to bindaddr:port. bindaddr can be NULL,
+ * numeric IP ("N.N.N.N") or numeric IPv6 address,
+ * and can have ":PORT" suffix (for IPv6 use "[X:X:...:X]:PORT").
+ * If there is no suffix, port argument is used */
+extern int create_and_bind_stream_or_die(const char *bindaddr, int port);
+/* Create client TCP socket connected to peer:port. Peer cannot be NULL.
+ * Peer can be numeric IP ("N.N.N.N"), numeric IPv6 address or hostname,
+ * and can have ":PORT" suffix (for IPv6 use "[X:X:...:X]:PORT").
+ * If there is no suffix, port argument is used */
+extern int create_and_connect_stream_or_die(const char *peer, int port);
+/* Connect to peer identified by lsa */
+extern int xconnect_stream(const len_and_sockaddr *lsa);
+/* Return malloc'ed len_and_sockaddr with socket address of host:port
+ * Currently will return IPv4 or IPv6 sockaddrs only
+ * (depending on host), but in theory nothing prevents e.g.
+ * UNIX socket address being returned, IPX sockaddr etc... */
+extern len_and_sockaddr* host2sockaddr(const char *host, int port);
+/* Assign sin[6]_port member if the socket is of corresponding type,
+ * otherwise noop. Useful for ftp.
+ * NB: does NOT do htons() internally, just direct assignment. */
+extern void set_nport(len_and_sockaddr *lsa, unsigned port);
+/* Retrieve sin[6]_port or return -1 for non-inet lsa's */
+extern int get_nport(len_and_sockaddr *lsa);
+extern char* xmalloc_sockaddr2host(const struct sockaddr *sa, socklen_t salen);
+extern char* xmalloc_sockaddr2dotted(const struct sockaddr *sa, socklen_t salen);
 
 
 extern char *xstrdup(const char *s);
 extern char *xstrndup(const char *s, int n);
 extern char *safe_strncpy(char *dst, const char *src, size_t size);
 extern char *xasprintf(const char *format, ...) __attribute__ ((format (printf, 1, 2)));
+// gcc-4.1.1 still isn't good enough at optimizing it
+// (+200 bytes compared to macro)
+//static ATTRIBUTE_ALWAYS_INLINE
+//int LONE_DASH(const char *s) { return s[0] == '-' && !s[1]; }
+//static ATTRIBUTE_ALWAYS_INLINE
+//int NOT_LONE_DASH(const char *s) { return s[0] != '-' || s[1]; }
+#define LONE_DASH(s) ((s)[0] == '-' && !(s)[1])
+#define NOT_LONE_DASH(s) ((s)[0] != '-' || (s)[1])
+#define LONE_CHAR(s,c) ((s)[0] == (c) && !(s)[1])
+#define NOT_LONE_CHAR(s,c) ((s)[0] != (c) || (s)[1])
 
 /* dmalloc will redefine these to it's own implementation. It is safe
  * to have the prototypes here unconditionally.  */
@@ -299,11 +383,13 @@ extern FILE *fopen_or_warn(const char *filename, const char *mode);
 extern FILE *fopen_or_warn_stdin(const char *filename);
 
 
-extern void smart_ulltoa5(unsigned long long ul, char buf[5]);
 extern void utoa_to_buf(unsigned n, char *buf, unsigned buflen);
 extern char *utoa(unsigned n);
 extern void itoa_to_buf(int n, char *buf, unsigned buflen);
 extern char *itoa(int n);
+extern void smart_ulltoa5(unsigned long long ul, char buf[5]);
+/* Put a string of hex bytes (ala "1b"), return advanced pointer */
+extern char *bin2hex(char *buf, const char *cp, int count);
 
 struct suffix_mult {
 	const char *suffix;
@@ -323,17 +409,26 @@ uint16_t xatou16(const char *numstr);
 /* These parse entries in /etc/passwd and /etc/group.  This is desirable
  * for BusyBox since we want to avoid using the glibc NSS stuff, which
  * increases target size and is often not needed on embedded systems.  */
-extern long bb_xgetpwnam(const char *name);
-extern long bb_xgetgrnam(const char *name);
-/*extern char *bb_getug(char *buffer, char *idname, long id, int bufsize, char prefix);*/
-extern char *bb_getpwuid(char *name, long uid, int bufsize);
-extern char *bb_getgrgid(char *group, long gid, int bufsize);
-/* from chpst */
+long xuname2uid(const char *name);
+long xgroup2gid(const char *name);
+/* wrapper: allows string to contain numeric uid or gid */
+unsigned long get_ug_id(const char *s, long (*xname2id)(const char *));
+/* from chpst. Does not die, returns 0 on failure */
 struct bb_uidgid_t {
-        uid_t uid;
-        gid_t gid;
+	uid_t uid;
+	gid_t gid;
 };
-extern unsigned uidgid_get(struct bb_uidgid_t*, const char* /*, unsigned*/);
+int get_uidgid(struct bb_uidgid_t*, const char*, int numeric_ok);
+/* what is this? */
+/*extern char *bb_getug(char *buffer, char *idname, long id, int bufsize, char prefix);*/
+char *bb_getpwuid(char *name, long uid, int bufsize);
+char *bb_getgrgid(char *group, long gid, int bufsize);
+/* versions which cache results (useful for ps, ls etc) */
+const char* get_cached_username(uid_t uid);
+const char* get_cached_groupname(gid_t gid);
+void clear_username_cache(void);
+/* internally usernames are saved in fixed-sized char[] buffers */
+enum { USERNAME_MAX_SIZE = 16 - sizeof(int) };
 
 
 enum { BB_GETOPT_ERROR = 0x80000000 };
@@ -365,6 +460,7 @@ extern const char *msg_eol;
 extern int logmode;
 extern int die_sleep;
 extern int xfunc_error_retval;
+extern void sleep_and_die(void) ATTRIBUTE_NORETURN;
 extern void bb_show_usage(void) ATTRIBUTE_NORETURN ATTRIBUTE_EXTERNALLY_VISIBLE;
 extern void bb_error_msg(const char *s, ...) __attribute__ ((format (printf, 1, 2)));
 extern void bb_error_msg_and_die(const char *s, ...) __attribute__ ((noreturn, format (printf, 1, 2)));
@@ -382,8 +478,24 @@ extern void bb_vperror_msg(const char *s, va_list p);
 extern void bb_vinfo_msg(const char *s, va_list p);
 
 
-extern int bb_echo(int argc, char** argv);
+/* applets which are useful from another applets */
+extern int bb_cat(char** argv);
+extern int bb_echo(char** argv);
 extern int bb_test(int argc, char** argv);
+
+
+/* Networking */
+int create_icmp_socket(void);
+int create_icmp6_socket(void);
+/* interface.c */
+struct aftype;
+struct hwtype;
+extern int interface_opt_a;
+int display_interfaces(char *ifname);
+struct aftype *get_aftype(const char *name);
+const struct hwtype *get_hwtype(const char *name);
+const struct hwtype *get_hwntype(int type);
+
 
 #ifndef BUILD_INDIVIDUAL
 extern struct BB_applet *find_applet_by_name(const char *name);
@@ -423,10 +535,9 @@ int exists_execable(const char *filename);
 USE_DESKTOP(long long) int uncompress(int fd_in, int fd_out);
 int inflate(int in, int out);
 
-int create_icmp_socket(void);
-int create_icmp6_socket(void);
 
-unsigned short bb_lookup_port(const char *port, const char *protocol, unsigned short default_port);
+/* NB: returns port in host byte order */
+unsigned bb_lookup_port(const char *port, const char *protocol, unsigned default_port);
 void bb_lookup_host(struct sockaddr_in *s_in, const char *host);
 
 int bb_make_directory(char *path, long mode, int flags);
@@ -441,7 +552,7 @@ extern void bb_do_delay(int seconds);
 extern void change_identity(const struct passwd *pw);
 extern const char *change_identity_e2str(const struct passwd *pw);
 extern void run_shell(const char *shell, int loginshell, const char *command, const char **additional_args);
-#ifdef CONFIG_SELINUX
+#if ENABLE_SELINUX
 extern void renew_current_security_context(void);
 extern void set_current_security_context(security_context_t sid);
 #endif
@@ -460,7 +571,6 @@ extern void vfork_daemon_rexec(int nochdir, int noclose,
 		int argc, char **argv, char *foreground_opt);
 #endif
 extern int get_terminal_width_height(int fd, int *width, int *height);
-extern unsigned long get_ug_id(const char *s, long (*__bb_getxxnam)(const char *));
 
 int is_in_ino_dev_hashtable(const struct stat *statbuf, char **name);
 void add_to_ino_dev_hashtable(const struct stat *statbuf, const char *name);
@@ -521,9 +631,6 @@ void free_procps_scan(procps_status_t* sp);
 procps_status_t* procps_scan(procps_status_t* sp, int flags);
 pid_t *find_pid_by_name(const char* procName);
 pid_t *pidlist_reverse(pid_t *pidList);
-void clear_username_cache(void);
-const char* get_cached_username(uid_t uid);
-const char* get_cached_groupname(gid_t gid);
 
 
 extern const char bb_uuenc_tbl_base64[];
@@ -583,6 +690,8 @@ extern const char bb_msg_standard_input[];
 extern const char bb_msg_standard_output[];
 
 extern const char bb_str_default[];
+/* NB: (bb_hexdigits_upcase[i] | 0x10) -> lowercase hex digit */
+extern const char bb_hexdigits_upcase[];
 
 extern const char bb_path_mtab_file[];
 extern const char bb_path_nologin_file[];
@@ -612,7 +721,7 @@ extern const char bb_default_login_shell[];
 #define DEFAULT_SHELL_SHORT_NAME     (bb_default_login_shell+6)
 
 
-#ifdef CONFIG_FEATURE_DEVFS
+#if ENABLE_FEATURE_DEVFS
 # define CURRENT_VC "/dev/vc/0"
 # define VC_1 "/dev/vc/1"
 # define VC_2 "/dev/vc/2"

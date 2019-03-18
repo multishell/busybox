@@ -1,6 +1,6 @@
 VERSION = 1
-PATCHLEVEL = 3
-SUBLEVEL = 2
+PATCHLEVEL = 4
+SUBLEVEL = 0
 EXTRAVERSION =
 NAME = Unnamed
 
@@ -71,7 +71,7 @@ endif
 # In both cases the working directory must be the root of the kernel src.
 # 1) O=
 # Use "make O=dir/to/store/output/files/"
-# 
+#
 # 2) Set KBUILD_OUTPUT
 # Set the environment variable KBUILD_OUTPUT to point to the directory
 # where the output files shall be placed.
@@ -145,7 +145,7 @@ export srctree objtree VPATH TOPDIR
 # SUBARCH tells the usermode build what the underlying arch is.  That is set
 # first, and if a usermode build is happening, the "ARCH=um" on the command
 # line overrides the setting of ARCH below.  If a native build is happening,
-# then ARCH is assigned, getting whatever value it gets normally, and 
+# then ARCH is assigned, getting whatever value it gets normally, and
 # SUBARCH is subsequently ignored.
 
 SUBARCH := $(shell uname -m | sed -e s/i.86/i386/ -e s/sun4u/sparc64/ \
@@ -229,7 +229,7 @@ export KBUILD_CHECKSRC KBUILD_SRC KBUILD_EXTMOD
 #         cmd_cc_o_c       = $(CC) $(c_flags) -c -o $@ $<
 #
 # If $(quiet) is empty, the whole command will be printed.
-# If it is set to "quiet_", only the short version will be printed. 
+# If it is set to "quiet_", only the short version will be printed.
 # If it is set to "silent_", nothing wil be printed at all, since
 # the variable $(silent_cmd_cc_o_c) doesn't exist.
 #
@@ -273,8 +273,8 @@ MAKEFLAGS += -rR
 # Make variables (CC, etc...)
 
 AS		= $(CROSS_COMPILE)as
-LD		= $(CROSS_COMPILE)ld
 CC		= $(CROSS_COMPILE)gcc
+LD		= $(CC) -nostdlib
 CPP		= $(CC) -E
 AR		= $(CROSS_COMPILE)ar
 NM		= $(CROSS_COMPILE)nm
@@ -313,7 +313,7 @@ export	VERSION PATCHLEVEL SUBLEVEL KERNELRELEASE KERNELVERSION \
 	HOSTCXX HOSTCXXFLAGS LDFLAGS_MODULE CHECK CHECKFLAGS
 
 export CPPFLAGS NOSTDINC_FLAGS LINUXINCLUDE OBJCOPYFLAGS LDFLAGS
-export CFLAGS CFLAGS_KERNEL CFLAGS_MODULE 
+export CFLAGS CFLAGS_KERNEL CFLAGS_MODULE
 export AFLAGS AFLAGS_KERNEL AFLAGS_MODULE
 
 # When compiling out-of-tree modules, put MODVERDIR in the module
@@ -351,7 +351,7 @@ endif
 # catch them early, and hand them over to scripts/kconfig/Makefile
 # It is allowed to specify more targets when calling make, including
 # mixing *config targets and build targets.
-# For example 'make oldconfig all'. 
+# For example 'make oldconfig all'.
 # Detect when mixed targets is specified, and make a second invocation
 # of make so .config is not included in this case either (for *config).
 
@@ -429,10 +429,6 @@ libs-y		:= \
 		coreutils/libcoreutils/ \
 		debianutils/ \
 		e2fsprogs/ \
-		e2fsprogs/blkid/ \
-		e2fsprogs/e2p/ \
-		e2fsprogs/ext2fs/ \
-		e2fsprogs/uuid/ \
 		editors/ \
 		findutils/ \
 		init/ \
@@ -533,7 +529,6 @@ libs-y1		:= $(patsubst %/, %/lib.a, $(libs-y))
 libs-y2		:= $(patsubst %/, %/built-in.o, $(libs-y))
 libs-y		:= $(libs-y1) $(libs-y2)
 
-
 # Build busybox
 # ---------------------------------------------------------------------------
 # busybox is build from the objects selected by $(busybox-init) and
@@ -566,20 +561,13 @@ busybox-all  := $(core-y) $(libs-y)
 # Rule to link busybox - also used during CONFIG_KALLSYMS
 # May be overridden by arch/$(ARCH)/Makefile
 quiet_cmd_busybox__ ?= LINK    $@
-ifdef CONFIG_STATIC
       cmd_busybox__ ?= $(srctree)/scripts/trylink $(CC) $(LDFLAGS) \
-      -static \
       -o $@ \
       -Wl,--warn-common -Wl,--sort-common -Wl,--gc-sections \
       -Wl,--start-group $(busybox-all) -Wl,--end-group
-else
-      cmd_busybox__ ?= $(srctree)/scripts/trylink $(CC) -o $@ $(LDFLAGS) \
-      -Wl,--warn-common -Wl,--sort-common -Wl,--gc-sections \
-      -Wl,--start-group $(busybox-all) -Wl,--end-group
-endif
 
 # Generate System.map
-quiet_cmd_sysmap = SYSMAP 
+quiet_cmd_sysmap = SYSMAP
       cmd_sysmap = $(CONFIG_SHELL) $(srctree)/scripts/mksysmap
 
 # Link of busybox
@@ -635,7 +623,7 @@ endef
 # First command is ':' to allow us to use + in front of this rule
 cmd_ksym_ld = $(cmd_busybox__)
 define rule_ksym_ld
-	: 
+	:
 	+$(call cmd,busybox_version)
 	$(call cmd,busybox__)
 	$(Q)echo 'cmd_$@ := $(cmd_busybox__)' > $(@D)/.$(@F).cmd
@@ -686,7 +674,7 @@ busybox: busybox_unstripped
 	$(Q)$(STRIP) -s --remove-section=.note --remove-section=.comment \
 		busybox_unstripped -o $@
 
-# The actual objects are generated when descending, 
+# The actual objects are generated when descending,
 # make sure no implicit rule kicks in
 $(sort $(busybox-all)): $(busybox-dirs) ;
 
@@ -719,7 +707,7 @@ _localver = $(foreach f, $(__localver), $(if $(findstring ~, $(f)),,$(f)))
 localver = $(subst $(space),, \
 	   $(shell cat /dev/null $(_localver)) \
 	   $(patsubst "%",%,$(CONFIG_LOCALVERSION)))
-	       
+
 # If CONFIG_LOCALVERSION_AUTO is set scripts/setlocalversion is called
 # and if the SCM is know a tag from the SCM is appended.
 # The appended tag is determinded by the SCM used.
@@ -802,12 +790,14 @@ export CPPFLAGS_busybox.lds += -P -C -U$(ARCH)
 #bbox# 	@ln -fsn asm-$(ARCH) $@
 
 # 	Split autoconf.h into include/linux/config/*
+quiet_cmd_gen_bbconfigopts = GEN     include/bbconfigopts.h
+      cmd_gen_bbconfigopts = $(srctree)/scripts/mkconfigs > include/bbconfigopts.h
+quiet_cmd_split_autoconf   = SPLIT   include/autoconf.h -> include/config/*
+      cmd_split_autoconf   = scripts/basic/split-include include/autoconf.h include/config
 #bbox# piggybacked generation of few .h files
 include/config/MARKER: scripts/basic/split-include include/autoconf.h
-	@echo '  SPLIT   include/autoconf.h -> include/config/*'
-	@scripts/basic/split-include include/autoconf.h include/config
-	@echo '  GEN     include/bbconfigopts.h'
-	@$(srctree)/scripts/mkconfigs >include/bbconfigopts.h
+	$(call cmd,split_autoconf)
+	$(call cmd,gen_bbconfigopts)
 	@touch $@
 
 # Generate some files
@@ -1245,7 +1235,7 @@ endif
 	$(build)=$(build-dir) $(@:.ko=.o)
 	$(Q)$(MAKE) -rR -f $(srctree)/scripts/Makefile.modpost
 
-# FIXME Should go into a make.lib or something 
+# FIXME Should go into a make.lib or something
 # ===========================================================================
 
 quiet_cmd_rmdirs = $(if $(wildcard $(rm-dirs)),CLEAN   $(wildcard $(rm-dirs)))

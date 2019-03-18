@@ -36,12 +36,6 @@
 
 #define BUFSIZE 4000
 
-#if ENABLE_FEATURE_IPV6
-typedef struct sockaddr_in6 sockaddr_type;
-#else
-typedef struct sockaddr_in sockaddr_type;
-#endif
-
 #if ENABLE_LOGIN
 static const char *loginpath = "/bin/login";
 #else
@@ -286,18 +280,22 @@ make_new_session(
 		ts->shell_pid = pid;
 		return ts;
 	}
-	
+
 	/* child */
 
+	/* make new process group */
+	setsid();
+	tcsetpgrp(0, getpid());
+	/* ^^^ strace says: "ioctl(0, TIOCSPGRP, [pid]) = -1 ENOTTY" -- ??! */
+
 	/* open the child's side of the tty. */
-	fd = xopen(tty_name, O_RDWR /*| O_NOCTTY*/);
+	/* NB: setsid() disconnects from any previous ctty's. Therefore
+	 * we must open child's side of the tty AFTER setsid! */
+	fd = xopen(tty_name, O_RDWR); /* becomes our ctty */
 	dup2(fd, 0);
 	dup2(fd, 1);
 	dup2(fd, 2);
 	while (fd > 2) close(fd--);
-	/* make new process group */
-	setsid();
-	tcsetpgrp(0, getpid());
 
 	/* The pseudo-terminal allocated to the client is configured to operate in
 	 * cooked mode, and with XTABS CRMOD enabled (see tty(4)). */
@@ -341,7 +339,7 @@ free_session(struct tsession *ts)
 	free(ts);
 
 	/* scan all sessions and find new maxfd */
-        ts = sessions;
+	ts = sessions;
 	maxfd = 0;
 	while (ts) {
 		if (maxfd < ts->ptyfd)
@@ -414,7 +412,7 @@ telnetd_main(int argc, char **argv)
 	if (IS_INETD) {
 		sessions = make_new_session(0, 1);
 	} else {
-		master_fd = create_and_bind_socket_ip4or6(opt_bindaddr, portnbr);
+		master_fd = create_and_bind_stream_or_die(opt_bindaddr, portnbr);
 		xlisten(master_fd, 1);
 		if (!(opt & OPT_FOREGROUND))
 			xdaemon(0, 0);
@@ -462,13 +460,10 @@ telnetd_main(int argc, char **argv)
 #if ENABLE_FEATURE_TELNETD_STANDALONE
 	/* First check for and accept new sessions. */
 	if (!IS_INETD && FD_ISSET(master_fd, &rdfdset)) {
-		sockaddr_type sa;
 		int fd;
-		socklen_t salen;
 		struct tsession *new_ts;
 
-		salen = sizeof(sa);
-		fd = accept(master_fd, (struct sockaddr *)&sa, &salen);
+		fd = accept(master_fd, NULL, 0);
 		if (fd < 0)
 			goto again;
 		/* Create a new session and link it into our active list */

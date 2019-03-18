@@ -12,12 +12,10 @@
  *      Erik Andersen    <andersen@codepoet.org> (Majorly adjusted for busybox)
  *
  * This code is 'as is' with no warranty.
- *
- *
  */
 
 /*
-   Usage and Known bugs:
+   Usage and known bugs:
    Terminal key codes are not extensive, and more will probably
    need to be added. This version was created on Debian GNU/Linux 2.x.
    Delete, Backspace, Home, End, and the arrow keys were tested
@@ -30,57 +28,41 @@
    - not true viewing if length prompt less terminal width
  */
 
-
 #include "busybox.h"
-#include <stdio.h>
-#include <errno.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/ioctl.h>
-#include <ctype.h>
-#include <signal.h>
-#include <limits.h>
 
 #include "cmdedit.h"
 
 
-#ifdef CONFIG_LOCALE_SUPPORT
-#define Isprint(c) isprint((c))
+#if ENABLE_LOCALE_SUPPORT
+#define Isprint(c) isprint(c)
 #else
-#define Isprint(c) ( (c) >= ' ' && (c) != ((unsigned char)'\233') )
+#define Isprint(c) ((c) >= ' ' && (c) != ((unsigned char)'\233'))
 #endif
+
+
+/* FIXME: obsolete CONFIG item? */
+#define ENABLE_FEATURE_NONPRINTABLE_INVERSE_PUT 0
+
 
 #ifdef TEST
 
-/* pretect redefined for test */
-#undef CONFIG_FEATURE_COMMAND_EDITING
-#undef CONFIG_FEATURE_COMMAND_TAB_COMPLETION
-#undef CONFIG_FEATURE_COMMAND_USERNAME_COMPLETION
-#undef CONFIG_FEATURE_NONPRINTABLE_INVERSE_PUT
-#undef CONFIG_FEATURE_CLEAN_UP
-
-#define CONFIG_FEATURE_COMMAND_EDITING
-#define CONFIG_FEATURE_COMMAND_TAB_COMPLETION
-#define CONFIG_FEATURE_COMMAND_USERNAME_COMPLETION
-#define CONFIG_FEATURE_NONPRINTABLE_INVERSE_PUT
-#define CONFIG_FEATURE_CLEAN_UP
+#define ENABLE_FEATURE_COMMAND_EDITING 0
+#define ENABLE_FEATURE_COMMAND_TAB_COMPLETION 0
+#define ENABLE_FEATURE_COMMAND_USERNAME_COMPLETION 0
+#define ENABLE_FEATURE_NONPRINTABLE_INVERSE_PUT 0
+#define ENABLE_FEATURE_CLEAN_UP 0
 
 #endif  /* TEST */
 
-#ifdef CONFIG_FEATURE_COMMAND_TAB_COMPLETION
-#include <dirent.h>
-#include <sys/stat.h>
-#endif
 
-#ifdef CONFIG_FEATURE_COMMAND_EDITING
+#if ENABLE_FEATURE_COMMAND_EDITING
 
-#if defined(CONFIG_FEATURE_COMMAND_USERNAME_COMPLETION) || defined(CONFIG_FEATURE_SH_FANCY_PROMPT)
-#define CONFIG_FEATURE_GETUSERNAME_AND_HOMEDIR
-#endif
+#define ENABLE_FEATURE_GETUSERNAME_AND_HOMEDIR \
+(ENABLE_FEATURE_COMMAND_USERNAME_COMPLETION || ENABLE_FEATURE_SH_FANCY_PROMPT)
 
 /* Maximum length of the linked list for the command line history */
-#ifndef CONFIG_FEATURE_COMMAND_HISTORY
+#if !ENABLE_FEATURE_COMMAND_HISTORY
 #define MAX_HISTORY   15
 #else
 #define MAX_HISTORY   (CONFIG_FEATURE_COMMAND_HISTORY + 0)
@@ -94,8 +76,7 @@ static int n_history;
 static int cur_history;
 #endif
 
-#include <termios.h>
-#define setTermSettings(fd,argp) tcsetattr(fd,TCSANOW,argp)
+#define setTermSettings(fd,argp) tcsetattr(fd, TCSANOW, argp)
 #define getTermSettings(fd,argp) tcgetattr(fd, argp);
 
 /* Current termio and the previous termio before starting sh */
@@ -119,37 +100,33 @@ static int cmdedit_x;           /* real x terminal position */
 static int cmdedit_y;           /* pseudoreal y terminal position */
 static int cmdedit_prmt_len;    /* lenght prompt without colores string */
 
-static int cursor;              /* required global for signal handler */
-static int len;                 /* --- "" - - "" - -"- --""-- --""--- */
-static char *command_ps;        /* --- "" - - "" - -"- --""-- --""--- */
-static
-#ifndef CONFIG_FEATURE_SH_FANCY_PROMPT
-	const
-#endif
-char *cmdedit_prompt;           /* --- "" - - "" - -"- --""-- --""--- */
+static int cursor;              /* required globals for signal handler */
+static int len;                 /* --- "" - - "" -- -"- --""-- --""--- */
+static char *command_ps;        /* --- "" - - "" -- -"- --""-- --""--- */
+static SKIP_FEATURE_SH_FANCY_PROMPT(const) char *cmdedit_prompt; /* -- */
 
-#ifdef CONFIG_FEATURE_GETUSERNAME_AND_HOMEDIR
+#if ENABLE_FEATURE_GETUSERNAME_AND_HOMEDIR
 static char *user_buf = "";
 static char *home_pwd_buf = "";
 static int my_euid;
 #endif
 
-#ifdef CONFIG_FEATURE_SH_FANCY_PROMPT
+#if ENABLE_FEATURE_SH_FANCY_PROMPT
 static char *hostname_buf;
 static int num_ok_lines = 1;
 #endif
 
 
-#ifdef  CONFIG_FEATURE_COMMAND_TAB_COMPLETION
+#if ENABLE_FEATURE_COMMAND_TAB_COMPLETION
 
-#ifndef CONFIG_FEATURE_GETUSERNAME_AND_HOMEDIR
+#if !ENABLE_FEATURE_GETUSERNAME_AND_HOMEDIR
 static int my_euid;
 #endif
 
 static int my_uid;
 static int my_gid;
 
-#endif  /* CONFIG_FEATURE_COMMAND_TAB_COMPLETION */
+#endif  /* FEATURE_COMMAND_TAB_COMPLETION */
 
 static void cmdedit_setwidth(int w, int redraw_flg);
 
@@ -157,13 +134,13 @@ static void win_changed(int nsig)
 {
 	static sighandler_t previous_SIGWINCH_handler;  /* for reset */
 
-	/*   emulate      || signal call */
+	/* emulate || signal call */
 	if (nsig == -SIGWINCH || nsig == SIGWINCH) {
 		int width = 0;
 		get_terminal_width_height(0, &width, NULL);
 		cmdedit_setwidth(width, nsig == SIGWINCH);
 	}
-	/* Unix not all standart in recall signal */
+	/* Unix not all standard in recall signal */
 
 	if (nsig == -SIGWINCH)          /* save previous handler   */
 		previous_SIGWINCH_handler = signal(SIGWINCH, win_changed);
@@ -176,12 +153,12 @@ static void win_changed(int nsig)
 
 static void cmdedit_reset_term(void)
 {
-	if ((handlers_sets & SET_RESET_TERM) != 0) {
+	if (handlers_sets & SET_RESET_TERM) {
 /* sparc and other have broken termios support: use old termio handling. */
 		setTermSettings(STDIN_FILENO, (void *) &initial_settings);
 		handlers_sets &= ~SET_RESET_TERM;
 	}
-	if ((handlers_sets & SET_WCHG_HANDLERS) != 0) {
+	if (handlers_sets & SET_WCHG_HANDLERS) {
 		/* reset SIGWINCH handler to previous (default) */
 		win_changed(0);
 		handlers_sets &= ~SET_WCHG_HANDLERS;
@@ -193,12 +170,11 @@ static void cmdedit_reset_term(void)
 /* special for recount position for scroll and remove terminal margin effect */
 static void cmdedit_set_out_char(int next_char)
 {
-
-	int c = (int)((unsigned char) command_ps[cursor]);
+	int c = (unsigned char)command_ps[cursor];
 
 	if (c == 0)
 		c = ' ';        /* destroy end char? */
-#ifdef CONFIG_FEATURE_NONPRINTABLE_INVERSE_PUT
+#if ENABLE_FEATURE_NONPRINTABLE_INVERSE_PUT
 	if (!Isprint(c)) {      /* Inverse put non-printable characters */
 		if (c >= 128)
 			c -= 128;
@@ -209,7 +185,10 @@ static void cmdedit_set_out_char(int next_char)
 		printf("\033[7m%c\033[0m", c);
 	} else
 #endif
-		if (initial_settings.c_lflag & ECHO) putchar(c);
+	{
+		if (initial_settings.c_lflag & ECHO)
+			putchar(c);
+	}
 	if (++cmdedit_x >= cmdedit_termw) {
 		/* terminal is scrolled down */
 		cmdedit_y++;
@@ -242,7 +221,7 @@ static void goto_new_line(void)
 
 static void out1str(const char *s)
 {
-	if ( s )
+	if (s)
 		fputs(s, stdout);
 }
 
@@ -276,7 +255,7 @@ static void input_backward(int num)
 		count_y = 1 + num / cmdedit_termw;
 		printf("\033[%dA", count_y);
 		cmdedit_y -= count_y;
-		/*  require  forward  after  uping   */
+		/* require forward after uping */
 		cmdedit_x = cmdedit_termw * count_y - num;
 		printf("\033[%dC", cmdedit_x);  /* set term cursor   */
 	}
@@ -290,7 +269,7 @@ static void put_prompt(void)
 	cmdedit_y = 0;                  /* new quasireal y */
 }
 
-#ifndef CONFIG_FEATURE_SH_FANCY_PROMPT
+#if !ENABLE_FEATURE_SH_FANCY_PROMPT
 static void parse_prompt(const char *prmt_ptr)
 {
 	cmdedit_prompt = prmt_ptr;
@@ -302,20 +281,20 @@ static void parse_prompt(const char *prmt_ptr)
 {
 	int prmt_len = 0;
 	size_t cur_prmt_len = 0;
-	char  flg_not_length = '[';
+	char flg_not_length = '[';
 	char *prmt_mem_ptr = xzalloc(1);
 	char *pwd_buf = xgetcwd(0);
-	char  buf2[PATH_MAX + 1];
-	char  buf[2];
-	char  c;
+	char buf2[PATH_MAX + 1];
+	char buf[2];
+	char c;
 	char *pbuf;
 
 	if (!pwd_buf) {
-		pwd_buf=(char *)bb_msg_unknown;
+		pwd_buf = (char *)bb_msg_unknown;
 	}
 
 	while (*prmt_ptr) {
-		pbuf    = buf;
+		pbuf = buf;
 		pbuf[1] = 0;
 		c = *prmt_ptr++;
 		if (c == '\\') {
@@ -323,88 +302,88 @@ static void parse_prompt(const char *prmt_ptr)
 			int l;
 
 			c = bb_process_escape_sequence(&prmt_ptr);
-			if(prmt_ptr==cp) {
-			  if (*cp == 0)
-				break;
-			  c = *prmt_ptr++;
-			  switch (c) {
-#ifdef CONFIG_FEATURE_GETUSERNAME_AND_HOMEDIR
-			  case 'u':
-				pbuf = user_buf;
-				break;
+			if (prmt_ptr == cp) {
+				if (*cp == 0)
+					break;
+				c = *prmt_ptr++;
+				switch (c) {
+#if ENABLE_FEATURE_GETUSERNAME_AND_HOMEDIR
+				case 'u':
+					pbuf = user_buf;
+					break;
 #endif
-			  case 'h':
-				pbuf = hostname_buf;
-				if (pbuf == 0) {
-					pbuf = xzalloc(256);
-					if (gethostname(pbuf, 255) < 0) {
-						strcpy(pbuf, "?");
-					} else {
-						char *s = strchr(pbuf, '.');
-
-						if (s)
-							*s = 0;
+				case 'h':
+					pbuf = hostname_buf;
+					if (pbuf == 0) {
+						pbuf = xzalloc(256);
+						if (gethostname(pbuf, 255) < 0) {
+							strcpy(pbuf, "?");
+						} else {
+							char *s = strchr(pbuf, '.');
+							if (s)
+								*s = 0;
+						}
+						hostname_buf = pbuf;
 					}
-					hostname_buf = pbuf;
-				}
-				break;
-			  case '$':
-				c = my_euid == 0 ? '#' : '$';
-				break;
-#ifdef CONFIG_FEATURE_GETUSERNAME_AND_HOMEDIR
-			  case 'w':
-				pbuf = pwd_buf;
-				l = strlen(home_pwd_buf);
-				if (home_pwd_buf[0] != 0 &&
-				    strncmp(home_pwd_buf, pbuf, l) == 0 &&
-				    (pbuf[l]=='/' || pbuf[l]=='\0') &&
-				    strlen(pwd_buf+l)<PATH_MAX) {
-					pbuf = buf2;
-					*pbuf = '~';
-					strcpy(pbuf+1, pwd_buf+l);
-				}
-				break;
+					break;
+				case '$':
+					c = (my_euid == 0 ? '#' : '$');
+					break;
+#if ENABLE_FEATURE_GETUSERNAME_AND_HOMEDIR
+				case 'w':
+					pbuf = pwd_buf;
+					l = strlen(home_pwd_buf);
+					if (home_pwd_buf[0] != 0
+					 && strncmp(home_pwd_buf, pbuf, l) == 0
+					 && (pbuf[l]=='/' || pbuf[l]=='\0')
+					 && strlen(pwd_buf+l)<PATH_MAX
+					) {
+						pbuf = buf2;
+						*pbuf = '~';
+						strcpy(pbuf+1, pwd_buf+l);
+					}
+					break;
 #endif
-			  case 'W':
-				pbuf = pwd_buf;
-				cp = strrchr(pbuf,'/');
-				if ( (cp != NULL) && (cp != pbuf) )
-					pbuf += (cp-pbuf)+1;
-				break;
-			  case '!':
-				snprintf(pbuf = buf2, sizeof(buf2), "%d", num_ok_lines);
-				break;
-			  case 'e': case 'E':     /* \e \E = \033 */
-				c = '\033';
-				break;
-			  case 'x': case 'X':
-				for (l = 0; l < 3;) {
-					int h;
-					buf2[l++] = *prmt_ptr;
+				case 'W':
+					pbuf = pwd_buf;
+					cp = strrchr(pbuf,'/');
+					if (cp != NULL && cp != pbuf)
+						pbuf += (cp-pbuf) + 1;
+					break;
+				case '!':
+					snprintf(pbuf = buf2, sizeof(buf2), "%d", num_ok_lines);
+					break;
+				case 'e': case 'E':     /* \e \E = \033 */
+					c = '\033';
+					break;
+				case 'x': case 'X':
+					for (l = 0; l < 3;) {
+						int h;
+						buf2[l++] = *prmt_ptr;
+						buf2[l] = 0;
+						h = strtol(buf2, &pbuf, 16);
+						if (h > UCHAR_MAX || (pbuf - buf2) < l) {
+							l--;
+							break;
+						}
+						prmt_ptr++;
+					}
 					buf2[l] = 0;
-					h = strtol(buf2, &pbuf, 16);
-					if (h > UCHAR_MAX || (pbuf - buf2) < l) {
-						l--;
-						break;
+					c = (char)strtol(buf2, 0, 16);
+					if (c == 0)
+						c = '?';
+					pbuf = buf;
+					break;
+				case '[': case ']':
+					if (c == flg_not_length) {
+						flg_not_length = flg_not_length == '[' ? ']' : '[';
+						continue;
 					}
-					prmt_ptr++;
+					break;
 				}
-				buf2[l] = 0;
-				c = (char)strtol(buf2, 0, 16);
-				if(c==0)
-					c = '?';
-				pbuf = buf;
-				break;
-			  case '[': case ']':
-				if (c == flg_not_length) {
-					flg_not_length = flg_not_length == '[' ? ']' : '[';
-					continue;
-				}
-				break;
-			  }
 			}
 		}
-		if(pbuf == buf)
+		if (pbuf == buf)
 			*pbuf = c;
 		cur_prmt_len = strlen(pbuf);
 		prmt_len += cur_prmt_len;
@@ -412,7 +391,7 @@ static void parse_prompt(const char *prmt_ptr)
 			cmdedit_prmt_len += cur_prmt_len;
 		prmt_mem_ptr = strcat(xrealloc(prmt_mem_ptr, prmt_len+1), pbuf);
 	}
-	if(pwd_buf!=(char *)bb_msg_unknown)
+	if (pwd_buf!=(char *)bb_msg_unknown)
 		free(pwd_buf);
 	cmdedit_prompt = prmt_mem_ptr;
 	put_prompt();
@@ -432,7 +411,7 @@ static void redraw(int y, int back_cursor)
 	input_backward(back_cursor);
 }
 
-#ifdef CONFIG_FEATURE_COMMAND_EDITING_VI
+#if ENABLE_FEATURE_COMMAND_EDITING_VI
 #define DELBUFSIZ 128
 static char *delbuf;  /* a (malloced) place to store deleted characters */
 static char *delp;
@@ -448,7 +427,7 @@ static void input_delete(int save)
 	if (j == len)
 		return;
 
-#ifdef CONFIG_FEATURE_COMMAND_EDITING_VI
+#if ENABLE_FEATURE_COMMAND_EDITING_VI
 	if (save) {
 		if (newdelflag) {
 			if (!delbuf)
@@ -469,7 +448,7 @@ static void input_delete(int save)
 	input_backward(cursor - j);     /* back to old pos cursor */
 }
 
-#ifdef CONFIG_FEATURE_COMMAND_EDITING_VI
+#if ENABLE_FEATURE_COMMAND_EDITING_VI
 static void put(void)
 {
 	int ocursor, j = delp - delbuf;
@@ -481,7 +460,7 @@ static void put(void)
 	strncpy(command_ps + cursor, delbuf, j);
 	len += j;
 	input_end();                    /* rewrite new line */
-	input_backward(cursor-ocursor-j+1); /* at end of new text */
+	input_backward(cursor - ocursor - j + 1); /* at end of new text */
 }
 #endif
 
@@ -525,14 +504,14 @@ static void cmdedit_setwidth(int w, int redraw_flg)
 static void cmdedit_init(void)
 {
 	cmdedit_prmt_len = 0;
-	if ((handlers_sets & SET_WCHG_HANDLERS) == 0) {
+	if (!(handlers_sets & SET_WCHG_HANDLERS)) {
 		/* emulate usage handler to set handler and call yours work */
 		win_changed(-SIGWINCH);
 		handlers_sets |= SET_WCHG_HANDLERS;
 	}
 
-	if ((handlers_sets & SET_ATEXIT) == 0) {
-#ifdef CONFIG_FEATURE_GETUSERNAME_AND_HOMEDIR
+	if (!(handlers_sets & SET_ATEXIT)) {
+#if ENABLE_FEATURE_GETUSERNAME_AND_HOMEDIR
 		struct passwd *entry;
 
 		my_euid = geteuid();
@@ -543,47 +522,49 @@ static void cmdedit_init(void)
 		}
 #endif
 
-#ifdef  CONFIG_FEATURE_COMMAND_TAB_COMPLETION
+#if ENABLE_FEATURE_COMMAND_TAB_COMPLETION
 
-#ifndef CONFIG_FEATURE_GETUSERNAME_AND_HOMEDIR
+#if !ENABLE_FEATURE_GETUSERNAME_AND_HOMEDIR
 		my_euid = geteuid();
 #endif
 		my_uid = getuid();
 		my_gid = getgid();
-#endif  /* CONFIG_FEATURE_COMMAND_TAB_COMPLETION */
+#endif  /* FEATURE_COMMAND_TAB_COMPLETION */
 		handlers_sets |= SET_ATEXIT;
 		atexit(cmdedit_reset_term);     /* be sure to do this only once */
 	}
 }
 
-#ifdef CONFIG_FEATURE_COMMAND_TAB_COMPLETION
+#if ENABLE_FEATURE_COMMAND_TAB_COMPLETION
 
 static char **matches;
 static int num_matches;
-static char *add_char_to_match;
 
-static void add_match(char *matched, int add_char)
+static void add_match(char *matched)
 {
 	int nm = num_matches;
 	int nm1 = nm + 1;
 
 	matches = xrealloc(matches, nm1 * sizeof(char *));
-	add_char_to_match = xrealloc(add_char_to_match, nm1);
 	matches[nm] = matched;
-	add_char_to_match[nm] = (char)add_char;
 	num_matches++;
 }
 
+/*
 static int is_execute(const struct stat *st)
 {
-	if ((!my_euid && (st->st_mode & (S_IXUSR | S_IXGRP | S_IXOTH))) ||
-		(my_uid == st->st_uid && (st->st_mode & S_IXUSR)) ||
-		(my_gid == st->st_gid && (st->st_mode & S_IXGRP)) ||
-		(st->st_mode & S_IXOTH)) return TRUE;
+	if ((!my_euid && (st->st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)))
+	 || (my_uid == st->st_uid && (st->st_mode & S_IXUSR))
+	 || (my_gid == st->st_gid && (st->st_mode & S_IXGRP))
+	 || (st->st_mode & S_IXOTH)
+	) {
+		return TRUE;
+	}
 	return FALSE;
 }
+*/
 
-#ifdef CONFIG_FEATURE_COMMAND_USERNAME_COMPLETION
+#if ENABLE_FEATURE_COMMAND_USERNAME_COMPLETION
 
 static void username_tab_completion(char *ud, char *with_shash_flg)
 {
@@ -626,14 +607,14 @@ static void username_tab_completion(char *ud, char *with_shash_flg)
 		while ((entry = getpwent()) != NULL) {
 			/* Null usernames should result in all users as possible completions. */
 			if ( /*!userlen || */ !strncmp(ud, entry->pw_name, userlen)) {
-				add_match(xasprintf("~%s", entry->pw_name), '/');
+				add_match(xasprintf("~%s/", entry->pw_name));
 			}
 		}
 
 		endpwent();
 	}
 }
-#endif  /* CONFIG_FEATURE_COMMAND_USERNAME_COMPLETION */
+#endif  /* FEATURE_COMMAND_USERNAME_COMPLETION */
 
 enum {
 	FIND_EXE_ONLY = 0,
@@ -641,7 +622,7 @@ enum {
 	FIND_FILE_ONLY = 2,
 };
 
-#ifdef CONFIG_ASH
+#if ENABLE_ASH
 const char *cmdedit_path_lookup;
 #else
 #define cmdedit_path_lookup getenv("PATH")
@@ -651,26 +632,25 @@ static int path_parse(char ***p, int flags)
 {
 	int npth;
 	const char *tmp;
-	const char *pth;
+	const char *pth = cmdedit_path_lookup;
 
 	/* if not setenv PATH variable, to search cur dir "." */
-	if (flags != FIND_EXE_ONLY || (pth = cmdedit_path_lookup) == 0 ||
-		/* PATH=<empty> or PATH=:<empty> */
-		*pth == 0 || (*pth == ':' && *(pth + 1) == 0)) {
+	if (flags != FIND_EXE_ONLY)
 		return 1;
-	}
+	/* PATH=<empty> or PATH=:<empty> */
+	if (!pth || !pth[0] || LONE_CHAR(pth, ':'))
+		return 1;
 
 	tmp = pth;
 	npth = 0;
 
-	for (;;) {
+	while (1) {
 		npth++;                 /* count words is + 1 count ':' */
 		tmp = strchr(tmp, ':');
-		if (tmp) {
-			if (*++tmp == 0)
-				break;  /* :<empty> */
-		} else
+		if (!tmp)
 			break;
+		if (*++tmp == 0)
+			break;  /* :<empty> */
 	}
 
 	*p = xmalloc(npth * sizeof(char *));
@@ -679,21 +659,20 @@ static int path_parse(char ***p, int flags)
 	(*p)[0] = xstrdup(tmp);
 	npth = 1;                       /* count words is + 1 count ':' */
 
-	for (;;) {
+	while (1) {
 		tmp = strchr(tmp, ':');
-		if (tmp) {
-			(*p)[0][(tmp - pth)] = 0;       /* ':' -> '\0' */
-			if (*++tmp == 0)
-				break;                  /* :<empty> */
-		} else
+		if (!tmp)
 			break;
+		(*p)[0][(tmp - pth)] = 0;       /* ':' -> '\0' */
+		if (*++tmp == 0)
+			break;                  /* :<empty> */
 		(*p)[npth++] = &(*p)[0][(tmp - pth)];   /* p[next]=p[0][&'\0'+1] */
 	}
 
 	return npth;
 }
 
-static char *add_quote_for_spec_chars(char *found, int add)
+static char *add_quote_for_spec_chars(char *found)
 {
 	int l = 0;
 	char *s = xmalloc((strlen(found) + 1) * 2);
@@ -703,8 +682,6 @@ static char *add_quote_for_spec_chars(char *found, int add)
 			s[l++] = '\\';
 		s[l++] = *found++;
 	}
-	if(add)
-		s[l++] = (char)add;
 	s[l] = 0;
 	return s;
 }
@@ -734,7 +711,7 @@ static void exe_n_cwd_tab_completion(char *command, int type)
 		strcpy(dirbuf, command);
 		/* set dir only */
 		dirbuf[(pfind - command) + 1] = 0;
-#ifdef CONFIG_FEATURE_COMMAND_USERNAME_COMPLETION
+#if ENABLE_FEATURE_COMMAND_USERNAME_COMPLETION
 		if (dirbuf[0] == '~')   /* ~/... or ~user/... */
 			username_tab_completion(dirbuf, dirbuf);
 #endif
@@ -752,45 +729,45 @@ static void exe_n_cwd_tab_completion(char *command, int type)
 			continue;
 
 		while ((next = readdir(dir)) != NULL) {
+			int len1;
 			char *str_found = next->d_name;
-			int add_chr = 0;
 
-			/* matched ? */
+			/* matched? */
 			if (strncmp(str_found, pfind, strlen(pfind)))
 				continue;
 			/* not see .name without .match */
 			if (*str_found == '.' && *pfind == 0) {
-				if (*paths[i] == '/' && paths[i][1] == 0
-					&& str_found[1] == 0) str_found = "";   /* only "/" */
-				else
+				if (NOT_LONE_CHAR(paths[i], '/') || str_found[1])
 					continue;
+				str_found = ""; /* only "/" */
 			}
 			found = concat_path_file(paths[i], str_found);
 			/* hmm, remover in progress? */
 			if (stat(found, &st) < 0)
 				goto cont;
-			/* find with dirs ? */
+			/* find with dirs? */
 			if (paths[i] != dirbuf)
 				strcpy(found, next->d_name);    /* only name */
+
+			len1 = strlen(found);
+			found = xrealloc(found, len1 + 2);
+			found[len1] = '\0';
+			found[len1+1] = '\0';
+
 			if (S_ISDIR(st.st_mode)) {
 				/* name is directory      */
-				char *e = found + strlen(found) - 1;
-
-				add_chr = '/';
-				if(*e == '/')
-					*e = '\0';
+				if (found[len1-1] != '/') {
+					found[len1] = '/';
+				}
 			} else {
 				/* not put found file if search only dirs for cd */
 				if (type == FIND_DIR_ONLY)
 					goto cont;
-				if (type == FIND_FILE_ONLY ||
-					(type == FIND_EXE_ONLY && is_execute(&st)))
-					add_chr = ' ';
 			}
 			/* Add it to the list */
-			add_match(found, add_chr);
+			add_match(found);
 			continue;
-cont:
+ cont:
 			free(found);
 		}
 		closedir(dir);
@@ -802,7 +779,7 @@ cont:
 }
 
 
-#define QUOT    (UCHAR_MAX+1)
+#define QUOT (UCHAR_MAX+1)
 
 #define collapse_pos(is, in) { \
 	memmove(int_buf+(is), int_buf+(in), (BUFSIZ+1-(is)-(in))*sizeof(int)); \
@@ -818,7 +795,7 @@ static int find_match(char *matchBuf, int *len_with_quotes)
 
 	/* set to integer dimension characters and own positions */
 	for (i = 0;; i++) {
-		int_buf[i] = (int) ((unsigned char) matchBuf[i]);
+		int_buf[i] = (unsigned char)matchBuf[i];
 		if (int_buf[i] == 0) {
 			pos_buf[i] = -1;        /* indicator end line */
 			break;
@@ -832,12 +809,12 @@ static int find_match(char *matchBuf, int *len_with_quotes)
 			collapse_pos(j, j + 1);
 			int_buf[j] |= QUOT;
 			i++;
-#ifdef CONFIG_FEATURE_NONPRINTABLE_INVERSE_PUT
+#if ENABLE_FEATURE_NONPRINTABLE_INVERSE_PUT
 			if (matchBuf[i] == '\t')        /* algorithm equivalent */
 				int_buf[j] = ' ' | QUOT;
 #endif
 		}
-#ifdef CONFIG_FEATURE_NONPRINTABLE_INVERSE_PUT
+#if ENABLE_FEATURE_NONPRINTABLE_INVERSE_PUT
 		else if (matchBuf[i] == '\t')
 			int_buf[j] = ' ';
 #endif
@@ -859,7 +836,7 @@ static int find_match(char *matchBuf, int *len_with_quotes)
 			int_buf[i] |= QUOT;
 	}
 
-	/* skip commands with arguments if line have commands delimiters */
+	/* skip commands with arguments if line has commands delimiters */
 	/* ';' ';;' '&' '|' '&&' '||' but `>&' `<&' `>|' */
 	for (i = 0; int_buf[i]; i++) {
 		c = int_buf[i];
@@ -930,16 +907,17 @@ static int find_match(char *matchBuf, int *len_with_quotes)
 	for (i = 0; int_buf[i]; i++)
 		if (int_buf[i] == ' ' || int_buf[i] == '<' || int_buf[i] == '>') {
 			if (int_buf[i] == ' ' && command_mode == FIND_EXE_ONLY
-				&& matchBuf[pos_buf[0]]=='c'
-				&& matchBuf[pos_buf[1]]=='d' )
+			 && matchBuf[pos_buf[0]]=='c'
+			 && matchBuf[pos_buf[1]]=='d'
+			) {
 				command_mode = FIND_DIR_ONLY;
-			else {
+			} else {
 				command_mode = FIND_FILE_ONLY;
 				break;
 			}
 		}
-	/* "strlen" */
-	for (i = 0; int_buf[i]; i++);
+	for (i = 0; int_buf[i]; i++)
+		/* "strlen" */;
 	/* find last word */
 	for (--i; i >= 0; i--) {
 		c = int_buf[i];
@@ -949,11 +927,12 @@ static int find_match(char *matchBuf, int *len_with_quotes)
 		}
 	}
 	/* skip first not quoted '\'' or '"' */
-	for (i = 0; int_buf[i] == '\'' || int_buf[i] == '"'; i++);
+	for (i = 0; int_buf[i] == '\'' || int_buf[i] == '"'; i++)
+		/*skip*/;
 	/* collapse quote or unquote // or /~ */
-	while ((int_buf[i] & ~QUOT) == '/' &&
-			((int_buf[i + 1] & ~QUOT) == '/'
-			 || (int_buf[i + 1] & ~QUOT) == '~')) {
+	while ((int_buf[i] & ~QUOT) == '/'
+	 && ((int_buf[i+1] & ~QUOT) == '/' || (int_buf[i+1] & ~QUOT) == '~')
+	) {
 		i++;
 	}
 
@@ -980,14 +959,11 @@ static void showfiles(void)
 	int column_width = 0;
 	int nfiles = num_matches;
 	int nrows = nfiles;
-	char str_add_chr[2];
 	int l;
 
 	/* find the longest file name-  use that as the column width */
 	for (row = 0; row < nrows; row++) {
 		l = strlen(matches[row]);
-		if(add_char_to_match[row])
-			l++;
 		if (column_width < l)
 			column_width = l;
 	}
@@ -996,32 +972,27 @@ static void showfiles(void)
 
 	if (ncols > 1) {
 		nrows /= ncols;
-		if(nfiles % ncols)
+		if (nfiles % ncols)
 			nrows++;        /* round up fractionals */
 	} else {
 		ncols = 1;
 	}
-	str_add_chr[1] = 0;
 	for (row = 0; row < nrows; row++) {
 		int n = row;
 		int nc;
-		int acol;
 
-		for(nc = 1; nc < ncols && n+nrows < nfiles; n += nrows, nc++) {
-			str_add_chr[0] = add_char_to_match[n];
-			acol = str_add_chr[0] ? column_width - 1 : column_width;
-			printf("%s%s", matches[n], str_add_chr);
-			l = strlen(matches[n]);
-			while(l < acol) {
-				putchar(' ');
-				l++;
-			}
+		for (nc = 1; nc < ncols && n+nrows < nfiles; n += nrows, nc++) {
+			printf("%s%-*s", matches[n],
+				(int)(column_width - strlen(matches[n])), "");
 		}
-		str_add_chr[0] = add_char_to_match[n];
-		printf("%s%s\n", matches[n], str_add_chr);
+		printf("%s\n", matches[n]);
 	}
 }
 
+static int match_compare(const void *a, const void *b)
+{
+	return strcmp(*(char**)a, *(char**)b);
+}
 
 static void input_tab(int *lastWasTab)
 {
@@ -1032,13 +1003,10 @@ static void input_tab(int *lastWasTab)
 				free(matches[--num_matches]);
 			free(matches);
 			matches = (char **) NULL;
-			free(add_char_to_match);
-			add_char_to_match = NULL;
 		}
 		return;
 	}
-	if (! *lastWasTab) {
-
+	if (!*lastWasTab) {
 		char *tmp, *tmp1;
 		int len_found;
 		char matchBuf[BUFSIZ];
@@ -1057,7 +1025,7 @@ static void input_tab(int *lastWasTab)
 		/* Free up any memory already allocated */
 		input_tab(0);
 
-#ifdef CONFIG_FEATURE_COMMAND_USERNAME_COMPLETION
+#if ENABLE_FEATURE_COMMAND_USERNAME_COMPLETION
 		/* If the word starts with `~' and there is no slash in the word,
 		 * then try completing this word as a username. */
 
@@ -1068,42 +1036,25 @@ static void input_tab(int *lastWasTab)
 		/* Try to match any executable in our path and everything
 		 * in the current working directory that matches.  */
 			exe_n_cwd_tab_completion(matchBuf, find_type);
-		/* Remove duplicate found and sort */
-		if(matches) {
-			int i, j, n, srt;
-			/* bubble */
-			n = num_matches;
-			for(i=0; i<(n-1); i++) {
-				for(j=i+1; j<n; j++) {
-					if(matches[i]!=NULL && matches[j]!=NULL) {
-						srt = strcmp(matches[i], matches[j]);
-						if(srt == 0) {
-							free(matches[j]);
-							matches[j]=0;
-						} else if(srt > 0) {
-							tmp1 = matches[i];
-							matches[i] = matches[j];
-							matches[j] = tmp1;
-							srt = add_char_to_match[i];
-							add_char_to_match[i] = add_char_to_match[j];
-							add_char_to_match[j] = srt;
-						}
+		/* Sort, then remove any duplicates found */
+		if (matches) {
+			int i, n = 0;
+			qsort(matches, num_matches, sizeof(char*), match_compare);
+			for (i = 0; i < num_matches - 1; ++i) {
+				if (matches[i] && matches[i+1]) {
+					if (strcmp(matches[i], matches[i+1]) == 0) {
+						free(matches[i]);
+						matches[i] = 0;
+					} else {
+						matches[n++] = matches[i];
 					}
 				}
 			}
-			j = n;
-			n = 0;
-			for(i=0; i<j; i++)
-				if(matches[i]) {
-					matches[n]=matches[i];
-					add_char_to_match[n]=add_char_to_match[i];
-					n++;
-				}
+			matches[n++] = matches[num_matches-1];
 			num_matches = n;
 		}
 		/* Did we find exactly one match? */
 		if (!matches || num_matches > 1) {
-
 			beep();
 			if (!matches)
 				return;         /* not found */
@@ -1119,12 +1070,18 @@ static void input_tab(int *lastWasTab)
 				free(tmp1);
 				return;
 			}
-			tmp = add_quote_for_spec_chars(tmp1, 0);
+			tmp = add_quote_for_spec_chars(tmp1);
 			free(tmp1);
 		} else {                        /* one match */
-			tmp = add_quote_for_spec_chars(matches[0], add_char_to_match[0]);
+			tmp = add_quote_for_spec_chars(matches[0]);
 			/* for next completion current found */
 			*lastWasTab = FALSE;
+
+			len_found = strlen(tmp);
+			if (tmp[len_found-1] != '/') {
+				tmp[len_found] = ' ';
+				tmp[len_found+1] = '\0';
+			}
 		}
 		len_found = strlen(tmp);
 		/* have space to placed match? */
@@ -1162,12 +1119,12 @@ static void input_tab(int *lastWasTab)
 		}
 	}
 }
-#endif  /* CONFIG_FEATURE_COMMAND_TAB_COMPLETION */
+#endif  /* FEATURE_COMMAND_TAB_COMPLETION */
 
 #if MAX_HISTORY > 0
 static void get_previous_history(void)
 {
-	if(command_ps[0] != 0 || history[cur_history] == 0) {
+	if (command_ps[0] != 0 || history[cur_history] == 0) {
 		free(history[cur_history]);
 		history[cur_history] = xstrdup(command_ps);
 	}
@@ -1188,52 +1145,52 @@ static int get_next_history(void)
 	}
 }
 
-#ifdef CONFIG_FEATURE_COMMAND_SAVEHISTORY
-void load_history ( const char *fromfile )
+#if ENABLE_FEATURE_COMMAND_SAVEHISTORY
+void load_history(const char *fromfile)
 {
 	FILE *fp;
 	int hi;
 
 	/* cleanup old */
 
-	for(hi = n_history; hi > 0; ) {
+	for (hi = n_history; hi > 0;) {
 		hi--;
-		free ( history [hi] );
+		free(history[hi]);
 	}
 
-	if (( fp = fopen ( fromfile, "r" ))) {
-
-		for ( hi = 0; hi < MAX_HISTORY; ) {
+	fp = fopen(fromfile, "r");
+	if (fp) {
+		for (hi = 0; hi < MAX_HISTORY;) {
 			char * hl = xmalloc_getline(fp);
 			int l;
 
-			if(!hl)
+			if (!hl)
 				break;
 			l = strlen(hl);
-			if(l >= BUFSIZ)
+			if (l >= BUFSIZ)
 				hl[BUFSIZ-1] = 0;
-			if(l == 0 || hl[0] == ' ') {
+			if (l == 0 || hl[0] == ' ') {
 				free(hl);
 				continue;
 			}
-			history [hi++] = hl;
+			history[hi++] = hl;
 		}
-		fclose ( fp );
+		fclose(fp);
 	}
 	cur_history = n_history = hi;
 }
 
-void save_history ( const char *tofile )
+void save_history (const char *tofile)
 {
-	FILE *fp = fopen ( tofile, "w" );
+	FILE *fp = fopen(tofile, "w");
 
-	if ( fp ) {
+	if (fp) {
 		int i;
 
-		for ( i = 0; i < n_history; i++ ) {
-			fprintf(fp, "%s\n", history [i]);
+		for (i = 0; i < n_history; i++) {
+			fprintf(fp, "%s\n", history[i]);
 		}
-		fclose ( fp );
+		fclose(fp);
 	}
 }
 #endif
@@ -1264,7 +1221,7 @@ enum {
  *
  */
 
-#ifdef CONFIG_FEATURE_COMMAND_EDITING_VI
+#if ENABLE_FEATURE_COMMAND_EDITING_VI
 static int vi_mode;
 
 void setvimode ( int viflag )
@@ -1285,13 +1242,11 @@ static void
 vi_word_motion(char *command, int eat)
 {
 	if (isalnum(command[cursor]) || command[cursor] == '_') {
-		while (cursor < len &&
-		    (isalnum(command[cursor+1]) ||
-				command[cursor+1] == '_'))
+		while (cursor < len
+		 && (isalnum(command[cursor+1]) || command[cursor+1] == '_'))
 			input_forward();
 	} else if (ispunct(command[cursor])) {
-		while (cursor < len &&
-		    (ispunct(command[cursor+1])))
+		while (cursor < len && ispunct(command[cursor+1]))
 			input_forward();
 	}
 
@@ -1324,13 +1279,13 @@ vi_end_motion(char *command)
 	if (cursor >= len-1)
 		return;
 	if (isalnum(command[cursor]) || command[cursor] == '_') {
-		while (cursor < len-1 &&
-		    (isalnum(command[cursor+1]) ||
-				command[cursor+1] == '_'))
+		while (cursor < len-1
+		 && (isalnum(command[cursor+1]) || command[cursor+1] == '_')
+		) {
 			input_forward();
+		}
 	} else if (ispunct(command[cursor])) {
-		while (cursor < len-1 &&
-		    (ispunct(command[cursor+1])))
+		while (cursor < len-1 && ispunct(command[cursor+1]))
 			input_forward();
 	}
 }
@@ -1355,13 +1310,13 @@ vi_back_motion(char *command)
 	if (cursor <= 0)
 		return;
 	if (isalnum(command[cursor]) || command[cursor] == '_') {
-		while (cursor > 0 &&
-		    (isalnum(command[cursor-1]) ||
-				command[cursor-1] == '_'))
+		while (cursor > 0
+		 && (isalnum(command[cursor-1]) || command[cursor-1] == '_')
+		) {
 			input_backward(1);
+		}
 	} else if (ispunct(command[cursor])) {
-		while (cursor > 0 &&
-		    (ispunct(command[cursor-1])))
+		while (cursor > 0 && ispunct(command[cursor-1]))
 			input_backward(1);
 	}
 }
@@ -1387,12 +1342,11 @@ vi_back_motion(char *command)
 
 int cmdedit_read_input(char *prompt, char command[BUFSIZ])
 {
-
 	int break_out = 0;
 	int lastWasTab = FALSE;
 	unsigned char c;
 	unsigned int ic;
-#ifdef CONFIG_FEATURE_COMMAND_EDITING_VI
+#if ENABLE_FEATURE_COMMAND_EDITING_VI
 	unsigned int prevc;
 	int vi_cmdmode = 0;
 #endif
@@ -1410,9 +1364,9 @@ int cmdedit_read_input(char *prompt, char command[BUFSIZ])
 	new_settings.c_cc[VMIN] = 1;
 	new_settings.c_cc[VTIME] = 0;
 	/* Turn off CTRL-C, so we can trap it */
-#       ifndef _POSIX_VDISABLE
-#               define _POSIX_VDISABLE '\0'
-#       endif
+#	ifndef _POSIX_VDISABLE
+#       	define _POSIX_VDISABLE '\0'
+#	endif
 	new_settings.c_cc[VINTR] = _POSIX_VDISABLE;
 	command[0] = 0;
 
@@ -1425,7 +1379,6 @@ int cmdedit_read_input(char *prompt, char command[BUFSIZ])
 	parse_prompt(prompt);
 
 	while (1) {
-
 		fflush(stdout);                 /* buffered out to fast */
 
 		if (safe_read(0, &c, 1) < 1)
@@ -1434,13 +1387,12 @@ int cmdedit_read_input(char *prompt, char command[BUFSIZ])
 
 		ic = c;
 
-#ifdef CONFIG_FEATURE_COMMAND_EDITING_VI
+#if ENABLE_FEATURE_COMMAND_EDITING_VI
 		newdelflag = 1;
 		if (vi_cmdmode)
 			ic |= vbit;
 #endif
-		switch (ic)
-		{
+		switch (ic) {
 		case '\n':
 		case '\r':
 		vi_case( case '\n'|vbit: )
@@ -1465,7 +1417,7 @@ int cmdedit_read_input(char *prompt, char command[BUFSIZ])
 		vi_case( case CNTRL('C')|vbit: )
 			/* Control-c -- stop gathering input */
 			goto_new_line();
-#ifndef CONFIG_ASH
+#if !ENABLE_ASH
 			command[0] = 0;
 			len = 0;
 			lastWasTab = FALSE;
@@ -1479,9 +1431,9 @@ int cmdedit_read_input(char *prompt, char command[BUFSIZ])
 			/* Control-d -- Delete one character, or exit
 			 * if the len=0 and no chars to delete */
 			if (len == 0) {
-					errno = 0;
-prepare_to_die:
-#if !defined(CONFIG_ASH)
+				errno = 0;
+ prepare_to_die:
+#if !ENABLE_ASH
 				printf("exit");
 				goto_new_line();
 				/* cmdedit_reset_term() called in atexit */
@@ -1512,13 +1464,13 @@ prepare_to_die:
 			input_backspace();
 			break;
 		case '\t':
-#ifdef CONFIG_FEATURE_COMMAND_TAB_COMPLETION
+#if ENABLE_FEATURE_COMMAND_TAB_COMPLETION
 			input_tab(&lastWasTab);
 #endif
 			break;
 		case CNTRL('K'):
 			/* Control-k -- clear to end of line */
-			*(command + cursor) = 0;
+			command[cursor] = 0;
 			len = cursor;
 			printf("\033[J");
 			break;
@@ -1526,7 +1478,7 @@ prepare_to_die:
 		vi_case( case CNTRL('L')|vbit: )
 			/* Control-l -- clear screen */
 			printf("\033[H");
-			redraw(0, len-cursor);
+			redraw(0, len - cursor);
 			break;
 #if MAX_HISTORY > 0
 		case CNTRL('N'):
@@ -1616,65 +1568,64 @@ prepare_to_die:
 		case 'c'|vbit:
 			vi_cmdmode = 0;
 			/* fall through */
-		case 'd'|vbit:
-			{
-				int nc, sc;
-				sc = cursor;
-				prevc = ic;
-				if (safe_read(0, &c, 1) < 1)
-					goto prepare_to_die;
-				if (c == (prevc & 0xff)) {
-					/* "cc", "dd" */
-					input_backward(cursor);
-					goto clear_to_eol;
+		case 'd'|vbit: {
+			int nc, sc;
+			sc = cursor;
+			prevc = ic;
+			if (safe_read(0, &c, 1) < 1)
+				goto prepare_to_die;
+			if (c == (prevc & 0xff)) {
+				/* "cc", "dd" */
+				input_backward(cursor);
+				goto clear_to_eol;
+				break;
+			}
+			switch (c) {
+			case 'w':
+			case 'W':
+			case 'e':
+			case 'E':
+				switch (c) {
+				case 'w':   /* "dw", "cw" */
+					vi_word_motion(command, vi_cmdmode);
+					break;
+				case 'W':   /* 'dW', 'cW' */
+					vi_Word_motion(command, vi_cmdmode);
+					break;
+				case 'e':   /* 'de', 'ce' */
+					vi_end_motion(command);
+					input_forward();
+					break;
+				case 'E':   /* 'dE', 'cE' */
+					vi_End_motion(command);
+					input_forward();
 					break;
 				}
-				switch(c) {
-				case 'w':
-				case 'W':
-				case 'e':
-				case 'E':
-					switch (c) {
-					case 'w':   /* "dw", "cw" */
-						vi_word_motion(command, vi_cmdmode);
-						break;
-					case 'W':   /* 'dW', 'cW' */
-						vi_Word_motion(command, vi_cmdmode);
-						break;
-					case 'e':   /* 'de', 'ce' */
-						vi_end_motion(command);
-						input_forward();
-						break;
-					case 'E':   /* 'dE', 'cE' */
-						vi_End_motion(command);
-						input_forward();
-						break;
-					}
-					nc = cursor;
-					input_backward(cursor - sc);
-					while (nc-- > cursor)
-						input_delete(1);
-					break;
-				case 'b':  /* "db", "cb" */
-				case 'B':  /* implemented as B */
-					if (c == 'b')
-						vi_back_motion(command);
-					else
-						vi_Back_motion(command);
-					while (sc-- > cursor)
-						input_delete(1);
-					break;
-				case ' ':  /* "d ", "c " */
+				nc = cursor;
+				input_backward(cursor - sc);
+				while (nc-- > cursor)
 					input_delete(1);
-					break;
-				case '$':  /* "d$", "c$" */
-				clear_to_eol:
-					while (cursor < len)
-						input_delete(1);
-					break;
-				}
+				break;
+			case 'b':  /* "db", "cb" */
+			case 'B':  /* implemented as B */
+				if (c == 'b')
+					vi_back_motion(command);
+				else
+					vi_Back_motion(command);
+				while (sc-- > cursor)
+					input_delete(1);
+				break;
+			case ' ':  /* "d ", "c " */
+				input_delete(1);
+				break;
+			case '$':  /* "d$", "c$" */
+			clear_to_eol:
+				while (cursor < len)
+					input_delete(1);
+				break;
 			}
 			break;
+		}
 		case 'p'|vbit:
 			input_forward();
 			/* fallthrough */
@@ -1692,7 +1643,7 @@ prepare_to_die:
 				putchar('\b');
 			}
 			break;
-#endif /* CONFIG_FEATURE_COMMAND_EDITING_VI */
+#endif /* FEATURE_COMMAND_EDITING_VI */
 
 		case ESC:
 
@@ -1719,11 +1670,11 @@ prepare_to_die:
 
 				if (safe_read(0, &dummy, 1) < 1)
 					goto prepare_to_die;
-				if(dummy != '~')
+				if (dummy != '~')
 					c = 0;
 			}
 			switch (c) {
-#ifdef CONFIG_FEATURE_COMMAND_TAB_COMPLETION
+#if ENABLE_FEATURE_COMMAND_TAB_COMPLETION
 			case '\t':                      /* Alt-Tab */
 
 				input_tab(&lastWasTab);
@@ -1784,7 +1735,7 @@ rewrite_line:
 			break;
 
 		default:        /* If it's regular input, do the normal thing */
-#ifdef CONFIG_FEATURE_NONPRINTABLE_INVERSE_PUT
+#if ENABLE_FEATURE_NONPRINTABLE_INVERSE_PUT
 			/* Control-V -- Add non-printable symbol */
 			if (c == CNTRL('V')) {
 				if (safe_read(0, &c, 1) < 1)
@@ -1840,7 +1791,7 @@ rewrite_line:
 #if MAX_HISTORY > 0
 	/* Handle command history log */
 	/* cleanup may be saved current command line */
-	if (len> 0) {                                      /* no put empty line */
+	if (len > 0) {                                      /* no put empty line */
 		int i = n_history;
 
 		free(history[MAX_HISTORY]);
@@ -1848,18 +1799,18 @@ rewrite_line:
 			/* After max history, remove the oldest command */
 		if (i >= MAX_HISTORY) {
 			free(history[0]);
-			for(i = 0; i < (MAX_HISTORY-1); i++)
+			for (i = 0; i < MAX_HISTORY-1; i++)
 				history[i] = history[i+1];
 		}
 		history[i++] = xstrdup(command);
 		cur_history = i;
 		n_history = i;
-#if defined(CONFIG_FEATURE_SH_FANCY_PROMPT)
+#if ENABLE_FEATURE_SH_FANCY_PROMPT
 		num_ok_lines++;
 #endif
 	}
 #else  /* MAX_HISTORY == 0 */
-#if defined(CONFIG_FEATURE_SH_FANCY_PROMPT)
+#if ENABLE_FEATURE_SH_FANCY_PROMPT
 	if (len > 0) {              /* no put empty line */
 		num_ok_lines++;
 	}
@@ -1869,26 +1820,24 @@ rewrite_line:
 		command[len++] = '\n';          /* set '\n' */
 		command[len] = 0;
 	}
-#if defined(CONFIG_FEATURE_CLEAN_UP) && defined(CONFIG_FEATURE_COMMAND_TAB_COMPLETION)
+#if ENABLE_FEATURE_CLEAN_UP && ENABLE_FEATURE_COMMAND_TAB_COMPLETION
 	input_tab(0);                           /* strong free */
 #endif
-#if defined(CONFIG_FEATURE_SH_FANCY_PROMPT)
+#if ENABLE_FEATURE_SH_FANCY_PROMPT
 	free(cmdedit_prompt);
 #endif
 	cmdedit_reset_term();
 	return len;
 }
 
-
-
-#endif  /* CONFIG_FEATURE_COMMAND_EDITING */
+#endif  /* FEATURE_COMMAND_EDITING */
 
 
 #ifdef TEST
 
 const char *applet_name = "debug stuff usage";
 
-#ifdef CONFIG_FEATURE_NONPRINTABLE_INVERSE_PUT
+#if ENABLE_FEATURE_NONPRINTABLE_INVERSE_PUT
 #include <locale.h>
 #endif
 
@@ -1896,26 +1845,24 @@ int main(int argc, char **argv)
 {
 	char buff[BUFSIZ];
 	char *prompt =
-#if defined(CONFIG_FEATURE_SH_FANCY_PROMPT)
-		"\\[\\033[32;1m\\]\\u@\\[\\x1b[33;1m\\]\\h:\
-\\[\\033[34;1m\\]\\w\\[\\033[35;1m\\] \
-\\!\\[\\e[36;1m\\]\\$ \\[\\E[0m\\]";
+#if ENABLE_FEATURE_SH_FANCY_PROMPT
+		"\\[\\033[32;1m\\]\\u@\\[\\x1b[33;1m\\]\\h:"
+		"\\[\\033[34;1m\\]\\w\\[\\033[35;1m\\] "
+		"\\!\\[\\e[36;1m\\]\\$ \\[\\E[0m\\]";
 #else
 		"% ";
 #endif
 
-#ifdef CONFIG_FEATURE_NONPRINTABLE_INVERSE_PUT
+#if ENABLE_FEATURE_NONPRINTABLE_INVERSE_PUT
 	setlocale(LC_ALL, "");
 #endif
-	while(1) {
+	while (1) {
 		int l;
 		l = cmdedit_read_input(prompt, buff);
-		if(l > 0 && buff[l-1] == '\n') {
-			buff[l-1] = 0;
-			printf("*** cmdedit_read_input() returned line =%s=\n", buff);
-		} else {
+		if (l <= 0 || buff[l-1] != '\n')
 			break;
-		}
+		buff[l-1] = 0;
+		printf("*** cmdedit_read_input() returned line =%s=\n", buff);
 	}
 	printf("*** cmdedit_read_input() detect ^D\n");
 	return 0;

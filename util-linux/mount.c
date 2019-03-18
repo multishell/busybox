@@ -31,6 +31,20 @@
 #include <rpc/pmap_clnt.h>
 
 
+#if defined(__dietlibc__)
+/* 16.12.2006, Sampo Kellomaki (sampo@iki.fi)
+ * dietlibc-0.30 does not have implementation of getmntent_r() */
+/* OTOH: why we use getmntent_r instead of getmntent? TODO... */
+struct mntent *getmntent_r(FILE* stream, struct mntent* result, char* buffer, int bufsize)
+{
+	/* *** XXX FIXME WARNING: This hack is NOT thread safe. --Sampo */
+	struct mntent* ment = getmntent(stream);
+	memcpy(result, ment, sizeof(struct mntent));
+	return result;
+}
+#endif
+
+
 // Not real flags, but we want to be able to check for this.
 enum {
 	MOUNT_USERS  = (1<<28)*ENABLE_DESKTOP,
@@ -425,7 +439,7 @@ struct ppathcnf {
 	short pc_name_max;
 	short pc_path_max;
 	short pc_pipe_buf;
-	u_char pc_vdisable;
+	uint8_t pc_vdisable;
 	char pc_xxx;
 	short pc_mask[2];
 };
@@ -723,7 +737,7 @@ static int daemonize(void)
 	dup2(fd, 0);
 	dup2(fd, 1);
 	dup2(fd, 2);
-	if (fd > 2) close(fd);
+	while (fd > 2) close(fd--);
 	setsid();
 	openlog(applet_name, LOG_PID, LOG_DAEMON);
 	logmode = LOGMODE_SYSLOG;
@@ -1564,7 +1578,8 @@ int mount_main(int argc, char **argv)
 								sizeof(bb_common_bufsiz1)))
 			{
 				// Don't show rootfs. FIXME: why??
-				if (!strcmp(mtpair->mnt_fsname, "rootfs")) continue;
+				// util-linux 2.12a happily shows rootfs...
+				//if (!strcmp(mtpair->mnt_fsname, "rootfs")) continue;
 
 				if (!fstype || !strcmp(mtpair->mnt_type, fstype))
 					printf("%s on %s type %s (%s)\n", mtpair->mnt_fsname,

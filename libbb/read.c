@@ -88,7 +88,7 @@ char *reads(int fd, char *buffer, size_t size)
 		*p++ = '\0';
 		// avoid incorrect (unsigned) widening
 		offset = (off_t)(p-buffer) - (off_t)size;
-		// set fd position the right after the \n
+		// set fd position right after '\n'
 		if (offset && lseek(fd, offset, SEEK_CUR) == (off_t)-1)
 			return NULL;
 	}
@@ -118,16 +118,19 @@ void *xmalloc_open_read_close(const char *filename, size_t *sizep)
 	char *buf;
 	size_t size = sizep ? *sizep : INT_MAX;
 	int fd = xopen(filename, O_RDONLY);
-	off_t len = xlseek(fd, 0, SEEK_END);
+	/* /proc/N/stat files report len 0 here */
+	/* In order to make such files readable, we add small const */
+	off_t len = xlseek(fd, 0, SEEK_END) + 256;
 	xlseek(fd, 0, SEEK_SET);
 
 	if (len > size)
 		bb_error_msg_and_die("file '%s' is too big", filename);
 	size = len;
-	buf = xmalloc(size+1);
+	buf = xmalloc(size + 1);
 	size = read_close(fd, buf, size);
 	if ((ssize_t)size < 0)
     		bb_perror_msg_and_die("'%s'", filename);
+	xrealloc(buf, size + 1);
 	buf[size] = '\0';
 	if (sizep) *sizep = size;
 	return buf;

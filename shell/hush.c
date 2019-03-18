@@ -2269,7 +2269,7 @@ static int parse_group(o_string *dest, struct p_context *ctx,
 		return 1;  /* syntax error, groups and arglists don't mix */
 	}
 	initialize_context(&sub);
-	switch(ch) {
+	switch (ch) {
 		case '(': endch=')'; child->subshell=1; break;
 		case '{': endch='}'; break;
 		default: syntax();   /* really logic error */
@@ -2634,8 +2634,8 @@ static void setup_job_control(void)
 
 	/* Put ourselves in our own process group.  */
 	setsid();
-	shell_pgrp = getpid ();
-	setpgid (shell_pgrp, shell_pgrp);
+	shell_pgrp = getpid();
+	setpgid(shell_pgrp, shell_pgrp);
 
 	/* Grab control of the terminal.  */
 	tcsetpgrp(shell_terminal, shell_pgrp);
@@ -2665,7 +2665,7 @@ int hush_main(int argc, char **argv)
 
 	/* Initialize some more globals to non-zero values */
 	set_cwd();
-    if (ENABLE_FEATURE_COMMAND_EDITING) cmdedit_set_initial_prompt();
+	if (ENABLE_FEATURE_COMMAND_EDITING) cmdedit_set_initial_prompt();
 	else PS1 = NULL;
 	PS2 = "> ";
 

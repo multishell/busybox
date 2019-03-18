@@ -29,10 +29,10 @@ static char menu_backtitle[128];
 static const char mconf_readme[] = N_(
 "Overview\n"
 "--------\n"
-"Some kernel features may be built directly into the kernel.\n"
-"Some may be made into loadable runtime modules.  Some features\n"
+"Some features may be built directly into busybox.\n"
+"Some may be made into standalone applets.  Some features\n"
 "may be completely removed altogether.  There are also certain\n"
-"kernel parameters which are not really features, but must be\n"
+"parameters which are not really features, but must be\n"
 "entered in as decimal or hexadecimal numbers or possibly text.\n"
 "\n"
 "Menu items beginning with [*], <M> or [ ] represent features\n"
@@ -148,7 +148,7 @@ static const char mconf_readme[] = N_(
 "\n"
 "Optional personality available\n"
 "------------------------------\n"
-"If you prefer to have all of the kernel options listed in a single\n"
+"If you prefer to have all of the busybox options listed in a single\n"
 "menu, rather than the default multimenu hierarchy, run the menuconfig\n"
 "with MENUCONFIG_MODE environment variable set to single_menu. Example:\n"
 "\n"
@@ -186,18 +186,18 @@ setmod_text[] = N_(
 	"This feature depends on another which has been configured as a module.\n"
 	"As a result, this feature will be built as a module."),
 nohelp_text[] = N_(
-	"There is no help available for this kernel option.\n"),
+	"There is no help available for this option.\n"),
 load_config_text[] = N_(
 	"Enter the name of the configuration file you wish to load.  "
 	"Accept the name shown to restore the configuration you "
 	"last retrieved.  Leave blank to abort."),
 load_config_help[] = N_(
 	"\n"
-	"For various reasons, one may wish to keep several different kernel\n"
+	"For various reasons, one may wish to keep several different busybox\n"
 	"configurations available on a single machine.\n"
 	"\n"
-	"If you have saved a previous configuration in a file other than the\n"
-	"kernel's default, entering the name of the file here will allow you\n"
+	"If you have saved a previous configuration in a file other than \n"
+	"busybox's default, entering the name of the file here will allow you\n"
 	"to modify that configuration.\n"
 	"\n"
 	"If you are uncertain, then you have probably never used alternate\n"
@@ -207,7 +207,7 @@ save_config_text[] = N_(
 	"as an alternate.  Leave blank to abort."),
 save_config_help[] = N_(
 	"\n"
-	"For various reasons, one may wish to keep different kernel\n"
+	"For various reasons, one may wish to keep different busybox\n"
 	"configurations available on a single machine.\n"
 	"\n"
 	"Entering a file name here will allow you to later retrieve, modify\n"
@@ -1053,7 +1053,7 @@ int main(int ac, char **av)
 
 	sym = sym_lookup("KERNELVERSION", 0);
 	sym_calc_value(sym);
-	sprintf(menu_backtitle, _("Linux Kernel v%s Configuration"),
+	sprintf(menu_backtitle, _("BusyBox %s Configuration"),
 		sym_get_string_value(sym));
 
 	mode = getenv("MENUCONFIG_MODE");
@@ -1086,7 +1086,7 @@ int main(int ac, char **av)
 		}
 		printf(_("\n\n"
 			"*** End of busybox configuration.\n"
-			"*** Execute 'make' to build the kernel or try 'make help'."
+			"*** Execute 'make' to build busybox or try 'make help'."
 			"\n\n"));
 	} else {
 		fprintf(stderr, _("\n\n"

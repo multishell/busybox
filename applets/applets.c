@@ -13,8 +13,6 @@
  */
 
 #include "busybox.h"
-#include <unistd.h>
-#include <string.h>
 #include <assert.h>
 
 /* Apparently uclibc defines __GLIBC__ (compat trick?). Oh well. */
@@ -22,7 +20,9 @@
 #warning Static linking against glibc produces buggy executables
 #warning (glibc does not cope well with ld --gc-sections).
 #warning See sources.redhat.com/bugzilla/show_bug.cgi?id=3400
-#warning Note that glibc is utterly unsuitable for static linking anyway.
+#warning Note that glibc is unsuitable for static linking anyway.
+#warning If you still want to do it, remove -Wl,--gc-sections
+#warning from top-level Makefile and remove this warning.
 #endif
 
 #if ENABLE_SHOW_USAGE && !ENABLE_FEATURE_COMPRESS_USAGE
@@ -44,7 +44,7 @@ static const char usage_messages[] =
 static struct BB_applet *applet_using;
 
 /* The -1 arises because of the {0,NULL,0,-1} entry above. */
-const size_t NUM_APPLETS = (sizeof (applets) / sizeof (struct BB_applet) - 1);
+const unsigned short NUM_APPLETS = (sizeof (applets) / sizeof (struct BB_applet) - 1);
 
 
 #ifdef CONFIG_FEATURE_SUID_CONFIG
@@ -459,8 +459,6 @@ static int applet_name_compare(const void *name, const void *vapplet)
 	return strcmp(name, applet->name);
 }
 
-extern const size_t NUM_APPLETS;
-
 struct BB_applet *find_applet_by_name(const char *name)
 {
 	return bsearch(name, applets, NUM_APPLETS, sizeof(struct BB_applet),
@@ -469,15 +467,19 @@ struct BB_applet *find_applet_by_name(const char *name)
 
 void run_applet_by_name(const char *name, int argc, char **argv)
 {
-	if (ENABLE_FEATURE_SUID_CONFIG) parse_config_file();
+	if (ENABLE_FEATURE_SUID_CONFIG)
+		parse_config_file();
 
-	if (!strncmp(name, "busybox", 7)) busybox_main(argc, argv);
+	if (!strncmp(name, "busybox", 7))
+		exit(busybox_main(argc, argv));
 	/* Do a binary search to find the applet entry given the name. */
 	applet_using = find_applet_by_name(name);
 	if (applet_using) {
 		applet_name = applet_using->name;
-		if(argc==2 && !strcmp(argv[1], "--help")) bb_show_usage();
-		if(ENABLE_FEATURE_SUID) check_suid(applet_using);
-		exit((*(applet_using->main))(argc, argv));
+		if (argc == 2 && !strcmp(argv[1], "--help"))
+			bb_show_usage();
+		if (ENABLE_FEATURE_SUID)
+			check_suid(applet_using);
+		exit(applet_using->main(argc, argv));
 	}
 }

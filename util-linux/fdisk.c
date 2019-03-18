@@ -220,8 +220,8 @@ static int get_boot(enum action what);
 			}
 
 
-static int32_t get_start_sect(const struct partition *p);
-static int32_t get_nr_sects(const struct partition *p);
+static unsigned get_start_sect(const struct partition *p);
+static unsigned get_nr_sects(const struct partition *p);
 
 /*
  * per partition table entry data
@@ -252,14 +252,14 @@ set_all_unchanged(void)
 		ptes[i].changed = 0;
 }
 
-extern inline void
+static ATTRIBUTE_ALWAYS_INLINE void
 set_changed(int i)
 {
 	ptes[i].changed = 1;
 }
-#endif /* CONFIG_FEATURE_FDISK_WRITABLE */
+#endif /* FEATURE_FDISK_WRITABLE */
 
-extern inline struct partition *
+static ATTRIBUTE_ALWAYS_INLINE struct partition *
 get_part_table(int i)
 {
 	return ptes[i].part_table;
@@ -281,7 +281,7 @@ valid_part_table_flag(const char *mbuffer)
 }
 
 #if ENABLE_FEATURE_FDISK_WRITABLE
-extern inline void
+static ATTRIBUTE_ALWAYS_INLINE void
 write_part_table_flag(char *b)
 {
 	b[510] = 0x55;
@@ -338,11 +338,13 @@ read_hex(const struct systypes *sys)
 			continue;
 		}
 		v = bb_strtoul(line_ptr, NULL, 16);
-		if (errno || v > 0xff) continue;
+		if (v > 0xff)
+			/* Bad input also triggers this */
+			continue;
 		return v;
 	}
 }
-#endif /* CONFIG_FEATURE_FDISK_WRITABLE */
+#endif /* FEATURE_FDISK_WRITABLE */
 
 #include "fdisk_aix.c"
 
@@ -393,15 +395,15 @@ STATIC_OSF void xbsd_print_disklabel(int);
 #define SGI_XLV         0x0c
 #define SGI_XVM         0x0d
 #define SGI_ENTIRE_DISK SGI_VOLUME
-#if defined(CONFIG_FEATURE_SGI_LABEL) || defined(CONFIG_FEATURE_SUN_LABEL)
+#if ENABLE_FEATURE_SGI_LABEL || ENABLE_FEATURE_SUN_LABEL
 static uint16_t
-__swap16(uint16_t x)
+fdisk_swap16(uint16_t x)
 {
 	return (x << 8) | (x >> 8);
 }
 
 static uint32_t
-__swap32(uint32_t x)
+fdisk_swap32(uint32_t x)
 {
 	return (x << 24) |
 	       ((x & 0xFF00) << 8) |
@@ -416,7 +418,9 @@ STATIC_SGI int sgi_get_sysid(int i);
 STATIC_SGI void sgi_delete_partition(int i);
 STATIC_SGI void sgi_change_sysid(int i, int sys);
 STATIC_SGI void sgi_list_table(int xtra);
+#if ENABLE_FEATURE_FDISK_ADVANCED
 STATIC_SGI void sgi_set_xcyl(void);
+#endif
 STATIC_SGI int verify_sgi(int verbose);
 STATIC_SGI void sgi_add_partition(int n, int sys);
 STATIC_SGI void sgi_set_swappartition(int i);
@@ -425,21 +429,21 @@ STATIC_SGI void sgi_set_bootfile(const char* aFile);
 STATIC_SGI void create_sgiinfo(void);
 STATIC_SGI void sgi_write_table(void);
 STATIC_SGI void sgi_set_bootpartition(int i);
-
 #include "fdisk_sgi.c"
 
 STATIC_SUN const struct systypes sun_sys_types[];
 STATIC_SUN void sun_delete_partition(int i);
 STATIC_SUN void sun_change_sysid(int i, int sys);
 STATIC_SUN void sun_list_table(int xtra);
-STATIC_SUN void sun_set_xcyl(void);
 STATIC_SUN void add_sun_partition(int n, int sys);
+#if ENABLE_FEATURE_FDISK_ADVANCED
 STATIC_SUN void sun_set_alt_cyl(void);
 STATIC_SUN void sun_set_ncyl(int cyl);
 STATIC_SUN void sun_set_xcyl(void);
 STATIC_SUN void sun_set_ilfact(void);
 STATIC_SUN void sun_set_rspeed(void);
 STATIC_SUN void sun_set_pcylcount(void);
+#endif
 STATIC_SUN void toggle_sunflags(int i, unsigned char mask);
 STATIC_SUN void verify_sun(void);
 STATIC_SUN void sun_write_table(void);
@@ -562,7 +566,7 @@ store4_little_endian(unsigned char *cp, unsigned val)
 	cp[2] = val >> 16;
 	cp[3] = val >> 24;
 }
-#endif /* CONFIG_FEATURE_FDISK_WRITABLE */
+#endif /* FEATURE_FDISK_WRITABLE */
 
 static unsigned
 read4_little_endian(const unsigned char *cp)
@@ -578,7 +582,7 @@ set_start_sect(struct partition *p, unsigned start_sect)
 }
 #endif
 
-static int32_t
+static unsigned
 get_start_sect(const struct partition *p)
 {
 	return read4_little_endian(p->start4);
@@ -586,13 +590,13 @@ get_start_sect(const struct partition *p)
 
 #if ENABLE_FEATURE_FDISK_WRITABLE
 static void
-set_nr_sects(struct partition *p, int32_t nr_sects)
+set_nr_sects(struct partition *p, unsigned nr_sects)
 {
 	store4_little_endian(p->size4, nr_sects);
 }
 #endif
 
-static int32_t
+static unsigned
 get_nr_sects(const struct partition *p)
 {
 	return read4_little_endian(p->size4);
@@ -678,7 +682,7 @@ static void
 read_pte(struct pte *pe, off_t offset)
 {
 	pe->offset = offset;
-	pe->sectorbuffer = (char *) xmalloc(sector_size);
+	pe->sectorbuffer = xmalloc(sector_size);
 	seek_sector(offset);
 	if (read(fd, pe->sectorbuffer, sector_size) != sector_size)
 		fdisk_fatal(unable_to_read);
@@ -782,7 +786,7 @@ menu(void)
 #endif
 	}
 }
-#endif /* CONFIG_FEATURE_FDISK_WRITABLE */
+#endif /* FEATURE_FDISK_WRITABLE */
 
 
 #if ENABLE_FEATURE_FDISK_ADVANCED
@@ -871,7 +875,7 @@ get_sys_types(void)
 }
 #else
 #define get_sys_types() i386_sys_types
-#endif /* CONFIG_FEATURE_FDISK_WRITABLE */
+#endif /* FEATURE_FDISK_WRITABLE */
 
 static const char *partition_type(unsigned char type)
 {
@@ -919,7 +923,7 @@ void list_types(const struct systypes *sys)
 	} while (done < last[0]);
 	putchar('\n');
 }
-#endif /* CONFIG_FEATURE_FDISK_WRITABLE */
+#endif /* FEATURE_FDISK_WRITABLE */
 
 static int
 is_cleared_partition(const struct partition *p)
@@ -1147,7 +1151,7 @@ create_doslabel(void)
 	set_changed(0);
 	get_boot(create_empty_dos);
 }
-#endif /* CONFIG_FEATURE_FDISK_WRITABLE */
+#endif /* FEATURE_FDISK_WRITABLE */
 
 static void
 get_sectorsize(void)
@@ -1346,7 +1350,7 @@ get_boot(enum action what)
 #endif
 
 	if (!valid_part_table_flag(MBRbuffer)) {
-#ifndef CONFIG_FEATURE_FDISK_WRITABLE
+#if !ENABLE_FEATURE_FDISK_WRITABLE
 		return -1;
 #else
 		switch (what) {
@@ -1372,7 +1376,7 @@ get_boot(enum action what)
 		default:
 			bb_error_msg_and_die(_("internal error"));
 		}
-#endif /* CONFIG_FEATURE_FDISK_WRITABLE */
+#endif /* FEATURE_FDISK_WRITABLE */
 	}
 
 #if ENABLE_FEATURE_FDISK_WRITABLE
@@ -1767,16 +1771,16 @@ change_sysid(void)
 		}
 	}
 }
-#endif /* CONFIG_FEATURE_FDISK_WRITABLE */
+#endif /* FEATURE_FDISK_WRITABLE */
 
 
-/* check_consistency() and long2chs() added Sat Mar 6 12:28:16 1993,
+/* check_consistency() and linear2chs() added Sat Mar 6 12:28:16 1993,
  * faith@cs.unc.edu, based on code fragments from pfdisk by Gordon W. Ross,
  * Jan.  1990 (version 1.2.1 by Gordon W. Ross Aug. 1990; Modified by S.
  * Lubkin Oct.  1991). */
 
 static void
-long2chs(ulong ls, unsigned *c, unsigned *h, unsigned *s)
+linear2chs(unsigned ls, unsigned *c, unsigned *h, unsigned *s)
 {
 	int spc = heads * sectors;
 
@@ -1808,10 +1812,10 @@ check_consistency(const struct partition *p, int partition)
 	pes = p->end_sector & 0x3f;
 
 /* compute logical beginning (c, h, s) */
-	long2chs(get_start_sect(p), &lbc, &lbh, &lbs);
+	linear2chs(get_start_sect(p), &lbc, &lbh, &lbs);
 
 /* compute logical ending (c, h, s) */
-	long2chs(get_start_sect(p) + get_nr_sects(p) - 1, &lec, &leh, &les);
+	linear2chs(get_start_sect(p) + get_nr_sects(p) - 1, &lec, &leh, &les);
 
 /* Same physical / logical beginning? */
 	if (cylinders <= 1024 && (pbc != lbc || pbh != lbh || pbs != lbs)) {
@@ -2479,49 +2483,43 @@ write_table(void)
 static void
 reread_partition_table(int leave)
 {
-	int error = 0;
 	int i;
 
-	printf(_("Calling ioctl() to re-read partition table.\n"));
+	printf(_("Calling ioctl() to re-read partition table\n"));
 	sync();
-	sleep(2);
-	if ((i = ioctl(fd, BLKRRPART)) != 0) {
-		error = errno;
-	} else {
+	sleep(2); /* Huh? */
+	i = ioctl(fd, BLKRRPART);
+#if 0
+	else {
 		/* some kernel versions (1.2.x) seem to have trouble
 		   rereading the partition table, but if asked to do it
 		   twice, the second time works. - biro@yggdrasil.com */
 		sync();
 		sleep(2);
-		if ((i = ioctl(fd, BLKRRPART)) != 0)
-			error = errno;
+		i = ioctl(fd, BLKRRPART);
 	}
+#endif
 
 	if (i) {
-		printf(_("\nWARNING: Re-reading the partition table "
-			 "failed with error %d: %s.\n"
-			 "The kernel still uses the old table.\n"
-			 "The new table will be used "
-			 "at the next reboot.\n"),
-			error, strerror(error));
+		bb_perror_msg("WARNING: rereading partition table "
+			"failed, kernel still uses old table");
 	}
 
+#if 0
 	if (dos_changed)
 		printf(
 		_("\nWARNING: If you have created or modified any DOS 6.x\n"
 		"partitions, please see the fdisk manual page for additional\n"
 		"information.\n"));
+#endif
 
 	if (leave) {
-		close(fd);
-
-		printf(_("Syncing disks.\n"));
-		sync();
-		sleep(4);               /* for sync() */
-		exit(!!i);
+		if (ENABLE_FEATURE_CLEAN_UP)
+			close(fd);
+		exit(i != 0);
 	}
 }
-#endif /* CONFIG_FEATURE_FDISK_WRITABLE */
+#endif /* FEATURE_FDISK_WRITABLE */
 
 #if ENABLE_FEATURE_FDISK_ADVANCED
 #define MAX_PER_LINE    16
@@ -2543,7 +2541,6 @@ print_buffer(char *pbuffer)
 		puts("");
 	puts("");
 }
-
 
 static void
 print_raw(void)
@@ -2718,7 +2715,7 @@ is_ide_cdrom_or_tape(const char *device)
 
 
 static void
-try(const char *device, int user_specified)
+trydev(const char *device, int user_specified)
 {
 	int gb;
 
@@ -2728,7 +2725,8 @@ try(const char *device, int user_specified)
 	if (!user_specified)
 		if (is_ide_cdrom_or_tape(device))
 			return;
-	if ((fd = open(disk_device, type_open)) >= 0) {
+	fd = open(disk_device, type_open);
+	if (fd >= 0) {
 		gb = get_boot(try_only);
 		if (gb > 0) {   /* I/O error */
 			close(fd);
@@ -2738,7 +2736,7 @@ try(const char *device, int user_specified)
 				return;
 			}
 #if ENABLE_FEATURE_OSF_LABEL
-			if (btrydev(device) < 0)
+			if (bsd_trydev(device) < 0)
 #endif
 				printf(_("Disk %s doesn't contain a valid "
 					"partition table\n"), device);
@@ -2782,7 +2780,7 @@ tryprocpt(void)
 		if (isdigit(s[-1]))
 			continue;
 		sprintf(devname, "/dev/%s", ptname);
-		try(devname, 0);
+		trydev(devname, 0);
 	}
 #if ENABLE_FEATURE_CLEAN_UP
 	fclose(procpt);
@@ -2801,7 +2799,6 @@ int fdisk_main(int argc, char **argv)
 {
 	char *str_b, *str_C, *str_H, *str_S;
 	unsigned opt;
-	int c;
 	/*
 	 *  fdisk -v
 	 *  fdisk -l [-b sectorsize] [-u] device ...
@@ -2861,14 +2858,14 @@ int fdisk_main(int argc, char **argv)
 		type_open = O_RDONLY;
 		if (argc > 0) {
 			int k;
-#if __GNUC__
+#if defined(__GNUC__)
 			/* avoid gcc warning:
 			   variable `k' might be clobbered by `longjmp' */
 			(void)&k;
 #endif
 			listing = 1;
 			for (k = 0; k < argc; k++)
-				try(argv[k], 1);
+				trydev(argv[k], 1);
 		} else {
 			/* we no longer have default device names */
 			/* but, we can use /proc/partitions instead */
@@ -2925,6 +2922,7 @@ int fdisk_main(int argc, char **argv)
 	}
 
 	while (1) {
+		int c;
 		putchar('\n');
 		c = tolower(read_nonempty(_("Command (m for help): ")));
 		switch (c) {
@@ -3039,5 +3037,5 @@ int fdisk_main(int argc, char **argv)
 		}
 	}
 	return 0;
-#endif /* CONFIG_FEATURE_FDISK_WRITABLE */
+#endif /* FEATURE_FDISK_WRITABLE */
 }

@@ -63,6 +63,7 @@
 #include <sys/utsname.h>
 
 #if !ENABLE_FEATURE_2_4_MODULES && !ENABLE_FEATURE_2_6_MODULES
+#undef ENABLE_FEATURE_2_4_MODULES
 #define ENABLE_FEATURE_2_4_MODULES 1
 #endif
 
@@ -1131,7 +1132,7 @@ arch_apply_relocation(struct obj_file *f,
 				/* We cannot relocate this one now because we don't know the value
 				   of the carry we need to add.  Save the information, and let LO16
 				   do the actual relocation.  */
-				n = (struct mips_hi16 *) xmalloc(sizeof *n);
+				n = xmalloc(sizeof *n);
 				n->addr = loc;
 				n->value = v;
 				n->next = ifile->mips_hi16_list;
@@ -3719,7 +3720,7 @@ static void check_tainted_module(struct obj_file *f, char *m_name)
 		close(fd);
 }
 #else /* FEATURE_CHECK_TAINTED_MODULE */
-#define check_tainted_module(x, y) do { } while(0);
+#define check_tainted_module(x, y) do { } while (0);
 #endif /* FEATURE_CHECK_TAINTED_MODULE */
 
 #if ENABLE_FEATURE_INSMOD_KSYMOOPS_SYMBOLS
@@ -3764,12 +3765,8 @@ add_ksymoops_symbols(struct obj_file *f, const char *filename,
 
 	if (realpath(filename, real)) {
 		absolute_filename = xstrdup(real);
-	}
-	else {
-		int save_errno = errno;
-		bb_error_msg("cannot get realpath for %s", filename);
-		errno = save_errno;
-		perror("");
+	} else {
+		bb_perror_msg("cannot get realpath for %s", filename);
 		absolute_filename = xstrdup(filename);
 	}
 
@@ -3782,7 +3779,8 @@ add_ksymoops_symbols(struct obj_file *f, const char *filename,
 	 */
 	use_ksymtab = obj_find_section(f, "__ksymtab") || flag_noexport;
 
-	if ((sec = obj_find_section(f, ".this"))) {
+	sec = obj_find_section(f, ".this");
+	if (sec) {
 		/* tag the module header with the object name, last modified
 		 * timestamp and module version.  worst case for module version
 		 * is 0xffffff, decimal 16777215.  putting all three fields in
@@ -3833,8 +3831,8 @@ add_ksymoops_symbols(struct obj_file *f, const char *filename,
 	/* tag the desired sections if size is non-zero */
 
 	for (i = 0; i < sizeof(section_names)/sizeof(section_names[0]); ++i) {
-		if ((sec = obj_find_section(f, section_names[i])) &&
-				sec->header.sh_size) {
+		sec = obj_find_section(f, section_names[i]);
+		if (sec && sec->header.sh_size) {
 			l = sizeof(symprefix)+		/* "__insmod_" */
 				lm_name+		/* module name */
 				2+			/* "_S" */
@@ -3858,11 +3856,12 @@ add_ksymoops_symbols(struct obj_file *f, const char *filename,
 #if ENABLE_FEATURE_INSMOD_LOAD_MAP
 static void print_load_map(struct obj_file *f)
 {
-	struct obj_symbol *sym;
-	struct obj_symbol **all, **p;
 	struct obj_section *sec;
+#if ENABLE_FEATURE_INSMOD_LOAD_MAP_FULL
+	struct obj_symbol **all, **p;
 	int i, nsyms, *loaded;
-
+	struct obj_symbol *sym;
+#endif
 	/* Report on the section layout.  */
 
 	printf("Sections:       Size      %-*s  Align\n",

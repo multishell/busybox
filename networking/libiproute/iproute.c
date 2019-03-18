@@ -15,12 +15,6 @@
 
 #include "libbb.h"
 
-#include <sys/socket.h>
-
-#include <string.h>
-#include <fcntl.h>
-#include <unistd.h>
-
 #include "rt_names.h"
 #include "utils.h"
 #include "ip_common.h"
@@ -61,6 +55,28 @@ static int flush_update(void)
 	}
 	filter.flushp = 0;
 	return 0;
+}
+
+static unsigned get_hz(void)
+{
+	static unsigned hz_internal;
+	FILE *fp;
+
+	if (hz_internal)
+		return hz_internal;
+
+	fp = fopen("/proc/net/psched", "r");
+	if (fp) {
+		unsigned nom, denom;
+
+		if (fscanf(fp, "%*08x%*08x%08x%08x", &nom, &denom) == 2)
+			if (nom == 1000000)
+				hz_internal = denom;
+		fclose(fp);
+	}
+	if (!hz_internal)
+		hz_internal = sysconf(_SC_CLK_TCK);
+	return hz_internal;
 }
 
 static int print_route(struct sockaddr_nl *who ATTRIBUTE_UNUSED,
@@ -248,7 +264,7 @@ static int print_route(struct sockaddr_nl *who ATTRIBUTE_UNUSED,
 				    abuf, sizeof(abuf)));
 	}
 	if (tb[RTA_PRIORITY]) {
-		fprintf(fp, " metric %d ", *(__u32*)RTA_DATA(tb[RTA_PRIORITY]));
+		fprintf(fp, " metric %d ", *(uint32_t*)RTA_DATA(tb[RTA_PRIORITY]));
 	}
 	if (r->rtm_family == AF_INET6) {
 		struct rta_cacheinfo *ci = NULL;
@@ -256,15 +272,11 @@ static int print_route(struct sockaddr_nl *who ATTRIBUTE_UNUSED,
 			ci = RTA_DATA(tb[RTA_CACHEINFO]);
 		}
 		if ((r->rtm_flags & RTM_F_CLONED) || (ci && ci->rta_expires)) {
-			static int hz;
-			if (!hz) {
-				hz = get_hz();
-			}
 			if (r->rtm_flags & RTM_F_CLONED) {
 				fprintf(fp, "%s    cache ", _SL_);
 			}
 			if (ci->rta_expires) {
-				fprintf(fp, " expires %dsec", ci->rta_expires/hz);
+				fprintf(fp, " expires %dsec", ci->rta_expires / get_hz());
 			}
 			if (ci->rta_error != 0) {
 				fprintf(fp, " error %d", ci->rta_error);
@@ -353,6 +365,14 @@ static int iproute_modify(int cmd, unsigned flags, int argc, char **argv)
 				invarg(*argv, "protocol");
 			req.r.rtm_protocol = prot;
 			proto_ok =1;
+#if ENABLE_FEATURE_IP_RULE
+		} else if (matches(*argv, "table") == 0) {
+			uint32_t tid;
+			NEXT_ARG();
+			if (rtnl_rttable_a2n(&tid, *argv))
+				invarg(*argv, "table");
+			req.r.rtm_table = tid;
+#endif
 		} else if (strcmp(*argv, "dev") == 0 ||
 			   strcmp(*argv, "oif") == 0) {
 			NEXT_ARG();
@@ -397,7 +417,8 @@ static int iproute_modify(int cmd, unsigned flags, int argc, char **argv)
 		ll_init_map(&rth);
 
 		if (d) {
-			if ((idx = ll_name_to_index(d)) == 0) {
+			idx = ll_name_to_index(d);
+			if (idx == 0) {
 				bb_error_msg("cannot find device \"%s\"", d);
 				return -1;
 			}
@@ -540,9 +561,13 @@ static int iproute_list_or_flush(int argc, char **argv, int flush)
 				NEXT_ARG();
 				if (matches(*argv, "cache") == 0) {
 					filter.tb = -1;
+#if 0 && ENABLE_FEATURE_IP_RULE
+
+#else
 				} else if (matches(*argv, "main") != 0) {
 					invarg(*argv, "table");
 				}
+#endif
 			} else if (matches(*argv, "cache") == 0) {
 				filter.tb = -1;
 			} else {

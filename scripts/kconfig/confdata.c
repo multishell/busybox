@@ -27,7 +27,7 @@ const char conf_defname[] = "scripts/defconfig";
 const char *conf_confnames[] = {
 	".config",
 	"/lib/modules/$UNAME_RELEASE/.config",
-	"/etc/kernel-config",
+	"/etc/busybox-config",
 	"/boot/config-$UNAME_RELEASE",
 	conf_defname,
 	NULL,
@@ -385,7 +385,7 @@ int conf_write(const char *name)
 
 	fprintf(out, _("#\n"
 		       "# Automatically generated make config: don't edit\n"
-		       "# Linux kernel version: %s\n"
+		       "# Busybox version: %s\n"
 		       "%s%s"
 		       "#\n"),
 		     sym_get_string_value(sym),
@@ -395,15 +395,24 @@ int conf_write(const char *name)
 		char buf[sizeof("#define AUTOCONF_TIMESTAMP "
 				"\"YYYY-MM-DD HH:MM:SS some_timezone\"\n")];
 		buf[0] = '\0';
-		if (use_timestamp)
-			strftime(buf, sizeof(buf), "#define AUTOCONF_TIMESTAMP "
-				"\"%Y-%m-%d %H:%M:%S %Z\"\n", localtime(&now));
+		if (use_timestamp) {
+			size_t ret = \
+				strftime(buf, sizeof(buf), "#define AUTOCONF_TIMESTAMP "
+					"\"%Y-%m-%d %H:%M:%S %Z\"\n", localtime(&now));
+			/* if user has Factory timezone or some other odd install, the
+			 * %Z above will overflow the string leaving us with undefined
+			 * results ... so let's try again without the timezone.
+			 */
+			if (ret == 0)
+				strftime(buf, sizeof(buf), "#define AUTOCONF_TIMESTAMP "
+					"\"%Y-%m-%d %H:%M:%S\"\n", localtime(&now));
+		}
 		fprintf(out_h, "/*\n"
 			       " * Automatically generated C config: don't edit\n"
-			       " * Linux kernel version: %s\n"
+			       " * Busybox version: %s\n"
 			       " */\n"
 			       "%s"
-			       "#define AUTOCONF_INCLUDED\n",
+			       "\n",
 			       sym_get_string_value(sym),
 			       buf);
 	}

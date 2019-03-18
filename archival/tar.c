@@ -452,26 +452,28 @@ static int writeFileToTarball(const char *fileName, struct stat *statbuf,
 
 	/* If it was a regular file, write out the body */
 	if (inputFileFd >= 0) {
-		off_t readSize = 0;
+		size_t readSize;
+		/* Wwrite the file to the archive. */
+		/* We record size into header first, */
+		/* and then write out file. If file shrinks in between, */
+		/* tar will be corrupted. So we don't allow for that. */
+		/* NB: GNU tar 1.16 warns and pads with zeroes */
+		/* or even seeks back and updates header */
+		bb_copyfd_exact_size(inputFileFd, tbInfo->tarFd, statbuf->st_size);
+		////off_t readSize;
+		////readSize = bb_copyfd_size(inputFileFd, tbInfo->tarFd, statbuf->st_size);
+		////if (readSize != statbuf->st_size && readSize >= 0) {
+		////	bb_error_msg_and_die("short read from %s, aborting", fileName);
+		////}
 
-		/* write the file to the archive */
-		readSize = bb_copyfd_size(inputFileFd, tbInfo->tarFd, statbuf->st_size);
-		/* readSize < 0 means that error was already reported */
-		if (readSize != statbuf->st_size && readSize >= 0) {
-			/* Deadly. We record size into header first, */
-			/* and then write out file. If file shrinks in between, */
-			/* tar will be corrupted. So bail out. */
-			/* NB: GNU tar 1.16 warns and pads with zeroes */
-			/* or even seeks back and updates header */
-			bb_error_msg_and_die("short read from %s, aborting", fileName);
-		}
 		/* Check that file did not grow in between? */
-		/* if (safe_read(inputFileFd,1) == 1) warn but continue? */
+		/* if (safe_read(inputFileFd, 1) == 1) warn but continue? */
+
 		close(inputFileFd);
 
 		/* Pad the file up to the tar block size */
 		/* (a few tricks here in the name of code size) */
-		readSize = (-(int)readSize) & (TAR_BLOCK_SIZE-1);
+		readSize = (-(int)statbuf->st_size) & (TAR_BLOCK_SIZE-1);
 		memset(bb_common_bufsiz1, 0, readSize);
 		xwrite(tbInfo->tarFd, bb_common_bufsiz1, readSize);
 	}
@@ -503,7 +505,6 @@ static int writeTarFile(const int tar_fd, const int verboseFlag,
 		int gzipStatusPipe[2] = { -1, -1 };
 		volatile int vfork_exec_errno = 0;
 		char *zip_exec = (gzip == 1) ? "gzip" : "bzip2";
-
 
 		if (pipe(gzipDataPipe) < 0 || pipe(gzipStatusPipe) < 0)
 			bb_perror_msg_and_die("pipe");
@@ -585,10 +586,15 @@ static int writeTarFile(const int tar_fd, const int verboseFlag,
 	if (errorFlag)
 		bb_error_msg("error exit delayed from previous errors");
 
-	if (gzipPid && waitpid(gzipPid, NULL, 0) == -1)
-		bb_error_msg("waitpid failed");
-
-	return !errorFlag;
+	if (gzipPid) {
+		int status;
+		if (waitpid(gzipPid, &status, 0) == -1)
+			bb_perror_msg("waitpid");
+		else if (!WIFEXITED(status) || WEXITSTATUS(status))
+			/* gzip was killed or has exited with nonzero! */
+			errorFlag = TRUE;
+	}
+	return errorFlag;
 }
 #else
 int writeTarFile(const int tar_fd, const int verboseFlag,
@@ -648,6 +654,29 @@ static char get_header_tar_Z(archive_handle_t *archive_handle)
 }
 #else
 #define get_header_tar_Z	0
+#endif
+
+#ifdef CHECK_FOR_CHILD_EXITCODE
+/* Looks like it isn't needed - tar detects malformed (truncated)
+ * archive if e.g. bunzip2 fails */
+static int child_error;
+
+static void handle_SIGCHLD(int status)
+{
+	/* Actually, 'status' is a signo. We reuse it for other needs */
+
+	/* Wait for any child without blocking */
+	if (waitpid(-1, &status, WNOHANG) < 0)
+		/* wait failed?! I'm confused... */
+		return;
+
+	if (WIFEXITED(status) && WEXITSTATUS(status)==0)
+		/* child exited with 0 */
+		return;
+	/* Cannot happen?
+	if(!WIFSIGNALED(status) && !WIFEXITED(status)) return; */
+	child_error = 1;
+}
 #endif
 
 enum {
@@ -851,7 +880,7 @@ int tar_main(int argc, char **argv)
 			flags = O_RDONLY;
 		}
 
-		if (tar_filename[0] == '-' && !tar_filename[1]) {
+		if (LONE_DASH(tar_filename)) {
 			tar_handle->src_fd = fileno(tar_stream);
 			tar_handle->seek = seek_by_read;
 		} else {
@@ -862,6 +891,11 @@ int tar_main(int argc, char **argv)
 	if (base_dir)
 		xchdir(base_dir);
 
+#ifdef CHECK_FOR_CHILD_EXITCODE
+	/* We need to know whether child (gzip/bzip/etc) exits abnormally */
+	signal(SIGCHLD, handle_SIGCHLD);
+#endif
+
 	/* create an archive */
 	if (opt & OPT_CREATE) {
 		int zipMode = 0;
@@ -869,11 +903,10 @@ int tar_main(int argc, char **argv)
 			zipMode = 1;
 		if (ENABLE_FEATURE_TAR_BZIP2 && get_header_ptr == get_header_tar_bz2)
 			zipMode = 2;
-		writeTarFile(tar_handle->src_fd, verboseFlag, opt & OPT_DEREFERENCE,
+		/* NB: writeTarFile() closes tar_handle->src_fd */
+		return writeTarFile(tar_handle->src_fd, verboseFlag, opt & OPT_DEREFERENCE,
 				tar_handle->accept,
 				tar_handle->reject, zipMode);
-		/* NB: writeTarFile() closes tar_handle->src_fd */
-		return EXIT_SUCCESS;
 	}
 
 	while (get_header_ptr(tar_handle) == EXIT_SUCCESS)

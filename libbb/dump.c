@@ -358,8 +358,8 @@ static unsigned char *get(void)
 
 	if (!curp) {
 		address = (off_t)0; /*DBU:[dave@cray.com] initialize,initialize..*/
-		curp = (unsigned char *) xmalloc(bb_dump_blocksize);
-		savp = (unsigned char *) xmalloc(bb_dump_blocksize);
+		curp = xmalloc(bb_dump_blocksize);
+		savp = xmalloc(bb_dump_blocksize);
 	} else {
 		tmpp = curp;
 		curp = savp;
@@ -724,7 +724,9 @@ void bb_dump_add(const char *fmt)
 
 		/* byte count */
 		if (isdigit(*p)) {
-			for (savep = p; isdigit(*p); ++p);
+// TODO: use bb_strtou
+			savep = p;
+			do p++; while (isdigit(*p));
 			if (!isspace(*p)) {
 				bb_error_msg_and_die("bad format {%s}", fmt);
 			}

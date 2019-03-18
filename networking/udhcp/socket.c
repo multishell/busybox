@@ -25,7 +25,7 @@
 
 #include <net/if.h>
 #include <features.h>
-#if (__GLIBC__ >= 2 && __GLIBC_MINOR__ >= 1) || defined _NEWLIB_VERSION
+#if (defined(__GLIBC__) && __GLIBC__ >= 2 && __GLIBC_MINOR__ >= 1) || defined _NEWLIB_VERSION
 #include <netpacket/packet.h>
 #include <net/ethernet.h>
 #else
@@ -95,11 +95,7 @@ int listen_socket(uint32_t ip, int port, char *inf)
 	struct sockaddr_in addr;
 
 	DEBUG("Opening listen socket on 0x%08x:%d %s", ip, port, inf);
-	fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (fd < 0) {
-		bb_perror_msg("socket");
-		return -1;
-	}
+	fd = xsocket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;

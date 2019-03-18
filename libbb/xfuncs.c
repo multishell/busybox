@@ -121,16 +121,15 @@ int xopen3(const char *pathname, int flags, int mode)
 	return ret;
 }
 
-/*
-int ndelay_off(int fd)
-{
-	return fcntl(fd,F_SETFL,fcntl(fd,F_GETFL,0) & ~O_NONBLOCK);
-}
-*/
 // Turn on nonblocking I/O on a fd
 int ndelay_on(int fd)
 {
 	return fcntl(fd,F_SETFL,fcntl(fd,F_GETFL,0) | O_NONBLOCK);
+}
+
+int ndelay_off(int fd)
+{
+	return fcntl(fd,F_SETFL,fcntl(fd,F_GETFL,0) & ~O_NONBLOCK);
 }
 
 // Die with an error message if we can't write the entire buffer.
@@ -181,6 +180,7 @@ void xfflush_stdout(void)
 // -1 for failure.  Runs argv[0], searching path if that has no / in it.
 pid_t spawn(char **argv)
 {
+	/* Why static? */
 	static int failed;
 	pid_t pid;
 	void *app = ENABLE_FEATURE_SH_STANDALONE_SHELL ? find_applet_by_name(argv[0]) : 0;
@@ -196,10 +196,14 @@ pid_t spawn(char **argv)
 		// and then exit to unblock parent (but don't run atexit() stuff, which
 		// would screw up parent.)
 
-		failed = -1;
+		failed = errno;
 		_exit(0);
 	}
-	return failed ? failed : pid;
+	if (failed) {
+		errno = failed;
+		return -1;
+	}
+	return pid;
 }
 
 // Die with an error message if we can't spawn a child process.
@@ -329,6 +333,19 @@ char *itoa(int n)
 	return local_buf;
 }
 
+// Emit a string of hex representation of bytes
+char *bin2hex(char *p, const char *cp, int count)
+{
+	while (count) {
+		unsigned char c = *cp++;
+		/* put lowercase hex digits */
+		*p++ = 0x10 | bb_hexdigits_upcase[c >> 4];
+		*p++ = 0x10 | bb_hexdigits_upcase[c & 0xf];
+		count--;
+	}
+	return p;
+}
+
 // Die with an error message if we can't set gid.  (Because resource limits may
 // limit this user to a given number of processes, and if that fills up the
 // setgid() will fail and we'll _still_be_root_, which is bad.)
@@ -411,6 +428,37 @@ char *xasprintf(const char *format, ...)
 	return string_ptr;
 }
 
+#if 0 /* If we will ever meet a libc which hasn't [f]dprintf... */
+int fdprintf(int fd, const char *format, ...)
+{
+	va_list p;
+	int r;
+	char *string_ptr;
+
+#if 1
+	// GNU extension
+	va_start(p, format);
+	r = vasprintf(&string_ptr, format, p);
+	va_end(p);
+#else
+	// Bloat for systems that haven't got the GNU extension.
+	va_start(p, format);
+	r = vsnprintf(NULL, 0, format, p);
+	va_end(p);
+	string_ptr = xmalloc(r+1);
+	va_start(p, format);
+	r = vsnprintf(string_ptr, r+1, format, p);
+	va_end(p);
+#endif
+
+	if (r >= 0) {
+		full_write(fd, string_ptr, r);
+		free(string_ptr);
+	}
+	return r;
+}
+#endif
+
 // Die with an error message if we can't copy an entire FILE * to stdout, then
 // close that file.
 void xprint_and_close_file(FILE *file)
@@ -460,6 +508,38 @@ void xdaemon(int nochdir, int noclose)
 		bb_perror_msg_and_die("daemon");
 }
 #endif
+
+void bb_sanitize_stdio_maybe_daemonize(int daemonize)
+{
+	int fd;
+	/* Mega-paranoid */
+	fd = xopen(bb_dev_null, O_RDWR);
+	while (fd < 2)
+		fd = dup(fd); /* have 0,1,2 open at least to /dev/null */
+	if (daemonize) {
+		pid_t pid = fork();
+		if (pid < 0) /* wtf? */
+			bb_perror_msg_and_die("fork");
+		if (pid) /* parent */
+			exit(0);
+    		/* child */
+		/* if daemonizing, make sure we detach from stdio */
+		setsid();
+		dup2(fd, 0);
+		dup2(fd, 1);
+		dup2(fd, 2);
+	}
+	while (fd > 2)
+		close(fd--); /* close everything after fd#2 */
+}
+void bb_sanitize_stdio(void)
+{
+	bb_sanitize_stdio_maybe_daemonize(0);
+}
+void bb_daemonize(void)
+{
+	bb_sanitize_stdio_maybe_daemonize(1);
+}
 
 // Die with an error message if we can't open a new socket.
 int xsocket(int domain, int type, int protocol)

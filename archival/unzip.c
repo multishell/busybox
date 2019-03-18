@@ -32,9 +32,6 @@
 #define ZIP_CDS_END_MAGIC		SWAP_LE32(0x06054b50)
 #define ZIP_DD_MAGIC			SWAP_LE32(0x08074b50)
 
-extern unsigned int gunzip_crc;
-extern unsigned int gunzip_bytes_out;
-
 typedef union {
 	unsigned char raw[26];
 	struct {
@@ -54,9 +51,9 @@ typedef union {
 static void unzip_skip(int fd, off_t skip)
 {
 	if (lseek(fd, skip, SEEK_CUR) == (off_t)-1) {
-		if ((errno != ESPIPE) || (bb_copyfd_size(fd, -1, skip) != skip)) {
+		if (errno != ESPIPE)
 			bb_error_msg_and_die("seek failure");
-		}
+		bb_copyfd_exact_size(fd, -1, skip);
 	}
 }
 
@@ -75,22 +72,20 @@ static int unzip_extract(zip_header_t *zip_header, int src_fd, int dst_fd)
 	if (zip_header->formatted.method == 0) {
 		/* Method 0 - stored (not compressed) */
 		off_t size = zip_header->formatted.ucmpsize;
-		if (size && (bb_copyfd_size(src_fd, dst_fd, size) != size)) {
-			bb_error_msg_and_die("cannot complete extraction");
-		}
-
+		if (size)
+			bb_copyfd_exact_size(src_fd, dst_fd, size);
 	} else {
 		/* Method 8 - inflate */
-		inflate_init(zip_header->formatted.cmpsize);
-		inflate_unzip(src_fd, dst_fd);
-		inflate_cleanup();
+		inflate_unzip_result res;
+		/* err = */ inflate_unzip(&res, zip_header->formatted.cmpsize, src_fd, dst_fd);
+// we should check for -1 error return
 		/* Validate decompression - crc */
-		if (zip_header->formatted.crc32 != (gunzip_crc ^ 0xffffffffL)) {
+		if (zip_header->formatted.crc32 != (res.crc ^ 0xffffffffL)) {
 			bb_error_msg("invalid compressed data--%s error", "crc");
 			return 1;
 		}
 		/* Validate decompression - size */
-		if (zip_header->formatted.ucmpsize != gunzip_bytes_out) {
+		if (zip_header->formatted.ucmpsize != res.bytes_out) {
 			bb_error_msg("invalid compressed data--%s error", "length");
 			return 1;
 		}
@@ -114,7 +109,7 @@ int unzip_main(int argc, char **argv)
 	char key_buf[512];
 	struct stat stat_buf;
 
-	while((opt = getopt(argc, argv, "-d:lnopqx")) != -1) {
+	while ((opt = getopt(argc, argv, "-d:lnopqx")) != -1) {
 		switch (opt_range) {
 		case 0: /* Options */
 			switch (opt) {
@@ -187,15 +182,14 @@ int unzip_main(int argc, char **argv)
 	}
 
 	/* Open input file */
-	if (strcmp("-", src_fn) == 0) {
+	if (LONE_DASH(src_fn)) {
 		src_fd = STDIN_FILENO;
 		/* Cannot use prompt mode since zip data is arriving on STDIN */
 		overwrite = (overwrite == o_prompt) ? o_never : overwrite;
-
 	} else {
 		static const char *const extn[] = {"", ".zip", ".ZIP"};
 		int orig_src_fn_len = strlen(src_fn);
-		for(i = 0; (i < 3) && (src_fd == -1); i++) {
+		for (i = 0; (i < 3) && (src_fd == -1); i++) {
 			strcpy(src_fn + orig_src_fn_len, extn[i]);
 			src_fd = open(src_fn, O_RDONLY);
 		}
@@ -250,8 +244,8 @@ int unzip_main(int argc, char **argv)
 		unzip_skip(src_fd, zip_header.formatted.extra_len);
 
 		if ((verbosity == v_list) && !list_header_done){
-			printf("  Length     Date   Time    Name\n"
-			       " --------    ----   ----    ----\n");
+			puts("  Length     Date   Time    Name\n"
+			     " --------    ----   ----    ----");
 			list_header_done = 1;
 		}
 
@@ -275,10 +269,8 @@ int unzip_main(int argc, char **argv)
 					   dst_fn);
 				total_entries++;
 				i = 'n';
-
 			} else if (dst_fd == STDOUT_FILENO) { /* Extracting to STDOUT */
 				i = -1;
-
 			} else if (last_char_is(dst_fn, '/')) { /* Extract directory */
 				if (stat(dst_fn, &stat_buf) == -1) {
 					if (errno != ENOENT) {
@@ -299,17 +291,15 @@ int unzip_main(int argc, char **argv)
 				i = 'n';
 
 			} else {  /* Extract file */
-			_check_file:
+ _check_file:
 				if (stat(dst_fn, &stat_buf) == -1) { /* File does not exist */
 					if (errno != ENOENT) {
 						bb_perror_msg_and_die("cannot stat '%s'",dst_fn);
 					}
 					i = 'y';
-
 				} else { /* File already exists */
 					if (overwrite == o_never) {
 						i = 'n';
-
 					} else if (S_ISREG(stat_buf.st_mode)) { /* File is regular file */
 						if (overwrite == o_always) {
 							i = 'y';
@@ -320,7 +310,6 @@ int unzip_main(int argc, char **argv)
 							}
 							i = key_buf[0];
 						}
-
 					} else { /* File is not regular file */
 						bb_error_msg_and_die("'%s' exists but is not regular file",dst_fn);
 					}
@@ -339,7 +328,7 @@ int unzip_main(int argc, char **argv)
 				printf("  inflating: %s\n", dst_fn);
 			}
 			if (unzip_extract(&zip_header, src_fd, dst_fd)) {
-			    failed = 1;
+				failed = 1;
 			}
 			if (dst_fd != STDOUT_FILENO) {
 				/* closing STDOUT is potentially bad for future business */
