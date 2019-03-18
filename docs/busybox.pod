@@ -1,3 +1,5 @@
+# vi: set sw=4 ts=4:
+
 =head1 NAME
 
 busybox - I am BusyBox of Borg.  Unix will be assimilated.
@@ -11,64 +13,176 @@ busybox - I am BusyBox of Borg.  Unix will be assimilated.
 =head1 DESCRIPTION
 
 BusyBox is a multi-call binary that combines many common Unix utilities into a
-single executable.  Most people will create a symlink to busybox for each
-function name, and BusyBox will act like whatever you invoke it as.
+single executable.  Most people will create a link to busybox for each function
+they wish to use, and BusyBox will act like whatever it was invoked as.  For
+example,
+
+	ln -s ./busybox ls
+	./ls
+
+will cause BusyBox to behave as 'ls' (if the 'ls' command has been compiled
+into busybox).  You can also invoke BusyBox by providing it the command to run
+on the command line.  For example,
+
+	./busybox ls
+
+will also cause BusyBox to behave as 'ls'. 
 
 BusyBox has been written with size-optimization in mind.  It is very easy to
-include or exclude the commands you want installed.  BusyBox tries to make
-itself useful to small systems with limited resources.
+include or exclude the commands (or features) you want installed.  BusyBox
+tries to make itself useful to small systems with limited resources.
+
+=head1 COMMON OPTIONS
+
+Most BusyBox commands support the B<--help> option to provide a
+terse runtime description of their behavior. 
 
 =head1 COMMANDS
 
-Currently defined functions:
-busybox, cat, chmod, chown, chgrp, chroot, clear, chvt, cp, date,
-dd, df, dmesg, du, fbset, find, free, deallocvt, fsck.minix, mkfs.minix,
-grep, head, hostname, init, linuxrc, kill, ln, ls, lsmod, mkdir,
-mknod, mkswap, more, mount, mv, ping, poweroff, ps, pwd, reboot,
-rm, rmdir, sed, sleep, sort, sync, syslogd, swapon, swapoff, tail,
-tar, tee, touch, true, false, uname, umount, uniq, update, zcat,
-gunzip, gzip
+Currently defined functions include:
+
+basename, cat, chgrp, chmod, chown, chroot, clear, chvt, cp, date, dd, df,
+dirname, dmesg, du, dutmp, echo, false, fbset, fdflush, find, free,
+freeramdisk, deallocvt, fsck.minix, grep, gunzip, gzip, halt, head, hostid,
+hostname, init, kill, killall, length, ln, loadacm, loadfont, loadkmap, logger,
+logname, ls, lsmod, makedevs, math, mkdir, mkfifo, mkfs.minix, mknod, mkswap,
+mnc, more, mount, mt, mv, nslookup, ping, poweroff, printf, ps, pwd, reboot,
+rm, rmdir, rmmod, sed, sh, sfdisk, sleep, sort, sync, syslogd, swapon, swapoff,
+tail, tar, test, tee, touch, tr, true, tty, umount, uname, uniq, update,
+uptime, usleep, wc, whoami, yes, zcat, [
 
 =over 4
 
-=item cat
+=item basename
+
+Usage: basename [file ...]
+
+Strips directory and suffix from filenames. 
+
+Example: 
+
+	$ basename /usr/local/bin/foo
+	foo
+	$ basename /usr/local/bin/
+	bin
+
+-------------------------------
+
+=item cat  
 
 Usage: cat [file ...]
- 
 
-=item chmod
+Concatenates files and prints them to the standard output.
 
-Usage: chmod [-R] MODE[,MODE]... FILE...
+Example:
 
-Each MODE is one or more of the letters ugoa, one of the symbols +-= and
-one or more of the letters rwxst.
-  
-Options:
+	$ cat /proc/uptime
+	110716.72 17.67
 
- -R	change files and directories recursively.
- 
-
-=item chown
-
-Usage: chown [OPTION]...  OWNER[.[GROUP] FILE...
-
-Change the owner and/or group of each FILE to OWNER and/or GROUP.
- 
-Options:
-
- -R	change files and directories recursively
- 
+-------------------------------
 
 =item chgrp
 
 Usage: chgrp [OPTION]... GROUP FILE...
 
 Change the group membership of each FILE to GROUP.
- 
+
 Options:
 
- -R	change files and directories recursively
+	-R	change files and directories recursively
+
+Example:
+
+	$ ls -l /tmp/foo
+	-r--r--r--    1 andersen andersen        0 Apr 12 18:25 /tmp/foo
+	$ chgrp root /tmp/foo
+	$ ls -l /tmp/foo
+	-r--r--r--    1 andersen root            0 Apr 12 18:25 /tmp/foo
+
+-------------------------------
+
+=item chmod
+
+Usage: chmod [B<-R>] MODE[,MODE]... FILE...
+
+Changes file access permissions for the specified file(s) or directory(s).
+Each MODE is defined by combining the letters for WHO has access to the file,
+an OPERATOR for selecting how the permissions should be changed, and a
+PERISSION for the file(s) or directory(s).
+
+WHO may be chosen from:
+
+	u	the User who owns the file
+	g	users in the file's Group
+	o	Other users not in the file's group
+	a	All users
+
+OPERATOR may be chosen from:
+
+	+	add a permission
+	-	remove a permission
+	=	assign a permission
  
+PERMISSION may be chosen from:
+
+	r	Read	
+	w	Write
+	x	eXecute (or access for directories)
+	s	Set user (or group) ID bit
+	t	sTickey bit (for directories prevents removing files by non-owners)
+
+Alternately, permissions may be set numerically where the first three
+numbers are calculated by adding the octal values:
+
+	4	Read
+	2	Write
+	1	eXecute
+
+An optional fourth digit may also be used to specify
+
+	4	Set user ID
+	2	Set group ID
+	1	sTickey bit
+
+Options:
+
+	-R	change files and directories recursively.
+ 
+Example:
+
+	$ ls -l /tmp/foo
+	-rw-rw-r--    1 root     root            0 Apr 12 18:25 /tmp/foo
+	$ chmod u+x /tmp/foo
+	$ ls -l /tmp/foo
+	-rwxrw-r--    1 root     root            0 Apr 12 18:25 /tmp/foo*
+	$ chmod 444 /tmp/foo
+	$ ls -l /tmp/foo
+	-r--r--r--    1 root     root            0 Apr 12 18:25 /tmp/foo
+
+-------------------------------
+
+=item chown
+
+Usage: chown [OPTION]...  OWNER[.[GROUP] FILE...
+
+Changes the owner and/or group of each FILE to OWNER and/or GROUP.
+
+Options:
+
+	-R	change files and directories recursively
+
+Example:
+
+	$ ls -l /tmp/foo
+	-r--r--r--    1 andersen andersen        0 Apr 12 18:25 /tmp/foo
+	$ chown root /tmp/foo
+	$ ls -l /tmp/foo
+	-r--r--r--    1 root     andersen        0 Apr 12 18:25 /tmp/foo
+	$ chown root.root /tmp/foo
+	ls -l /tmp/foo
+	-r--r--r--    1 root     root            0 Apr 12 18:25 /tmp/foo
+
+-------------------------------
 
 =item chroot
 
@@ -76,84 +190,257 @@ Usage: chroot NEWROOT [COMMAND...]
 
 Run COMMAND with root directory set to NEWROOT.
  
+Example:
+
+	$ ls -l /bin/ls
+	lrwxrwxrwx    1 root     root          12 Apr 13 00:46 /bin/ls -> /busybox
+	$ mount /dev/hdc1 /mnt -t minix
+	$ chroot /mnt
+	$ ls -l /bin/ls
+	-rwxr-xr-x    1 root     root        40816 Feb  5 07:45 /bin/ls*
+
+-------------------------------
 
 =item clear
 
+Clears the screen.
 
+-------------------------------
 
 =item chvt
 
 Usage: chvt N
 
 Change foreground virtual terminal to /dev/ttyN
- 
+
+-------------------------------
 
 =item cp
 
 Usage: cp [OPTION]... SOURCE DEST
 
-or: cp [OPTION]... SOURCE... DIRECTORY
+   or: cp [OPTION]... SOURCE... DIRECTORY
 
 Copy SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.
 
- -a	same as -dpR
- -d	preserve links
- -p	preserve file attributes if possible
- -R	copy directories recursively
- 
+        -a      same as -dpR
+        -d      preserve links
+        -p      preserve file attributes if possable
+        -R      copy directories recursively
+
+-------------------------------
 
 =item date
 
+Usage: date [OPTION]... [+FORMAT]
 
+  or:  date [OPTION] [MMDDhhmm[[CC]YY][.ss]]
+
+Display the current time in the given FORMAT, or set the system date.
+
+Options:
+
+	-R              output RFC-822 compliant date string
+	-s              set time described by STRING
+	-u              print or set Coordinated Universal Time
+
+Example:
+
+	$ date
+	Wed Apr 12 18:52:41 MDT 2000
+
+-------------------------------
 
 =item dd
 
-Usage: dd [if=name] [of=name] [bs=n] [count=n]
+Usage: dd [if=name] [of=name] [bs=n] [count=n] [skip=n] [seek=n]
 
 Copy a file, converting and formatting according to options
 
- if=FILE	read from FILE instead of stdin
- of=FILE	write to FILE instead of stout
- bs=n		read and write N BYTES at a time
- count=n	copy only n input blocks
- BYTES may be suffixed by w (x2), k (x1024), b (x512), or m (x1024^2).
+	if=FILE read from FILE instead of stdin
+	of=FILE write to FILE instead of stdout
+	bs=n    read and write n bytes at a time
+	count=n copy only n input blocks
+	skip=n  skip n input blocks
+	seek=n  skip n output blocks
+
+Numbers may be suffixed by w (x2), k (x1024), b (x512), or M (x1024^2)
  
+Example:
+
+	$ dd if=/dev/zero of=/dev/ram1 bs=1M count=4
+	4+0 records in
+	4+0 records out
+
+-------------------------------
 
 =item df
 
-Usage: df
+Usage: df [filesystem ...]
+
+Prints the filesystem space used and space available.
+
+Example:
+
+	$ df
+	Filesystem           1k-blocks      Used Available Use% Mounted on
+	/dev/sda3              8690864   8553540    137324  98% /
+	/dev/sda1                64216     36364     27852  57% /boot
+	$ df /dev/sda3
+	Filesystem           1k-blocks      Used Available Use% Mounted on
+	/dev/sda3              8690864   8553540    137324  98% /
+
+-------------------------------
+
+=item dirname
+
+Usage: dirname NAME
+
+Strip non-directory suffix from file name
+
+Example:
+
+	$ dirname /tmp/foo
+	/tmp
+	$ dirname /tmp/foo/
+	/tmp
+
+-------------------------------
 
 =item dmesg
 
-Usage: dmesg [-c] [-n level] [-s bufsize]
+Usage: dmesg [B<-c>] [B<-n> level] [B<-s> bufsize]
  
+Print or controls the kernel ring buffer.
+
+-------------------------------
 
 =item du
 
-Usage: Usage: du [OPTION]... [FILE]...
+Usage: du [OPTION]... [FILE]...
 
-  -s	display only a total for each argument
- 
+Summarize disk space used for each FILE and/or directory.
+Disk space is printed in units of 1k (i.e. 1024 bytes).
+
+Options:
+
+	-l      count sizes many times if hard linked
+	-s      display only a total for each argument
+
+Example:
+
+	$ ./busybox du
+	16      ./CVS
+	12      ./kernel-patches/CVS
+	80      ./kernel-patches
+	12      ./tests/CVS
+	36      ./tests
+	12      ./scripts/CVS
+	16      ./scripts
+	12      ./docs/CVS
+	104     ./docs
+	2417    .
+	 
+-------------------------------
+
+=item dutmp
+
+Usage: dutmp [FILE]
+
+Dump utmp file format (pipe delimited) from FILE
+or stdin to stdout.
+
+Example:
+
+	$ dutmp /var/run/utmp
+	8|7||si|||0|0|0|955637625|760097|0
+	2|0|~|~~|reboot||0|0|0|955637625|782235|0
+	1|20020|~|~~|runlevel||0|0|0|955637625|800089|0
+	8|125||l4|||0|0|0|955637629|998367|0
+	6|245|tty1|1|LOGIN||0|0|0|955637630|998974|0
+	6|246|tty2|2|LOGIN||0|0|0|955637630|999498|0
+	7|336|pts/0|vt00andersen|andersen|:0.0|0|0|0|955637763|0|0
+	 
+-------------------------------
+
+=item echo
+
+Usage: echo [-neE] [ARG ...]
+
+Prints the specified ARGs to stdout
+
+Options:
+
+	-n      suppress trailing newline
+	-e      interpret backslash-escaped characters (i.e. \t=tab etc)
+	-E      disable interpretation of backslash-escaped characters
+
+Example:
+
+	$ echo "Erik is cool"
+	Erik is cool
+	$  echo -e "Erik\nis\ncool"
+	Erik
+	is
+	cool
+	$ echo "Erik\nis\ncool"
+	Erik\nis\ncool
+	 
+-------------------------------
+
+=item false
+
+Returns an exit code of FALSE (1)
+
+Example:
+
+	$ false
+	$ echo $?
+	1
+
+-------------------------------
 
 =item fbset
 
 Usage: fbset [options] [mode]
 
+Show and modify frame buffer device settings
+
 Options:
 
- -h
- -fb
- -db
- -a
- -i
- -g
- -t
- -accel
- -hsync
- -vsync
- -laced
- -double
+	-h
+	-fb
+	-db
+	-a
+	-i
+	-g
+	-t
+	-accel
+	-hsync
+	-vsync
+	-laced
+	-double
 
+Example:
+
+	$ fbset
+	mode "1024x768-76"
+			# D: 78.653 MHz, H: 59.949 kHz, V: 75.694 Hz
+			geometry 1024 768 1024 768 16
+			timings 12714 128 32 16 4 128 4
+			accel false
+			rgba 5/11,6/5,5/0,0/0
+	endmode
+
+-------------------------------
+
+=item fdflush
+
+Usage: fdflush device
+
+Force floppy disk drive to detect disk change
+
+-------------------------------
 
 =item find
 
@@ -162,90 +449,343 @@ Usage: find [PATH...] [EXPRESSION]
 Search for files in a directory hierarchy.  The default PATH is
 the current directory; default EXPRESSION is '-print'
 
+
 EXPRESSION may consist of:
 
- -follow
- Dereference symbolic links.
- -name PATTERN
- File name (with leading directories removed) matches PATTERN.
- -print
- print the full file name followed by a newline to stdout.
- This version of find matches full regular expresions.
+	-follow			Dereference symbolic links.
+	-name PATTERN	File name (leading directories removed) matches PATTERN.
+	-print			print the full file name followed by a newline to stdout.
+
+Example:
+
+	$ find / -name /etc/passwd
+	/etc/passwd
+
+-------------------------------
 
 =item free
 
 Usage: free
 
+Displays the amount of free and used memory in the system.
+
+Example:
+
+	$ free
+				  total         used         free       shared      buffers
+	  Mem:       257628       248724         8904        59644        93124
+	 Swap:       128516         8404       120112
+	Total:       386144       257128       129016
+
+-------------------------------
+
+=item freeramdisk
+
+Usage: freeramdisk DEVICE
+
+Free all memory used by the specified ramdisk.
+
+Example:
+
+	$ freeramdisk /dev/ram2
+
+-------------------------------
+
 =item deallocvt
 
 Usage: deallocvt N
 
-Deallocate unused virtual terminal /dev/ttyN
- 
+Deallocates unused virtual terminal /dev/ttyN
+
+-------------------------------
 
 =item fsck.minix
 
-Usage: fsck.minix [-larvsmf] /dev/name
+Usage: fsck.minix [B<-larvsmf>] /dev/name
 
 Performs a consistency check for MINIX filesystems.
 
-Options:
+OPTIONS:
 
- -l	Lists all filenames
- -r	Perform interactive repairs
- -a	Perform automatic repairs
- -v	verbose
- -s	Outputs super-block information
- -m	Activates MINIX-like "mode not cleared" warnings
- -f	Force file system check.
- 
+	-l      Lists all filenames
+	-r      Perform interactive repairs
+	-a      Perform automatic repairs
+	-v      verbose
+	-s      Outputs super-block information
+	-m      Activates MINIX-like "mode not cleared" warnings
+	-f      Force file system check.
 
-=item mkfs.minix
-
-Usage: mkfs.minix [-c | -l filename] [-nXX] [-iXX] /dev/name [blocks]
-
-Make a MINIX filesystem.
-
-Options:
-
- -c		Check the device for bad blocks
- -n [14|30]	Specify the maximum length of filenames
- -i		Specify the number of inodes for the filesystem
- -l FILENAME	Read the bad blocks list from FILENAME
- -v		Make a Minix version 2 filesystem
- 
+-------------------------------
 
 =item grep
 
+Usage: grep [OPTIONS]... PATTERN [FILE]...
 
+Search for PATTERN in each FILE or standard input.
+
+OPTIONS:
+
+	-h      suppress the prefixing filename on output
+	-i      ignore case distinctions
+	-n      print line number with output lines
+	-q      be quiet. Returns 0 if result was found, 1 otherwise
+
+This version of grep matches full regular expresions.
+
+Example:
+
+	$ grep root /etc/passwd
+	root:x:0:0:root:/root:/bin/bash
+	$ grep ^[rR]oo. /etc/passwd
+	root:x:0:0:root:/root:/bin/bash
+
+-------------------------------
+
+=item gunzip
+
+Usage: gunzip [OPTION]... FILE
+
+Uncompress FILE (or standard input if FILE is '-').
+
+Options:
+
+        -c      Write output to standard output
+        -t      Test compressed file integrity
+
+Example:
+
+	$ ls -la /tmp/busybox*
+	-rw-rw-r--    1 andersen andersen   557009 Apr 11 10:55 /tmp/busybox-0.43.tar.gz
+	$ gunzip /tmp/busybox-0.43.tar.gz
+	$ ls -la /tmp/busybox*
+	-rw-rw-r--    1 andersen andersen  1761280 Apr 14 17:47 /tmp/busybox-0.43.tar
+
+-------------------------------
+
+=item gzip
+
+Usage: gzip [OPTION]... FILE
+
+Compress FILE with maximum compression.
+When FILE is '-', reads standard input.  Implies B<-c>.
+
+Options:
+
+        -c      Write output to standard output instead of FILE.gz
+
+Example:
+
+	$ ls -la /tmp/busybox*
+	-rw-rw-r--    1 andersen andersen  1761280 Apr 14 17:47 /tmp/busybox-0.43.tar
+	$ gzip /tmp/busybox-0.43.tar
+	$ ls -la /tmp/busybox*
+	-rw-rw-r--    1 andersen andersen   554058 Apr 14 17:49 /tmp/busybox-0.43.tar.gz
+
+
+-------------------------------
+
+=item halt
+
+Usage: halt
+
+This comand halts the system.
+
+-------------------------------
 
 =item head
 
-Usage: Usage: head [FILE]...
+Usage: head [OPTION] [FILE]...
 
 Print first 10 lines of each FILE to standard output.
 With more than one FILE, precede each with a header giving the
 file name. With no FILE, or when FILE is -, read standard input.
- 
+
+Options:
+
+	-n NUM          Print first NUM lines instead of first 10
+
+Example:
+
+	$ head -n 2 /etc/passwd
+	root:x:0:0:root:/root:/bin/bash
+	daemon:x:1:1:daemon:/usr/sbin:/bin/sh
+
+-------------------------------
+
+=item hostid
+
+Usage: hostid
+
+Prints out a unique  32-bit  identifier  for  the  current
+machine.   The  32-bit identifier is intended to be unique
+among all UNIX systems in existence. 
+
+-------------------------------
 
 =item hostname
 
-Usage: hostname [OPTION] {hostname | -F file}
+Usage: hostname [OPTION] {hostname | B<-F> file}
 
 Get or set the hostname or DNS domain name. If a hostname is given
-(or a file with the -F parameter), the host name will be set.
- 
+(or a file with the B<-F> parameter), the host name will be set.
+
 Options:
 
- -s		Short
- -i		Addresses for the hostname
- -d		DNS domain name
- -F FILE		Use the contents of FILE to specify the hostname
- 
+	-s              Short
+	-i              Addresses for the hostname
+	-d              DNS domain name
+	-F FILE         Use the contents of FILE to specify the hostname
+
+Example:
+
+	$ hostname
+	slag 
+
+-------------------------------
+
+=item init
+
+Usage: init
+
+Init is the parent of all processes.
+
+This version of init is designed to be run only by the kernel.
+
+BusyBox init doesn't support multiple runlevels.  The runlevels field of
+the /etc/inittab file is completely ignored by BusyBox init. If you want 
+runlevels, use sysvinit.
+
+BusyBox init works just fine without an inittab.  If no inittab is found, 
+it has the following default behavior:
+
+	::sysinit:/etc/init.d/rcS
+	::askfirst:/bin/sh
+
+if it detects that /dev/console is _not_ a serial console, it will also run:
+
+	tty2::askfirst:/bin/sh
+
+If you choose to use an /etc/inittab file, the inittab entry format is as follows:
+
+	<id>:<runlevels>:<action>:<process>
+
+	<id>: 
+
+		WARNING: This field has a non-traditional meaning for BusyBox init!
+		The id field is used by BusyBox init to specify the controlling tty for
+		the specified process to run on.  The contents of this field are
+		appended to "/dev/" and used as-is.  There is no need for this field to
+		be unique, although if it isn't you may have strange results.  If this
+		field is left blank, it is completely ignored.  Also note that if
+		BusyBox detects that a serial console is in use, then all entries
+		containing non-empty id fields will _not_ be run.  BusyBox init does
+		nothing with utmp.  We don't need no stinkin' utmp.
+
+	<runlevels>: 
+
+		The runlevels field is completely ignored.
+
+	<action>: 
+
+		Valid actions include: sysinit, respawn, askfirst, wait, 
+		once, and ctrlaltdel.
+
+		askfirst acts just like respawn, but before running the specified
+		process it displays the line "Please press Enter to activate this
+		console." and then waits for the user to press enter before starting
+		the specified process.
+
+		Unrecognised actions (like initdefault) will cause init to emit
+		an error message, and then go along with its business.
+
+	<process>: 
+
+		Specifies the process to be executed and it's command line.
+
+
+Example /etc/inittab file:
+
+	# This is run first except when booting in single-user mode.
+	#
+	::sysinit:/etc/init.d/rcS
+
+	# /bin/sh invocations on selected ttys
+	#
+	# Start an "askfirst" shell on the console (whatever that may be)
+	::askfirst:/bin/sh
+	# Start an "askfirst" shell on /dev/tty2
+	tty2::askfirst:/bin/sh
+
+	# /sbin/getty invocations for selected ttys
+	#
+	tty4::respawn:/sbin/getty 38400 tty4
+	tty5::respawn:/sbin/getty 38400 tty5
+
+
+	# Example of how to put a getty on a serial line (for a terminal)
+	#
+	#ttyS0::respawn:/sbin/getty -L ttyS0 9600 vt100
+	#ttyS1::respawn:/sbin/getty -L ttyS1 9600 vt100
+	#
+	# Example how to put a getty on a modem line.
+	#ttyS2::respawn:/sbin/getty -x0 -s 57600 ttyS2
+
+	# Stuff to do before rebooting
+	::ctrlaltdel:/bin/umount -a -r > /dev/null 2>&1
+	::ctrlaltdel:/sbin/swapoff -a > /dev/null 2>&1
+
+-------------------------------
 
 =item kill
 
+Usage: kill [B<-signal>] process-id [process-id ...]
 
+Send a signal (default is SIGTERM) to the specified process(es).
+
+Options:
+
+	-l      List all signal names and numbers.
+
+Example:
+
+	$ ps | grep apache
+	252 root     root     S [apache]
+	263 www-data www-data S [apache]
+	264 www-data www-data S [apache]
+	265 www-data www-data S [apache]
+	266 www-data www-data S [apache]
+	267 www-data www-data S [apache]
+	$ kill 252
+
+-------------------------------
+
+=item killall
+
+Usage: killall [B<-signal>] process-name [process-name ...]
+
+Send a signal (default is SIGTERM) to the specified process(es).
+
+Options:
+
+        -l      List all signal names and numbers.
+
+Example:
+
+	$ killall apache
+
+-------------------------------
+
+=item length
+
+Usage: length string
+
+Prints out the length of the specified string.
+
+Example:
+	$ length "Hello"
+	5
+
+-------------------------------
 
 =item ln
 
@@ -254,179 +794,616 @@ Create a link named LINK_NAME or DIRECTORY to the specified TARGET
  
 Options:
 
- -s	make symbolic links instead of hard links
- -f	remove existing destination files
+	-s	make symbolic links instead of hard links
+	-f	remove existing destination files
  
+Example:
+
+    $ ln -s busybox /tmp/ls
+    [andersen@debian busybox]$ ls -l /tmp/ls
+    lrwxrwxrwx    1 root     root            7 Apr 12 18:39 ls -> busybox*
+
+-------------------------------
+
+=item loadacm
+
+Usage: loadacm
+
+Loads an acm from standard input.
+
+Example:
+
+	$ loadacm < /etc/i18n/acmname
+
+-------------------------------
+
+=item loadfont
+
+Usage: loadfont
+
+Loads a console font from standard input.
+
+Example:
+
+	$ loadfont < /etc/i18n/fontname
+
+-------------------------------
+
+=item loadkmap
+
+Usage: loadkmap
+
+Loads a binary keyboard translation table from standard input.
+
+Example:
+
+	$ loadkmap < /etc/i18n/lang-keymap
+
+-------------------------------
+
+=item logger
+
+Usage: logger [OPTION]... [MESSAGE]
+
+Write MESSAGE to the system log.  If MESSAGE is '-', log stdin.
+
+Options:
+
+        -s      Log to stderr as well as the system log.
+        -t      Log using the specified tag (defaults to user name).
+        -p      Enter the message with the specified priority.
+                This may be numerical or a ``facility.level'' pair.
+
+Example:
+
+		$ logger "hello"
+
+-------------------------------
+
+=item logname
+
+Usage: logname
+
+Print the name of the current user.
+
+Example:
+
+	$ logname
+	root
+
+-------------------------------
 
 =item ls
 
-Usage: ls [-1acdelnpuxACF] [filenames...]
- 
+Usage: ls [B<-1acdelnpuxACF>] [filenames...]
+
+Options:
+
+	-a	do not hide entries starting with .
+	-c	with  -l:  show ctime (the time of last
+		modification of file status information)
+	-d	list directory entries instead of contents
+	-e	list both full date and full time
+	-l	use a long listing format
+	-n	list numeric UIDs and GIDs instead of names
+	-p	append indicator (one of /=@|) to entries
+	-u	with -l: show access time (the time of last
+		access of the file)
+	-x	list entries by lines instead of by columns
+	-A	do not list implied . and ..
+	-C	list entries by columns
+	-F	append indicator (one of */=@|) to entries
+
+-------------------------------
 
 =item lsmod
 
+Usage: lsmod
 
+Shows a list of all currently loaded kernel modules.
 
-=item mkdir
+-------------------------------
 
-Usage: Usage: mkdir [OPTION] DIRECTORY...
-Create the DIRECTORY(ies), if they do not already exist
- 
-Options:
+=item makedevs
 
- -m	set permission mode (as in chmod), not rwxrwxrwx - umask
- -p	no error if existing, make parent directories as needed
- 
+Usage: makedevs NAME TYPE MAJOR MINOR FIRST LAST [s]
 
-=item mknod
-
-Usage: mknod NAME TYPE MAJOR MINOR
-Make block or character special files.
+Creates a range of block or character special files
 
 TYPEs include:
 
- b:	Make a block (buffered) device.
- c or u:	Make a character (un-buffered) device.
- p:	Make a named pipe. Major and minor are ignored for named pipes.
- 
+        b:      Make a block (buffered) device.
+        c or u: Make a character (un-buffered) device.
+        p:      Make a named pipe. MAJOR and MINOR are ignored for named pipes.
+
+FIRST specifies the number appended to NAME to create the first device.
+LAST specifies the number of the last item that should be created.
+If 's' is the last argument, the base device is created as well.
+
+Example:
+
+	$ makedevs /dev/ttyS c 4 66 2 63
+	[creates ttyS2-ttyS63]
+	$ makedevs /dev/hda b 3 0 0 8 s
+	[creates hda,hda1-hda8]
+
+-------------------------------
+
+=item math
+
+Usage: math expression ...
+
+This is a Tiny RPN calculator that understands the
+following operations: +, -, /, *, and, or, not, eor.
+
+Example:
+
+	$ math 2 2 add
+	4
+	$ math 8 8 \* 2 2 + /
+	16
+	$ math 0 1 and
+	0
+	$ math 0 1 or
+	1
+
+-------------------------------
+
+=item mkdir
+
+Usage: mkdir [OPTION] DIRECTORY...
+
+Create the DIRECTORY(ies), if they do not already exist
+
+Options:
+
+	-m      set permission mode (as in chmod), not rwxrwxrwx - umask
+	-p      no error if dir exists, make parent directories as needed
+
+Example:
+
+	$ mkdir /tmp/foo
+	$ mkdir /tmp/foo
+	/tmp/foo: File exists
+	$ mkdir /tmp/foo/bar/baz
+	/tmp/foo/bar/baz: No such file or directory
+	$ mkdir -p /tmp/foo/bar/baz
+
+-------------------------------
+
+=item mkfifo
+
+Usage: mkfifo [OPTIONS] name
+
+Creates a named pipe (identical to 'mknod name p')
+
+Options:
+
+        -m      create the pipe using the specified mode (default a=rw)
+
+-------------------------------
+
+=item mkfs.minix
+
+Usage: mkfs.minix [B<-c> | B<-l> filename] [B<-nXX>] [B<-iXX>] /dev/name [blocks]
+
+Make a MINIX filesystem.
+
+OPTIONS:
+
+	-c              Check the device for bad blocks
+	-n [14|30]      Specify the maximum length of filenames
+	-i              Specify the number of inodes for the filesystem
+	-l FILENAME     Read the bad blocks list from FILENAME
+	-v              Make a Minix version 2 filesystem
+
+-------------------------------
+
+=item mknod
+
+Usage: mknod [OPTIONS] NAME TYPE MAJOR MINOR
+
+Create a special file (block, character, or pipe).
+
+Options:
+
+        -m      create the special file using the specified mode (default a=rw)
+
+TYPEs include:
+        b:      Make a block (buffered) device.
+        c or u: Make a character (un-buffered) device.
+        p:      Make a named pipe. MAJOR and MINOR are ignored for named pipes.
+
+Example:
+
+	$ mknod /dev/fd0 b 2 0 
+	$ mknod -m 644 /tmp/pipe p
+
+-------------------------------
 
 =item mkswap
 
-Usage: mkswap [-c] [-v0|-v1] device [block-count]
+Usage: mkswap [B<-c>] [B<-v0>|B<-v1>] device [block-count]
+
 Prepare a disk partition to be used as a swap partition.
- 
+
 Options:
 
- -c		Check for read-ability.
- -v0		Make version 0 swap [max 128 Megs].
- -v1		Make version 1 swap [big!] (default for kernels > 2.1.117).
- block-count	Number of block to use (default is entire partition).
+	-c              Check for read-ability.
+	-v0             Make version 0 swap [max 128 Megs].
+	-v1             Make version 1 swap [big!] (default for kernels > 2.1.117).
+	block-count     Number of block to use (default is entire partition).
+
+-------------------------------
+
+=item mnc
+
+Usage: mnc [IP] [port]
+
+mini-netcat opens a pipe to IP:port
+
+Example:
+
+	$ mnc foobar.somedomain.com 25
+	220 foobar ESMTP Exim 3.12 #1 Sat, 15 Apr 2000 00:03:02 -0600
+	help
+	214-Commands supported:
+	214-    HELO EHLO MAIL RCPT DATA AUTH
+	214     NOOP QUIT RSET HELP
+	quit
+	221 foobar closing connection
  
+-------------------------------
 
 =item more
 
 Usage: more [file ...]
- 
+
+More is a filter for paging through text one screenful at a time.
+
+Example:
+
+	$ dmesg | more
+
+-------------------------------
 
 =item mount
 
-Usage: 	mount [flags]
+Usage:  mount [flags]
+        mount [flags] device directory [B<-o> options,more-options]
 
-mount [flags] device directory [-o options,more-options]
+Flags:
 
- Flags:
- -a:	Mount all file systems in fstab.
- -o option:	One of many filesystem options, listed below.
- -r:	Mount the filesystem read-only.
- -t filesystem-type:	Specify the filesystem type.
- -w:	Mount for reading and writing (default).
- Options for use with the "-o" flag:
- async / sync:	Writes are asynchronous / synchronous.
- dev / nodev:	Allow use of special device files / disallow them.
- exec / noexec:	Allow use of executable files / disallow them.
- loop: Mounts a file via loop device.
- suid / nosuid:	Allow set-user-id-root programs / disallow them.
- remount: Re-mount a currently-mounted filesystem, changing its flags.
- ro / rw: Mount for read-only / read-write.
+	-a:     Mount all file systems in fstab.
+	-o option:      One of many filesystem options, listed below.
+	-r:     Mount the filesystem read-only.
+	-t filesystem-type:     Specify the filesystem type.
+	-w:     Mount for reading and writing (default).
 
-There are EVEN MORE flags that are specific to each filesystem.
-You'll have to see the written documentation for those.
- 
+Options for use with the "B<-o>" flag:
+
+	async / sync:   Writes are asynchronous / synchronous.
+	dev / nodev:    Allow use of special device files / disallow them.
+	exec / noexec:  Allow use of executable files / disallow them.
+	loop: Mounts a file via loop device.
+	suid / nosuid:  Allow set-user-id-root programs / disallow them.
+	remount: Re-mount a currently-mounted filesystem, changing its flags.
+	ro / rw: Mount for read-only / read-write.
+	There are EVEN MORE flags that are specific to each filesystem.
+	You'll have to see the written documentation for those.
+
+Example:
+
+	$ mount
+	/dev/hda3 on / type minix (rw)
+	proc on /proc type proc (rw)
+	devpts on /dev/pts type devpts (rw)
+	$ mount /dev/fd0 /mnt -t msdos -o ro
+	$ mount /tmp/diskimage /opt -t ext2 -o loop
+
+-------------------------------
+
+=item mt
+
+Usage: mt [B<-f> device] opcode value
+
+Control magnetic tape drive operation
+
+-------------------------------
 
 =item mv
 
 Usage: mv SOURCE DEST
 
-or: mv SOURCE... DIRECTORY
+   or: mv SOURCE... DIRECTORY
 
 Rename SOURCE to DEST, or move SOURCE(s) to DIRECTORY.
- 
+
+Example:
+
+	$ mv /tmp/foo /bin/bar
+
+-------------------------------
+
+=item nslookup
+
+Usage: nslookup [HOST]
+
+Queries the nameserver for the IP address of the given HOST
+
+Example:
+
+	$ nslookup localhost
+	Server:     default
+	Address:    default
+
+	Name:       debian
+	Address:    127.0.0.1
+
+-------------------------------
 
 =item ping
 
+Usage: ping [OPTION]... host
 
+Send ICMP ECHO_REQUEST packets to network hosts.
+
+Options:
+
+	-c COUNT        Send only COUNT pings.
+	-q              Quiet mode, only displays output at start
+                        and when finished.
+Example:
+
+	$ ping localhost
+	PING slag (127.0.0.1): 56 data bytes
+	64 bytes from 127.0.0.1: icmp_seq=0 ttl=255 time=20.1 ms
+
+	--- debian ping statistics ---
+	1 packets transmitted, 1 packets received, 0% packet loss
+	round-trip min/avg/max = 20.1/20.1/20.1 ms
+
+-------------------------------
 
 =item poweroff
 
+Shuts down the system, and requests that the kernel turn off power upon halting.
 
+-------------------------------
+
+=item printf
+
+Usage: printf format [argument...]
+
+Formats and prints the given data in a manner similar to the C printf command.
+
+Example:
+
+	$ printf "Val=%d\n" 5
+	Val=5
+
+-------------------------------
 
 =item ps
 
 Usage: ps
 
-Report process status.
+Report process status
+
 This version of ps accepts no options.
- 
+
+Example:
+
+	$ ps
+  PID  Uid      Gid State Command
+    1 root     root     S init
+    2 root     root     S [kflushd]
+    3 root     root     S [kupdate]
+    4 root     root     S [kpiod]
+    5 root     root     S [kswapd]
+  742 andersen andersen S [bash]
+  743 andersen andersen S -bash
+  745 root     root     S [getty]
+ 2990 andersen andersen R ps
+
+-------------------------------
 
 =item pwd
 
+Prints the full filename of the current working directory.
 
+Example:
+
+	$ pwd
+	/root
+
+-------------------------------
 
 =item reboot
 
+Instructs the kernel to reboot the system.
 
+-------------------------------
 
 =item rm
 
 Usage: rm [OPTION]... FILE...
+
 Remove (unlink) the FILE(s).
- 
+
 Options:
 
- -f		remove existing destinations, never prompt
- -r or -R	remove the contents of directories recursively
- 
+        -f              remove existing destinations, never prompt
+        -r or -R        remove the contents of directories recursively
+
+Example:
+
+	$ rm -rf /tmp/foo
+
+-------------------------------
 
 =item rmdir
 
 Usage: rmdir [OPTION]... DIRECTORY...
+
 Remove the DIRECTORY(ies), if they are empty.
- 
 
-=item sed
+Example:
 
-Usage: sed [-n] -e script [file...]
-Allowed sed scripts come in the following form:
+	# rmdir /tmp/foo
 
- 'ADDR [!] COMMAND'
-  where address ADDR can be:
- NUMBER    Match specified line number
- $         Match last line
- /REGEXP/  Match specified regexp
- (! inverts the meaning of the match)
-  and COMMAND can be:
- s/regexp/replacement/[igp]
- which attempt to match regexp against the pattern space
- and if successful replaces the matched portion with replacement.
-  aTEXT
- which appends TEXT after the pattern space
+-------------------------------
+
+=item rmmod
+
+Usage: rmmod [OPTION]... [MODULE]...
+
+Unloads the specified kernel modules from the kernel.
 
 Options:
 
--e	add the script to the commands to be executed
--n	suppress automatic printing of pattern space
+        -a      Try to remove all unused kernel modules.
+
+Example:
+
+	$ rmmod tulip
+
+-------------------------------
+
+=item sed
+
+Usage: sed [B<-n>] B<-e> script [file...]
+
+Allowed sed scripts come in the following form:
+
+	'ADDR [!] COMMAND'
+
+	where address ADDR can be:
+	  NUMBER    Match specified line number
+	  $         Match last line
+	  /REGEXP/  Match specified regexp
+	  (! inverts the meaning of the match)
+
+	and COMMAND can be:
+	  s/regexp/replacement/[igp]
+		 which attempt to match regexp against the pattern space
+		 and if successful replaces the matched portion with replacement.
+
+	  aTEXT
+		 which appends TEXT after the pattern space
+
+Options:
+
+	-e      add the script to the commands to be executed
+	-n      suppress automatic printing of pattern space
 
 This version of sed matches full regular expresions.
- 
+
+Example:
+
+	$ echo "foo" | sed -e 's/f[a-zA-Z]o/bar/g'
+	bar
+
+-------------------------------
+
+=item sh
+
+Usage: sh
+
+lash -- the BusyBox LAme SHell (command interpreter)
+
+This command does not yet have proper documentation.  
+
+Use lash just as you would use any other shell.  It properly handles pipes,
+redirects, job control, can be used as the shell for scripts (#!/bin/sh), and
+has a sufficient set of builtins to do what is needed.  It does not (yet)
+support Bourne Shell syntax.  If you need things like "if-then-else", "while",
+and such, use ash or bash.  If you just need a very simple and extremely small
+shell, this will do the job.
+
+-------------------------------
+
+=item sfdisk
+
+Usage: sfdisk [options] device ...
+
+device: something like /dev/hda or /dev/sda
+
+useful options:
+
+    -s [or --show-size]: list size of a partition
+    -c [or --id]:        print or change partition Id
+    -l [or --list]:      list partitions of each device
+    -d [or --dump]:      idem, but in a format suitable for later input
+    -i [or --increment]: number cylinders etc. from 1 instead of from 0
+    -uS, -uB, -uC, -uM:  accept/report in units of sectors/blocks/cylinders/MB
+    -T [or --list-types]:list the known partition types
+    -D [or --DOS]:       for DOS-compatibility: waste a little space
+    -R [or --re-read]:   make kernel reread partition table
+    -N# :                change only the partition with number #
+    -n :                 do not actually write to disk
+    -O file :            save the sectors that will be overwritten to file
+    -I file :            restore these sectors again
+    -v [or --version]:   print version
+    -? [or --help]:      print this message
+
+dangerous options:
+
+    -g [or --show-geometry]: print the kernel's idea of the geometry
+    -x [or --show-extended]: also list extended partitions on output
+
+                             or expect descriptors for them on input
+    -L  [or --Linux]:      do not complain about things irrelevant for Linux
+    -q  [or --quiet]:      suppress warning messages
+    You can override the detected geometry using:
+    -C# [or --cylinders #]:set the number of cylinders to use
+    -H# [or --heads #]:    set the number of heads to use
+    -S# [or --sectors #]:  set the number of sectors to use
+
+You can disable all consistency checking with:
+
+    -f  [or --force]:      do what I say, even if it is stupid
+
+-------------------------------
 
 =item sleep
 
 Usage: sleep N
 
 Pause for N seconds.
- 
+
+Example:
+
+	$ sleep 2
+	[2 second delay results]
+
+-------------------------------
 
 =item sort
 
-Usage: Usage: sort [OPTION]... [FILE]...
-  
+Usage: sort [B<-n>] [B<-r>] [FILE]...
+
+Sorts lines of text in the specified files
+
+Example:
+
+	$ echo -e "e\nf\nb\nd\nc\na" | sort
+	a
+	b
+	c
+	d
+	e
+	f
+
+-------------------------------
 
 =item sync
 
 Usage: sync
 
 Write all buffered filesystem blocks to disk.
- 
+
+-------------------------------
 
 =item syslogd
 
@@ -434,149 +1411,336 @@ Usage: syslogd [OPTION]...
 
 Linux system and kernel (provides klogd) logging utility.
 Note that this version of syslogd/klogd ignores /etc/syslog.conf.
- 
+
 Options:
 
- -m	Change the mark timestamp interval. default=20min. 0=off
- -n	Do not fork into the background (for when run by init)
- -K	Do not start up the klogd process (by default syslogd spawns klogd).
- -O	Specify an alternate log file.  default=/var/log/messages
- 
+        -m      Change the mark timestamp interval. default=20min. 0=off
+        -n      Do not fork into the background (for when run by init)
+        -K      Do not start up the klogd process (by default syslogd spawns klogd).
+        -O      Specify an alternate log file.  default=/var/log/messages
+
+-------------------------------
 
 =item swapon
 
-Usage: swapon device
+Usage: swapon [OPTION] [device]
 
 Start swapping virtual memory pages on the given device.
- 
+
+Options:
+
+        -a      Start swapping on all swap devices
+
+-------------------------------
 
 =item swapoff
 
-Usage: swapoff device
+Usage: swapoff [OPTION] [device]
 
 Stop swapping virtual memory pages on the given device.
- 
+
+Options:
+
+        -a      Stop swapping on all swap devices
+
+-------------------------------
 
 =item tail
 
-Usage: tail [OPTION]... [FILE]...
+Usage: tail [OPTION] [FILE]...
 
 Print last 10 lines of each FILE to standard output.
-With more than one FILE, precede each with a header giving the file name.
-With no FILE, or when FILE is -, read standard input.
+With more than one FILE, precede each with a header giving the
+file name. With no FILE, or when FILE is -, read standard input.
 
- -c=N[kbm]       output the last N bytes
- -f              output appended data as the file grows
- -n=N            output the last N lines, instead of last 10
- -q              never output headers giving file names
- -v              always output headers giving file names
- --help          display this help and exit
+Options:
 
-If the first character of N (bytes or lines) is a `+', output begins with 
-the Nth item from the start of each file, otherwise, print the last N items
-in the file.  N bytes may be suffixed by k (x1024), b (x512), or m (1024^2).
-  
+        -n NUM          Print last NUM lines instead of first 10
+        -f              Output data as the file grows.  This version
+                        of 'tail -f' supports only one file at a time.
+
+Example:
+
+	$ tail -n 1 /etc/resolv.conf
+	nameserver 10.0.0.1
+
+-------------------------------
 
 =item tar
 
+Usage: tar -[cxtvO] [B<--exclude> File] [B<-f> tarFile] [FILE] ...
 
+Create, extract, or list files from a tar file.  Note that
+this version of tar treats hard links as separate files.
+
+Main operation mode:
+
+        c               create
+        x               extract
+        t               list
+
+File selection:
+
+        f               name of tarfile or "-" for stdin
+        O               extract to stdout
+        --exclude       file to exclude
+
+Informative output:
+
+        v               verbosely list files processed
+
+Example:
+
+	$ zcat /tmp/tarball.tar.gz | tar -xf -
+	$ tar -cf /tmp/tarball.tar /usr/local
+
+-------------------------------
+
+=item test, [
+
+Usage: test EXPRESSION
+or   [ EXPRESSION ]
+
+Checks file types and compares values returning an exit
+code determined by the value of EXPRESSION.
+
+Example:
+
+	$ test 1 -eq 2
+	$ echo $?
+	1
+	$ test 1 -eq 1
+	$ echo $?
+	0
+	$ [ -d /etc ]
+	$ echo $?
+	0
+	$ [ -d /junk ]
+	$ echo $?
+	1
+
+-------------------------------
 
 =item tee
 
 Usage: tee [OPTION]... [FILE]...
+
 Copy standard input to each FILE, and also to standard output.
- 
+
 Options:
 
- -a	append to the given FILEs, do not overwrite
- 
+        -a      append to the given FILEs, do not overwrite
+
+Example:
+
+	$ echo "Hello" | tee /tmp/foo
+	$ cat /tmp/foo
+	Hello
+
+-------------------------------
 
 =item touch
 
-Usage: touch [-c] file [file ...]
- Update the last-modified date on the given file[s].
- 
+Usage: touch [B<-c>] file [file ...]
+
+Update the last-modified date on (or create) the selected file[s].
+
+Example:
+
+	$ ls -l /tmp/foo
+	/bin/ls: /tmp/foo: No such file or directory
+	$ touch /tmp/foo
+	$ ls -l /tmp/foo
+	-rw-rw-r--    1 andersen andersen        0 Apr 15 01:11 /tmp/foo
+
+-------------------------------
+
+=item tr
+
+Usage:  tr [B<-cdsu>] string1 [string2]
+
+Translate, squeeze, and/or delete characters from standard
+input, writing to standard output.
+
+Example:
+
+	$ echo "gdkkn vnqkc" | tr [a-y] [b-z]
+	hello world
+
+-------------------------------
 
 =item true
 
+Returns an exit code of TRUE (0)
 
+Example:
 
-=item false
+	$ true
+	$ echo $?
+	0
 
+-------------------------------
 
+=item tty
+
+Usage: tty
+
+Print the file name of the terminal connected to standard input.
+
+Options:
+
+        -s      print nothing, only return an exit status
+
+Example:
+
+	$ tty
+	/dev/tty2
+
+-------------------------------
+
+=item umount
+
+Usage: umount [flags] filesystem|directory
+
+Flags:
+
+        -a:     Unmount all file systems
+        -r:     Try to remount devices as read-only if mount is busy
+        -f:     Do not free loop device (if a loop device has been used)
+
+Example:
+
+	$ umount /dev/hdc1 
+
+-------------------------------
 
 =item uname
 
 Usage: uname [OPTION]...
- Print certain system information.  With no OPTION, same as -s.
- 
+
+Print certain system information.  With no OPTION, same as B<-s>.
+
 Options:
 
- -a	print all information
- -m	the machine (hardware) type
- -n	print the machine's network node hostname
- -r	print the operating system release
- -s	print the operating system name
- -p	print the host processor type
- -v	print the operating system version
- 
+        -a      print all information
+        -m      the machine (hardware) type
+        -n      print the machine's network node hostname
+        -r      print the operating system release
+        -s      print the operating system name
+        -p      print the host processor type
+        -v      print the operating system version
 
-=item umount
+Example:
 
-Usage: Usage: umount [flags] filesystem|directory
- Flags:
- -a:	Unmount all file systems
- 
+	$ uname -a
+	Linux debian 2.2.15pre13 #5 Tue Mar 14 16:03:50 MST 2000 i686 unknown
+
+-------------------------------
 
 =item uniq
 
-Usage: Usage: uniq [OPTION]... [INPUT [OUTPUT]]
+Usage: uniq [OPTION]... [INPUT [OUTPUT]]
 
-Discard all but one of successive identical lines from INPUT (or
-standard input), writing to OUTPUT (or standard output).
+Discard all but one of successive identical lines from INPUT
+(or standard input), writing to OUTPUT (or standard output).
 
- -h	display this help and exit
+Example:
 
-A field is a run of whitespace, then non-whitespace characters.
-Fields are skipped before chars.
- 
+	$ echo -e "a\na\nb\nc\nc\na" | sort | uniq
+	a
+	b
+	c
+
+-------------------------------
+
+=item update
+
+Usage: update [options]
+
+Periodically flushes filesystem buffers.
+
+Options:
+
+        -S      force use of sync(2) instead of flushing
+        -s SECS call sync this often (default 30)
+        -f SECS flush some buffers this often (default 5)
+
+-------------------------------
+
+=item uptime
+
+Usage: uptime
+
+Tells how long the system has been running since boot.
+
+Example:
+
+	$ uptime
+	  1:55pm  up  2:30, load average: 0.09, 0.04, 0.00
+
+-------------------------------
+
+=item usleep
+
+Usage: usleep N
+
+Pauses for N microseconds.
+
+Example:
+
+	$ usleep 1000000
+	[pauses for 1 second]
+
+-------------------------------
+
+=item wc
+
+Usage: wc [OPTION]... [FILE]...
+
+Print line, word, and byte counts for each FILE, and a total line if
+more than one FILE is specified.  With no FILE, read standard input.
+
+Options:
+
+        -c      print the byte counts
+        -l      print the newline counts
+        -L      print the length of the longest line
+        -w      print the word counts
+
+Example:
+
+	$ wc /etc/passwd
+	     31      46    1365 /etc/passwd
+
+-------------------------------
+
+=item whoami
+
+Usage: whoami
+
+Prints the user name associated with the current effective user id.
+
+Example:
+
+	$ whoami
+	andersen
+
+-------------------------------
+
+=item yes
+
+Usage: yes [OPTION]... [STRING]...
+
+Repeatedly outputs a line with all specified STRING(s), or `y'.
+
+-------------------------------
 
 =item zcat
 
-Usage: gunzip [OPTION]... FILE
+This is essentially an alias for invoking "gunzip B<-c>", where 
+it decompresses the file inquestion and send the output to stdout. 
 
-Uncompress FILE (or standard input if FILE is '-').
- 
-Options:
-
- -c	Write output to standard output
- -t	Test compressed file integrity
- 
-
-=item gunzip
-
-Usage: gunzip [OPTION]... FILE
-
-Uncompress FILE (or standard input if FILE is '-').
- 
-Options:
-
- -c	Write output to standard output
- -t	Test compressed file integrity
- 
-
-=item gzip
-
-Usage: gzip [OPTION]... FILE
-
-Compress FILE with maximum compression.
-When FILE is -, reads standard input.  Implies -c.
- 
-Options:
-
- -c	Write output to standard output instead of FILE.gz
- 
-
+-------------------------------
 
 =back
 
@@ -586,14 +1750,14 @@ textutils(1), shellutils(1), etc...
 
 =head1 MAINTAINER
 
-Erik Andersen <erik@lineo.com>
+Erik Andersen <andersee@debian.org> <andersen@lineo.com>
 
 =head1 AUTHORS
 
 The following people have contributed code to BusyBox whether
 they know it or not.
 
-Erik Andersen <erik@lineo.com>
+Erik Andersen <andersee@debian.org>
 
 =for html <br>
 
@@ -610,6 +1774,14 @@ Randolph Chung <tausq@debian.org>
 =for html <br>
 
 Dave Cinege <dcinege@psychosis.com>	
+
+=for html <br>
+
+Karl M. Hegbloom <karlheg@debian.org>
+
+=for html <br>
+
+John Lombardo <john@deltanet.com>	
 
 =for html <br>
 
@@ -631,3 +1803,4 @@ Enrique Zanardi <ezanardi@ull.es>
 
 =cut
 
+# $Id: busybox.pod,v 1.19 2000/04/19 05:15:12 erik Exp $

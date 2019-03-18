@@ -2,8 +2,10 @@
 /*
  * Mini syslogd implementation for busybox
  *
- * Copyright (C) 1999 by Lineo, inc.
+ * Copyright (C) 1999,2000 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
+ *
+ * Copyright (C) 2000 by Karl M. Hegbloom <karlheg@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,21 +24,21 @@
  */
 
 #include "internal.h"
-#include <stdio.h>
-#include <stdarg.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <unistd.h>
-#include <time.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <signal.h>
 #include <ctype.h>
-#include <netdb.h>
-#include <sys/klog.h>
 #include <errno.h>
+#include <fcntl.h>
+#include <netdb.h>
 #include <paths.h>
+#include <signal.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <sys/klog.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/un.h>
+#include <time.h>
+#include <unistd.h>
 
 #define ksyslog klogctl
 extern int ksyslog(int type, char *buf, int len);
@@ -47,8 +49,10 @@ extern int ksyslog(int type, char *buf, int len);
 #include <sys/syslog.h>
 
 /* Path for the file where all log messages are written */
-#define __LOG_FILE		"/var/log/messages"
+#define __LOG_FILE "/var/log/messages"
 
+/* Path to the unix socket */
+char lfile[PATH_MAX] = "";
 
 static char *logFilePath = __LOG_FILE;
 
@@ -70,43 +74,40 @@ static const char syslogd_usage[] =
 #endif
 	"\t-O\tSpecify an alternate log file.  default=/var/log/messages\n";
 
-
-/* print a message to the log file */
-static void message(char *fmt, ...)
+/* Note: There is also a function called "message()" in init.c */
+/* Print a message to the log file. */
+static void message (char *fmt, ...) __attribute__ ((format (printf, 1, 2)));
+static void message (char *fmt, ...)
 {
 	int fd;
 	va_list arguments;
 
-	if (
-		(fd =
-		 device_open(logFilePath,
-					 O_WRONLY | O_CREAT | O_NOCTTY | O_APPEND |
-					 O_NONBLOCK)) >= 0) {
-		va_start(arguments, fmt);
-		vdprintf(fd, fmt, arguments);
-		va_end(arguments);
-		close(fd);
+	if ((fd = device_open (logFilePath,
+						   O_WRONLY | O_CREAT | O_NOCTTY | O_APPEND |
+						   O_NONBLOCK)) >= 0) {
+		va_start (arguments, fmt);
+		vdprintf (fd, fmt, arguments);
+		va_end (arguments);
+		close (fd);
 	} else {
 		/* Always send console messages to /dev/console so people will see them. */
-		if (
-			(fd =
-			 device_open(_PATH_CONSOLE,
-						 O_WRONLY | O_NOCTTY | O_NONBLOCK)) >= 0) {
-			va_start(arguments, fmt);
-			vdprintf(fd, fmt, arguments);
-			va_end(arguments);
-			close(fd);
+		if ((fd = device_open (_PATH_CONSOLE,
+							   O_WRONLY | O_NOCTTY | O_NONBLOCK)) >= 0) {
+			va_start (arguments, fmt);
+			vdprintf (fd, fmt, arguments);
+			va_end (arguments);
+			close (fd);
 		} else {
-			fprintf(stderr, "Bummer, can't print: ");
-			va_start(arguments, fmt);
-			vfprintf(stderr, fmt, arguments);
-			fflush(stderr);
-			va_end(arguments);
+			fprintf (stderr, "Bummer, can't print: ");
+			va_start (arguments, fmt);
+			vfprintf (stderr, fmt, arguments);
+			fflush (stderr);
+			va_end (arguments);
 		}
 	}
 }
 
-static void logMessage(int pri, char *msg)
+static void logMessage (int pri, char *msg)
 {
 	time_t now;
 	char *timestamp;
@@ -144,7 +145,7 @@ static void logMessage(int pri, char *msg)
 static void quit_signal(int sig)
 {
 	logMessage(0, "System log daemon exiting.");
-	unlink(_PATH_LOG);
+	unlink(lfile);
 	exit(TRUE);
 }
 
@@ -156,88 +157,117 @@ static void domark(int sig)
 	}
 }
 
-static void doSyslogd(void)
+static void doSyslogd (void) __attribute__ ((noreturn));
+static void doSyslogd (void)
 {
 	struct sockaddr_un sunx;
-	int fd, conn;
 	size_t addrLength;
-	char buf[1024];
-	char *q, *p = buf;
-	int readSize;
 
-	/* Set up sig handlers */
-	signal(SIGINT, quit_signal);
-	signal(SIGTERM, quit_signal);
-	signal(SIGQUIT, quit_signal);
-	signal(SIGALRM, domark);
-	signal(SIGHUP, SIG_IGN);
-	alarm(MarkInterval);
+	int sock_fd;
+	fd_set fds;
 
-	/* Remove any preexisting socket/file */
-	unlink(_PATH_LOG);
+	char lfile[PATH_MAX];
 
-	memset(&sunx, 0, sizeof(sunx));
-	sunx.sun_family = AF_UNIX;	/* Unix domain socket */
-	strncpy(sunx.sun_path, _PATH_LOG, sizeof(sunx.sun_path));
-	if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
-		perror("Couldn't obtain descriptor for socket " _PATH_LOG);
-		exit(FALSE);
-	}
+	/* Set up signal handlers. */
+	signal (SIGINT,  quit_signal);
+	signal (SIGTERM, quit_signal);
+	signal (SIGQUIT, quit_signal);
+	signal (SIGHUP,  SIG_IGN);
+	signal (SIGALRM, domark);
+	alarm (MarkInterval);
 
-	addrLength = sizeof(sunx.sun_family) + strlen(sunx.sun_path);
-	if ((bind(fd, (struct sockaddr *) &sunx, addrLength)) ||
-		(listen(fd, 5))) {
-		perror("Could not connect to socket " _PATH_LOG);
-		exit(FALSE);
-	}
+	/* Create the syslog file so realpath() can work. */
+	close (open (_PATH_LOG, O_RDWR | O_CREAT, 0644));
+	if (realpath (_PATH_LOG, lfile) == NULL)
+		fatalError ("Could not resolv path to " _PATH_LOG ": %s", strerror (errno));
 
-	umask(0);
-	if (chmod(_PATH_LOG, 0666) < 0) {
-		perror("Could not set permission on " _PATH_LOG);
-		exit(FALSE);
-	}
+	unlink (lfile);
 
-	logMessage(0, "syslogd started: BusyBox v" BB_VER " (" BB_BT ")");
+	memset (&sunx, 0, sizeof (sunx));
+	sunx.sun_family = AF_UNIX;
+	strncpy (sunx.sun_path, lfile, sizeof (sunx.sun_path));
+	if ((sock_fd = socket (AF_UNIX, SOCK_STREAM, 0)) < 0)
+		fatalError ("Couldn't obtain descriptor for socket " _PATH_LOG ": %s", strerror (errno));
 
+	addrLength = sizeof (sunx.sun_family) + strlen (sunx.sun_path);
+	if ((bind (sock_fd, (struct sockaddr *) &sunx, addrLength)) || (listen (sock_fd, 5)))
+		fatalError ("Could not connect to socket " _PATH_LOG ": %s", strerror (errno));
 
-	while ((conn = accept(fd, (struct sockaddr *) &sunx,
-						  &addrLength)) >= 0) {
-		while ((readSize = read(conn, buf, sizeof(buf))) > 0) {
-			char line[1025];
-			unsigned char c;
-			int pri = (LOG_USER | LOG_NOTICE);
+	if (chmod (lfile, 0666) < 0)
+		fatalError ("Could not set permission on " _PATH_LOG ": %s", strerror (errno));
 
-			memset(line, 0, sizeof(line));
-			p = buf;
-			q = line;
-			while (p && (c = *p) && q < &line[sizeof(line) - 1]) {
-				if (c == '<') {
-					/* Parse the magic priority number */
-					pri = 0;
-					while (isdigit(*(++p))) {
-						pri = 10 * pri + (*p - '0');
-					}
-					if (pri & ~(LOG_FACMASK | LOG_PRIMASK))
-						pri = (LOG_USER | LOG_NOTICE);
-				} else if (c == '\n') {
-					*q++ = ' ';
-				} else if (iscntrl(c) && (c < 0177)) {
-					*q++ = '^';
-					*q++ = c ^ 0100;
-				} else {
-					*q++ = c;
-				}
-				p++;
-			}
-			*q = '\0';
+	FD_ZERO (&fds);
+	FD_SET (sock_fd, &fds);
 
-			/* Now log it */
-			logMessage(pri, line);
+	logMessage (0, "syslogd started: BusyBox v" BB_VER " (" BB_BT ")");
+
+	for (;;) {
+
+		fd_set readfds;
+		int    n_ready;
+		int    fd;
+
+		memcpy (&readfds, &fds, sizeof (fds));
+
+		if ((n_ready = select (FD_SETSIZE, &readfds, NULL, NULL, NULL)) < 0) {
+			if (errno == EINTR) continue; /* alarm may have happened. */
+			fatalError ("select error: %s\n", strerror (errno));
 		}
-		close(conn);
-	}
 
-	close(fd);
+		for (fd = 0; (n_ready > 0) && (fd < FD_SETSIZE); fd++) {
+			if (FD_ISSET (fd, &readfds)) {
+				--n_ready;
+				if (fd == sock_fd) {
+					int conn;
+					if ((conn = accept (sock_fd, (struct sockaddr *) &sunx, &addrLength)) < 0) {
+						fatalError ("accept error: %s\n", strerror (errno));
+					}
+					FD_SET (conn, &fds);
+					continue;
+				}
+				else {
+#					define BUFSIZE 1023
+					char buf[ BUFSIZE + 1 ];
+					int n_read;
+
+					while ((n_read = read (fd, buf, BUFSIZE )) > 0) {
+
+						int pri = (LOG_USER | LOG_NOTICE);
+						char line[ BUFSIZE + 1 ];
+						unsigned char c;
+						char *p = buf, *q = line;
+
+						buf[ n_read - 1 ] = '\0';
+
+						while (p && (c = *p) && q < &line[ sizeof (line) - 1 ]) {
+							if (c == '<') {
+								/* Parse the magic priority number. */
+								pri = 0;
+								while (isdigit (*(++p))) {
+									pri = 10 * pri + (*p - '0');
+								}
+								if (pri & ~(LOG_FACMASK | LOG_PRIMASK))
+									pri = (LOG_USER | LOG_NOTICE);
+							} else if (c == '\n') {
+								*q++ = ' ';
+							} else if (iscntrl (c) && (c < 0177)) {
+								*q++ = '^';
+								*q++ = c ^ 0100;
+							} else {
+								*q++ = c;
+							}
+							p++;
+						}
+						*q = '\0';
+						/* Now log it */
+						logMessage (pri, line);
+					}
+					close (fd);
+					FD_CLR (fd, &fds);
+				}
+			}
+		}
+	}
 }
 
 #ifdef BB_KLOGD
@@ -250,7 +280,8 @@ static void klogd_signal(int sig)
 	exit(TRUE);
 }
 
-static void doKlogd(void)
+static void doKlogd (void) __attribute__ ((noreturn));
+static void doKlogd (void)
 {
 	int priority = LOG_INFO;
 	char log_buffer[4096];
@@ -316,6 +347,15 @@ static void doKlogd(void)
 
 #endif
 
+static void daemon_init (char **argv, char *dz, void fn (void))
+{
+	setsid();
+	chdir ("/");
+	strncpy(argv[0], dz, strlen(argv[0]));
+	fn();
+	exit(0);
+}
+
 extern int syslogd_main(int argc, char **argv)
 {
 	int pid, klogd_pid;
@@ -365,28 +405,36 @@ extern int syslogd_main(int argc, char **argv)
 		*p++ = '\0';
 	}
 
-	if (doFork == TRUE) {
-		pid = fork();
-		if (pid < 0)
-			exit(pid);
-		else if (pid == 0) {
-			strncpy(argv[0], "syslogd", strlen(argv[0]));
-			doSyslogd();
-		}
-	} else {
-		doSyslogd();
-	}
+	umask(0);
 
 #ifdef BB_KLOGD
 	/* Start up the klogd process */
 	if (startKlogd == TRUE) {
 		klogd_pid = fork();
 		if (klogd_pid == 0) {
-			strncpy(argv[0], "klogd", strlen(argv[0]));
-			doKlogd();
+			daemon_init (argv, "klogd", doKlogd);
 		}
 	}
 #endif
 
+	if (doFork == TRUE) {
+		pid = fork();
+		if (pid < 0)
+			exit(pid);
+		else if (pid == 0) {
+			daemon_init (argv, "syslogd", doSyslogd);
+		}
+	} else {
+		doSyslogd();
+	}
+
 	exit(TRUE);
 }
+
+/*
+ * Local Variables
+ * c-file-style: "linux"
+ * c-basic-offset: 4
+ * tab-width: 4
+ * End:
+ */

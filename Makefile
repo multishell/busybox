@@ -18,18 +18,17 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 #
 
-# PROG      := busybox
-VERSION   := 0.42
-BUILDTIME := $(shell TZ=GMT date "+%Y%m%d-%H%M")
+PROG      := busybox
+VERSION   := 0.43
+BUILDTIME := $(shell TZ=UTC date --utc "+%Y.%m.%d-%H:%M%z")
+export VERSION
 
 # Set the following to `true' to make a debuggable build.
 # Leave this set to `false' for production use.
 # eg: `make DODEBUG=true tests'
 DODEBUG = false
 
-# If you want a static binary, turn this on.  I can't think
-# of many situations where anybody would ever want it static, 
-# but...
+# If you want a static binary, turn this on.
 DOSTATIC = false
 
 # This will choke on a non-debian system
@@ -72,12 +71,12 @@ endif
 # -D_GNU_SOURCE is needed because environ is used in init.c
 ifeq ($(DODEBUG),true)
     CFLAGS += -Wall -g -D_GNU_SOURCE
-    LDFLAGS =
+    LDFLAGS = 
     STRIP   =
 else
     CFLAGS  += -Wall $(OPTIMIZATION) -fomit-frame-pointer -fno-builtin -D_GNU_SOURCE
     LDFLAGS  = -s
-    STRIP    = $(STRIPTOOL) --remove-section=.note --remove-section=.comment
+    STRIP    = $(STRIPTOOL) --remove-section=.note --remove-section=.comment $(PROG)
     #Only staticly link when _not_ debugging 
     ifeq ($(DOSTATIC),true)
 	LDFLAGS += --static
@@ -89,7 +88,7 @@ ifndef $(PREFIX)
 endif
 
 LIBRARIES =
-OBJECTS   = $(shell ./busybox.sh) messages.o utility.o
+OBJECTS   = $(shell ./busybox.sh) busybox.o messages.o utility.o
 CFLAGS    += -DBB_VER='"$(VERSION)"'
 CFLAGS    += -DBB_BT='"$(BUILDTIME)"'
 ifdef BB_INIT_SCRIPT
@@ -97,39 +96,35 @@ ifdef BB_INIT_SCRIPT
 endif
 
 all: busybox busybox.links
-.PHONY: all
 
 busybox: $(OBJECTS)
 	$(CC) $(LDFLAGS) -o $@ $^ $(LIBRARIES)
-	$(STRIP) $@
-
+	$(STRIP)
+	$(MAKE) -C docs
+	
 busybox.links: busybox.def.h
 	- ./busybox.mkll | sort >$@
 
 regexp.o nfsmount.o: %.o: %.h
-$(OBJECTS): %.o: busybox.def.h internal.h  %.c
+$(OBJECTS): %.o: busybox.def.h internal.h  %.c Makefile
 
-.PHONY: test tests
 test tests:
 	cd tests && $(MAKE) all
 
-.PHONY: clean
 clean:
 	- rm -f busybox.links *~ *.o core
 	- rm -rf _install
 	- cd tests && $(MAKE) clean
 
-.PHONY: distclean
 distclean: clean
 	- rm -f busybox
 	- cd tests && $(MAKE) distclean
 
-.PHONY: install
 install: busybox busybox.links
 	./install.sh $(PREFIX)
 
-.PHONY: dist release
 dist release: distclean
+	$(MAKE) -C docs
 	cd ..;					\
 	rm -rf busybox-$(VERSION);		\
 	cp -a busybox busybox-$(VERSION);	\

@@ -3,7 +3,7 @@
  * Mini umount implementation for busybox
  *
  *
- * Copyright (C) 1999 by Lineo, inc.
+ * Copyright (C) 1999,2000 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -26,7 +26,6 @@
 #include <stdio.h>
 #include <sys/mount.h>
 #include <mntent.h>
-#include <fstab.h>
 #include <errno.h>
 
 
@@ -41,6 +40,9 @@ static const char umount_usage[] =
 #ifdef BB_FEATURE_REMOUNT
 	"\t-r:\tTry to remount devices as read-only if mount is busy\n"
 #endif
+#if defined BB_FEATURE_MOUNT_LOOP
+	"\t-f:\tDo not free loop device (if a loop device has been used)\n"
+#endif
 ;
 
 struct _mtab_entry_t {
@@ -53,15 +55,24 @@ static struct _mtab_entry_t *mtab_cache = NULL;
 
 
 
+#if defined BB_FEATURE_MOUNT_LOOP
+static int freeLoop = TRUE;
+#endif
 static int useMtab = TRUE;
 static int umountAll = FALSE;
+#if defined BB_FEATURE_REMOUNT
 static int doRemount = FALSE;
+#endif
 extern const char mtab_file[];	/* Defined in utility.c */
+
 
 
 /* These functions are here because the getmntent functions do not appear
  * to be re-entrant, which leads to all sorts of problems when we try to
  * use them recursively - randolph
+ *
+ * TODO: Perhaps switch to using Glibc's getmntent_r
+ *        -Erik
  */
 void mtab_read(void)
 {
@@ -77,8 +88,7 @@ void mtab_read(void)
 		return;
 	}
 	while ((e = getmntent(fp))) {
-		entry = malloc(sizeof(struct _mtab_entry_t));
-
+		entry = xmalloc(sizeof(struct _mtab_entry_t));
 		entry->device = strdup(e->mnt_fsname);
 		entry->mountpt = strdup(e->mnt_dir);
 		entry->next = mtab_cache;
@@ -99,11 +109,10 @@ char *mtab_getinfo(const char *match, const char which)
 			} else {
 #if !defined BB_MTAB
 				if (strcmp(cur->device, "/dev/root") == 0) {
-					struct fstab *fstabItem;
-
-					fstabItem = getfsfile("/");
-					if (fstabItem != NULL)
-						return fstabItem->fs_spec;
+					/* Adjusts device to be the real root device,
+					 * or leaves device alone if it can't find it */
+					find_real_root_device_name( cur->device);
+					return ( cur->device);
 				}
 #endif
 				return cur->device;
@@ -136,6 +145,9 @@ char *mtab_next(void **iter)
 	return mp;
 }
 
+/* Don't bother to clean up, since exit() does that 
+ * automagically, so we can save a few bytes */
+#if 0
 void mtab_free(void)
 {
 	struct _mtab_entry_t *this, *next;
@@ -151,6 +163,7 @@ void mtab_free(void)
 		this = next;
 	}
 }
+#endif
 
 static int do_umount(const char *name, int useMtab)
 {
@@ -163,7 +176,7 @@ static int do_umount(const char *name, int useMtab)
 	status = umount(name);
 
 #if defined BB_FEATURE_MOUNT_LOOP
-	if (blockDevice != NULL && !strncmp("/dev/loop", blockDevice, 9))
+	if (freeLoop == TRUE && blockDevice != NULL && !strncmp("/dev/loop", blockDevice, 9))
 		/* this was a loop device, delete it */
 		del_loop(blockDevice);
 #endif
@@ -232,6 +245,11 @@ extern int umount_main(int argc, char **argv)
 			case 'a':
 				umountAll = TRUE;
 				break;
+#if defined BB_FEATURE_MOUNT_LOOP
+			case 'f':
+				freeLoop = FALSE;
+				break;
+#endif
 #ifdef BB_MTAB
 			case 'n':
 				useMtab = FALSE;
@@ -242,6 +260,8 @@ extern int umount_main(int argc, char **argv)
 				doRemount = TRUE;
 				break;
 #endif
+			case 'v':
+				break; /* ignore -v */
 			default:
 				usage(umount_usage);
 			}

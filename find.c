@@ -3,7 +3,7 @@
  * Mini find implementation for busybox
  *
  *
- * Copyright (C) 1999 by Lineo, inc.
+ * Copyright (C) 1999,2000 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -37,12 +37,12 @@ static const char find_usage[] = "find [PATH...] [EXPRESSION]\n\n"
 	"Search for files in a directory hierarchy.  The default PATH is\n"
 	"the current directory; default EXPRESSION is '-print'\n\n"
 	"\nEXPRESSION may consist of:\n"
-	"\t-follow\n\t\tDereference symbolic links.\n"
-	"\t-name PATTERN\n\t\tFile name (with leading directories removed) matches PATTERN.\n"
-	"\t-print\n\t\tprint the full file name followed by a newline to stdout.\n";
+	"\t-follow\t\tDereference symbolic links.\n"
+	"\t-name PATTERN\tFile name (leading directories removed) matches PATTERN.\n"
+	"\t-print\t\tprint the full file name followed by a newline to stdout.\n";
 
 
-static int fileAction(const char *fileName, struct stat *statbuf)
+static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
 {
 	if (pattern == NULL)
 		fprintf(stdout, "%s\n", fileName);
@@ -109,7 +109,7 @@ int find_main(int argc, char **argv)
 	}
 
 	if (recursiveAction(directory, TRUE, FALSE, FALSE,
-						fileAction, fileAction) == FALSE) {
+						fileAction, fileAction, NULL) == FALSE) {
 		exit(FALSE);
 	}
 

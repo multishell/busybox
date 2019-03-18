@@ -3,7 +3,7 @@
  * Mini du implementation for busybox
  *
  *
- * Copyright (C) 1999 by Lineo, inc.
+ * Copyright (C) 1999,2000 by Lineo, inc.
  * Written by John Beppu <beppu@lineo.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -37,17 +37,21 @@
 typedef void (Display) (long, char *);
 
 static const char du_usage[] =
-
 	"du [OPTION]... [FILE]...\n\n"
+	"Summarize disk space used for each FILE and/or directory.\n"
+	"Disk space is printed in units of 1024 bytes.\n\n"
+	"Options:\n"
+	"\t-l\tcount sizes many times if hard linked\n"
 	"\t-s\tdisplay only a total for each argument\n";
 
 static int du_depth = 0;
+static int count_hardlinks = 0;
 
 static Display *print;
 
 static void print_normal(long size, char *filename)
 {
-	fprintf(stdout, "%-7ld %s\n", size, filename);
+	fprintf(stdout, "%ld\t%s\n", size, filename);
 }
 
 static void print_summary(long size, char *filename)
@@ -57,24 +61,26 @@ static void print_summary(long size, char *filename)
 	}
 }
 
-
 /* tiny recursive du */
 static long du(char *filename)
 {
 	struct stat statbuf;
 	long sum;
+	int len;
 
 	if ((lstat(filename, &statbuf)) != 0) {
-		fprintf(stdout, "du: %s: %s\n", filename, strerror(errno));
+		printf("du: %s: %s\n", filename, strerror(errno));
 		return 0;
 	}
 
 	du_depth++;
-	sum = statbuf.st_blocks;
+	sum = (statbuf.st_blocks >> 1);
 
-	/* Don't add in stuff pointed to by links */
+	/* Don't add in stuff pointed to by symbolic links */
 	if (S_ISLNK(statbuf.st_mode)) {
-		return 0;
+		sum = 0L;
+		if (du_depth == 1)
+			print(sum, filename);
 	}
 	if (S_ISDIR(statbuf.st_mode)) {
 		DIR *dir;
@@ -82,8 +88,14 @@ static long du(char *filename)
 
 		dir = opendir(filename);
 		if (!dir) {
+			du_depth--;
 			return 0;
 		}
+
+		len = strlen(filename);
+		if (filename[len - 1] == '/')
+			filename[--len] = '\0';
+
 		while ((entry = readdir(dir))) {
 			char newfile[PATH_MAX + 1];
 			char *name = entry->d_name;
@@ -93,8 +105,9 @@ static long du(char *filename)
 				continue;
 			}
 
-			if (strlen(filename) + strlen(name) + 1 > PATH_MAX) {
+			if (len + strlen(name) + 1 > PATH_MAX) {
 				fprintf(stderr, name_too_long, "du");
+				du_depth--;
 				return 0;
 			}
 			sprintf(newfile, "%s/%s", filename, name);
@@ -103,6 +116,17 @@ static long du(char *filename)
 		}
 		closedir(dir);
 		print(sum, filename);
+	}
+	else if (statbuf.st_nlink > 1 && !count_hardlinks) {
+		/* Add files with hard links only once */
+		if (is_in_ino_dev_hashtable(&statbuf, NULL)) {
+			sum = 0L;
+			if (du_depth == 1)
+				print(sum, filename);
+		}
+		else {
+			add_to_ino_dev_hashtable(&statbuf, NULL);
+		}
 	}
 	du_depth--;
 	return sum;
@@ -124,7 +148,11 @@ int du_main(int argc, char **argv)
 			case 's':
 				print = print_summary;
 				break;
+			case 'l':
+				count_hardlinks = 1;
+				break;
 			case 'h':
+			case '-':
 				usage(du_usage);
 				break;
 			default:
@@ -144,13 +172,21 @@ int du_main(int argc, char **argv)
 
 		for (; i < argc; i++) {
 			sum = du(argv[i]);
-			if ((sum) && (isDirectory(argv[i], FALSE, NULL))) {
+			if (sum && isDirectory(argv[i], FALSE, NULL)) {
 				print_normal(sum, argv[i]);
 			}
+			reset_ino_dev_hashtable();
 		}
 	}
 
 	exit(0);
 }
 
-/* $Id: du.c,v 1.12 2000/02/11 21:55:04 erik Exp $ */
+/* $Id: du.c,v 1.17 2000/04/13 01:18:56 erik Exp $ */
+/*
+Local Variables:
+c-file-style: "linux"
+c-basic-offset: 4
+tab-width: 4
+End:
+*/

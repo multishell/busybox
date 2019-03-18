@@ -2,7 +2,6 @@
 /*
  * Mini nslookup implementation for busybox
  *
- *
  * Copyright (C) 2000 by Lineo, inc.
  * Written by John Beppu <beppu@lineo.com>
  *
@@ -42,7 +41,7 @@
  |  + find out how the real nslookup gets the default name server
  */
 
-static const char nslookup_usage[] = "nslookup [HOST]\n\n";
+static const char nslookup_usage[] = "nslookup [HOST]\n\nQueries the nameserver for the IP address of the given HOST\n";
 
 
 /* I have to see how the real nslookup does this.
@@ -51,16 +50,16 @@ static const char nslookup_usage[] = "nslookup [HOST]\n\n";
  */
 static void server_fprint(FILE * dst)
 {
-	fprintf(dst, "Server:  %s\n", "something");
-	fprintf(dst, "Address:  %s\n\n", "something");
+	fprintf(dst, "Server:     %s\n", "default");
+	fprintf(dst, "Address:    %s\n\n", "default");
 }
 
 /* only works for IPv4 */
 static int addr_fprint(char *addr, FILE * dst)
 {
-	uint8_t split[4];
-	uint32_t ip;
-	uint32_t *x = (uint32_t *) addr;
+	u_int8_t split[4];
+	u_int32_t ip;
+	u_int32_t *x = (u_int32_t *) addr;
 
 	ip = ntohl(*x);
 	split[0] = (ip & 0xff000000) >> 24;
@@ -73,12 +72,12 @@ static int addr_fprint(char *addr, FILE * dst)
 }
 
 /* changes a c-string matching the perl regex \d+\.\d+\.\d+\.\d+
- * into a uint32_t
+ * into a u_int32_t
  */
-static uint32_t str_to_addr(const char *addr)
+static u_int32_t str_to_addr(const char *addr)
 {
-	uint32_t split[4];
-	uint32_t ip;
+	u_int32_t split[4];
+	u_int32_t ip;
 
 	sscanf(addr, "%d.%d.%d.%d",
 		   &split[0], &split[1], &split[2], &split[3]);
@@ -97,9 +96,9 @@ static int addr_list_fprint(char **h_addr_list, FILE * dst)
 {
 	int i, j;
 	char *addr_string = (h_addr_list[1])
-		? "Addresses" : "Address";
+		? "Addresses: " : "Address:   ";
 
-	fprintf(dst, "%s:  ", addr_string);
+	fprintf(dst, "%s ", addr_string);
 	for (i = 0, j = 0; h_addr_list[i]; i++, j++) {
 		addr_fprint(h_addr_list[i], dst);
 
@@ -133,7 +132,7 @@ static struct hostent *gethostbyaddr_wrapper(const char *address)
 static struct hostent *hostent_fprint(struct hostent *host, FILE * dst)
 {
 	if (host) {
-		fprintf(dst, "Name:    %s\n", host->h_name);
+		fprintf(dst, "Name:       %s\n", host->h_name);
 		addr_list_fprint(host->h_addr_list, dst);
 	} else {
 		fprintf(dst, "*** %s\n", hstrerror(h_errno));
@@ -160,7 +159,7 @@ int nslookup_main(int argc, char **argv)
 {
 	struct hostent *host;
 
-	if (argc < 2) {
+	if (argc < 2 || *argv[1]=='-') {
 		usage(nslookup_usage);
 	}
 
@@ -171,7 +170,7 @@ int nslookup_main(int argc, char **argv)
 		host = gethostbyname(argv[1]);
 	}
 	hostent_fprint(host, stdout);
-	return 0;
+	exit( TRUE);
 }
 
-/* $Id: nslookup.c,v 1.4 2000/02/08 19:58:47 erik Exp $ */
+/* $Id: nslookup.c,v 1.7 2000/04/15 16:34:54 erik Exp $ */

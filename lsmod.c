@@ -2,7 +2,7 @@
 /*
  * Mini lsmod implementation for busybox
  *
- * Copyright (C) 1999 by Lineo, inc.
+ * Copyright (C) 1999,2000 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -25,13 +25,16 @@
 #include <stdio.h>
 
 
+extern int lsmod_main(int argc, char **argv)
+{
+#if defined BB_FEATURE_USE_DEVPS_PATCH
+	char *cmd[] = { "cat", "/dev/modules", "\0" };
+#else
 #if ! defined BB_FEATURE_USE_PROCFS
 #error Sorry, I depend on the /proc filesystem right now.
 #endif
-
-extern int lsmod_main(int argc, char **argv)
-{
 	char *cmd[] = { "cat", "/proc/modules", "\0" };
+#endif
 
 	exit(cat_main(3, cmd));
 }

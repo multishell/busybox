@@ -48,11 +48,19 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <sys/param.h>			/* for PATH_MAX */
+#include <sys/utsname.h>		/* for uname(2) */
 
 #if defined BB_FEATURE_MOUNT_LOOP
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <linux/loop.h>
+#endif
+
+/* Busybox mount uses either /proc/filesystems or /dev/mtab to get the 
+ * list of available filesystems used for the -t auto option */ 
+#if defined BB_FEATURE_USE_PROCFS && defined BB_FEATURE_USE_DEVPS_PATCH
+//#error Sorry, but busybox can't use both /proc and /dev/ps at the same time -- Pick one and try again.
+#error "Sorry, but busybox can't use both /proc and /dev/ps at the same time -- Pick one and try again."
 #endif
 
 
@@ -63,8 +71,12 @@ const char mtab_file[] = "/proc/mounts";
 #    if defined BB_MTAB
 const char mtab_file[] = "/etc/mtab";
 #    else
-#      error With (BB_MOUNT||BB_UMOUNT||BB_DF) defined, you must define either BB_MTAB or BB_FEATURE_USE_PROCFS
+#      if defined BB_FEATURE_USE_DEVPS_PATCH
+const char mtab_file[] = "/dev/mtab";
+#    else
+#        error With (BB_MOUNT||BB_UMOUNT||BB_DF) defined, you must define either BB_MTAB or ( BB_FEATURE_USE_PROCFS | BB_FEATURE_USE_DEVPS_PATCH)
 #    endif
+#  endif
 #  endif
 #endif
 
@@ -77,57 +89,116 @@ extern void usage(const char *usage)
 	exit FALSE;
 }
 
-extern void errorMsg(char *s, ...)
+extern void errorMsg(const char *s, ...)
 {
 	va_list p;
 
 	va_start(p, s);
 	fflush(stdout);
-	fprintf(stderr, "\n");
 	vfprintf(stderr, s, p);
-	fprintf(stderr, "\n");
 	va_end(p);
+	fflush(stderr);
 }
 
-extern void fatalError(char *s, ...)
+extern void fatalError(const char *s, ...)
 {
 	va_list p;
 
 	va_start(p, s);
 	fflush(stdout);
-	fprintf(stderr, "\n");
 	vfprintf(stderr, s, p);
-	fprintf(stderr, "\n");
 	va_end(p);
+	fflush(stderr);
 	exit( FALSE);
 }
 
-#if defined (BB_INIT) || defined (BB_PS)
-
-#if ! defined BB_FEATURE_USE_PROCFS
-#error Sorry, I depend on the /proc filesystem right now.
-#endif
+#if defined BB_INIT
 /* Returns kernel version encoded as major*65536 + minor*256 + patch,
  * so, for example,  to check if the kernel is greater than 2.2.11:
- *	if (get_kernel_revision() <= 2*65536+2*256+11) { <stuff> }
+ *     if (get_kernel_revision() <= 2*65536+2*256+11) { <stuff> }
  */
-int get_kernel_revision()
+extern int get_kernel_revision(void)
 {
-	FILE *file;
+	struct utsname name;
 	int major = 0, minor = 0, patch = 0;
 
-	file = fopen("/proc/sys/kernel/osrelease", "r");
-	if (file == NULL) {
-		/* bummer, /proc must not be mounted... */
+	if (uname(&name) == -1) {
+		perror("cannot get system information");
 		return (0);
 	}
-	fscanf(file, "%d.%d.%d", &major, &minor, &patch);
-	fclose(file);
+	sscanf(name.version, "%d.%d.%d", &major, &minor, &patch);
 	return major * 65536 + minor * 256 + patch;
 }
-#endif							/* BB_INIT || BB_PS */
+#endif                                                 /* BB_INIT */
 
+#if defined (BB_CP_MV) || defined (BB_DU)
 
+#define HASH_SIZE	311		/* Should be prime */
+#define hash_inode(i)	((i) % HASH_SIZE)
+
+static ino_dev_hashtable_bucket_t *ino_dev_hashtable[HASH_SIZE];
+
+/*
+ * Return 1 if statbuf->st_ino && statbuf->st_dev are recorded in
+ * `ino_dev_hashtable', else return 0
+ *
+ * If NAME is a non-NULL pointer to a character pointer, and there is
+ * a match, then set *NAME to the value of the name slot in that
+ * bucket.
+ */
+int is_in_ino_dev_hashtable(const struct stat *statbuf, char **name)
+{
+	ino_dev_hashtable_bucket_t *bucket;
+
+	bucket = ino_dev_hashtable[hash_inode(statbuf->st_ino)];
+	while (bucket != NULL) {
+	  if ((bucket->ino == statbuf->st_ino) &&
+		  (bucket->dev == statbuf->st_dev))
+	  {
+		if (name) *name = bucket->name;
+		return 1;
+	  }
+	  bucket = bucket->next;
+	}
+	return 0;
+}
+
+/* Add statbuf to statbuf hash table */
+void add_to_ino_dev_hashtable(const struct stat *statbuf, const char *name)
+{
+	int i;
+	size_t s;
+	ino_dev_hashtable_bucket_t *bucket;
+    
+	i = hash_inode(statbuf->st_ino);
+	s = name ? strlen(name) : 0;
+	bucket = xmalloc(sizeof(ino_dev_hashtable_bucket_t) + s);
+	bucket->ino = statbuf->st_ino;
+	bucket->dev = statbuf->st_dev;
+	if (name)
+		strcpy(bucket->name, name);
+	else
+		bucket->name[0] = '\0';
+	bucket->next = ino_dev_hashtable[i];
+	ino_dev_hashtable[i] = bucket;
+}
+
+/* Clear statbuf hash table */
+void reset_ino_dev_hashtable(void)
+{
+	int i;
+	ino_dev_hashtable_bucket_t *bucket;
+
+	for (i = 0; i < HASH_SIZE; i++) {
+		while (ino_dev_hashtable[i] != NULL) {
+			bucket = ino_dev_hashtable[i]->next;
+			free(ino_dev_hashtable[i]);
+			ino_dev_hashtable[i] = bucket;
+		}
+	}
+}
+
+#endif /* BB_CP_MV || BB_DU */
 
 #if defined (BB_CP_MV) || defined (BB_DU) || defined (BB_LN)
 /*
@@ -166,7 +237,7 @@ int isDirectory(const char *fileName, const int followLinks, struct stat *statBu
 /*
  * Copy one file to another, while possibly preserving its modes, times,
  * and modes.  Returns TRUE if successful, or FALSE on a failure with an
- * error message output.  (Failure is not indicted if the attributes cannot
+ * error message output.  (Failure is not indicated if the attributes cannot
  * be set.)
  *  -Erik Andersen
  */
@@ -454,10 +525,12 @@ int fullRead(int fd, char *buf, int len)
 
 
 #if defined (BB_CHMOD_CHOWN_CHGRP) \
- || defined (BB_CP_MV)		   \
- || defined (BB_FIND)		   \
- || defined (BB_LS)		   \
- || defined (BB_INSMOD)
+ || defined (BB_CP_MV)			\
+ || defined (BB_FIND)			\
+ || defined (BB_INSMOD)			\
+ || defined (BB_RM)				\
+ || defined (BB_TAR)
+
 /*
  * Walk down all the directories under the specified 
  * location, and do something (something specified
@@ -471,9 +544,12 @@ int fullRead(int fd, char *buf, int len)
 int recursiveAction(const char *fileName,
 					int recurse, int followLinks, int depthFirst,
 					int (*fileAction) (const char *fileName,
-									   struct stat * statbuf),
+									   struct stat * statbuf,
+									   void* userData),
 					int (*dirAction) (const char *fileName,
-									  struct stat * statbuf))
+									  struct stat * statbuf,
+									  void* userData),
+					void* userData)
 {
 	int status;
 	struct stat statbuf;
@@ -498,13 +574,13 @@ int recursiveAction(const char *fileName,
 		if (fileAction == NULL)
 			return TRUE;
 		else
-			return fileAction(fileName, &statbuf);
+			return fileAction(fileName, &statbuf, userData);
 	}
 
 	if (recurse == FALSE) {
 		if (S_ISDIR(statbuf.st_mode)) {
 			if (dirAction != NULL)
-				return (dirAction(fileName, &statbuf));
+				return (dirAction(fileName, &statbuf, userData));
 			else
 				return TRUE;
 		}
@@ -519,7 +595,7 @@ int recursiveAction(const char *fileName,
 			return FALSE;
 		}
 		if (dirAction != NULL && depthFirst == FALSE) {
-			status = dirAction(fileName, &statbuf);
+			status = dirAction(fileName, &statbuf, userData);
 			if (status == FALSE) {
 				perror(fileName);
 				return FALSE;
@@ -536,10 +612,11 @@ int recursiveAction(const char *fileName,
 				fprintf(stderr, name_too_long, "ftw");
 				return FALSE;
 			}
+			memset(nextFile, 0, sizeof(nextFile));
 			sprintf(nextFile, "%s/%s", fileName, next->d_name);
 			status =
 				recursiveAction(nextFile, TRUE, followLinks, depthFirst,
-								fileAction, dirAction);
+								fileAction, dirAction, userData);
 			if (status < 0) {
 				closedir(dir);
 				return FALSE;
@@ -551,7 +628,7 @@ int recursiveAction(const char *fileName,
 			return FALSE;
 		}
 		if (dirAction != NULL && depthFirst == TRUE) {
-			status = dirAction(fileName, &statbuf);
+			status = dirAction(fileName, &statbuf, userData);
 			if (status == FALSE) {
 				perror(fileName);
 				return FALSE;
@@ -561,7 +638,7 @@ int recursiveAction(const char *fileName,
 		if (fileAction == NULL)
 			return TRUE;
 		else
-			return fileAction(fileName, &statbuf);
+			return fileAction(fileName, &statbuf, userData);
 	}
 	return TRUE;
 }
@@ -709,7 +786,7 @@ extern int parse_mode(const char *s, mode_t * theMode)
 
 
 
-#if defined (BB_CHMOD_CHOWN_CHGRP) || defined (BB_PS)
+#if defined BB_CHMOD_CHOWN_CHGRP || defined BB_PS || defined BB_LS || defined BB_TAR 
 
 /* Use this to avoid needing the glibc NSS stuff 
  * This uses storage buf to hold things.
@@ -784,7 +861,7 @@ void my_getgrgid(char *group, gid_t gid)
 }
 
 
-#endif							/* BB_CHMOD_CHOWN_CHGRP || BB_PS */
+#endif							/* BB_CHMOD_CHOWN_CHGRP || BB_PS || BB_LS || BB_TAR */
 
 
 
@@ -930,7 +1007,7 @@ extern int replace_match(char *haystack, char *needle, char *newNeedle,
 	if (strcmp(needle, newNeedle) == 0)
 		return FALSE;
 
-	oldhayStack = (char *) malloc((unsigned) (strlen(haystack)));
+	oldhayStack = (char *) xmalloc((unsigned) (strlen(haystack)));
 	while (where != NULL) {
 		foundOne++;
 		strcpy(oldhayStack, haystack);
@@ -983,6 +1060,7 @@ extern int check_wildcard_match(const char *text, const char *pattern)
 	const char *retryText;
 	int ch;
 	int found;
+	int len;
 
 	retryPat = NULL;
 	retryText = NULL;
@@ -1009,11 +1087,18 @@ extern int check_wildcard_match(const char *text, const char *pattern)
 				if (*text == ch)
 					found = TRUE;
 			}
-
-			//if (!found)
+			len=strlen(text);
+			if (found == FALSE && len!=0) {
+				return FALSE;
+			}
 			if (found == TRUE) {
-				pattern = retryPat;
-				text = ++retryText;
+				if (strlen(pattern)==0 && len==1) {
+					return TRUE;
+				}
+				if (len!=0) {
+					text++;
+					continue;
+				}
 			}
 
 			/* fall into next case */
@@ -1174,31 +1259,120 @@ extern int device_open(char *device, int mode)
 #endif							/* BB_INIT BB_SYSLOGD */
 
 
-#if defined BB_INIT || defined BB_HALT || defined BB_REBOOT
+#if defined BB_KILLALL || ( defined BB_FEATURE_LINUXRC && ( defined BB_HALT || defined BB_REBOOT || defined BB_POWEROFF ))
+#ifdef BB_FEATURE_USE_DEVPS_PATCH
+#include <linux/devps.h>
+#endif
 
+#if defined BB_FEATURE_USE_DEVPS_PATCH
+/* findPidByName()
+ *  
+ *  This finds the pid of the specified process,
+ *  by using the /dev/ps device driver.
+ *
+ *  Returns a list of all matching PIDs
+ */
+extern pid_t* findPidByName( char* pidName)
+{
+	int fd, i, j;
+	char device[] = "/dev/ps";
+	pid_t num_pids;
+	pid_t* pid_array = NULL;
+	pid_t* pidList=NULL;
+
+	/* open device */ 
+	fd = open(device, O_RDONLY);
+	if (fd < 0)
+		fatalError( "open failed for `%s': %s\n", device, strerror (errno));
+
+	/* Find out how many processes there are */
+	if (ioctl (fd, DEVPS_GET_NUM_PIDS, &num_pids)<0) 
+		fatalError( "\nDEVPS_GET_PID_LIST: %s\n", strerror (errno));
+	
+	/* Allocate some memory -- grab a few extras just in case 
+	 * some new processes start up while we wait. The kernel will
+	 * just ignore any extras if we give it too many, and will trunc.
+	 * the list if we give it too few.  */
+	pid_array = (pid_t*) calloc( num_pids+10, sizeof(pid_t));
+	pid_array[0] = num_pids+10;
+
+	/* Now grab the pid list */
+	if (ioctl (fd, DEVPS_GET_PID_LIST, pid_array)<0) 
+		fatalError( "\nDEVPS_GET_PID_LIST: %s\n", strerror (errno));
+
+	/* Now search for a match */
+	for (i=1; i<pid_array[0] ; i++) {
+		char* p;
+		struct pid_info info;
+
+	    info.pid = pid_array[i];
+	    if (ioctl (fd, DEVPS_GET_PID_INFO, &info)<0)
+			fatalError( "\nDEVPS_GET_PID_INFO: %s\n", strerror (errno));
+
+		/* Make sure we only match on the process name */
+		p=info.command_line+1;
+		while ((*p != 0) && !isspace(*(p)) && (*(p-1) != '\\')) { 
+			(p)++;
+		}
+		if (isspace(*(p)))
+				*p='\0';
+
+		if ((strstr(info.command_line, pidName) != NULL)
+				&& (strlen(pidName) == strlen(info.command_line))) {
+			pidList=realloc( pidList, sizeof(pid_t) * (j+2));
+			if (pidList==NULL)
+				fatalError("out of memory\n");
+			pidList[j++]=info.pid;
+		}
+	}
+	if (pidList)
+		pidList[j]=0;
+
+	/* Free memory */
+	free( pid_array);
+
+	/* close device */
+	if (close (fd) != 0) 
+		fatalError( "close failed for `%s': %s\n",device, strerror (errno));
+
+	return pidList;
+}
+#else		/* BB_FEATURE_USE_DEVPS_PATCH */
 #if ! defined BB_FEATURE_USE_PROCFS
 #error Sorry, I depend on the /proc filesystem right now.
 #endif
-/* findInitPid()
+
+/* findPidByName()
  *  
- *  This finds the pid of init (which is not always 1).
- *  Currently, it's implemented by rummaging through the proc filesystem.
+ *  This finds the pid of the specified process.
+ *  Currently, it's implemented by rummaging through 
+ *  the proc filesystem.
  *
- *  [return]
- *  0	    failure
- *  pid	    when init's pid is found.
+ *  Returns a list of all matching PIDs
  */
-extern pid_t findInitPid()
+extern pid_t* findPidByName( char* pidName)
 {
-	pid_t init_pid;
-	char filename[256];
-	char buffer[256];
+	DIR *dir;
+	struct dirent *next;
+	pid_t* pidList=NULL;
+	int i=0;
 
-	/* no need to opendir ;) */
-	for (init_pid = 1; init_pid < 65536; init_pid++) {
+	dir = opendir("/proc");
+	if (!dir)
+		fatalError( "Cannot open /proc: %s\n", strerror (errno));
+	
+	while ((next = readdir(dir)) != NULL) {
 		FILE *status;
+		char filename[256];
+		char buffer[256];
+		char* p;
 
-		sprintf(filename, "/proc/%d/status", init_pid);
+		/* If it isn't a number, we don't want it */
+		if (!isdigit(*next->d_name))
+			continue;
+
+		/* Now open the status file */
+		sprintf(filename, "/proc/%s/status", next->d_name);
 		status = fopen(filename, "r");
 		if (!status) {
 			continue;
@@ -1206,29 +1380,40 @@ extern pid_t findInitPid()
 		fgets(buffer, 256, status);
 		fclose(status);
 
-		if ((strstr(buffer, "init\n") != NULL)) {
-			return init_pid;
+		/* Make sure we only match on the process name */
+		p=buffer+5; /* Skip the name */
+		while ((p)++) {
+			if (*p==0 || *p=='\n') {
+				*p='\0';
+				break;
+			}
+		}
+		p=buffer+6; /* Skip the "Name:\t" */
+
+		if ((strstr(p, pidName) != NULL)
+				&& (strlen(pidName) == strlen(p))) {
+			pidList=realloc( pidList, sizeof(pid_t) * (i+2));
+			if (pidList==NULL)
+				fatalError("out of memory\n");
+			pidList[i++]=strtol(next->d_name, NULL, 0);
 		}
 	}
-	return 0;
+	if (pidList)
+		pidList[i]=0;
+	return pidList;
 }
-#endif							/* BB_INIT || BB_HALT || BB_REBOOT */
+#endif							/* BB_FEATURE_USE_DEVPS_PATCH */
+#endif							/* BB_KILLALL || ( BB_FEATURE_LINUXRC && ( BB_HALT || BB_REBOOT || BB_POWEROFF )) */
 
-#if defined BB_GUNZIP \
- || defined BB_GZIP   \
- || defined BB_PRINTF \
- || defined BB_TAIL
+/* this should really be farmed out to libbusybox.a */
 extern void *xmalloc(size_t size)
 {
 	void *cp = malloc(size);
 
-	if (cp == NULL) {
-		errorMsg("out of memory");
-	}
+	if (cp == NULL)
+		fatalError("out of memory\n");
 	return cp;
 }
-
-#endif							/* BB_GUNZIP || BB_GZIP || BB_PRINTF || BB_TAIL */
 
 #if (__GLIBC__ < 2) && (defined BB_SYSLOGD || defined BB_INIT)
 extern int vdprintf(int d, const char *format, va_list ap)
@@ -1327,19 +1512,107 @@ extern char *find_unused_loop_device(void)
 }
 #endif							/* BB_FEATURE_MOUNT_LOOP */
 
-#if defined BB_MTAB
-#define whine_if_fstab_is_missing() {}
-#else
-extern void whine_if_fstab_is_missing()
+#if defined BB_MOUNT || defined BB_DF
+extern int find_real_root_device_name(char* name)
 {
-	struct stat statBuf;
+	DIR *dir;
+	struct dirent *entry;
+	struct stat statBuf, rootStat;
+	char fileName[BUFSIZ];
 
-	if (stat("/etc/fstab", &statBuf) < 0)
-		fprintf(stderr,
-				"/etc/fstab file missing -- install one to name /dev/root.\n\n");
+	if (stat("/", &rootStat) != 0) {
+		errorMsg("could not stat '/'\n");
+		return( FALSE);
+	}
+
+	dir = opendir("/dev");
+	if (!dir) {
+		errorMsg("could not open '/dev'\n");
+		return( FALSE);
+	}
+
+	while((entry = readdir(dir)) != NULL) {
+
+		/* Must skip ".." since that is "/", and so we 
+		 * would get a false positive on ".."  */
+		if (strcmp(entry->d_name, "..") == 0)
+			continue;
+
+		sprintf( fileName, "/dev/%s", entry->d_name);
+
+		if (stat(fileName, &statBuf) != 0)
+			continue;
+		/* Some char devices have the same dev_t as block
+		 * devices, so make sure this is a block device */
+		if (! S_ISBLK(statBuf.st_mode))
+			continue;
+		if (statBuf.st_rdev == rootStat.st_rdev) {
+			strcpy(name, fileName); 
+			return ( TRUE);
+		}
+	}
+
+	return( FALSE);
 }
 #endif
 
+const unsigned int CSTRING_BUFFER_LENGTH = 128;
+/* recursive parser that returns cstrings of arbitrary length
+ * from a FILE* 
+ */
+static char *
+cstring_alloc(FILE* f, int depth)
+{
+    char *cstring;
+    char buffer[CSTRING_BUFFER_LENGTH];
+    int	 target = CSTRING_BUFFER_LENGTH * depth;
+    int  i, len;
+    int  size;
 
+    /* fill buffer */
+    i = 0;
+    while ((buffer[i] = fgetc(f)) != EOF) {
+		if (buffer[i++] == 0x0a) { break; }
+		if (i == CSTRING_BUFFER_LENGTH) { break; }
+    }
+    len = i;
+
+    /* recurse or malloc? */
+    if (len == CSTRING_BUFFER_LENGTH) {
+		cstring = cstring_alloc(f, (depth + 1));
+    } else {
+		/* [special case] EOF */
+		if ((depth | len) == 0) { return NULL; }
+
+		/* malloc */
+		size = target + len + 1;
+		cstring = malloc(size);
+		if (!cstring) { return NULL; }
+		cstring[size - 1] = 0;
+    }
+
+    /* copy buffer */
+    if (cstring) {
+		memcpy(&cstring[target], buffer, len);
+    }
+    return cstring;
+}
+
+/* 
+ * wrapper around recursive cstring_alloc 
+ * it's the caller's responsibility to free the cstring
+ */ 
+char *
+cstring_lineFromFile(FILE *f)
+{
+    return cstring_alloc(f, 0);
+}
 
 /* END CODE */
+/*
+Local Variables:
+c-file-style: "linux"
+c-basic-offset: 4
+tab-width: 4
+End:
+*/

@@ -3,7 +3,7 @@
  * Mini tee implementation for busybox
  *
  *
- * Copyright (C) 1999 by Lineo, inc.
+ * Copyright (C) 1999,2000 by Lineo, inc.
  * Written by John Beppu <beppu@lineo.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -23,6 +23,7 @@
  */
 
 #include "internal.h"
+#include <errno.h>
 #include <stdio.h>
 
 static const char tee_usage[] =
@@ -38,7 +39,7 @@ static const char tee_usage[] =
 /* FileList _______________________________________________________________ */
 
 #define FL_MAX	1024
-static FILE *FileList[FL_MAX];
+static FILE **FileList;
 static int FL_end;
 
 typedef void (FL_Function) (FILE * file, char c);
@@ -99,6 +100,11 @@ int tee_main(int argc, char **argv)
 	}
 
 	/* init FILE pointers */
+	FileList = calloc(FL_MAX, sizeof(FILE*));
+	if (!FileList) {
+		fprintf(stderr, "tee: %s\n", strerror(errno));
+		exit(1);
+	}
 	FL_end = 0;
 	FileList[0] = stdout;
 	for (; i < argc; i++) {
@@ -119,7 +125,10 @@ int tee_main(int argc, char **argv)
 
 	/* clean up */
 	FL_apply(tee_fclose, 0);
+	/* Don't bother to close files  Exit does that 
+	 * automagically, so we can save a few bytes */
+	/* free(FileList); */
 	exit(0);
 }
 
-/* $Id: tee.c,v 1.6 2000/02/08 19:58:47 erik Exp $ */
+/* $Id: tee.c,v 1.9 2000/04/13 01:18:56 erik Exp $ */

@@ -1,6 +1,6 @@
 /* vi: set sw=4 ts=4: */
 /*
- * Mini kill implementation for busybox
+ * Mini kill/killall implementation for busybox
  *
  * Copyright (C) 1995, 1996 by Bruce Perens <bruce@pixar.com>.
  *
@@ -24,6 +24,7 @@
 #include "internal.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <unistd.h>
 #include <signal.h>
 #include <ctype.h>
@@ -35,6 +36,15 @@ static const char *kill_usage =
 	"Send a signal (default is SIGTERM) to the specified process(es).\n\n"
 	"Options:\n" "\t-l\tList all signal names and numbers.\n\n";
 
+#ifdef BB_KILLALL
+static const char *killall_usage =
+	"killall [-signal] process-name [process-name ...]\n\n"
+	"Send a signal (default is SIGTERM) to the specified process(es).\n\n"
+	"Options:\n" "\t-l\tList all signal names and numbers.\n\n";
+#endif
+
+#define KILL	0
+#define KILLALL	1
 
 struct signal_name {
 	const char *name;
@@ -120,13 +130,24 @@ const struct signal_name signames[] = {
 
 extern int kill_main(int argc, char **argv)
 {
-	int sig = SIGTERM;
+	int whichApp, sig = SIGTERM;
+	const char *appUsage;
+
+#ifdef BB_KILLALL
+	/* Figure out what we are trying to do here */
+	whichApp = (strcmp(*argv, "killall") == 0)? 
+		KILLALL : KILL; 
+	appUsage = (whichApp == KILLALL)?  killall_usage : kill_usage;
+#else
+	whichApp = KILL;
+	appUsage = kill_usage;
+#endif
 
 	argc--;
 	argv++;
 	/* Parse any options */
 	if (argc < 1)
-		usage(kill_usage);
+		usage(appUsage);
 
 	while (argc > 0 && **argv == '-') {
 		while (*++(*argv)) {
@@ -150,7 +171,7 @@ extern int kill_main(int argc, char **argv)
 				}
 				break;
 			case '-':
-				usage(kill_usage);
+				usage(appUsage);
 			default:
 				{
 					if (isdigit(**argv)) {
@@ -186,32 +207,44 @@ extern int kill_main(int argc, char **argv)
 
   do_it_now:
 
-	while (--argc >= 0) {
-		int pid;
-		struct stat statbuf;
-		char pidpath[20] = "/proc/";
+	if (whichApp == KILL) {
+		/* Looks like they want to do a kill. Do that */
+		while (--argc >= 0) {
+			int pid;
 
-		if (!isdigit(**argv)) {
-			fprintf(stderr, "bad PID: %s\n", *argv);
-			exit(FALSE);
+			if (!isdigit(**argv))
+				fatalError( "Bad PID: %s\n", strerror(errno));
+			pid = strtol(*argv, NULL, 0);
+			if (kill(pid, sig) != 0) 
+				fatalError( "Could not kill pid '%d': %s\n", pid, strerror(errno));
+			argv++;
 		}
-		pid = atoi(*argv);
-		snprintf(pidpath, 20, "/proc/%s/stat", *argv);
-		if (stat(pidpath, &statbuf) != 0) {
-			fprintf(stderr, "kill: (%d) - No such pid\n", pid);
-			exit(FALSE);
+	} 
+#ifdef BB_KILLALL
+	else {
+		pid_t myPid=getpid();
+		/* Looks like they want to do a killall.  Do that */
+		while (--argc >= 0) {
+			pid_t* pidList;
+
+			pidList = findPidByName( *argv);
+			for(; pidList && *pidList!=0; pidList++) {
+				if (*pidList==myPid)
+					continue;
+				if (kill(*pidList, sig) != 0) 
+					fatalError( "Could not kill pid '%d': %s\n", *pidList, strerror(errno));
+			}
+			/* Note that we don't bother to free the memory
+			 * allocated in findPidByName().  It will be freed
+			 * upon exit, so we can save a byte or two */
+			argv++;
 		}
-		fprintf(stderr, "sig = %d\n", sig);
-		if (kill(pid, sig) != 0) {
-			perror(*argv);
-			exit(FALSE);
-		}
-		argv++;
 	}
+#endif
+
 	exit(TRUE);
 
 
   end:
-	fprintf(stderr, "bad signal name: %s\n", *argv);
-	exit(TRUE);
+	fatalError( "bad signal name: %s\n", *argv);
 }

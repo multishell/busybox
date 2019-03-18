@@ -46,17 +46,27 @@
 #define BUF_SIZE        8192
 #define EXPAND_ALLOC    1024
 
+
 #define isBlank(ch)     (((ch) == ' ') || ((ch) == '\t'))
 #define isDecimal(ch)   (((ch) >= '0') && ((ch) <= '9'))
 #define isOctal(ch)     (((ch) >= '0') && ((ch) <= '7'))
 #define isWildCard(ch)  (((ch) == '*') || ((ch) == '?') || ((ch) == '['))
 
+enum Location {
+	_BB_DIR_ROOT = 0,
+	_BB_DIR_BIN,
+	_BB_DIR_SBIN,
+	_BB_DIR_USR_BIN,
+	_BB_DIR_USR_SBIN
+};
 
 struct Applet {
 	const	char*	name;
 	int	(*main)(int argc, char** argv);
+	enum	Location	location;
 };
 
+extern int basename_main(int argc, char **argv);
 extern int busybox_main(int argc, char** argv);
 extern int block_device_main(int argc, char** argv);
 extern int cat_main(int argc, char** argv);
@@ -67,11 +77,13 @@ extern int chvt_main(int argc, char** argv);
 extern int clear_main(int argc, char** argv);
 extern int date_main(int argc, char** argv);
 extern int dd_main(int argc, char** argv);
+extern int dirname_main(int argc, char** argv);
 extern int deallocvt_main(int argc, char** argv);
 extern int df_main(int argc, char** argv);
 extern int dmesg_main(int argc, char** argv);
 extern int du_main(int argc, char** argv);
 extern int dutmp_main(int argc, char** argv);
+extern int echo_main(int argc, char** argv);
 extern int false_main(int argc, char** argv);
 extern int fbset_main(int argc, char** argv);
 extern int fdisk_main(int argc, char** argv);
@@ -79,6 +91,7 @@ extern int fdflush_main(int argc, char **argv);
 extern int fsck_minix_main(int argc, char **argv);
 extern int find_main(int argc, char** argv);
 extern int free_main(int argc, char** argv);
+extern int freeramdisk_main(int argc, char** argv);
 extern int grep_main(int argc, char** argv);
 extern int gunzip_main (int argc, char** argv);
 extern int gzip_main(int argc, char** argv);
@@ -122,6 +135,7 @@ extern int rmdir_main(int argc, char **argv);
 extern int rmmod_main(int argc, char** argv);
 extern int sed_main(int argc, char** argv);
 extern int sfdisk_main(int argc, char** argv);
+extern int shell_main(int argc, char** argv);
 extern int sleep_main(int argc, char** argv);
 extern int sort_main(int argc, char** argv);
 extern int swap_on_off_main(int argc, char** argv);
@@ -130,28 +144,44 @@ extern int syslogd_main(int argc, char **argv);
 extern int tail_main(int argc, char** argv);
 extern int tar_main(int argc, char** argv);
 extern int tee_main(int argc, char** argv);
+extern int test_main(int argc, char** argv);
+extern int telnet_main(int argc, char** argv);
 extern int touch_main(int argc, char** argv);
+extern int tr_main(int argc, char** argv);
 extern int true_main(int argc, char** argv);
 extern int tput_main(int argc, char** argv);
 extern int tryopen_main(int argc, char** argv);
 extern int tty_main(int argc, char** argv);
 extern int umount_main(int argc, char** argv);
 extern int uname_main(int argc, char** argv);
+extern int uptime_main(int argc, char** argv);
 extern int uniq_main(int argc, char** argv);
 extern int update_main(int argc, char** argv);
+extern int usleep_main(int argc, char** argv);
 extern int wc_main(int argc, char** argv);
 extern int whoami_main(int argc, char** argv);
 extern int yes_main(int argc, char** argv);
 
 
 extern void usage(const char *usage) __attribute__ ((noreturn));
-extern void errorMsg(char *s, ...);
-extern void fatalError(char *s, ...) __attribute__ ((noreturn));
+extern void errorMsg(const char *s, ...) __attribute__ ((format (printf, 1, 2)));
+extern void fatalError(const char *s, ...) __attribute__ ((noreturn, format (printf, 1, 2)));
 
 const char *modeString(int mode);
 const char *timeString(time_t timeVal);
 int isDirectory(const char *name, const int followLinks, struct stat *statBuf);
 int isDevice(const char *name);
+
+typedef struct ino_dev_hash_bucket_struct {
+  struct ino_dev_hash_bucket_struct *next;
+  ino_t ino;
+  dev_t dev;
+  char name[1];
+} ino_dev_hashtable_bucket_t;
+int is_in_ino_dev_hashtable(const struct stat *statbuf, char **name);
+void add_to_ino_dev_hashtable(const struct stat *statbuf, const char *name);
+void reset_ino_dev_hashtable(void);
+
 int copyFile(const char *srcName, const char *destName, int setModes,
 	        int followLinks);
 char *buildName(const char *dirName, const char *fileName);
@@ -162,37 +192,39 @@ void freeChunks(void);
 int fullWrite(int fd, const char *buf, int len);
 int fullRead(int fd, char *buf, int len);
 int recursiveAction(const char *fileName, int recurse, int followLinks, int depthFirst,
-	  int (*fileAction) (const char *fileName, struct stat* statbuf),
-	  int (*dirAction) (const char *fileName, struct stat* statbuf));
+	  int (*fileAction) (const char *fileName, struct stat* statbuf, void* userData),
+	  int (*dirAction) (const char *fileName, struct stat* statbuf, void* userData),
+	  void* userData);
 const char* timeString(time_t timeVal);
 
 extern int createPath (const char *name, int mode);
 extern int parse_mode( const char* s, mode_t* theMode);
 
+extern int get_kernel_revision(void);
 extern uid_t my_getpwnam(char *name);
 extern gid_t my_getgrnam(char *name); 
 extern void my_getpwuid(char* name, uid_t uid);
 extern void my_getgrgid(char* group, gid_t gid);
-extern int get_kernel_revision();
 extern int get_console_fd(char* tty_name);
 extern struct mntent *findMountPoint(const char *name, const char *table);
 extern void write_mtab(char* blockDevice, char* directory, 
 	char* filesystemType, long flags, char* string_flags);
 extern void erase_mtab(const char * name);
 extern void mtab_read(void);
-extern void mtab_free(void);
 extern char *mtab_first(void **iter);
 extern char *mtab_next(void **iter);
 extern char *mtab_getinfo(const char *match, const char which);
 extern int check_wildcard_match(const char* text, const char* pattern);
 extern long getNum (const char *cp);
-extern pid_t findInitPid();
+extern pid_t* findPidByName( char* pidName);
 extern void *xmalloc (size_t size);
+extern int find_real_root_device_name(char* name);
+extern char *cstring_lineFromFile(FILE *f);
+
+
 #if defined BB_INIT || defined BB_SYSLOGD
 extern int device_open(char *device, int mode);
 #endif
-extern void whine_if_fstab_is_missing();
-
 #if defined BB_FEATURE_MOUNT_LOOP
 extern int del_loop(const char *device);
 extern int set_loop(const char *device, const char *file, int offset, int *loopro);

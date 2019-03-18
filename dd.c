@@ -2,13 +2,13 @@
 /*
  * Mini dd implementation for busybox
  *
- * Copyright (C) 1999 by Lineo, inc.
+ * Copyright (C) 1999, 2000 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
- * based in part on code taken from sash. 
  *
- * Copyright (c) 1999 by David I. Bell
- * Permission is granted to use, distribute, or modify this source,
- * provided that this copyright notice remains intact.
+ * Based in part on code taken from sash. 
+ *   Copyright (c) 1999 by David I. Bell
+ *   Permission is granted to use, distribute, or modify this source,
+ *   provided that this copyright notice remains intact.
  *
  * Permission to distribute this code under the GPL has been granted.
  *
@@ -57,8 +57,8 @@ static const char dd_usage[] =
 
 extern int dd_main(int argc, char **argv)
 {
-	const char *inFile = NULL;
-	const char *outFile = NULL;
+	char *inFile = NULL;
+	char *outFile = NULL;
 	char *cp;
 	int inFd;
 	int outFd;
@@ -114,11 +114,7 @@ extern int dd_main(int argc, char **argv)
 		argv++;
 	}
 
-	buf = malloc(blockSize);
-	if (buf == NULL) {
-		fprintf(stderr, "Cannot allocate buffer\n");
-		exit(FALSE);
-	}
+	buf = xmalloc(blockSize);
 
 	intotal = 0;
 	outTotal = 0;
@@ -129,9 +125,12 @@ extern int dd_main(int argc, char **argv)
 		inFd = open(inFile, 0);
 
 	if (inFd < 0) {
-		perror(inFile);
-		free(buf);
-		exit(FALSE);
+		/* Note that we are not freeing buf or closing
+		 * files here to save a few bytes. This exits
+		 * here anyways... */
+
+		/* free(buf); */
+		fatalError( inFile);
 	}
 
 	if (outFile == NULL)
@@ -140,10 +139,13 @@ extern int dd_main(int argc, char **argv)
 		outFd = open(outFile, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 
 	if (outFd < 0) {
-		perror(outFile);
-		close(inFd);
-		free(buf);
-		exit(FALSE);
+		/* Note that we are not freeing buf or closing
+		 * files here to save a few bytes. This exits
+		 * here anyways... */
+
+		/* close(inFd);
+		   free(buf); */
+		fatalError( outFile);
 	}
 
 	lseek(inFd, skipBlocks * blockSize, SEEK_SET);
@@ -184,9 +186,13 @@ extern int dd_main(int argc, char **argv)
 		perror(inFile);
 
   cleanup:
+	/* Note that we are not freeing memory or closing
+	 * files here, to save a few bytes. */
+#if 0
 	close(inFd);
 	close(outFd);
 	free(buf);
+#endif
 
 	printf("%ld+%d records in\n", (long) (intotal / blockSize),
 		   (intotal % blockSize) != 0);

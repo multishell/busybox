@@ -3,7 +3,7 @@
  * Mini swapon/swapoff implementation for busybox
  *
  *
- * Copyright (C) 1999 by Lineo, inc.
+ * Copyright (C) 1999,2000 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -108,7 +108,12 @@ extern int swap_on_off_main(int argc, char **argv)
 		while (*++(*argv))
 			switch (**argv) {
 			case 'a':
-				whine_if_fstab_is_missing();
+				{
+					struct stat statBuf;
+
+					if (stat("/etc/fstab", &statBuf) < 0)
+						fatalError("/etc/fstab file missing\n");
+				}
 				do_em_all();
 				break;
 			default:

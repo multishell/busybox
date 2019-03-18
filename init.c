@@ -28,34 +28,43 @@
 */
 
 #include "internal.h"
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdarg.h>
-#include <unistd.h>
+#include <asm/types.h>
 #include <errno.h>
-#include <signal.h>
-#include <termios.h>
+#include <linux/serial.h>		/* for serial_struct */
+#include <linux/version.h>
 #include <paths.h>
-#include <sys/types.h>
-#include <sys/fcntl.h>
-#include <sys/wait.h>
+#include <signal.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <sys/fcntl.h>
+#include <sys/ioctl.h>
+#include <sys/kdaemon.h>
 #include <sys/mount.h>
 #include <sys/reboot.h>
-#include <sys/kdaemon.h>
-#include <sys/sysmacros.h>
-#include <asm/types.h>
-#include <linux/serial.h>		/* for serial_struct */
-#include <sys/vt.h>				/* for vt_stat */
-#include <sys/ioctl.h>
-#include <linux/version.h>
+#include <sys/sysinfo.h>		/* For check_free_memory() */
 #ifdef BB_SYSLOGD
-#include <sys/syslog.h>
+# include <sys/syslog.h>
 #endif
+#include <sys/sysmacros.h>
+#include <sys/types.h>
+#include <sys/vt.h>				/* for vt_stat */
+#include <sys/wait.h>
+#include <termios.h>
+#include <unistd.h>
 
-#if ! defined BB_FEATURE_USE_PROCFS
-#error Sorry, I depend on the /proc filesystem right now.
+
+#if defined BB_FEATURE_INIT_COREDUMPS
+/*
+ * When a file named CORE_ENABLE_FLAG_FILE exists, setrlimit is called 
+ * before processes are spawned to set core file size as unlimited.
+ * This is for debugging only.  Don't use this is production, unless
+ * you want core dumps lying about....
+ */
+#define CORE_ENABLE_FLAG_FILE "/.init_enable_core"
+#include <sys/resource.h>
+#include <sys/time.h>
 #endif
 
 #ifndef KERNEL_VERSION
@@ -63,19 +72,19 @@
 #endif
 
 
-#define VT_PRIMARY      "/dev/tty1"	/* Primary virtual console */
-#define VT_SECONDARY    "/dev/tty2"	/* Virtual console */
-#define VT_LOG          "/dev/tty3"	/* Virtual console */
-#define SERIAL_CON0     "/dev/ttyS0"	/* Primary serial console */
-#define SERIAL_CON1     "/dev/ttyS1"	/* Serial console */
-#define SHELL           "/bin/sh"	/* Default shell */
-#define INITTAB         "/etc/inittab"	/* inittab file location */
+#define VT_PRIMARY   "/dev/tty1"     /* Primary virtual console */
+#define VT_SECONDARY "/dev/tty2"     /* Virtual console */
+#define VT_LOG       "/dev/tty3"     /* Virtual console */
+#define SERIAL_CON0  "/dev/ttyS0"    /* Primary serial console */
+#define SERIAL_CON1  "/dev/ttyS1"    /* Serial console */
+#define SHELL        "/bin/sh"	     /* Default shell */
+#define INITTAB      "/etc/inittab"  /* inittab file location */
 #ifndef INIT_SCRIPT
-#define INIT_SCRIPT	"/etc/init.d/rcS"	/* Default sysinit script. */
+#define INIT_SCRIPT  "/etc/init.d/rcS"   /* Default sysinit script. */
 #endif
 
-#define LOG             0x1
-#define CONSOLE         0x2
+#define LOG     0x1
+#define CONSOLE 0x2
 
 /* Allowed init action types */
 typedef enum {
@@ -87,7 +96,7 @@ typedef enum {
 	CTRLALTDEL
 } initActionEnum;
 
-/* And now a list of the actions we support in the version of init */
+/* A mapping between "inittab" action name strings and action type codes. */
 typedef struct initActionType {
 	const char *name;
 	initActionEnum action;
@@ -103,7 +112,7 @@ static const struct initActionType actions[] = {
 	{0}
 };
 
-/* Set up a linked list of initactions, to be read from inittab */
+/* Set up a linked list of initActions, to be read from inittab */
 typedef struct initActionTag initAction;
 struct initActionTag {
 	pid_t pid;
@@ -116,16 +125,19 @@ initAction *initActionList = NULL;
 
 
 static char *secondConsole = VT_SECONDARY;
-static char *log = VT_LOG;
-static int kernelVersion = 0;
-static char termType[32] = "TERM=ansi";
-static char console[32] = _PATH_CONSOLE;
+static char *log           = VT_LOG;
+static int  kernelVersion  = 0;
+static char termType[32]   = "TERM=linux";
+static char console[32]    = _PATH_CONSOLE;
+
 static void delete_initAction(initAction * action);
 
 
-/* print a message to the specified device:
- * device may be bitwise-or'd from LOG | CONSOLE */
-void message(int device, char *fmt, ...)
+/* Print a message to the specified device.
+ * Device may be bitwise-or'd from LOG | CONSOLE */
+static void message(int device, char *fmt, ...)
+		   __attribute__ ((format (printf, 2, 3)));
+static void message(int device, char *fmt, ...)
 {
 	va_list arguments;
 	int fd;
@@ -194,23 +206,25 @@ void message(int device, char *fmt, ...)
 void set_term(int fd)
 {
 	struct termios tty;
-	static const char control_characters[] = {
-		'\003', '\034', '\177', '\025', '\004', '\0',
-		'\1', '\0', '\021', '\023', '\032', '\0', '\022',
-		'\017', '\027', '\026', '\0'
-	};
 
 	tcgetattr(fd, &tty);
 
 	/* set control chars */
-	memcpy(tty.c_cc, control_characters, sizeof(control_characters));
+	tty.c_cc[VINTR]  = 3;	/* C-c */
+	tty.c_cc[VQUIT]  = 28;	/* C-\ */
+	tty.c_cc[VERASE] = 127; /* C-? */
+	tty.c_cc[VKILL]  = 21;	/* C-u */
+	tty.c_cc[VEOF]   = 4;	/* C-d */
+	tty.c_cc[VSTART] = 17;	/* C-q */
+	tty.c_cc[VSTOP]  = 19;	/* C-s */
+	tty.c_cc[VSUSP]  = 26;	/* C-z */
 
 	/* use line dicipline 0 */
 	tty.c_line = 0;
 
 	/* Make it be sane */
-	//tty.c_cflag &= CBAUD|CBAUDEX|CSIZE|CSTOPB|PARENB|PARODD;
-	//tty.c_cflag |= HUPCL|CLOCAL;
+	tty.c_cflag &= CBAUD|CBAUDEX|CSIZE|CSTOPB|PARENB|PARODD;
+	tty.c_cflag |= HUPCL|CLOCAL;
 
 	/* input modes */
 	tty.c_iflag = ICRNL | IXON | IXOFF;
@@ -226,25 +240,17 @@ void set_term(int fd)
 }
 
 /* How much memory does this machine have? */
-static int mem_total()
+static int check_free_memory()
 {
-	char s[80];
-	char *p = "/proc/meminfo";
-	FILE *f;
-	const char pattern[] = "MemTotal:";
+	struct sysinfo info;
 
-	if ((f = fopen(p, "r")) < 0) {
-		message(LOG, "Error opening %s: %s\n", p, strerror(errno));
+	sysinfo(&info);
+	if (sysinfo(&info) != 0) {
+		message(LOG, "Error checking free memory: %s\n", strerror(errno));
 		return -1;
 	}
-	while (NULL != fgets(s, 79, f)) {
-		p = strstr(s, pattern);
-		if (NULL != p) {
-			fclose(f);
-			return (atoi(p + strlen(pattern)));
-		}
-	}
-	return -1;
+
+	return((info.totalram+info.totalswap)/1024);
 }
 
 static void console_init()
@@ -252,6 +258,7 @@ static void console_init()
 	int fd;
 	int tried_devcons = 0;
 	int tried_vtprimary = 0;
+	struct vt_stat vt;
 	struct serial_struct sr;
 	char *s;
 
@@ -274,8 +281,6 @@ static void console_init()
 	}
 #endif
 	else {
-		struct vt_stat vt;
-
 		/* 2.2 kernels: identify the real console backend and try to use it */
 		if (ioctl(0, TIOCGSERIAL, &sr) == 0) {
 			/* this is a serial console */
@@ -314,6 +319,10 @@ static void console_init()
 		if (ioctl(0, TIOCGSERIAL, &sr) == 0) {
 			log = NULL;
 			secondConsole = NULL;
+			/* Force the TERM setting to vt102 for serial console --
+			 * iff TERM is set to linux (the default) */
+			if (strcmp( termType, "TERM=linux" ) == 0)
+				snprintf(termType, sizeof(termType) - 1, "TERM=vt102");
 			message(LOG | CONSOLE,
 					"serial console detected.  Disabling virtual terminals.\r\n");
 		}
@@ -343,10 +352,6 @@ static pid_t run(char *command, char *terminal, int get_enter)
 
 
 	if ((pid = fork()) == 0) {
-#ifdef DEBUG_INIT
-		pid_t shell_pgid = getpid();
-#endif
-
 		/* Clean up */
 		close(0);
 		close(1);
@@ -380,8 +385,8 @@ static pid_t run(char *command, char *terminal, int get_enter)
 			 * specifies.
 			 */
 			char c;
-
 #ifdef DEBUG_INIT
+			pid_t shell_pgid = getpid();
 			message(LOG, "Waiting for enter to start '%s' (pid %d, console %s)\r\n",
 					command, shell_pgid, terminal);
 #endif
@@ -415,6 +420,18 @@ static pid_t run(char *command, char *terminal, int get_enter)
 			}
 			cmd[i] = NULL;
 		}
+
+#if defined BB_FEATURE_INIT_COREDUMPS
+		{
+			struct stat sb;
+			if (stat (CORE_ENABLE_FLAG_FILE, &sb) == 0) {
+				struct rlimit limit;
+				limit.rlim_cur = RLIM_INFINITY;
+				limit.rlim_max = RLIM_INFINITY;
+				setrlimit(RLIMIT_CORE, &limit);
+			}
+		}
+#endif
 
 		/* Now run it.  The new program will take over this PID, 
 		 * so nothing further in init.c should be run. */
@@ -450,13 +467,15 @@ static void check_memory()
 {
 	struct stat statBuf;
 
-	if (mem_total() > 3500)
+	if (check_free_memory() > 1000)
 		return;
 
 	if (stat("/etc/fstab", &statBuf) == 0) {
+		/* swapon -a requires /proc typically */
+		waitfor("mount proc /proc -t proc", console, FALSE);
 		/* Try to turn on swap */
-		system("/sbin/swapon -a");
-		if (mem_total() < 3500)
+		waitfor("swapon -a", console, FALSE);
+		if (check_free_memory() < 1000)
 			goto goodnight;
 	} else
 		goto goodnight;
@@ -551,6 +570,11 @@ static void reboot_signal(int sig)
 }
 
 #if defined BB_FEATURE_INIT_CHROOT
+
+#if ! defined BB_FEATURE_USE_PROCFS
+#error Sorry, I depend on the /proc filesystem right now.
+#endif
+
 static void check_chroot(int sig)
 {
 	char *argv_init[2] = { "init", NULL, };
@@ -742,7 +766,7 @@ void parse_inittab(void)
 			++p;
 		}
 
-		/* Now peal off the process field from the end
+		/* Now peel off the process field from the end
 		 * of the string */
 		q = strrchr(p, ':');
 		if (q == NULL || *(q + 1) == '\0') {
@@ -753,7 +777,7 @@ void parse_inittab(void)
 			++q;
 		}
 
-		/* Now peal off the action field */
+		/* Now peel off the action field */
 		r = strrchr(p, ':');
 		if (r == NULL || *(r + 1) == '\0') {
 			message(LOG | CONSOLE, "Bad inittab entry: %s\n", lineAsRead);
@@ -792,7 +816,7 @@ void parse_inittab(void)
 		}
 	}
 	return;
-#endif
+#endif /* BB_FEATURE_USE_INITTAB */
 }
 
 
@@ -804,10 +828,16 @@ extern int init_main(int argc, char **argv)
 	int status;
 
 #ifndef DEBUG_INIT
-	/* Expect to be PID 1 if we are run as init (not linuxrc) */
-	if (getpid() != 1 && strstr(argv[0], "init") != NULL) {
-		usage("init\n\nInit is the parent of all processes.\n\n"
-			  "This version of init is designed to be run only by the kernel\n");
+	/* Expect to be invoked as init with PID=1 or be invoked as linuxrc */
+	if (getpid() != 1
+#ifdef BB_FEATURE_LINUXRC
+			&& strstr(argv[0], "linuxrc") == NULL
+#endif
+	                  )
+	{
+			usage("init\n\nInit is the parent of all processes.\n\n"
+				  "This version of init is designed to be run only "
+				  "by the kernel.\n");
 	}
 	/* Set up sig handlers  -- be sure to
 	 * clear all of these in run() */
@@ -824,6 +854,9 @@ extern int init_main(int argc, char **argv)
 	reboot(RB_DISABLE_CAD);
 #endif
 
+	/* Figure out what kernel this is running */
+	kernelVersion = get_kernel_revision();
+
 	/* Figure out where the default console should be */
 	console_init();
 
@@ -832,6 +865,7 @@ extern int init_main(int argc, char **argv)
 	close(1);
 	close(2);
 	set_term(0);
+	chdir("/");
 	setsid();
 
 	/* Make sure PATH is set to something sane */
@@ -839,22 +873,23 @@ extern int init_main(int argc, char **argv)
 
 	/* Hello world */
 #ifndef DEBUG_INIT
-	message(LOG | CONSOLE,
+	message(
+#if ! defined BB_FEATURE_EXTRA_QUIET
+			CONSOLE|
+#endif
+			LOG,
 			"init started:  BusyBox v%s (%s) multi-call binary\r\n",
 			BB_VER, BB_BT);
 #else
-	message(LOG | CONSOLE,
+	message(
+#if ! defined BB_FEATURE_EXTRA_QUIET
+			CONSOLE|
+#endif
+			LOG,
 			"init(%d) started:  BusyBox v%s (%s) multi-call binary\r\n",
 			getpid(), BB_VER, BB_BT);
 #endif
 
-
-	/* Mount /proc */
-	if (mount("proc", "/proc", "proc", 0, 0) == 0) {
-		message(LOG | CONSOLE, "Mounting /proc: done.\n");
-		kernelVersion = get_kernel_revision();
-	} else
-		message(LOG | CONSOLE, "Mounting /proc: failed!\n");
 
 	/* Make sure there is enough memory to do something useful. */
 	check_memory();
@@ -876,7 +911,7 @@ extern int init_main(int argc, char **argv)
 		 * of "askfirst" shells */
 		parse_inittab();
 	}
-	
+
 	/* Fix up argv[0] to be certain we claim to be init */
 	strncpy(argv[0], "init", strlen(argv[0])+1);
 	if (argc > 1)
@@ -953,3 +988,11 @@ extern int init_main(int argc, char **argv)
 		sleep(1);
 	}
 }
+
+/*
+Local Variables:
+c-file-style: "linux"
+c-basic-offset: 4
+tab-width: 4
+End:
+*/

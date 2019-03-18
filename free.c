@@ -2,7 +2,7 @@
 /*
  * Mini free implementation for busybox
  *
- * Copyright (C) 1999 by Lineo, inc.
+ * Copyright (C) 1999,2000 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -23,15 +23,33 @@
 
 #include "internal.h"
 #include <stdio.h>
+#include <sys/sysinfo.h>
 
-
-#if ! defined BB_FEATURE_USE_PROCFS
-#error Sorry, I depend on the /proc filesystem right now.
-#endif
-
+#define DIVISOR	1024
 extern int free_main(int argc, char **argv)
 {
-	char *cmd[] = { "cat", "/proc/meminfo", "\0" };
+	struct sysinfo info;
+	sysinfo(&info);
+	info.totalram/=DIVISOR;
+	info.freeram/=DIVISOR;
+	info.totalswap/=DIVISOR;
+	info.freeswap/=DIVISOR;
+	info.sharedram/=DIVISOR;
+	info.bufferram/=DIVISOR;
 
-	exit(cat_main(3, cmd));
+
+	printf("%6s%13s%13s%13s%13s%13s\n", "", "total", "used", "free", 
+			"shared", "buffers");
+
+	printf("%6s%13ld%13ld%13ld%13ld%13ld\n", "Mem:", info.totalram, 
+			info.totalram-info.freeram, info.freeram, 
+			info.sharedram, info.bufferram);
+
+	printf("%6s%13ld%13ld%13ld\n", "Swap:", info.totalswap,
+			info.totalswap-info.freeswap, info.freeswap);
+
+	printf("%6s%13ld%13ld%13ld\n", "Total:", info.totalram+info.totalswap,
+			(info.totalram-info.freeram)+(info.totalswap-info.freeswap),
+			info.freeram+info.freeswap);
+	exit(TRUE);
 }

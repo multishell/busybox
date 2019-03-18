@@ -1,18 +1,23 @@
 /* vi: set sw=4 ts=4: */
 /*
- * Mini tar implementation for busybox based on code taken from sash.
+ * Mini tar implementation for busybox 
  *
- * Copyright (c) 1999 by David I. Bell
- * Permission is granted to use, distribute, or modify this source,
- * provided that this copyright notice remains intact.
+ * Note, that as of BusyBox-0.43, tar has been completely rewritten from the
+ * ground up.  It still has remnents of the old code lying about, but it is
+ * very different now (i.e. cleaner, less global variables, etc)
  *
- * Permission to distribute this code under the GPL has been granted.
+ * Copyright (C) 2000 by Lineo, inc.
+ * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
- * Modified for busybox by Erik Andersen <andersee@debian.org>
- * Adjusted to grok stdin/stdout options.
+ * Based in part in the tar implementation in sash
+ *  Copyright (c) 1999 by David I. Bell
+ *  Permission is granted to use, distribute, or modify this source,
+ *  provided that this copyright notice remains intact.
+ *  Permission to distribute sash derived code under the GPL has been granted.
  *
- * Modified to handle device special files by Matt Porter
- * <porter@debian.org>
+ * Based in part on the tar implementation from busybox-0.28
+ *  Copyright (C) 1995 Bruce Perens
+ *  This is free software under the GNU General Public License.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,6 +37,9 @@
 
 
 #include "internal.h"
+#define BB_DECLARE_EXTERN
+#define bb_need_io_error
+#include "messages.c"
 #include <stdio.h>
 #include <dirent.h>
 #include <errno.h>
@@ -44,218 +52,205 @@
 #include <sys/param.h>			/* for PATH_MAX */
 
 
+static const char tar_usage[] =
 #ifdef BB_FEATURE_TAR_CREATE
-
-static const char tar_usage[] =
-	"tar -[cxtvOf] [tarFileName] [FILE] ...\n\n"
-	"Create, extract, or list files from a tar file.\n\n"
-	"Options:\n"
-
-	"\tc=create, x=extract, t=list contents, v=verbose,\n"
-	"\tO=extract to stdout, f=tarfile or \"-\" for stdin\n";
-
+	"tar -[cxtvO] "
 #else
+	"tar -[xtvO] "
+#endif
+#if defined BB_FEATURE_TAR_EXCLUDE
+	"[--exclude File] "
+#endif
+	"[-f tarFile] [FILE] ...\n\n"
+	"Create, extract, or list files from a tar file.  Note that\n"
+	"this version of tar treats hard links as separate files.\n\n"
+	"Main operation mode:\n"
+#ifdef BB_FEATURE_TAR_CREATE
+	"\tc\t\tcreate\n"
+#endif
+	"\tx\t\textract\n"
+	"\tt\t\tlist\n"
+	"\nFile selection:\n"
+	"\tf\t\tname of tarfile or \"-\" for stdin\n"
+	"\tO\t\textract to stdout\n"
+#if defined BB_FEATURE_TAR_EXCLUDE
+	"\t--exclude\tfile to exclude\n"
+#endif
+	"\nInformative output:\n"
+	"\tv\t\tverbosely list files processed\n"
+	;
 
-static const char tar_usage[] =
-	"tar -[xtvOf] [tarFileName] [FILE] ...\n\n"
-	"Extract, or list files stored in a tar file.  This\n"
-	"version of tar does not support creation of tar files.\n\n"
-	"Options:\n"
-
-	"\tx=extract, t=list contents, v=verbose,\n"
-	"\tO=extract to stdout, f=tarfile or \"-\" for stdin\n";
-
+/* Tar file constants  */
+#ifndef MAJOR
+#define MAJOR(dev) (((dev)>>8)&0xff)
+#define MINOR(dev) ((dev)&0xff)
 #endif
 
 
-/*
- * Tar file constants.
- */
-#define TAR_BLOCK_SIZE	512
-#define TAR_NAME_SIZE	100
+/* POSIX tar Header Block, from POSIX 1003.1-1990  */
+struct TarHeader
+{
+                                /* byte offset */
+	char name[100];               /*   0-99 */
+	char mode[8];                 /* 100-107 */
+	char uid[8];                  /* 108-115 */
+	char gid[8];                  /* 116-123 */
+	char size[12];                /* 124-135 */
+	char mtime[12];               /* 136-147 */
+	char chksum[8];               /* 148-155 */
+	char typeflag;                /* 156-156 */
+	char linkname[100];           /* 157-256 */
+	char magic[6];                /* 257-262 */
+	char version[2];              /* 263-264 */
+	char uname[32];               /* 265-296 */
+	char gname[32];               /* 297-328 */
+	char devmajor[8];             /* 329-336 */
+	char devminor[8];             /* 337-344 */
+	char prefix[155];             /* 345-499 */
+	char padding[12];             /* 500-512 (pad to exactly the TAR_BLOCK_SIZE) */
+};
+typedef struct TarHeader TarHeader;
 
 
-/*
- * The POSIX (and basic GNU) tar header format.
- * This structure is always embedded in a TAR_BLOCK_SIZE sized block
- * with zero padding.  We only process this information minimally.
- */
-typedef struct {
-	char name[TAR_NAME_SIZE];
-	char mode[8];
-	char uid[8];
-	char gid[8];
-	char size[12];
-	char mtime[12];
-	char checkSum[8];
-	char typeFlag;
-	char linkName[TAR_NAME_SIZE];
-	char magic[6];
-	char version[2];
-	char uname[32];
-	char gname[32];
-	char devMajor[8];
-	char devMinor[8];
-	char prefix[155];
-} TarHeader;
+/* A few useful constants */
+#define TAR_MAGIC          "ustar"        /* ustar and a null */
+#define TAR_VERSION        "  "           /* Be compatable with GNU tar format */
+#define TAR_MAGIC_LEN       6
+#define TAR_VERSION_LEN     2
+#define TAR_BLOCK_SIZE      512
 
-#define	TAR_MAGIC	"ustar"
-#define	TAR_VERSION	"00"
+/* A nice enum with all the possible tar file content types */
+enum TarFileType 
+{
+	REGTYPE  = '0',            /* regular file */
+	REGTYPE0 = '\0',           /* regular file (ancient bug compat)*/
+	LNKTYPE  = '1',            /* hard link */
+	SYMTYPE  = '2',            /* symbolic link */
+	CHRTYPE  = '3',            /* character special */
+	BLKTYPE  = '4',            /* block special */
+	DIRTYPE  = '5',            /* directory */
+	FIFOTYPE = '6',            /* FIFO special */
+	CONTTYPE = '7',            /* reserved */
+};
+typedef enum TarFileType TarFileType;
 
-#define	TAR_TYPE_REGULAR	'0'
-#define	TAR_TYPE_HARD_LINK	'1'
-#define	TAR_TYPE_SOFT_LINK	'2'
+/* This struct ignores magic, non-numeric user name, 
+ * non-numeric group name, and the checksum, since
+ * these are all ignored by BusyBox tar. */ 
+struct TarInfo
+{
+	int              tarFd;          /* An open file descriptor for reading from the tarball */
+	char *           name;           /* File name */
+	mode_t           mode;           /* Unix mode, including device bits. */
+	uid_t            uid;            /* Numeric UID */
+	gid_t            gid;            /* Numeric GID */
+	size_t           size;           /* Size of file */
+	time_t           mtime;          /* Last-modified time */
+	enum TarFileType type;           /* Regular, directory, link, etc */
+	char *           linkname;       /* Name for symbolic and hard links */
+	long             devmajor;       /* Major number for special device */
+	long             devminor;       /* Minor number for special device */
+};
+typedef struct TarInfo TarInfo;
 
-
-/*
- * Static data.
- */
-static int listFlag;
-static int extractFlag;
-static int createFlag;
-static int verboseFlag;
-static int tostdoutFlag;
-
-static int inHeader;			// <- check me
-static int badHeader;
-static int errorFlag;
-static int skipFileFlag;
-static int warnedRoot;
-static int eofFlag;
-static long dataCc;
-static int outFd;
-static const char *outName;
-
-static int mode;
-static int uid;
-static int gid;
-static time_t mtime;
-
-/*
- * Static data associated with the tar file.
- */
-static const char *tarName;
-static int tarFd;
-static dev_t tarDev;
-static ino_t tarInode;
+/* Local procedures to restore files from a tar file.  */
+static int readTarFile(const char* tarName, int extractFlag, int listFlag, 
+		int tostdoutFlag, int verboseFlag, char** excludeList);
 
 
-/*
- * Local procedures to restore files from a tar file.
- */
-static void readTarFile(int fileCount, char **fileTable);
-static void readData(const char *cp, int count);
-static long getOctal(const char *cp, int len);
-
-static void readHeader(const TarHeader * hp,
-
-					   int fileCount, char **fileTable);
-
-static int wantFileName(const char *fileName,
-
-						int fileCount, char **fileTable);
 
 #ifdef BB_FEATURE_TAR_CREATE
-/*
- * Local procedures to save files into a tar file.
- */
-static void saveFile(const char *fileName, int seeLinks);
-
-static void saveRegularFile(const char *fileName,
-
-							const struct stat *statbuf);
-
-static void saveDirectory(const char *fileName,
-
-						  const struct stat *statbuf);
-
-static void writeHeader(const char *fileName, const struct stat *statbuf);
-
-static void writeTarFile(int fileCount, char **fileTable);
-static void writeTarBlock(const char *buf, int len);
-static int putOctal(char *cp, int len, long value);
-
+/* Local procedures to save files into a tar file.  */
+static int writeTarFile(const char* tarName, int tostdoutFlag, 
+		int verboseFlag, int argc, char **argv, char** excludeList);
 #endif
 
 
 extern int tar_main(int argc, char **argv)
 {
-	const char *options;
+	char** excludeList=NULL;
+#if defined BB_FEATURE_TAR_EXCLUDE
+	int excludeListSize=0;
+#endif
+	const char *tarName=NULL;
+	int listFlag     = FALSE;
+	int extractFlag  = FALSE;
+	int createFlag   = FALSE;
+	int verboseFlag  = FALSE;
+	int tostdoutFlag = FALSE;
+	int stopIt;
 
-	argc--;
-	argv++;
-
-	if (argc < 1)
+	if (argc <= 1)
 		usage(tar_usage);
 
+	/* Parse any options */
+	while (--argc > 0 && (**(++argv) != '\0')) {
+		stopIt=FALSE;
+		while (stopIt==FALSE && *(++(*argv))) {
+			switch (**argv) {
+				case 'f':
+					if (--argc == 0) {
+						fatalError( "Option requires an argument: No file specified\n");
+					}
+					if (tarName != NULL)
+						fatalError( "Only one 'f' option allowed\n");
+					tarName = *(++argv);
+					if (tarName == NULL)
+						fatalError( "Option requires an argument: No file specified\n");
+					stopIt=TRUE;
+					break;
 
-	errorFlag = FALSE;
-	extractFlag = FALSE;
-	createFlag = FALSE;
-	listFlag = FALSE;
-	verboseFlag = FALSE;
-	tostdoutFlag = FALSE;
-	tarName = NULL;
-	tarDev = 0;
-	tarInode = 0;
-	tarFd = -1;
+				case 't':
+					if (extractFlag == TRUE || createFlag == TRUE)
+						goto flagError;
+					listFlag = TRUE;
+					break;
 
-	/* 
-	 * Parse the options.
-	 */
-	if (**argv == '-')
-		options = (*argv++) + 1;
-	else
-		options = (*argv++);
-	argc--;
+				case 'x':
+					if (listFlag == TRUE || createFlag == TRUE)
+						goto flagError;
+					extractFlag = TRUE;
+					break;
+				case 'c':
+					if (extractFlag == TRUE || listFlag == TRUE)
+						goto flagError;
+					createFlag = TRUE;
+					break;
 
-	for (; *options; options++) {
-		switch (*options) {
-		case 'f':
-			if (tarName != NULL) {
-				fprintf(stderr, "Only one 'f' option allowed\n");
+				case 'v':
+					verboseFlag = TRUE;
+					break;
 
-				exit(FALSE);
+				case 'O':
+					tostdoutFlag = TRUE;
+					tarName = "-";
+					break;
+				case '-':
+#if defined BB_FEATURE_TAR_EXCLUDE
+					if (strcmp(*argv, "-exclude")==0) {
+						if (--argc == 0) {
+							fatalError( "Option requires an argument: No file specified\n");
+						}
+						excludeList=realloc( excludeList, sizeof(char**) * (excludeListSize+2));
+						excludeList[excludeListSize] = *(++argv);
+						/* Remove leading "/"s */
+						if (*excludeList[excludeListSize] =='/') {
+							excludeList[excludeListSize] = (excludeList[excludeListSize])+1;
+						}
+						if (excludeList[excludeListSize++] == NULL)
+							fatalError( "Option requires an argument: No file specified\n");
+						/* Tack a NULL onto the end of the list */
+						excludeList[excludeListSize] = NULL;
+						stopIt=TRUE;
+						break;
+					}
+#endif
+					break;
+
+				default:
+					fatalError( "Unknown tar flag '%c'\n" 
+							"Try `tar --help' for more information\n", **argv);
 			}
-
-			tarName = *argv++;
-			argc--;
-
-			break;
-
-		case 't':
-			if (extractFlag == TRUE || createFlag == TRUE)
-				goto flagError;
-			listFlag = TRUE;
-			break;
-
-		case 'x':
-			if (listFlag == TRUE || createFlag == TRUE)
-				goto flagError;
-			extractFlag = TRUE;
-			break;
-		case 'c':
-			if (extractFlag == TRUE || listFlag == TRUE)
-				goto flagError;
-			createFlag = TRUE;
-			break;
-
-		case 'v':
-			verboseFlag = TRUE;
-			break;
-
-		case 'O':
-			tostdoutFlag = TRUE;
-			break;
-
-		case '-':
-			usage(tar_usage);
-			break;
-
-		default:
-			fprintf(stderr, "Unknown tar flag '%c'\n"
-					"Try `tar --help' for more information\n", *options);
-			exit(FALSE);
 		}
 	}
 
@@ -265,23 +260,255 @@ extern int tar_main(int argc, char **argv)
 	 */
 	if (createFlag == TRUE) {
 #ifndef BB_FEATURE_TAR_CREATE
-		fprintf(stderr,
-				"This version of tar was not compiled with tar creation support.\n");
-		exit(FALSE);
+		fatalError( "This version of tar was not compiled with tar creation support.\n");
 #else
-		writeTarFile(argc, argv);
+		exit(writeTarFile(tarName, tostdoutFlag, verboseFlag, argc, argv, excludeList));
 #endif
 	} else {
-		readTarFile(argc, argv);
+		exit(readTarFile(tarName, extractFlag, listFlag, tostdoutFlag, verboseFlag, excludeList));
 	}
-	if (errorFlag == TRUE) {
-		fprintf(stderr, "\n");
-	}
-	exit(!errorFlag);
 
   flagError:
-	fprintf(stderr, "Exactly one of 'c', 'x' or 't' must be specified\n");
-	exit(FALSE);
+	fatalError( "Exactly one of 'c', 'x' or 't' must be specified\n");
+}
+					
+static void
+fixUpPermissions(TarInfo *header)
+{
+	struct utimbuf t;
+	/* Now set permissions etc for the new file */
+	chown(header->name, header->uid, header->gid);
+	chmod(header->name, header->mode);
+	/* Reset the time */
+	t.actime = time(0);
+	t.modtime = header->mtime;
+	utime(header->name, &t);
+}
+				
+static int
+tarExtractRegularFile(TarInfo *header, int extractFlag, int tostdoutFlag)
+{
+	size_t  writeSize;
+	size_t  readSize;
+	size_t  actualWriteSz;
+	char    buffer[BUFSIZ];
+	size_t  size = header->size;
+	int outFd=fileno(stdout);
+
+	/* Open the file to be written, if a file is supposed to be written */
+	if (extractFlag==TRUE && tostdoutFlag==FALSE) {
+		if ((outFd=open(header->name, O_CREAT|O_TRUNC|O_WRONLY, header->mode & ~S_IFMT)) < 0)
+			errorMsg(io_error, header->name, strerror(errno)); 
+		/* Create the path to the file, just in case it isn't there...
+		 * This should not screw up path permissions or anything. */
+		createPath(header->name, 0777);
+	}
+
+	/* Write out the file, if we are supposed to be doing that */
+	while ( size > 0 ) {
+		actualWriteSz=0;
+		if ( size > sizeof(buffer) )
+			writeSize = readSize = sizeof(buffer);
+		else {
+			int mod = size % 512;
+			if ( mod != 0 )
+				readSize = size + (512 - mod);
+			else
+				readSize = size;
+			writeSize = size;
+		}
+		if ( (readSize = fullRead(header->tarFd, buffer, readSize)) <= 0 ) {
+			/* Tarball seems to have a problem */
+			errorMsg("tar: Unexpected EOF in archive\n"); 
+			return( FALSE);
+		}
+		if ( readSize < writeSize )
+			writeSize = readSize;
+
+		/* Write out the file, if we are supposed to be doing that */
+		if (extractFlag==TRUE) {
+
+			if ((actualWriteSz=fullWrite(outFd, buffer, writeSize)) != writeSize ) {
+				/* Output file seems to have a problem */
+				errorMsg(io_error, header->name, strerror(errno)); 
+				return( FALSE);
+			}
+		} else {
+			actualWriteSz=writeSize;
+		}
+
+		size -= actualWriteSz;
+	}
+
+	/* Now we are done writing the file out, so try 
+	 * and fix up the permissions and whatnot */
+	if (extractFlag==TRUE && tostdoutFlag==FALSE) {
+		close(outFd);
+		fixUpPermissions(header);
+	}
+	return( TRUE);
+}
+
+static int
+tarExtractDirectory(TarInfo *header, int extractFlag, int tostdoutFlag)
+{
+
+	if (extractFlag==FALSE || tostdoutFlag==TRUE)
+		return( TRUE);
+
+	if (createPath(header->name, header->mode) != TRUE) {
+		errorMsg("tar: %s: Cannot mkdir: %s\n", 
+				header->name, strerror(errno)); 
+		return( FALSE);
+	}
+	/* make the final component, just in case it was
+	 * omitted by createPath() (which will skip the
+	 * directory if it doesn't have a terminating '/') */
+	if (mkdir(header->name, header->mode) == 0) {
+		fixUpPermissions(header);
+	}
+	return( TRUE);
+}
+
+static int
+tarExtractHardLink(TarInfo *header, int extractFlag, int tostdoutFlag)
+{
+	if (extractFlag==FALSE || tostdoutFlag==TRUE)
+		return( TRUE);
+
+	if (link(header->linkname, header->name) < 0) {
+		errorMsg("tar: %s: Cannot create hard link to '%s': %s\n", 
+				header->name, header->linkname, strerror(errno)); 
+		return( FALSE);
+	}
+
+	/* Now set permissions etc for the new directory */
+	fixUpPermissions(header);
+	return( TRUE);
+}
+
+static int
+tarExtractSymLink(TarInfo *header, int extractFlag, int tostdoutFlag)
+{
+	if (extractFlag==FALSE || tostdoutFlag==TRUE)
+		return( TRUE);
+
+#ifdef	S_ISLNK
+	if (symlink(header->linkname, header->name) < 0) {
+		errorMsg("tar: %s: Cannot create symlink to '%s': %s\n", 
+				header->name, header->linkname, strerror(errno)); 
+		return( FALSE);
+	}
+	/* Try to change ownership of the symlink.
+	 * If libs doesn't support that, don't bother.
+	 * Changing the pointed-to-file is the Wrong Thing(tm).
+	 */
+#if (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 1)
+	lchown(header->name, header->uid, header->gid);
+#endif
+
+	/* Do not change permissions or date on symlink,
+	 * since it changes the pointed to file instead.  duh. */
+#else
+	errorMsg("tar: %s: Cannot create symlink to '%s': %s\n", 
+			header->name, header->linkname, 
+			"symlinks not supported"); 
+#endif
+	return( TRUE);
+}
+
+static int
+tarExtractSpecial(TarInfo *header, int extractFlag, int tostdoutFlag)
+{
+	if (extractFlag==FALSE || tostdoutFlag==TRUE)
+		return( TRUE);
+
+	if (S_ISCHR(header->mode) || S_ISBLK(header->mode) || S_ISSOCK(header->mode)) {
+		if (mknod(header->name, header->mode, makedev(header->devmajor, header->devminor)) < 0) {
+			errorMsg("tar: %s: Cannot mknod: %s\n",
+				header->name, strerror(errno)); 
+			return( FALSE);
+		}
+	} else if (S_ISFIFO(header->mode)) {
+		if (mkfifo(header->name, header->mode) < 0) {
+			errorMsg("tar: %s: Cannot mkfifo: %s\n",
+				header->name, strerror(errno)); 
+			return( FALSE);
+		}
+	}
+
+	/* Now set permissions etc for the new directory */
+	fixUpPermissions(header);
+	return( TRUE);
+}
+
+/* Read an octal value in a field of the specified width, with optional
+ * spaces on both sides of the number and with an optional null character
+ * at the end.  Returns -1 on an illegal format.  */
+static long getOctal(const char *cp, int size)
+{
+	long val = 0;
+
+	for(;(size > 0) && (*cp == ' '); cp++, size--);
+	if ((size == 0) || !isOctal(*cp))
+		return -1;
+	for(; (size > 0) && isOctal(*cp); size--) {
+		val = val * 8 + *cp++ - '0';
+	}
+	for (;(size > 0) && (*cp == ' '); cp++, size--);
+	if ((size > 0) && *cp)
+		return -1;
+	return val;
+}
+
+
+/* Parse the tar header and fill in the nice struct with the details */
+static int
+readTarHeader(struct TarHeader *rawHeader, struct TarInfo *header)
+{
+	int i;
+	long chksum, sum=0;
+	unsigned char *s = (unsigned char *)rawHeader;
+
+	header->name  = rawHeader->name;
+	/* Check for and relativify any absolute paths */
+	if ( *(header->name) == '/' ) {
+		static int alreadyWarned=FALSE;
+
+		while (*(header->name) == '/')
+			++*(header->name);
+
+		if (alreadyWarned == FALSE) {
+			errorMsg("tar: Removing leading '/' from member names\n");
+			alreadyWarned = TRUE;
+		}
+	}
+
+	header->mode  = getOctal(rawHeader->mode, sizeof(rawHeader->mode));
+	header->uid   =  getOctal(rawHeader->uid, sizeof(rawHeader->uid));
+	header->gid   =  getOctal(rawHeader->gid, sizeof(rawHeader->gid));
+	header->size  = getOctal(rawHeader->size, sizeof(rawHeader->size));
+	header->mtime = getOctal(rawHeader->mtime, sizeof(rawHeader->mtime));
+	chksum = getOctal(rawHeader->chksum, sizeof(rawHeader->chksum));
+	header->type  = rawHeader->typeflag;
+	header->linkname  = rawHeader->linkname;
+	header->devmajor  = getOctal(rawHeader->devmajor, sizeof(rawHeader->devmajor));
+	header->devminor  = getOctal(rawHeader->devminor, sizeof(rawHeader->devminor));
+
+	/* Check the checksum */
+	for (i = sizeof(*rawHeader); i-- != 0;) {
+		sum += *s++;
+	}
+	/* Remove the effects of the checksum field (replace 
+	 * with blanks for the purposes of the checksum) */
+	s = rawHeader->chksum;
+	for (i = sizeof(rawHeader->chksum) ; i-- != 0;) {
+		sum -= *s++;
+	}
+	sum += ' ' * sizeof(rawHeader->chksum);
+	if (sum == chksum )
+		return ( TRUE);
+	return( FALSE);
 }
 
 
@@ -289,992 +516,478 @@ extern int tar_main(int argc, char **argv)
  * Read a tar file and extract or list the specified files within it.
  * If the list is empty than all files are extracted or listed.
  */
-static void readTarFile(int fileCount, char **fileTable)
+static int readTarFile(const char* tarName, int extractFlag, int listFlag, 
+		int tostdoutFlag, int verboseFlag, char** excludeList)
 {
-	const char *cp;
-	int cc;
-	int inCc;
-	int blockSize;
-	char buf[BUF_SIZE];
+	int status, tarFd=-1;
+	int errorFlag=FALSE;
+	TarHeader rawHeader;
+	TarInfo header;
+#if defined BB_FEATURE_TAR_EXCLUDE
+	char** tmpList;
+#endif
 
-	skipFileFlag = FALSE;
-	badHeader = FALSE;
-	warnedRoot = FALSE;
-	eofFlag = FALSE;
-	inHeader = TRUE;
-	inCc = 0;
-	dataCc = 0;
-	outFd = -1;
-	blockSize = sizeof(buf);
-	cp = buf;
-
-	/* 
-	 * Open the tar file for reading.
-	 */
-	if ((tarName == NULL) || !strcmp(tarName, "-")) {
+	/* Open the tar file for reading.  */
+	if (!strcmp(tarName, "-"))
 		tarFd = fileno(stdin);
-	} else
+	else
 		tarFd = open(tarName, O_RDONLY);
-
 	if (tarFd < 0) {
-		perror(tarName);
-		errorFlag = TRUE;
-		return;
-	}
-
-	/* 
-	 * Read blocks from the file until an end of file header block
-	 * has been seen.  (A real end of file from a read is an error.)
-	 */
-	while (eofFlag == FALSE) {
-		/* 
-		 * Read the next block of data if necessary.
-		 * This will be a large block if possible, which we will
-		 * then process in the small tar blocks.
-		 */
-		if (inCc <= 0) {
-			cp = buf;
-			inCc = fullRead(tarFd, buf, blockSize);
-
-			if (inCc < 0) {
-				perror(tarName);
-				errorFlag = TRUE;
-				goto done;
-			}
-
-			if (inCc == 0) {
-				fprintf(stderr,
-						"Unexpected end of file from \"%s\"", tarName);
-				errorFlag = TRUE;
-				goto done;
-			}
-		}
-
-		/* 
-		 * If we are expecting a header block then examine it.
-		 */
-		if (inHeader == TRUE) {
-			readHeader((const TarHeader *) cp, fileCount, fileTable);
-
-			cp += TAR_BLOCK_SIZE;
-			inCc -= TAR_BLOCK_SIZE;
-
-			continue;
-		}
-
-		/* 
-		 * We are currently handling the data for a file.
-		 * Process the minimum of the amount of data we have available
-		 * and the amount left to be processed for the file.
-		 */
-		cc = inCc;
-
-		if (cc > dataCc)
-			cc = dataCc;
-
-		readData(cp, cc);
-
-		/* 
-		 * If the amount left isn't an exact multiple of the tar block
-		 * size then round it up to the next block boundary since there
-		 * is padding at the end of the file.
-		 */
-		if (cc % TAR_BLOCK_SIZE)
-			cc += TAR_BLOCK_SIZE - (cc % TAR_BLOCK_SIZE);
-
-		cp += cc;
-		inCc -= cc;
-	}
-
-  done:
-	/* 
-	 * Close the tar file if needed.
-	 */
-	if ((tarFd >= 0) && (close(tarFd) < 0))
-		perror(tarName);
-
-	/* 
-	 * Close the output file if needed.
-	 * This is only done here on a previous error and so no
-	 * message is required on errors.
-	 */
-	if (tostdoutFlag == FALSE) {
-		if (outFd >= 0) {
-			close(outFd);
-		}
-	}
-}
-
-
-/*
- * Examine the header block that was just read.
- * This can specify the information for another file, or it can mark
- * the end of the tar file.
- */
-static void
-readHeader(const TarHeader * hp, int fileCount, char **fileTable)
-{
-	int checkSum;
-	int cc;
-	int hardLink;
-	int softLink;
-	int devFileFlag;
-	unsigned int major;
-	unsigned int minor;
-	long size;
-	struct utimbuf utb;
-
-	/* 
-	 * If the block is completely empty, then this is the end of the
-	 * archive file.  If the name is null, then just skip this header.
-	 */
-	outName = hp->name;
-
-	if (*outName == '\0') {
-		for (cc = TAR_BLOCK_SIZE; cc > 0; cc--) {
-			if (*outName++)
-				return;
-		}
-
-		eofFlag = TRUE;
-
-		return;
-	}
-
-	/* 
-	 * There is another file in the archive to examine.
-	 * Extract the encoded information and check it.
-	 */
-	mode = getOctal(hp->mode, sizeof(hp->mode));
-	uid = getOctal(hp->uid, sizeof(hp->uid));
-	gid = getOctal(hp->gid, sizeof(hp->gid));
-	size = getOctal(hp->size, sizeof(hp->size));
-	mtime = getOctal(hp->mtime, sizeof(hp->mtime));
-	checkSum = getOctal(hp->checkSum, sizeof(hp->checkSum));
-	major = getOctal(hp->devMajor, sizeof(hp->devMajor));
-	minor = getOctal(hp->devMinor, sizeof(hp->devMinor));
-
-	if ((mode < 0) || (uid < 0) || (gid < 0) || (size < 0)) {
-		if (badHeader == FALSE)
-			fprintf(stderr, "Bad tar header, skipping\n");
-
-		badHeader = TRUE;
-
-		return;
-	}
-
-	badHeader = FALSE;
-	skipFileFlag = FALSE;
-	devFileFlag = FALSE;
-
-	/* 
-	 * Check for the file modes.
-	 */
-	hardLink = ((hp->typeFlag == TAR_TYPE_HARD_LINK) ||
-				(hp->typeFlag == TAR_TYPE_HARD_LINK - '0'));
-
-	softLink = ((hp->typeFlag == TAR_TYPE_SOFT_LINK) ||
-				(hp->typeFlag == TAR_TYPE_SOFT_LINK - '0'));
-
-	/* 
-	 * Check for a directory.
-	 */
-	if (outName[strlen(outName) - 1] == '/')
-		mode |= S_IFDIR;
-
-	/* 
-	 * Check for absolute paths in the file.
-	 * If we find any, then warn the user and make them relative.
-	 */
-	if (*outName == '/') {
-		while (*outName == '/')
-			outName++;
-
-		if (warnedRoot == FALSE) {
-			fprintf(stderr,
-					"Absolute path detected, removing leading slashes\n");
-		}
-
-		warnedRoot = TRUE;
-	}
-
-	/* 
-	 * See if we want this file to be restored.
-	 * If not, then set up to skip it.
-	 */
-	if (wantFileName(outName, fileCount, fileTable) == FALSE) {
-		if (!hardLink && !softLink && (S_ISREG(mode) || S_ISCHR(mode)
-									   || S_ISBLK(mode) || S_ISSOCK(mode)
-									   || S_ISFIFO(mode))) {
-			inHeader = (size == 0) ? TRUE : FALSE;
-			dataCc = size;
-		}
-
-		skipFileFlag = TRUE;
-
-		return;
-	}
-
-	/* 
-	 * This file is to be handled.
-	 * If we aren't extracting then just list information about the file.
-	 */
-	if (extractFlag == FALSE) {
-		if (verboseFlag == TRUE) {
-			printf("%s %3d/%-d ", modeString(mode), uid, gid);
-			if (S_ISCHR(mode) || S_ISBLK(mode))
-				printf("%4d,%4d %s ", major, minor, timeString(mtime));
-			else
-				printf("%9ld %s ", size, timeString(mtime));
-		}
-		printf("%s", outName);
-
-		if (hardLink)
-			printf(" (link to \"%s\")", hp->linkName);
-		else if (softLink)
-			printf(" (symlink to \"%s\")", hp->linkName);
-		else if (S_ISREG(mode) || S_ISCHR(mode) || S_ISBLK(mode) ||
-				 S_ISSOCK(mode) || S_ISFIFO(mode)) {
-			inHeader = (size == 0) ? TRUE : FALSE;
-			dataCc = size;
-		}
-
-		printf("\n");
-
-		return;
-	}
-
-	/* 
-	 * We really want to extract the file.
-	 */
-	if (verboseFlag == TRUE)
-		printf("x %s\n", outName);
-
-	if (hardLink) {
-		if (link(hp->linkName, outName) < 0) {
-			perror(outName);
-			return;
-		}
-		/* Set the file time */
-		utb.actime = mtime;
-		utb.modtime = mtime;
-		utime(outName, &utb);
-		/* Set the file permissions */
-		chown(outName, uid, gid);
-		chmod(outName, mode);
-		return;
-	}
-
-	if (softLink) {
-#ifdef	S_ISLNK
-		if (symlink(hp->linkName, outName) < 0) {
-			perror(outName);
-			return;
-		}
-		/* Try to change ownership of the symlink.
-		 * If libs doesn't support that, don't bother.
-		 * Changing the pointed-to file is the Wrong Thing(tm).
-		 */
-#if (__GLIBC__ >= 2) && (__GLIBC_MINOR__ >= 1)
-		lchown(outName, uid, gid);
-#endif
-
-		/* Do not change permissions or date on symlink,
-		 * since it changes the pointed to file instead.  duh. */
-#else
-		fprintf(stderr, "Cannot create symbolic links\n");
-#endif
-		return;
+		errorMsg( "Error opening '%s': %s\n", tarName, strerror(errno));
+		return ( FALSE);
 	}
 
 	/* Set the umask for this process so it doesn't 
-	 * screw things up. */
+	 * screw up permission setting for us later. */
 	umask(0);
 
-	/* 
-	 * If the file is a directory, then just create the path.
-	 */
-	if (S_ISDIR(mode)) {
-		if (createPath(outName, mode) == TRUE) {
-			/* Set the file time */
-			utb.actime = mtime;
-			utb.modtime = mtime;
-			utime(outName, &utb);
-			/* Set the file permissions */
-			chown(outName, uid, gid);
-			chmod(outName, mode);
-			return;
+	/* Read the tar file, and iterate over it one file at a time */
+	while ( (status = fullRead(tarFd, (char*)&rawHeader, TAR_BLOCK_SIZE)) == TAR_BLOCK_SIZE ) {
+
+		/* First, try to read the header */
+		if ( readTarHeader(&rawHeader, &header) == FALSE ) {
+			if ( *(header.name) == '\0' ) {
+				goto endgame;
+			} else {
+				errorFlag=TRUE;
+				errorMsg("Bad tar header, skipping\n");
+				continue;
+			}
 		}
-		return;
-	}
+		if ( *(header.name) == '\0' )
+				goto endgame;
+		header.tarFd = tarFd;
 
-	/* 
-	 * There is a file to write.
-	 * First create the path to it if necessary with default permissions.
-	 */
-	createPath(outName, 0777);
-
-	inHeader = (size == 0) ? TRUE : FALSE;
-	dataCc = size;
-
-	/* 
-	 * Start the output file.
-	 */
-	if (tostdoutFlag == TRUE)
-		outFd = fileno(stdout);
-	else {
-		if (S_ISCHR(mode) || S_ISBLK(mode) || S_ISSOCK(mode)) {
-			devFileFlag = TRUE;
-			outFd = mknod(outName, mode, makedev(major, minor));
-		} else if (S_ISFIFO(mode)) {
-			devFileFlag = TRUE;
-			outFd = mkfifo(outName, mode);
-		} else {
-			outFd = open(outName, O_WRONLY | O_CREAT | O_TRUNC, mode);
+#if defined BB_FEATURE_TAR_EXCLUDE
+		{
+			int skipFlag=FALSE;
+			/* Check for excluded files....  */
+			for (tmpList=excludeList; tmpList && *tmpList; tmpList++) {
+				/* Do some extra hoop jumping for when directory names
+				 * end in '/' but the entry in tmpList doesn't */
+				if (strncmp( *tmpList, header.name, strlen(*tmpList))==0 || (
+							header.name[strlen(header.name)-1]=='/'
+							&& strncmp( *tmpList, header.name, 
+								MIN(strlen(header.name)-1, strlen(*tmpList)))==0)) {
+					/* If it is a regular file, pretend to extract it with
+					 * the extractFlag set to FALSE, so the junk in the tarball
+					 * is properly skipped over */
+					if ( header.type==REGTYPE || header.type==REGTYPE0 ) {
+							tarExtractRegularFile(&header, FALSE, FALSE);
+					}
+					skipFlag=TRUE;
+					break;
+				}
+			}
+			/* There are not the droids you're looking for, move along */
+			if (skipFlag==TRUE)
+				continue;
 		}
-		if (outFd < 0) {
-			perror(outName);
-			skipFileFlag = TRUE;
-			return;
+#endif
+		/* Special treatment if the list (-t) flag is on */
+		if (verboseFlag == TRUE && extractFlag == FALSE) {
+			int len, len1;
+			char buf[35];
+			struct tm *tm = localtime (&(header.mtime));
+
+			len=printf("%s ", modeString(header.mode));
+			memset(buf, 0, 8*sizeof(char));
+			my_getpwuid(buf, header.uid);
+			if (! *buf)
+				len+=printf("%d", header.uid);
+			else
+				len+=printf("%s", buf);
+			memset(buf, 0, 8*sizeof(char));
+			my_getgrgid(buf, header.gid);
+			if (! *buf)
+				len+=printf("/%-d ", header.gid);
+			else
+				len+=printf("/%-s ", buf);
+
+			if (header.type==CHRTYPE || header.type==BLKTYPE) {
+				len1=snprintf(buf, sizeof(buf), "%ld,%-ld ", 
+						header.devmajor, header.devminor);
+			} else {
+				len1=snprintf(buf, sizeof(buf), "%d ", header.size);
+			}
+			/* Jump through some hoops to make the columns match up */
+			for(;(len+len1)<31;len++)
+				printf(" ");
+			printf(buf);
+
+			/* Use ISO 8610 time format */
+			if (tm) { 
+				printf ("%04d-%02d-%02d %02d:%02d:%02d ", 
+						tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, 
+						tm->tm_hour, tm->tm_min, tm->tm_sec);
+			}
 		}
-		/* Set the file time */
-		utb.actime = mtime;
-		utb.modtime = mtime;
-		utime(outName, &utb);
-		/* Set the file permissions */
-		chown(outName, uid, gid);
-		chmod(outName, mode);
-	}
+		/* List contents if we are supposed to do that */
+		if (verboseFlag == TRUE || listFlag == TRUE) {
+			/* Now the normal listing */
+			printf("%s", header.name);
+		}
+		if (verboseFlag == TRUE && listFlag == TRUE) {
+			/* If this is a link, say so */
+			if (header.type==LNKTYPE)
+				printf(" link to %s", header.linkname);
+			else if (header.type==SYMTYPE)
+				printf(" -> %s", header.linkname);
+		}
+		if (verboseFlag == TRUE || listFlag == TRUE) {
+			printf("\n");
+		}
 
+		/* Remove any clutter lying in our way */
+		unlink( header.name);
 
-	/* 
-	 * If the file is empty, then that's all we need to do.
-	 */
-	if (size == 0 && (tostdoutFlag == FALSE) && (devFileFlag == FALSE)) {
-		close(outFd);
-		outFd = -1;
+		/* If we got here, we can be certain we have a legitimate 
+		 * header to work with.  So work with it.  */
+		switch ( header.type ) {
+			case REGTYPE:
+			case REGTYPE0:
+				/* If the name ends in a '/' then assume it is
+				 * supposed to be a directory, and fall through */
+				if (header.name[strlen(header.name)-1] != '/') {
+					if (tarExtractRegularFile(&header, extractFlag, tostdoutFlag)==FALSE)
+						errorFlag=TRUE;
+					break;
+				}
+			case DIRTYPE:
+				if (tarExtractDirectory( &header, extractFlag, tostdoutFlag)==FALSE)
+					errorFlag=TRUE;
+				break;
+			case LNKTYPE:
+				if (tarExtractHardLink( &header, extractFlag, tostdoutFlag)==FALSE)
+					errorFlag=TRUE;
+				break;
+			case SYMTYPE:
+				if (tarExtractSymLink( &header, extractFlag, tostdoutFlag)==FALSE)
+					errorFlag=TRUE;
+				break;
+			case CHRTYPE:
+			case BLKTYPE:
+			case FIFOTYPE:
+				if (tarExtractSpecial( &header, extractFlag, tostdoutFlag)==FALSE)
+					errorFlag=TRUE;
+				break;
+			default:
+				close( tarFd);
+				return( FALSE);
+		}
 	}
+	close(tarFd);
+	if (status > 0) {
+		/* Bummer - we read a partial header */
+		errorMsg( "Error reading '%s': %s\n", tarName, strerror(errno));
+		return ( FALSE);
+	}
+	else if (errorFlag==TRUE) {
+		errorMsg( "tar: Error exit delayed from previous errors\n");
+		return( FALSE);
+	} else 
+		return( status);
+
+	/* Stuff to do when we are done */
+endgame:
+	close( tarFd);
+	if ( *(header.name) == '\0' ) {
+		if (errorFlag==TRUE)
+			errorMsg( "tar: Error exit delayed from previous errors\n");
+		else
+			return( TRUE);
+	} 
+	return( FALSE);
 }
 
 
-/*
- * Handle a data block of some specified size that was read.
- */
-static void readData(const char *cp, int count)
-{
-	/* 
-	 * Reduce the amount of data left in this file.
-	 * If there is no more data left, then we need to read
-	 * the header again.
-	 */
-	dataCc -= count;
-
-	if (dataCc <= 0)
-		inHeader = TRUE;
-
-	/* 
-	 * If we aren't extracting files or this file is being
-	 * skipped then do nothing more.
-	 */
-	if (extractFlag == FALSE || skipFileFlag == TRUE)
-		return;
-
-	/* 
-	 * Write the data to the output file.
-	 */
-	if (fullWrite(outFd, cp, count) < 0) {
-		perror(outName);
-		if (tostdoutFlag == FALSE) {
-			close(outFd);
-			outFd = -1;
-		}
-		skipFileFlag = TRUE;
-		return;
-	}
-
-	/* 
-	 * Check if we are done writing to the file now.
-	 */
-	if (dataCc <= 0 && tostdoutFlag == FALSE) {
-		struct utimbuf utb;
-
-		if (close(outFd))
-			perror(outName);
-
-		/* Set the file time */
-		utb.actime = mtime;
-		utb.modtime = mtime;
-		utime(outName, &utb);
-		/* Set the file permissions */
-		chown(outName, uid, gid);
-		chmod(outName, mode);
-
-		outFd = -1;
-	}
-}
-
-
-/*
- * See if the specified file name belongs to one of the specified list
- * of path prefixes.  An empty list implies that all files are wanted.
- * Returns TRUE if the file is selected.
- */
-static int
-wantFileName(const char *fileName, int fileCount, char **fileTable)
-{
-	const char *pathName;
-	int fileLength;
-	int pathLength;
-
-	/* 
-	 * If there are no files in the list, then the file is wanted.
-	 */
-	if (fileCount == 0)
-		return TRUE;
-
-	fileLength = strlen(fileName);
-
-	/* 
-	 * Check each of the test paths.
-	 */
-	while (fileCount-- > 0) {
-		pathName = *fileTable++;
-
-		pathLength = strlen(pathName);
-
-		if (fileLength < pathLength)
-			continue;
-
-		if (memcmp(fileName, pathName, pathLength) != 0)
-			continue;
-
-		if ((fileLength == pathLength) || (fileName[pathLength] == '/')) {
-			return TRUE;
-		}
-	}
-
-	return FALSE;
-}
-
-/*
- * Read an octal value in a field of the specified width, with optional
- * spaces on both sides of the number and with an optional null character
- * at the end.  Returns -1 on an illegal format.
- */
-static long getOctal(const char *cp, int len)
-{
-	long val;
-
-	while ((len > 0) && (*cp == ' ')) {
-		cp++;
-		len--;
-	}
-
-	if ((len == 0) || !isOctal(*cp))
-		return -1;
-
-	val = 0;
-
-	while ((len > 0) && isOctal(*cp)) {
-		val = val * 8 + *cp++ - '0';
-		len--;
-	}
-
-	while ((len > 0) && (*cp == ' ')) {
-		cp++;
-		len--;
-	}
-
-	if ((len > 0) && *cp)
-		return -1;
-
-	return val;
-}
-
-
-
-
-/* From here to the end of the file is the tar writing stuff.
- * If you do not have BB_FEATURE_TAR_CREATE defined, this will
- * not be built.
- * */
 #ifdef BB_FEATURE_TAR_CREATE
 
-/*
- * Write a tar file containing the specified files.
- */
-static void writeTarFile(int fileCount, char **fileTable)
+/* Some info to be carried along when creating a new tarball */
+struct TarBallInfo
 {
-	struct stat statbuf;
-
-	/* 
-	 * Make sure there is at least one file specified.
-	 */
-	if (fileCount <= 0) {
-		fprintf(stderr, "No files specified to be saved\n");
-		errorFlag = TRUE;
-	}
-
-	/* 
-	 * Create the tar file for writing.
-	 */
-	if ((tarName == NULL) || !strcmp(tarName, "-")) {
-		tostdoutFlag = TRUE;
-		tarFd = fileno(stdout);
-	} else
-		tarFd = open(tarName, O_WRONLY | O_CREAT | O_TRUNC, 0666);
-
-	if (tarFd < 0) {
-		perror(tarName);
-		errorFlag = TRUE;
-		return;
-	}
-
-	/* 
-	 * Get the device and inode of the tar file for checking later.
-	 */
-	if (fstat(tarFd, &statbuf) < 0) {
-		perror(tarName);
-		errorFlag = TRUE;
-		goto done;
-	}
-
-	tarDev = statbuf.st_dev;
-	tarInode = statbuf.st_ino;
-
-	/* 
-	 * Append each file name into the archive file.
-	 * Follow symbolic links for these top level file names.
-	 */
-	while (errorFlag == FALSE && (fileCount-- > 0)) {
-		saveFile(*fileTable++, FALSE);
-	}
-
-	/* 
-	 * Now write an empty block of zeroes to end the archive.
-	 */
-	writeTarBlock("", 1);
-
-
-  done:
-	/* 
-	 * Close the tar file and check for errors if it was opened.
-	 */
-	if ((tostdoutFlag == FALSE) && (tarFd >= 0) && (close(tarFd) < 0))
-		perror(tarName);
-}
-
-/*
- * Save one file into the tar file.
- * If the file is a directory, then this will recursively save all of
- * the files and directories within the directory.  The seeLinks
- * flag indicates whether or not we want to see symbolic links as
- * they really are, instead of blindly following them.
- */
-static void saveFile(const char *fileName, int seeLinks)
-{
-	int status;
-	struct stat statbuf;
-
-	if (verboseFlag == TRUE)
-		printf("a %s\n", fileName);
-
-	/* 
-	 * Check that the file name will fit in the header.
-	 */
-	if (strlen(fileName) >= TAR_NAME_SIZE) {
-		fprintf(stderr, "%s: File name is too long\n", fileName);
-
-		return;
-	}
-
-	/* 
-	 * Find out about the file.
-	 */
-#ifdef	S_ISLNK
-	if (seeLinks == TRUE)
-		status = lstat(fileName, &statbuf);
-	else
-#endif
-		status = stat(fileName, &statbuf);
-
-	if (status < 0) {
-		perror(fileName);
-
-		return;
-	}
-
-	/* 
-	 * Make sure we aren't trying to save our file into itself.
-	 */
-	if ((statbuf.st_dev == tarDev) && (statbuf.st_ino == tarInode)) {
-		fprintf(stderr, "Skipping saving of archive file itself\n");
-
-		return;
-	}
-
-	/* 
-	 * Check the type of file.
-	 */
-	mode = statbuf.st_mode;
-
-	if (S_ISDIR(mode)) {
-		saveDirectory(fileName, &statbuf);
-
-		return;
-	}
-	if (S_ISREG(mode)) {
-		saveRegularFile(fileName, &statbuf);
-
-		return;
-	}
-
-	/* Some day add support for tarring these up... but not today. :) */
-//  if (S_ISLNK(mode) || S_ISFIFO(mode) || S_ISBLK(mode) || S_ISCHR (mode) ) {
-//  fprintf (stderr, "%s: This version of tar can't store this type of file\n", fileName);
-//  }
-
-	/* 
-	 * The file is a strange type of file, ignore it.
-	 */
-	fprintf(stderr, "%s: not a directory or regular file\n", fileName);
-}
-
-
-/*
- * Save a regular file to the tar file.
- */
-static void
-saveRegularFile(const char *fileName, const struct stat *statbuf)
-{
-	int sawEof;
-	int fileFd;
-	int cc;
-	int dataCount;
-	long fullDataCount;
-	char data[TAR_BLOCK_SIZE * 16];
-
-	/* 
-	 * Open the file for reading.
-	 */
-	fileFd = open(fileName, O_RDONLY);
-
-	if (fileFd < 0) {
-		perror(fileName);
-
-		return;
-	}
-
-	/* 
-	 * Write out the header for the file.
-	 */
-	writeHeader(fileName, statbuf);
-
-	/* 
-	 * Write the data blocks of the file.
-	 * We must be careful to write the amount of data that the stat
-	 * buffer indicated, even if the file has changed size.  Otherwise
-	 * the tar file will be incorrect.
-	 */
-	fullDataCount = statbuf->st_size;
-	sawEof = FALSE;
-
-	while (fullDataCount > 0) {
-		/* 
-		 * Get the amount to write this iteration which is
-		 * the minumum of the amount left to write and the
-		 * buffer size.
-		 */
-		dataCount = sizeof(data);
-
-		if (dataCount > fullDataCount)
-			dataCount = (int) fullDataCount;
-
-		/* 
-		 * Read the data from the file if we haven't seen the
-		 * end of file yet.
-		 */
-		cc = 0;
-
-		if (sawEof == FALSE) {
-			cc = fullRead(fileFd, data, dataCount);
-
-			if (cc < 0) {
-				perror(fileName);
-
-				(void) close(fileFd);
-				errorFlag = TRUE;
-
-				return;
-			}
-
-			/* 
-			 * If the file ended too soon, complain and set
-			 * a flag so we will zero fill the rest of it.
-			 */
-			if (cc < dataCount) {
-				fprintf(stderr, "%s: Short read - zero filling", fileName);
-
-				sawEof = TRUE;
-			}
-		}
-
-		/* 
-		 * Zero fill the rest of the data if necessary.
-		 */
-		if (cc < dataCount)
-			memset(data + cc, 0, dataCount - cc);
-
-		/* 
-		 * Write the buffer to the TAR file.
-		 */
-		writeTarBlock(data, dataCount);
-
-		fullDataCount -= dataCount;
-	}
-
-	/* 
-	 * Close the file.
-	 */
-	if ((tostdoutFlag == FALSE) && close(fileFd) < 0)
-		fprintf(stderr, "%s: close: %s\n", fileName, strerror(errno));
-}
-
-
-/*
- * Save a directory and all of its files to the tar file.
- */
-static void saveDirectory(const char *dirName, const struct stat *statbuf)
-{
-	DIR *dir;
-	struct dirent *entry;
-	int needSlash;
-	char fullName[PATH_MAX + 1];
-
-	/* 
-	 * Construct the directory name as used in the tar file by appending
-	 * a slash character to it.
-	 */
-	strcpy(fullName, dirName);
-	strcat(fullName, "/");
-
-	/* 
-	 * Write out the header for the directory entry.
-	 */
-	writeHeader(fullName, statbuf);
-
-	/* 
-	 * Open the directory.
-	 */
-	dir = opendir(dirName);
-
-	if (dir == NULL) {
-		fprintf(stderr, "Cannot read directory \"%s\": %s\n",
-				dirName, strerror(errno));
-
-		return;
-	}
-
-	/* 
-	 * See if a slash is needed.
-	 */
-	needSlash = (*dirName && (dirName[strlen(dirName) - 1] != '/'));
-
-	/* 
-	 * Read all of the directory entries and check them,
-	 * except for the current and parent directory entries.
-	 */
-	while (errorFlag == FALSE && ((entry = readdir(dir)) != NULL)) {
-		if ((strcmp(entry->d_name, ".") == 0) ||
-			(strcmp(entry->d_name, "..") == 0)) {
-			continue;
-		}
-
-		/* 
-		 * Build the full path name to the file.
-		 */
-		strcpy(fullName, dirName);
-
-		if (needSlash)
-			strcat(fullName, "/");
-
-		strcat(fullName, entry->d_name);
-
-		/* 
-		 * Write this file to the tar file, noticing whether or not
-		 * the file is a symbolic link.
-		 */
-		saveFile(fullName, TRUE);
-	}
-
-	/* 
-	 * All done, close the directory.
-	 */
-	closedir(dir);
-}
-
-
-/*
- * Write a tar header for the specified file name and status.
- * It is assumed that the file name fits.
- */
-static void writeHeader(const char *fileName, const struct stat *statbuf)
-{
-	long checkSum;
-	const unsigned char *cp;
-	int len;
-	TarHeader header;
-
-	/* 
-	 * Zero the header block in preparation for filling it in.
-	 */
-	memset((char *) &header, 0, sizeof(header));
-
-	/* 
-	 * Fill in the header.
-	 */
-	strcpy(header.name, fileName);
-
-	strncpy(header.magic, TAR_MAGIC, sizeof(header.magic));
-	strncpy(header.version, TAR_VERSION, sizeof(header.version));
-
-	putOctal(header.mode, sizeof(header.mode), statbuf->st_mode & 0777);
-	putOctal(header.uid, sizeof(header.uid), statbuf->st_uid);
-	putOctal(header.gid, sizeof(header.gid), statbuf->st_gid);
-	putOctal(header.size, sizeof(header.size), statbuf->st_size);
-	putOctal(header.mtime, sizeof(header.mtime), statbuf->st_mtime);
-
-	header.typeFlag = TAR_TYPE_REGULAR;
-
-	/* 
-	 * Calculate and store the checksum.
-	 * This is the sum of all of the bytes of the header,
-	 * with the checksum field itself treated as blanks.
-	 */
-	memset(header.checkSum, ' ', sizeof(header.checkSum));
-
-	cp = (const unsigned char *) &header;
-	len = sizeof(header);
-	checkSum = 0;
-
-	while (len-- > 0)
-		checkSum += *cp++;
-
-	putOctal(header.checkSum, sizeof(header.checkSum), checkSum);
-
-	/* 
-	 * Write the tar header.
-	 */
-	writeTarBlock((const char *) &header, sizeof(header));
-}
-
-
-/*
- * Write data to one or more blocks of the tar file.
- * The data is always padded out to a multiple of TAR_BLOCK_SIZE.
- * The errorFlag static variable is set on an error.
- */
-static void writeTarBlock(const char *buf, int len)
-{
-	int partialLength;
-	int completeLength;
-	char fullBlock[TAR_BLOCK_SIZE];
-
-	/* 
-	 * If we had a write error before, then do nothing more.
-	 */
-	if (errorFlag == TRUE)
-		return;
-
-	/* 
-	 * Get the amount of complete and partial blocks.
-	 */
-	partialLength = len % TAR_BLOCK_SIZE;
-	completeLength = len - partialLength;
-
-	/* 
-	 * Write all of the complete blocks.
-	 */
-	if ((completeLength > 0) && !fullWrite(tarFd, buf, completeLength)) {
-		perror(tarName);
-
-		errorFlag = TRUE;
-
-		return;
-	}
-
-	/* 
-	 * If there are no partial blocks left, we are done.
-	 */
-	if (partialLength == 0)
-		return;
-
-	/* 
-	 * Copy the partial data into a complete block, and pad the rest
-	 * of it with zeroes.
-	 */
-	memcpy(fullBlock, buf + completeLength, partialLength);
-	memset(fullBlock + partialLength, 0, TAR_BLOCK_SIZE - partialLength);
-
-	/* 
-	 * Write the last complete block.
-	 */
-	if (!fullWrite(tarFd, fullBlock, TAR_BLOCK_SIZE)) {
-		perror(tarName);
-
-		errorFlag = TRUE;
-	}
-}
-
-
-/*
- * Put an octal string into the specified buffer.
+	char* fileName;               /* File name of the tarball */
+	int tarFd;                    /* Open-for-write file descriptor
+									 for the tarball */
+	struct stat statBuf;          /* Stat info for the tarball, letting
+									 us know the inode and device that the
+									 tarball lives, so we can avoid trying 
+									 to include the tarball into itself */
+	int verboseFlag;              /* Whether to print extra stuff or not */
+	char** excludeList;           /* List of files to not include */
+};
+typedef struct TarBallInfo TarBallInfo;
+
+
+/* Put an octal string into the specified buffer.
  * The number is zero and space padded and possibly null padded.
- * Returns TRUE if successful.
- */
-static int putOctal(char *cp, int len, long value)
+ * Returns TRUE if successful.  */ 
+static int putOctal (char *cp, int len, long value)
 {
 	int tempLength;
-	char *tempString;
 	char tempBuffer[32];
+	char *tempString = tempBuffer;
 
-	/* 
-	 * Create a string of the specified length with an initial space,
-	 * leading zeroes and the octal number, and a trailing null.
-	 */
-	tempString = tempBuffer;
+	/* Create a string of the specified length with an initial space,
+	 * leading zeroes and the octal number, and a trailing null.  */
+	sprintf (tempString, "%0*lo", len - 1, value);
 
-	sprintf(tempString, " %0*lo", len - 2, value);
-
-	tempLength = strlen(tempString) + 1;
-
-	/* 
-	 * If the string is too large, suppress the leading space.
-	 */
+	/* If the string is too large, suppress the leading space.  */
+	tempLength = strlen (tempString) + 1;
 	if (tempLength > len) {
 		tempLength--;
 		tempString++;
 	}
 
-	/* 
-	 * If the string is still too large, suppress the trailing null.
-	 */
+	/* If the string is still too large, suppress the trailing null.  */
 	if (tempLength > len)
 		tempLength--;
 
-	/* 
-	 * If the string is still too large, fail.
-	 */
+	/* If the string is still too large, fail.  */
 	if (tempLength > len)
 		return FALSE;
 
-	/* 
-	 * Copy the string to the field.
-	 */
-	memcpy(cp, tempString, len);
+	/* Copy the string to the field.  */
+	memcpy (cp, tempString, len);
 
 	return TRUE;
 }
+
+/* Write out a tar header for the specified file/directory/whatever */
+static int
+writeTarHeader(struct TarBallInfo *tbInfo, const char *fileName, struct stat *statbuf)
+{
+	long chksum=0;
+	struct TarHeader header;
+#if defined BB_FEATURE_TAR_EXCLUDE
+	char** tmpList;
+#endif
+	const unsigned char *cp = (const unsigned char *) &header;
+	ssize_t size = sizeof(struct TarHeader);
+
+	memset( &header, 0, size);
+
+	if (*fileName=='/') {
+		static int alreadyWarned=FALSE;
+		if (alreadyWarned==FALSE) {
+			errorMsg("tar: Removing leading '/' from member names\n");
+			alreadyWarned=TRUE;
+		}
+		strncpy(header.name, fileName+1, sizeof(header.name)); 
+	}
+	else {
+		strncpy(header.name, fileName, sizeof(header.name)); 
+	}
+
+#if defined BB_FEATURE_TAR_EXCLUDE
+	/* Check for excluded files....  */
+	for (tmpList=tbInfo->excludeList; tmpList && *tmpList; tmpList++) {
+		/* Do some extra hoop jumping for when directory names
+		 * end in '/' but the entry in tmpList doesn't */
+		if (strncmp( *tmpList, header.name, strlen(*tmpList))==0 || (
+					header.name[strlen(header.name)-1]=='/'
+					&& strncmp( *tmpList, header.name, 
+						MIN(strlen(header.name)-1, strlen(*tmpList)))==0)) {
+			/* Set the mode to something that is not a regular file, thereby
+			 * faking out writeTarFile into thinking that nothing further need
+			 * be done for this file.  Yes, I know this is ugly, but it works. */
+			statbuf->st_mode = 0;
+			return( TRUE);
+		}
+	}
 #endif
 
-/* END CODE */
+	putOctal(header.mode, sizeof(header.mode), statbuf->st_mode);
+	putOctal(header.uid, sizeof(header.uid), statbuf->st_uid);
+	putOctal(header.gid, sizeof(header.gid), statbuf->st_gid);
+	putOctal(header.size, sizeof(header.size), 0); /* Regular file size is handled later */
+	putOctal(header.mtime, sizeof(header.mtime), statbuf->st_mtime);
+	strncpy(header.magic, TAR_MAGIC TAR_VERSION, 
+			TAR_MAGIC_LEN + TAR_VERSION_LEN );
+
+	/* Enter the user and group names (default to root if it fails) */
+	my_getpwuid(header.uname, statbuf->st_uid);
+	if (! *header.uname)
+		strcpy(header.uname, "root");
+	my_getgrgid(header.gname, statbuf->st_gid);
+	if (! *header.uname)
+		strcpy(header.uname, "root");
+
+	/* WARNING/NOTICE: I break Hard Links */
+	if (S_ISLNK(statbuf->st_mode)) {
+		char buffer[BUFSIZ];
+		header.typeflag  = SYMTYPE;
+		if ( readlink(fileName, buffer, sizeof(buffer) - 1) < 0) {
+			errorMsg("Error reading symlink '%s': %s\n", header.name, strerror(errno));
+			return ( FALSE);
+		}
+		strncpy(header.linkname, buffer, sizeof(header.linkname)); 
+	} else if (S_ISDIR(statbuf->st_mode)) {
+		header.typeflag  = DIRTYPE;
+		strncat(header.name, "/", sizeof(header.name)); 
+	} else if (S_ISCHR(statbuf->st_mode)) {
+		header.typeflag  = CHRTYPE;
+		putOctal(header.devmajor, sizeof(header.devmajor), MAJOR(statbuf->st_rdev));
+		putOctal(header.devminor, sizeof(header.devminor), MINOR(statbuf->st_rdev));
+	} else if (S_ISBLK(statbuf->st_mode)) {
+		header.typeflag  = BLKTYPE;
+		putOctal(header.devmajor, sizeof(header.devmajor), MAJOR(statbuf->st_rdev));
+		putOctal(header.devminor, sizeof(header.devminor), MINOR(statbuf->st_rdev));
+	} else if (S_ISFIFO(statbuf->st_mode)) {
+		header.typeflag  = FIFOTYPE;
+	} else if (S_ISREG(statbuf->st_mode)) {
+		header.typeflag  = REGTYPE;
+		putOctal(header.size, sizeof(header.size), statbuf->st_size);
+	} else {
+		errorMsg("tar: %s: Unknown file type\n", fileName);
+		return ( FALSE);
+	}
+
+	/* Calculate and store the checksum (i.e. the sum of all of the bytes of
+	 * the header).  The checksum field must be filled with blanks for the
+	 * calculation.  The checksum field is formatted differently from the
+	 * other fields: it has [6] digits, a null, then a space -- rather than
+	 * digits, followed by a null like the other fields... */
+	memset(header.chksum, ' ', sizeof(header.chksum));
+	cp = (const unsigned char *) &header;
+	while (size-- > 0)
+		chksum += *cp++;
+	putOctal(header.chksum, 7, chksum);
+	
+	/* Now write the header out to disk */
+	if ((size=fullWrite(tbInfo->tarFd, (char*)&header, sizeof(struct TarHeader))) < 0) {
+		errorMsg(io_error, fileName, strerror(errno)); 
+		return ( FALSE);
+	}
+	/* Pad the header up to the tar block size */
+	for (; size<TAR_BLOCK_SIZE; size++) {
+		write(tbInfo->tarFd, "\0", 1);
+	}
+	/* Now do the verbose thing (or not) */
+	if (tbInfo->verboseFlag==TRUE)
+		fprintf(stdout, "%s\n", header.name);
+
+	return ( TRUE);
+}
+
+
+static int writeFileToTarball(const char *fileName, struct stat *statbuf, void* userData)
+{
+	struct TarBallInfo *tbInfo = (struct TarBallInfo *)userData;
+
+	/* It is against the rules to archive a socket */
+	if (S_ISSOCK(statbuf->st_mode)) {
+		errorMsg("tar: %s: socket ignored\n", fileName);
+		return( TRUE);
+	}
+
+	/* It is a bad idea to store the archive we are in the process of creating,
+	 * so check the device and inode to be sure that this particular file isn't
+	 * the new tarball */
+	if (tbInfo->statBuf.st_dev == statbuf->st_dev &&
+			tbInfo->statBuf.st_ino == statbuf->st_ino) {
+		errorMsg("tar: %s: file is the archive; skipping\n", fileName);
+		return( TRUE);
+	}
+
+	if (writeTarHeader(tbInfo, fileName, statbuf)==FALSE) {
+		return( FALSE);
+	} 
+
+	/* Now, if the file is a regular file, copy it out to the tarball */
+	if (S_ISREG(statbuf->st_mode)) {
+		int  inputFileFd;
+		char buffer[BUFSIZ];
+		ssize_t size=0, readSize=0;
+
+		/* open the file we want to archive, and make sure all is well */
+		if ((inputFileFd = open(fileName, O_RDONLY)) < 0) {
+			errorMsg("tar: %s: Cannot open: %s\n", fileName, strerror(errno));
+			return( FALSE);
+		}
+		
+		/* write the file to the archive */
+		while ( (size = fullRead(inputFileFd, buffer, sizeof(buffer))) > 0 ) {
+			if (fullWrite(tbInfo->tarFd, buffer, size) != size ) {
+				/* Output file seems to have a problem */
+				errorMsg(io_error, fileName, strerror(errno)); 
+				return( FALSE);
+			}
+			readSize+=size;
+		}
+		if (size == -1) {
+			errorMsg(io_error, fileName, strerror(errno)); 
+			return( FALSE);
+		}
+		/* Pad the file up to the tar block size */
+		for (; (readSize%TAR_BLOCK_SIZE) != 0; readSize++) {
+			write(tbInfo->tarFd, "\0", 1);
+		}
+		close( inputFileFd);
+	}
+
+	return( TRUE);
+}
+
+static int writeTarFile(const char* tarName, int tostdoutFlag, 
+		int verboseFlag, int argc, char **argv, char** excludeList)
+{
+	int tarFd=-1;
+	int errorFlag=FALSE;
+	ssize_t size;
+	struct TarBallInfo tbInfo;
+	tbInfo.verboseFlag = verboseFlag;
+
+	/* Make sure there is at least one file to tar up.  */
+	if (argc <= 0)
+		fatalError("tar: Cowardly refusing to create an empty archive\n");
+
+	/* Open the tar file for writing.  */
+	if (tostdoutFlag == TRUE)
+		tbInfo.tarFd = fileno(stdout);
+	else
+		tbInfo.tarFd = open (tarName, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	if (tbInfo.tarFd < 0) {
+		errorMsg( "tar: Error opening '%s': %s\n", tarName, strerror(errno));
+		return ( FALSE);
+	}
+	tbInfo.excludeList=excludeList;
+	/* Store the stat info for the tarball's file, so
+	 * can avoid including the tarball into itself....  */
+	if (fstat(tbInfo.tarFd, &tbInfo.statBuf) < 0)
+		fatalError(io_error, tarName, strerror(errno)); 
+
+	/* Set the umask for this process so it doesn't 
+	 * screw up permission setting for us later. */
+	umask(0);
+
+	/* Read the directory/files and iterate over them one at a time */
+	while (argc-- > 0) {
+		if (recursiveAction(*argv++, TRUE, FALSE, FALSE,
+					writeFileToTarball, writeFileToTarball, 
+					(void*) &tbInfo) == FALSE) {
+			errorFlag = TRUE;
+		}
+	}
+	/* Write two empty blocks to the end of the archive */
+	for (size=0; size<(2*TAR_BLOCK_SIZE); size++) {
+		write(tbInfo.tarFd, "\0", 1);
+	}
+
+	/* To be pedantically correct, we would check if the tarball
+	 * is smaller then 20 tar blocks, and pad it if it was smaller,
+	 * but that isn't necessary for GNU tar interoperability, and
+	 * so is considered a waste of space */
+
+	/* Hang up the tools, close up shop, head home */
+	close(tarFd);
+	if (errorFlag == TRUE) {
+		errorMsg("tar: Error exit delayed from previous errors\n");
+		return(FALSE);
+	}
+	return( TRUE);
+}
+
+
+#endif
+

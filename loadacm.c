@@ -7,6 +7,7 @@
  * Peter Novodvorsky <petya@logic.ru>
  */
 
+#include "internal.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <memory.h>
@@ -21,6 +22,9 @@
 #include <sys/ioctl.h>
 #include <sys/kd.h>
 
+static const char loadacm_usage[] = "loadacm\n\n"
+	"Loads an acm from standard input.\n";
+
 typedef unsigned short unicode;
 
 static long int ctoi(unsigned char *s, int *is_unicode);
@@ -33,20 +37,24 @@ int loadacm_main(int argc, char **argv)
 {
 	int fd;
 
+	if (argc>=2 && *argv[1]=='-') {
+		usage(loadacm_usage);
+	}
+
 	fd = open("/dev/tty", O_RDWR);
 	if (fd < 0) {
 		fprintf(stderr, "Error opening /dev/tty1: %s\n", strerror(errno));
-		return 1;
+		return( FALSE);
 	}
 
 	if (screen_map_load(fd, stdin)) {
 		fprintf(stderr, "Error loading acm: %s\n", strerror(errno));
-		return 1;
+		return( FALSE);
 	}
 
 	write(fd, "\033(K", 3);
 
-	return 0;
+	return( TRUE);
 }
 
 int screen_map_load(int fd, FILE * fp)
@@ -353,8 +361,8 @@ void saveoldmap(int fd, char *omfil)
 unicode utf8_to_ucs2(char *buf)
 {
 	int utf_count = 0;
-	long utf_char;
-	unicode tc;
+	long utf_char = 0;
+	unicode tc = 0;
 	unsigned char c;
 
 	do {

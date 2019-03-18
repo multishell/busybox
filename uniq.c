@@ -3,7 +3,7 @@
  * Mini uniq implementation for busybox
  *
  *
- * Copyright (C) 1999 by Lineo, inc.
+ * Copyright (C) 1999,2000 by Lineo, inc.
  * Written by John Beppu <beppu@lineo.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -28,15 +28,9 @@
 #include <errno.h>
 
 static const char uniq_usage[] =
-	"uniq [OPTION]... [INPUT [OUTPUT]]\n"
-	"Discard all but one of successive identical lines from INPUT (or\n"
-	"standard input), writing to OUTPUT (or standard output).\n"
-	"\n"
-	"\t-h\tdisplay this help and exit\n"
-
-	"\n"
-	"A field is a run of whitespace, then non-whitespace characters.\n"
-	"Fields are skipped before chars.\n";
+	"uniq [OPTION]... [INPUT [OUTPUT]]\n\n"
+	"Discard all but one of successive identical lines from INPUT\n"
+	"(or standard input), writing to OUTPUT (or standard output).\n";
 
 /* max chars in line */
 #define UNIQ_MAX 4096
@@ -190,4 +184,4 @@ int uniq_main(int argc, char **argv)
 	exit(0);
 }
 
-/* $Id: uniq.c,v 1.7 2000/02/08 19:58:47 erik Exp $ */
+/* $Id: uniq.c,v 1.9 2000/04/17 16:16:10 erik Exp $ */

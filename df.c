@@ -2,7 +2,7 @@
 /*
  * Mini df implementation for busybox
  *
- * Copyright (C) 1999 by Lineo, inc.
+ * Copyright (C) 1999,2000 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  * based on original code by (I think) Bruce Perens <bruce@pixar.com>.
  *
@@ -27,11 +27,9 @@
 #include <mntent.h>
 #include <sys/stat.h>
 #include <sys/vfs.h>
-#include <fstab.h>
 
-static const char df_usage[] = "df [filesystem ...]\n"
-
-	"\n" "\tPrint the filesystem space used and space available.\n";
+static const char df_usage[] = "df [filesystem ...]\n\n"
+	"Print the filesystem space used and space available.\n";
 
 extern const char mtab_file[];	/* Defined in utility.c */
 
@@ -40,7 +38,6 @@ static int df(char *device, const char *mountPoint)
 	struct statfs s;
 	long blocks_used;
 	long blocks_percent_used;
-	struct fstab *fstabItem;
 
 	if (statfs(mountPoint, &s) != 0) {
 		perror(mountPoint);
@@ -53,9 +50,9 @@ static int df(char *device, const char *mountPoint)
 			(blocks_used * 100.0 / (blocks_used + s.f_bavail) + 0.5);
 		/* Note that if /etc/fstab is missing, libc can't fix up /dev/root for us */
 		if (strcmp(device, "/dev/root") == 0) {
-			fstabItem = getfsfile("/");
-			if (fstabItem != NULL)
-				device = fstabItem->fs_spec;
+			/* Adjusts device to be the real root device,
+			 * or leaves device alone if it can't find it */
+			find_real_root_device_name( device);
 		}
 		printf("%-20s %9ld %9ld %9ld %3ld%% %s\n",
 			   device,
@@ -78,6 +75,9 @@ extern int df_main(int argc, char **argv)
 		struct mntent *mountEntry;
 		int status;
 
+		if (**(argv + 1) == '-') {
+			usage(df_usage);
+		}
 		while (argc > 1) {
 			if ((mountEntry = findMountPoint(argv[1], mtab_file)) == 0) {
 				fprintf(stderr, "%s: can't find mount point.\n", argv[1]);
@@ -108,3 +108,11 @@ extern int df_main(int argc, char **argv)
 
 	exit(TRUE);
 }
+
+/*
+Local Variables:
+c-file-style: "linux"
+c-basic-offset: 4
+tab-width: 4
+End:
+*/

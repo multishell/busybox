@@ -1,3 +1,77 @@
+0.43
+	* Major update to the provided documentation.
+	* Busybox now includes a shell!  It currently costs 7.5 k (plus an
+	    additional 2.5 k if you compile in command line editing).  Handles
+	    job control, has the usual set of builtins, and does everything
+	    except for handling programming statements (if, while, etc...)
+	* Busybox can now work perfectly when /proc is disabled, thereby 
+	    saving a bunch of memory (kernel /proc support is not thin).  This
+	    is done by making use of some nice kernel patches I wrote up to
+	    support the features that busybox requires and that /proc usually
+	    provides.  To enable this, turn on BB_FEATURE_USE_DEVPS_PATCH and
+	    patch your kernel with the devps patch in the kernel-patches/
+	    directory. 
+	* Wrote basename, dirname, killall, and uptime.
+	* tar has been completely rewritten by me.  Both tar creation and 
+	    extraction are now well behaved.  Costs 7.6k with all optional
+	    tar features enabled, and 5k for just tar extraction support. 
+	* Added freeramdisk, which will free up all memory associated
+	    with a ram disk.  Contributed by Emanuele Caratti <wiz@iol.it>
+	    and then adjusted a bit by me.
+	* Added tr from John Lombardo <john@deltanet.com> 
+	* Added echo and test (from me).
+	* Added usleep contributed by Nicolas Pitre <nico@cam.org>
+	* BusyBox's bss size has been majorly reduced (was 384668, is now 28740).
+	* Several fixes from Pavel Roskin <pavel_roskin@geocities.com>:
+	    - When `tail' fails to open a file it now exits.
+	    - When `syslogd' is given the `-n' option it should still use 
+		fork() for running klogd.
+	* nslookup types are now changed to u_int32_t (instead of uint32_t)
+	    changed per a patch from Pascal Bellard <pascal.bellard@ascend.com>
+	* Fixed "du" so it gives the same answers as GNU "du" (busybox du used 
+	    to count hard-linked files more then once).  Many thanks to 
+	    Friedrich Vedder <fwv@myrtle.lahn.de> for the fix.
+	* Removed /proc dependancies for init and free (while maintaining 
+	    exactly the same functionality).  /proc takes up 90k of kernel 
+	    space, so it is nice to avoid using it at all costs.
+	* init no longer tries to mount /proc (unless there is less the 1 meg 
+	    free).  Use of /proc (or not) is policy that should be set up in 
+	    /etc/fstab (or in hardcoded scripts), not in init.
+	* Fixed rebooting when init runs as an initrd.
+	* Fixes and updates from Karl M. Hegbloom  <karlheg@debian.org>
+	    - update.c rewritten to look more like update-2.11
+	    - moveed the inode hash out of du.c and into utility.c to make 
+		it a common resource that can be used by other apps.
+	    - cp_mv.c now checks inodes to see if a source and dest are
+		the same, and prints an error (instead of endlessly looping).
+	    - mv now attempts to do a rename, and will fall back to doing
+		a copy only if the rename fails.
+	    - Syslogd now supports multiple concurrent connections
+	* Several fixes from Pavel Roskin <pavel_roskin@geocities.com>:
+	    - Fixes to sort.  Removed "-g", fixed and added "-r"
+	    - Fixes to the makefile for handling "strip"
+	* An initial telnet implementation was added by 
+	    Randolph Chung <tausq@debian.org>.
+	* Fixed a bug where "sed 's/foo/bar/g'" (i.e. a script w/o a "-e")
+	* ps now supports BB_FEATURE_AUTOWIDTH, and can adjust its width
+	    to match the terminal (defaults to width=79 when this is off).
+	* ps now accepts (and ignores) all options except for "--help" (which
+		as would be expected displays help).
+	* Fixed mount'ing loop devices when the filesystem type was not 
+	    specified.  It used to revert to non-loop after the first try.
+	* all mallocs now use xmalloc (and so are OOM error safe), and
+	    the common error handling saves a few bytes.  Thanks to 
+	    Bob Tinsley <bob@earthrise.demon.co.uk> for the patch.
+	* Fix "+" parsing bug in date, from "Merle F. McClelland" <mfm@cts.com>.
+	* Fix symlink following bug in chmod -R and friends.  
+	* Now allows SYSV style 'chown foo:bar' in addition to 'chown foo.bar'
+	* Fixed a bug in the busybox globbing routine such that 'find /dir -name [i]' 
+	    no longer segfaults.
+
+
+	-Erik Andersen
+
+
 0.42
 
         * Fairly massive restructuring of umount.c to deal with remounting 
@@ -61,8 +135,8 @@
 	* Fixed a bug where init could have reference already freed memory.
 	    Found and fixed by Taketoshi Sano <kgh12351@nifty.ne.jp>
 	* Several contributions from Friedrich Vedder <fwv@myrtle.lahn.de>
-	* Added (and documented) "-n" option for head - Cleanup for a number of
-	* usage messages -- also 
+	* Added (and documented) "-n" option for head
+	* Cleanup for a number of usage messages -- also 
 	    contributed Friedrich Vedder <fwv@myrtle.lahn.de>
 	* Cosmetic fix to busybox.c (Don't print a comma at the
 	    end of line if there are no more application names).
@@ -73,7 +147,7 @@
 	* Created a tiny tail implementation, removing -c, -q, -v, and making
 	    tail -f work only with a single file.  This reduced tail from 6k to
 	    2.4k.  The bigger/more featured tail can still be had by disabling
-	    BB_FEATURE_SIMPLE_TAIL in dusybox.defs.h
+	    BB_FEATURE_SIMPLE_TAIL in busybox.defs.h
 	* Ping now falls back to doing the right thing if /etc/protocols
 	    turns up missing.
 	* Fixed mount and umount.  Previously they could leak loop device 
@@ -90,9 +164,9 @@
 	    - added "skip" and "seek" to dd.
 	    - ls no longer messus up output when combining files and
 	      directories on the command line 
-	* swapoff -a was not working.  Now it is.  init did not cleanly unmount
-	* filesystems on reboot.  Now it does.  "sed -ne s/foo/bar/" worked but
-	* "sed -n -e s/foo/bar/" didn't.
+	* swapoff -a was not working.  Now it is.  
+	* init did not cleanly unmount filesystems on reboot.  Now it does.  
+	* "sed -ne s/foo/bar/" worked but "sed -n -e s/foo/bar/" didn't.
 	    Now both work.
 	* Some architectures (PowerPc) assume chars are unsigned, so they could
 	    not distinguish between EOF and '\0xFF' in sed.  Sed now uses ints.
@@ -444,11 +518,11 @@
 		    * from Matthew Grant <grantma@anathoth.gen.nz>
 		to accomodate glibc timezone support.  I then ripped out GNU
 		getopt.
-	    * mkswap -- new version merged from util-linux.  Can now make
-	    * >128Meg swaps.  Replaced the old and star, unstar, and tarcat
-	    * with the tar 
-		implementation from sash.   Now tar behaves as god intended it
-		to (i.e. tar -xvf <file> and tar -cf <file> <dir> work).
+	    * mkswap -- new version merged from util-linux.  Can now make 
+			>128Meg swaps.  
+		* Replaced the old and star, unstar, and tarcat with the tar 
+			implementation from sash.   Now tar behaves as god intended it
+			to (i.e. tar -xvf <file> and tar -cf <file> <dir> work).
 	    * dd -- rewritten.  Can with with files, stdin, stdout.  Added the
 	    * following new apps: loadfont -- added from debian boot floppies
 	    * chroot -- added based on a patch from Paolo Molaro

@@ -330,7 +330,7 @@ static int tail_file(const char *filename, off_t n_units)
 		/* Not standard input.  */
 		fd = open(filename, O_RDONLY);
 		if (fd == -1)
-			errorMsg("open error");
+			fatalError("open error");
 
 		errors = tail_lines(filename, fd, (long) n_units);
 		close(fd);
@@ -444,6 +444,8 @@ extern int tail_main(int argc, char **argv)
 #define NDEBUG 1
 
 
+static void detailed_error(int i, int errnum, char *fmt, ...)
+			  __attribute__ ((format (printf, 3, 4)));
 static void detailed_error(int i, int errnum, char *fmt, ...)
 {
 	va_list arguments;

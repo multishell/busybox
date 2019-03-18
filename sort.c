@@ -3,7 +3,7 @@
  * Mini sort implementation for busybox
  *
  *
- * Copyright (C) 1999 by Lineo, inc.
+ * Copyright (C) 1999,2000 by Lineo, inc.
  * Written by John Beppu <beppu@lineo.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -29,7 +29,18 @@
 #include <stdio.h>
 #include <errno.h>
 
-static const char sort_usage[] = "sort [OPTION]... [FILE]...\n\n";
+static const char sort_usage[] = "sort [-n]"
+#ifdef BB_FEATURE_SORT_REVERSE
+" [-r]"
+#endif
+" [FILE]...\n\nSorts lines of text in the specified files\n";
+
+#ifdef BB_FEATURE_SORT_REVERSE
+#define APPLY_REVERSE(x) (reverse ? -(x) : (x))
+static int reverse = 0;
+#else
+#define APPLY_REVERSE(x) (x)
+#endif
 
 /* typedefs _______________________________________________________________ */
 
@@ -43,7 +54,6 @@ typedef struct Line {
 typedef struct {
 	int len;					/* number of Lines */
 	Line **sorted;				/* array fed to qsort */
-
 	Line *head;					/* head of List */
 	Line *current;				/* current Line */
 } List;
@@ -60,36 +70,23 @@ static const int max = 1024;
 static Line *line_alloc()
 {
 	Line *self;
-
 	self = malloc(1 * sizeof(Line));
-	return self;
-}
-
-/* Initialize Line with string */
-static Line *line_init(Line * self, const char *string)
-{
-	self->data = malloc((strlen(string) + 1) * sizeof(char));
-
-	if (self->data == NULL) {
-		return NULL;
-	}
-	strcpy(self->data, string);
-	self->next = NULL;
 	return self;
 }
 
 /* Construct Line from FILE* */
 static Line *line_newFromFile(FILE * src)
 {
-	char buffer[max];
 	Line *self;
+	char *cstring = NULL;
 
-	if (fgets(buffer, max, src)) {
+	if ((cstring = cstring_lineFromFile(src))) {
 		self = line_alloc();
 		if (self == NULL) {
 			return NULL;
 		}
-		line_init(self, buffer);
+		self->data = cstring;
+		self->next = NULL;
 		return self;
 	}
 	return NULL;
@@ -120,7 +117,7 @@ static int compare_ascii(const void *a, const void *b)
 	y = *doh;
 
 	// fprintf(stdout, "> %p: %s< %p: %s", x, x->data, y, y->data);
-	return strcmp(x->data, y->data);
+	return APPLY_REVERSE(strcmp(x->data, y->data));
 }
 
 /* numeric order */
@@ -138,7 +135,7 @@ static int compare_numeric(const void *a, const void *b)
 	xint = strtoul(x->data, NULL, 10);
 	yint = strtoul(y->data, NULL, 10);
 
-	return (xint - yint);
+	return APPLY_REVERSE(xint - yint);
 }
 
 
@@ -166,7 +163,7 @@ static List *list_insert(List * self, Line * line)
 		self->head = line;
 		self->current = line;
 
-		/* all subsequent insertions */
+	/* all subsequent insertions */
 	} else {
 		self->current->next = line;
 		self->current = line;
@@ -230,12 +227,6 @@ static void list_release(List * self)
 }
 
 
-/*
- * I need a list
- * to insert lines into
- * then I need to sort this list
- * and finally print it
- */
 
 int sort_main(int argc, char **argv)
 {
@@ -254,20 +245,19 @@ int sort_main(int argc, char **argv)
 		if (argv[i][0] == '-') {
 			opt = argv[i][1];
 			switch (opt) {
-			case 'g':
-				/* what's the diff between -g && -n? */
-				compare = compare_numeric;
-				break;
 			case 'h':
 				usage(sort_usage);
 				break;
 			case 'n':
-				/* what's the diff between -g && -n? */
+				/* numeric comparison */
 				compare = compare_numeric;
 				break;
+#ifdef BB_FEATURE_SORT_REVERSE
 			case 'r':
 				/* reverse */
+				reverse = 1;
 				break;
+#endif
 			default:
 				fprintf(stderr, "sort: invalid option -- %c\n", opt);
 				usage(sort_usage);
@@ -310,4 +300,4 @@ int sort_main(int argc, char **argv)
 	exit(0);
 }
 
-/* $Id: sort.c,v 1.11 2000/02/08 19:58:47 erik Exp $ */
+/* $Id: sort.c,v 1.15 2000/04/17 04:22:09 beppu Exp $ */

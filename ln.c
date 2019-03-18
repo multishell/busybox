@@ -2,8 +2,7 @@
 /*
  * Mini ln implementation for busybox
  *
- *
- * Copyright (C) 1999 by Lineo, inc.
+ * Copyright (C) 1999,2000 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -128,3 +127,11 @@ extern int ln_main(int argc, char **argv)
 	}
 	exit TRUE;
 }
+
+/*
+Local Variables:
+c-file-style: "linux"
+c-basic-offset: 4
+tab-width: 4
+End:
+*/

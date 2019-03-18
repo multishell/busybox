@@ -62,7 +62,7 @@
 #define CMD_ALL         11
 #define CMD_INFO        12
 
-#ifdef BB_FBSET_FANCY
+#ifdef BB_FEATURE_FBSET_FANCY
 #define CMD_XRES	13
 #define CMD_YRES	14
 #define CMD_VXRES	15
@@ -104,9 +104,9 @@ struct cmdoptions_t {
 	"-hsync", 1, CMD_HSYNC}, {
 	"-vsync", 1, CMD_VSYNC}, {
 	"-laced", 1, CMD_LACED}, {
-	"-double", 1, CMD_DOUBLE},
-#ifdef BB_FBSET_FANCY
-	{
+	"-double", 1, CMD_DOUBLE}, {
+	"--help", 0, CMD_HELP}, {
+#ifdef BB_FEATURE_FBSET_FANCY
 	"--help", 0, CMD_HELP}, {
 	"-all", 0, CMD_ALL}, {
 	"-xres", 1, CMD_XRES}, {
@@ -130,9 +130,8 @@ struct cmdoptions_t {
 	"-bcast", 1, CMD_BCAST}, {
 	"-rgba", 1, CMD_RGBA}, {
 	"-step", 1, CMD_STEP}, {
-	"-move", 1, CMD_MOVE},
+	"-move", 1, CMD_MOVE}, {
 #endif
-	{
 	0, 0, 0}
 };
 
@@ -164,8 +163,7 @@ static int readmode(struct fb_var_screeninfo *base, const char *fn,
 		}
 	}
 #else
-	fprintf(stderr,
-			"W: mode reading was disabled on this copy of fbset; ignoring request\n");
+	errorMsg( "mode reading not compiled in\n");
 #endif
 	return 0;
 }
@@ -199,7 +197,7 @@ static void showmode(struct fb_var_screeninfo *v)
 					 v->vsync_len);
 	}
 	printf("\nmode \"%ux%u-%u\"\n", v->xres, v->yres, (int) (vrate + 0.5));
-#ifdef BB_FBSET_FANCY
+#ifdef BB_FEATURE_FBSET_FANCY
 	printf("\t# D: %.3f MHz, H: %.3f kHz, V: %.3f Hz\n", drate / 1e6,
 		   hrate / 1e3, vrate);
 #endif
@@ -218,7 +216,7 @@ static void showmode(struct fb_var_screeninfo *v)
 	printf("\trgba %u/%u,%u/%u,%u/%u,%u/%u\n", v->red.length,
 		   v->red.offset, v->green.length, v->green.offset, v->blue.length,
 		   v->blue.offset, v->transp.length, v->transp.offset);
-	printf("endmode\n");
+	printf("endmode\n\n");
 }
 
 static void fbset_usage(void)
@@ -229,10 +227,11 @@ static void fbset_usage(void)
 	fprintf(stderr, "BusyBox v%s (%s) multi-call binary -- GPL2\n\n",
 			BB_VER, BB_BT);
 #endif
-	fprintf(stderr, "Usage: fbset [options] [mode]\n");
-	fprintf(stderr, "\tThe following options are recognized:\n");
+	fprintf(stderr, "Usage: fbset [options] [mode]\n\n");
+	fprintf(stderr, "Show and modify frame buffer device settings\n\n");
+	fprintf(stderr, "The following options are recognized:\n");
 	for (i = 0; g_cmdoptions[i].name; i++)
-		fprintf(stderr, "\t\t%s\n", g_cmdoptions[i].name);
+		fprintf(stderr, "\t%s\n", g_cmdoptions[i].name);
 	exit(-1);
 }
 
@@ -283,7 +282,7 @@ extern int fbset_main(int argc, char **argv)
 					varset.hsync_len = strtoul(argv[6], 0, 0);
 					varset.vsync_len = strtoul(argv[7], 0, 0);
 					break;
-#ifdef BB_FBSET_FANCY
+#ifdef BB_FEATURE_FBSET_FANCY
 				case CMD_XRES:
 					varset.xres = strtoul(argv[1], 0, 0);
 					break;
@@ -323,7 +322,8 @@ extern int fbset_main(int argc, char **argv)
 		if (ioctl(fh, FBIOPUT_VSCREENINFO, &var))
 			PERROR("fbset(ioctl)");
 	showmode(&var);
-	close(fh);
+	/* Don't close the file, as exiting will take care of that */
+	/* close(fh); */
 
-	return (TRUE);
+	exit (TRUE);
 }

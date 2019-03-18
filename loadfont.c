@@ -30,8 +30,8 @@
 #define PSF_MAXMODE    0x03
 #define PSF_SEPARATOR  0xFFFF
 
-static const char loadfont_usage[] = "loadfont\n"
-	"\n" "\tLoad a console font from standard input.\n" "\n";
+static const char loadfont_usage[] = "loadfont\n\n"
+	"Loads a console font from standard input.\n";
 
 struct psf_header {
 	unsigned char magic1, magic2;	/* Magic number */
@@ -47,14 +47,18 @@ extern int loadfont_main(int argc, char **argv)
 {
 	int fd;
 
+	if (argc>=2 && *argv[1]=='-') {
+		usage(loadfont_usage);
+	}
+
 	fd = open("/dev/tty0", O_RDWR);
 	if (fd < 0) {
 		fprintf(stderr, "Error opening /dev/tty0: %s\n", strerror(errno));
-		return 1;
+		return( FALSE);
 	}
 	loadnewfont(fd);
 
-	return 0;
+	return( TRUE);
 }
 
 static void do_loadfont(int fd, char *inbuf, int unit, int fontsize)

@@ -3,7 +3,7 @@
  * Mini chown/chmod/chgrp implementation for busybox
  *
  *
- * Copyright (C) 1999 by Lineo, inc.
+ * Copyright (C) 1999,2000 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -48,7 +48,7 @@ static const char chgrp_usage[] = "chgrp [OPTION]... GROUP FILE...\n\n"
 
 	"\nOptions:\n\t-R\tchange files and directories recursively\n";
 static const char chown_usage[] =
-	"chown [OPTION]...  OWNER[.[GROUP] FILE...\n\n"
+	"chown [OPTION]...  OWNER[<.|:>[GROUP] FILE...\n\n"
 	"Change the owner and/or group of each FILE to OWNER and/or GROUP.\n"
 
 	"\nOptions:\n\t-R\tchange files and directories recursively\n";
@@ -60,7 +60,7 @@ static const char chmod_usage[] =
 	"\nOptions:\n\t-R\tchange files and directories recursively.\n";
 
 
-static int fileAction(const char *fileName, struct stat *statbuf)
+static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
 {
 	switch (whichApp) {
 	case CHGRP_APP:
@@ -98,13 +98,11 @@ int chmod_chown_chgrp_main(int argc, char **argv)
 	char *p;
 	const char *appUsage;
 
-	whichApp =
-		(strcmp(*argv, "chown") == 0)? 
+	whichApp = (strcmp(*argv, "chown") == 0)? 
 			CHOWN_APP : (strcmp(*argv, "chmod") == 0)? 
 				CHMOD_APP : CHGRP_APP;
 
-	appUsage =
-		(whichApp == CHOWN_APP)? 
+	appUsage = (whichApp == CHOWN_APP)? 
 			chown_usage : (whichApp == CHMOD_APP) ? chmod_usage : chgrp_usage;
 
 	if (argc < 2)
@@ -142,6 +140,8 @@ int chmod_chown_chgrp_main(int argc, char **argv)
 				goto bad_group;
 		} else {
 			groupName = strchr(*argv, '.');
+			if (groupName == NULL)
+				groupName = strchr(*argv, ':');
 			if (groupName) {
 				*groupName++ = '\0';
 				gid = strtoul(groupName, &p, 10);
@@ -171,9 +171,8 @@ int chmod_chown_chgrp_main(int argc, char **argv)
 		fatalError( "%s: too few arguments\n", invocationName);
 	}
 	while (argc-- > 1) {
-		if (recursiveAction
-			(*(++argv), recursiveFlag, TRUE, FALSE, fileAction,
-			 fileAction) == FALSE)
+		if (recursiveAction (*(++argv), recursiveFlag, FALSE, FALSE, 
+					fileAction, fileAction, NULL) == FALSE)
 			exit(FALSE);
 	}
 	exit(TRUE);
@@ -181,3 +180,11 @@ int chmod_chown_chgrp_main(int argc, char **argv)
   bad_group:
 	fatalError( "%s: unknown group name: %s\n", invocationName, groupName);
 }
+
+/*
+Local Variables:
+c-file-style: "linux"
+c-basic-offset: 4
+tab-width: 4
+End:
+*/
