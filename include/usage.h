@@ -1271,6 +1271,7 @@
 	"\t-v\tverbose output\n"  \
 	"\t-L\tLock to prevent simultaneous loads of a module\n" \
 	USAGE_INSMOD_MAP("\t-m\tOutput load map to stdout\n") \
+	"\t-o NAME\tSet internal module name to NAME\n" \
 	"\t-x\tdo not export externs"
 
 #define install_trivial_usage \
@@ -1304,29 +1305,23 @@
 	"\t\t\t[ label STRING ] [ scope SCOPE-ID ]\n" \
 	"\t\t\tSCOPE-ID := [ host | link | global | NUMBER ]"
 
-#ifndef CONFIG_FEATURE_IPCALC_FANCY
-#define ipcalc_trivial_usage \
-	"[--broadcast] [--netmask] [--network] ipaddr <netmask>"
-
-#define ipcalc_full_usage \
-	"Calculate IP network settings from a IP address\n\n" \
-	"Options:\n" \
-	"\t-b\t--broadcast\tDisplay calculated broadcast address.\n" \
-	"\t-n\t--netmask\tDisplay default netmask for IP.\n" \
-	"\t-w\t--network\tDisplay calculated network address."
+#ifdef CONFIG_FEATURE_IPCALC_FANCY
+  #define XUSAGE_IPCALC_FANCY(a) a
 #else
+  #define XUSAGE_IPCALC_FANCY(a)
+#endif
 #define ipcalc_trivial_usage \
-	"[OPTION]... ipaddr <netmask>"
-
+	"[OPTION]... <ADDRESS>[[/]<NETMASK>] [NETMASK]"
 #define ipcalc_full_usage \
 	"Calculate IP network settings from a IP address\n\n" \
 	"Options:\n" \
 	"\t-b\t--broadcast\tDisplay calculated broadcast address.\n" \
-	"\t-n\t--netmask\tDisplay default netmask for IP.\n" \
-	"\t-w\t--network\tDisplay calculated network address.\n" \
+	"\t-n\t--network\tDisplay calculated network address.\n" \
+	"\t-m\t--netmask\tDisplay default netmask for IP." \
+	XUSAGE_IPCALC_FANCY(\
+	"\n\t-p\t--prefix\tDisplay the prefix for IP/NETMASK." \
 	"\t-h\t--hostname\tDisplay first resolved host name.\n" \
-	"\t-s\t--silent\tDon't ever display error messages."
-#endif
+	"\t-s\t--silent\tDon't ever display error messages.")
 
 #define iplink_trivial_usage \
 	"{ set DEVICE { up | down | arp { on | off } | show [ DEVICE ] }"
@@ -2105,11 +2100,15 @@
 	"Options:\n" \
 	"\t-n\t\tsuppress automatic printing of pattern space\n" \
 	"\t-e script\tadd the script to the commands to be executed\n" \
-	"\t-f scriptfile\tadd the contents of script-file to the commands to be executed\n" \
+	"\t-f scriptfile\tadd script-file contents to the\n" \
+	    "\t\t\tcommands to be executed\n" \
+	"\t-i\t\tEdit files in-place\n" \
 	"\n" \
-	"If no -e or -f is given, the first non-option argument is taken as the\n" \
-	"sed script to interpret. All remaining arguments are names of input\n" \
-	"files; if no input files are specified, then the standard input is read."
+	"If no -e or -f is given, the first non-option argument is taken as the sed\n"\
+	"script to interpret. All remaining arguments are names of input files; if no\n"\
+	"input files are specified, then the standard input is read.  Source files\n" \
+	"will not be modified unless -i option is given."
+
 #define sed_example_usage \
 	"$ echo "foo" | sed -e 's/f[a-zA-Z]o/bar/g'\n" \
 	"bar\n"
@@ -2225,6 +2224,7 @@
 	"\n\t-b|--background\t\t\tforce process into background"\
 	"\n\t-u|--user <username>|<uid>\tstop this user's processes"\
 	"\n\t-x|--exec <executable>\t\tprogram to either start or check"\
+	"\n\t-m|--make-pidfile <filename>\tcreate the -p file and enter pid in it"\
 	"\n\t-n|--name <process-name>\tstop processes with this name"\
 	"\n\t-p|--pidfile <pid-file>\t\tsave or load pid using a pid-file"\
 	"\n\t-q|--quiet\t\t\tbe quiet" \
