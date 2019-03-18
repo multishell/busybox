@@ -7,6 +7,51 @@
  *
  * Licensed under GPLv2, see file LICENSE in this source tree.
  */
+//config:config MODPROBE_SMALL
+//config:	bool "Simplified modutils"
+//config:	default y
+//config:	select PLATFORM_LINUX
+//config:	help
+//config:	  Simplified modutils.
+//config:
+//config:	  With this option modprobe does not require modules.dep file
+//config:	  and does not use /etc/modules.conf file.
+//config:	  It scans module files in /lib/modules/`uname -r` and
+//config:	  determines dependencies and module alias names on the fly.
+//config:	  This may make module loading slower, most notably
+//config:	  when one needs to load module by alias (this requires
+//config:	  scanning through module _bodies_).
+//config:
+//config:	  At the first attempt to load a module by alias modprobe
+//config:	  will try to generate modules.dep.bb file in order to speed up
+//config:	  future loads by alias. Failure to do so (read-only /lib/modules,
+//config:	  etc) is not reported, and future modprobes will be slow too.
+//config:
+//config:	  NB: modules.dep.bb file format is not compatible
+//config:	  with modules.dep file as created/used by standard module tools.
+//config:
+//config:	  Additional module parameters can be stored in
+//config:	  /etc/modules/$module_name files.
+//config:
+//config:	  Apart from modprobe, other utilities are also provided:
+//config:	  - insmod is an alias to modprobe
+//config:	  - rmmod is an alias to modprobe -r
+//config:	  - depmod generates modules.dep.bb
+//config:
+//config:config FEATURE_MODPROBE_SMALL_OPTIONS_ON_CMDLINE
+//config:	bool "Accept module options on modprobe command line"
+//config:	default y
+//config:	depends on MODPROBE_SMALL
+//config:	select PLATFORM_LINUX
+//config:	help
+//config:	  Allow insmod and modprobe take module options from command line.
+//config:
+//config:config FEATURE_MODPROBE_SMALL_CHECK_ALREADY_LOADED
+//config:	bool "Skip loading of already loaded modules"
+//config:	default y
+//config:	depends on MODPROBE_SMALL
+//config:	help
+//config:	  Check if the module is already loaded.
 
 //applet:IF_MODPROBE_SMALL(APPLET(modprobe, BB_DIR_SBIN, BB_SUID_DROP))
 //applet:IF_MODPROBE_SMALL(APPLET_ODDNAME(depmod, modprobe, BB_DIR_SBIN, BB_SUID_DROP, depmod))
@@ -14,13 +59,19 @@
 //applet:IF_MODPROBE_SMALL(APPLET_ODDNAME(lsmod, modprobe, BB_DIR_SBIN, BB_SUID_DROP, lsmod))
 //applet:IF_MODPROBE_SMALL(APPLET_ODDNAME(rmmod, modprobe, BB_DIR_SBIN, BB_SUID_DROP, rmmod))
 
+//kbuild:lib-$(CONFIG_MODPROBE_SMALL) += modprobe-small.o
+
 #include "libbb.h"
 /* After libbb.h, since it needs sys/types.h on some systems */
 #include <sys/utsname.h> /* uname() */
 #include <fnmatch.h>
+#include <sys/syscall.h>
 
 extern int init_module(void *module, unsigned long len, const char *options);
 extern int delete_module(const char *module, unsigned flags);
+#ifdef __NR_finit_module
+# define finit_module(fd, uargs, flags) syscall(__NR_finit_module, fd, uargs, flags)
+#endif
 /* linux/include/linux/module.h has limit of 64 chars on module names */
 #undef MODULE_NAME_LEN
 #define MODULE_NAME_LEN 64
@@ -209,11 +260,34 @@ static int load_module(const char *fname, const char *options)
 	int r;
 	size_t len = MAXINT(ssize_t);
 	char *module_image;
+
+	if (!options)
+		options = "";
+
 	dbg1_error_msg("load_module('%s','%s')", fname, options);
 
-	module_image = xmalloc_open_zipped_read_close(fname, &len);
-	r = (!module_image || init_module(module_image, len, options ? options : "") != 0);
-	free(module_image);
+	/*
+	 * First we try finit_module if available.  Some kernels are configured
+	 * to only allow loading of modules off of secure storage (like a read-
+	 * only rootfs) which needs the finit_module call.  If it fails, we fall
+	 * back to normal module loading to support compressed modules.
+	 */
+	r = 1;
+# ifdef __NR_finit_module
+	{
+		int fd = open(fname, O_RDONLY | O_CLOEXEC);
+		if (fd >= 0) {
+			r = finit_module(fd, options, 0) != 0;
+			close(fd);
+		}
+	}
+# endif
+	if (r != 0) {
+		module_image = xmalloc_open_zipped_read_close(fname, &len);
+		r = (!module_image || init_module(module_image, len, options) != 0);
+		free(module_image);
+	}
+
 	dbg1_error_msg("load_module:%d", r);
 	return r; /* 0 = success */
 #else

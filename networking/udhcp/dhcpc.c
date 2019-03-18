@@ -18,6 +18,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
+//applet:IF_UDHCPC(APPLET(udhcpc, BB_DIR_SBIN, BB_SUID_DROP))
+
+//kbuild:lib-$(CONFIG_UDHCPC) += common.o packet.o signalpipe.o socket.o
+//kbuild:lib-$(CONFIG_UDHCPC) += dhcpc.o
+//kbuild:lib-$(CONFIG_FEATURE_UDHCPC_ARPING) += arpping.o
+//kbuild:lib-$(CONFIG_FEATURE_UDHCP_RFC3397) += domain_codec.o
+
 #include <syslog.h>
 /* Override ENABLE_FEATURE_PIDFILE - ifupdown needs our pidfile to always exist */
 #define WANT_PIDFILE 1
@@ -450,7 +457,7 @@ static char **fill_envp(struct dhcp_packet *packet)
 			temp = udhcp_get_option(packet, i);
 			if (temp) {
 				if (i == DHCP_OPTION_OVERLOAD)
-					overload = *temp;
+					overload |= *temp;
 				else if (i == DHCP_SUBNET)
 					envc++; /* for $mask */
 				envc++;
@@ -476,7 +483,7 @@ static char **fill_envp(struct dhcp_packet *packet)
 	 * uint16_t secs;   // elapsed since client began acquisition/renewal
 	 * uint16_t flags;  // only one flag so far: bcast. Never set by server
 	 * uint32_t ciaddr; // client IP (usually == yiaddr. can it be different
-	 *                  // if during renew server wants to give us differn IP?)
+	 *                  // if during renew server wants to give us different IP?)
 	 * uint32_t gateway_nip; // relay agent IP address
 	 * uint8_t chaddr[16]; // link-layer client hardware address (MAC)
 	 * TODO: export gateway_nip as $giaddr?
@@ -1118,16 +1125,26 @@ static void perform_release(uint32_t server_addr, uint32_t requested_ip)
 	struct in_addr temp_addr;
 
 	/* send release packet */
-	if (state == BOUND || state == RENEWING || state == REBINDING) {
+	if (state == BOUND
+	 || state == RENEWING
+	 || state == REBINDING
+	 || state == RENEW_REQUESTED
+	) {
 		temp_addr.s_addr = server_addr;
 		strcpy(buffer, inet_ntoa(temp_addr));
 		temp_addr.s_addr = requested_ip;
 		bb_error_msg("unicasting a release of %s to %s",
 				inet_ntoa(temp_addr), buffer);
 		send_release(server_addr, requested_ip); /* unicast */
-		udhcp_run_script(NULL, "deconfig");
 	}
 	bb_error_msg("entering released state");
+/*
+ * We can be here on: SIGUSR2,
+ * or on exit (SIGTERM) and -R "release on quit" is specified.
+ * Users requested to be notified in all cases, even if not in one
+ * of the states above.
+ */
+	udhcp_run_script(NULL, "deconfig");
 
 	change_listen_mode(LISTEN_NONE);
 	state = RELEASED;
@@ -1279,9 +1296,9 @@ int udhcpc_main(int argc UNUSED_PARAM, char **argv)
 
 	/* Parse command line */
 	/* O,x: list; -T,-t,-A take numeric param */
-	opt_complementary = "O::x::T+:t+:A+" IF_UDHCP_VERBOSE(":vv") ;
+	IF_UDHCP_VERBOSE(opt_complementary = "vv";)
 	IF_LONG_OPTS(applet_long_options = udhcpc_longopts;)
-	opt = getopt32(argv, "CV:H:h:F:i:np:qRr:s:T:t:SA:O:ox:fB"
+	opt = getopt32(argv, "CV:H:h:F:i:np:qRr:s:T:+t:+SA:+O:*ox:*fB"
 		USE_FOR_MMU("b")
 		IF_FEATURE_UDHCPC_ARPING("a::")
 		IF_FEATURE_UDHCP_PORT("P:")
@@ -1809,9 +1826,8 @@ int udhcpc_main(int argc UNUSED_PARAM, char **argv)
 					temp = udhcp_get_option(&packet, DHCP_SERVER_ID);
 					if (!temp) {
  non_matching_svid:
-						log1("%s with wrong server ID, ignoring packet",
-							"Received DHCP NAK"
-						);
+						log1("received DHCP NAK with wrong"
+							" server ID, ignoring packet");
 						continue;
 					}
 					move_from_unaligned32(svid, temp);
