@@ -6,7 +6,7 @@
 
 /* Tiny RPN calculator, because "expr" didn't give me bitwise operations. */
 
-const char			math_usage[] = "math expression ...";
+static const char math_usage[] = "math expression ...";
 
 static double		stack[100];
 static unsigned int	pointer;
@@ -137,7 +137,7 @@ stack_machine(const char * argument)
 }
 
 int
-math_main(struct FileInfo * i, int argc, char * * argv)
+math_main(int argc, char * * argv)
 {
 	while ( argc >= 2 ) {
 		stack_machine(argv[1]);

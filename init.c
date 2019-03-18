@@ -1,3 +1,26 @@
+/*
+ * Mini init implementation for busybox
+ *
+ *
+ * Copyright (C) 1995, 1996 by Bruce Perens <bruce@pixar.com>.
+ * Adjusted by so many folks, it's impossible to keep track.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ *
+ */
+
 #include "internal.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,19 +36,21 @@
 #include <sys/mount.h>
 #include <sys/reboot.h>
 #include <sys/kdaemon.h>
-#include <sys/swap.h>
 #include <sys/sysmacros.h>
+#include <linux/serial.h>      /* for serial_struct */
+#include <sys/vt.h>            /* for vt_stat */
+#include <sys/ioctl.h>
 
-const char		init_usage[] = "Used internally by the system.";
-char			console[16] = "";
-const char *	default_console = "/dev/tty1";
-char *			first_terminal = NULL;
-const char *	second_terminal = "/dev/tty2";
-const char		log[] = "/dev/tty3";
-char * term_ptr = NULL;
+static const char  init_usage[] = "Used internally by the system.";
+static char        console[16] = "";
+static const char* default_console = "/dev/tty2";
+static char*       first_terminal = NULL;
+static const char* second_terminal = "/dev/tty2";
+static const char* log = "/dev/tty3";
+static char* term_ptr = NULL;
 
 static void
-message(const char * terminal, const char * pattern, ...)
+message(const char* terminal, const char * pattern, ...)
 {
 	int	fd;
 	FILE *	con = 0;
@@ -36,7 +61,8 @@ message(const char * terminal, const char * pattern, ...)
 	 * has switched consoles, the open will get the new console. If we kept
 	 * the console open, we'd always print to the same one.
 	 */
-	if ( ((fd = open(terminal, O_WRONLY|O_NOCTTY)) < 0)
+	if ( !terminal
+	 ||  ((fd = open(terminal, O_WRONLY|O_NOCTTY)) < 0)
 	 ||  ((con = fdopen(fd, "w")) == NULL) )
 		return;
 
@@ -66,11 +92,8 @@ waitfor(int pid)
 }
 
 static int
-run(
- const char *			program
-,const char * const *	arguments
-,const char *			terminal
-,int					get_enter)
+run(const char* program, const char* const* arguments, 
+	const char* terminal, int get_enter)
 {
 	static const char	control_characters[] = {
 		'\003',
@@ -102,7 +125,7 @@ run(
 	};
 
 	static const char	press_enter[] =
- "Please press Enter to activate this console. ";
+ "\nPlease press Enter to activate this console. ";
 
 	int	pid;
 
@@ -137,7 +160,8 @@ run(
 			 * before the user wants it. This is critical if swap is not
 			 * enabled and the system has low memory. Generally this will
 			 * be run on the second virtual console, and the first will
-			 * be allowed to start a shell or the installation system.
+			 * be allowed to start a shell or whatever an init script 
+			 * specifies.
 			 */
 			char	c;
 			write(1, press_enter, sizeof(press_enter) - 1);
@@ -160,44 +184,46 @@ run(
 static int
 mem_total()
 {
-  char s[80];
-  char *p;
-  FILE *f;
-  const char pattern[]="MemTotal:";
+    char s[80];
+    char *p;
+    FILE *f;
+    const char pattern[]="MemTotal:";
 
-  f=fopen("/proc/meminfo","r");
-  while (NULL != fgets(s,79,f)) {
-    p=strstr(s, pattern);
-    if (NULL != p) {
-      fclose(f);
-      return(atoi(p+strlen(pattern)));
+    f=fopen("/proc/meminfo","r");
+    while (NULL != fgets(s,79,f)) {
+	p=strstr(s, pattern);
+	if (NULL != p) {
+	    fclose(f);
+	    return(atoi(p+strlen(pattern)));
+	}
     }
-  }
-  return -1;
+    return -1;
 }
 
 static void
 set_free_pages()
 {
-  char s[80];
-  FILE *f;
+    char s[80];
+    FILE *f;
 
-  f=fopen("/proc/sys/vm/freepages","r");
-  fgets(s,79,f);
-  if (atoi(s) < 32) {
+    f=fopen("/proc/sys/vm/freepages","r");
+    fgets(s,79,f);
+    if (atoi(s) < 32) {
+	fclose(f);
+	f=fopen("/proc/sys/vm/freepages","w");
+	fprintf(f,"30\t40\t50\n");
+	printf("\nIncreased /proc/sys/vm/freepages values to 30/40/50\n");
+    }
     fclose(f);
-    f=fopen("/proc/sys/vm/freepages","w");
-    fprintf(f,"30\t40\t50\n");
-    printf("\nIncreased /proc/sys/vm/freepages values to 30/40/50\n");
-  }
-  fclose(f);
 }
 
 static void
-shutdown_system(int do_reboot)
+shutdown_system(void)
 {
 	static const char * const umount_args[] = {"/bin/umount", "-a", "-n", 0};
+	static const char * const swapoff_args[] = {"/bin/swapoff", "-a", 0};
 
+	message(console, "The system is going down NOW !!");
 	sync();
 	/* Allow Ctrl-Alt-Del to reboot system. */
 	reboot(RB_ENABLE_CAD);
@@ -210,62 +236,107 @@ shutdown_system(int do_reboot)
 	message(console, "Sending SIGKILL to all processes.\r\n");
 	kill(-1, SIGKILL);
 	sleep(1);
+	waitfor(run("/bin/swapoff", swapoff_args, console, 0));
 	waitfor(run("/bin/umount", umount_args, console, 0));
 	sync();
-	bdflush(1, 0);
-	sync();
-	reboot(do_reboot ?RB_AUTOBOOT : RB_HALT_SYSTEM);
-	exit(0);
+	if (get_kernel_revision() <= 2*65536+2*256+11) {
+	    /* Removed  bdflush call, kupdate in kernels >2.2.11 */
+	    bdflush(1, 0);
+	    sync();
+	}
 }
 
 static void
 halt_signal(int sig)
 {
-	shutdown_system(0);
+    shutdown_system();
+    message(console, "The system is halted. Press CTRL-ALT-DEL or turn off power\r\n");
+    reboot( RB_HALT_SYSTEM);
+    exit(0);
 }
 
 static void
 reboot_signal(int sig)
 {
-	shutdown_system(1);
+    shutdown_system();
+    message(console, "Please stand by while rebooting the system.\r\n");
+    reboot( RB_AUTOBOOT);
+    exit(0);
 }
 
 static void
-exit_signal(int sig)
+configure_terminals( int serial_cons, int single_user_mode )
 {
-  
-  /* initrd doesn't work anyway */
+	char *tty;
+	struct serial_struct sr;
+	struct vt_stat vt;
 
-  shutdown_system(1);
 
-	/* This is used on the initial ramdisk */
+	switch (serial_cons) {
+	case -1:
+	    /* 2.2 kernels:
+	    * identify the real console backend and try to make use of it */
+	    if (ioctl(0,TIOCGSERIAL,&sr) == 0) {
+		sprintf( console, "/dev/ttyS%d", sr.line );
+		serial_cons = sr.line+1;
+	    }
+	    else if (ioctl(0, VT_GETSTATE, &vt) == 0) {
+		sprintf( console, "/dev/tty%d", vt.v_active );
+		serial_cons = 0;
+	    }
+	    else {
+		/* unknown backend: fallback to /dev/console */
+		strcpy( console, "/dev/console" );
+		serial_cons = 0;
+	    }
+	    break;
 
-  /*	message(log, "Init exiting.");
-	exit(0);
-	*/
+	case 1:
+		strcpy( console, "/dev/cua0" );
+		break;
+	case 2:
+		strcpy( console, "/dev/cua1" );
+		break;
+	default:
+		tty = ttyname(0);
+		if (tty) {
+			strcpy( console, tty );
+			if (!strncmp( tty, "/dev/cua", 8 ))
+				serial_cons=1;
+		}
+		else
+			/* falls back to /dev/tty1 if an error occurs */
+			strcpy( console, default_console );
+	}
+	if (!first_terminal)
+		first_terminal = console;
+#if defined (__sparc__)
+	if (serial_cons > 0 && !strncmp(term_ptr,"TERM=linux",10))
+	    term_ptr = "TERM=vt100";
+#endif
+	if (serial_cons) {
+	    /* disable other but the first terminal:
+	    * VT is not initialized anymore on 2.2 kernel when booting from
+	    * serial console, therefore modprobe is flooding the display with
+	    * "can't locate module char-major-4" messages. */
+	    log = 0;
+	    second_terminal = 0;
+	}
 }
 
-void
-configure_terminals( int serial_cons );
-
 extern int
-init_main(struct FileInfo * i, int argc, char * * argv)
+init_main(int argc, char * * argv)
 {
-	static const char * const	rc = "etc/rc";
-	const char *				arguments[100];
-	int							run_rc = 1;
-	int							j;
-	int							pid1 = 0;
-	int							pid2 = 0;
-	int							create_swap= -1;
-	struct stat					statbuf;
-#ifndef INCLUDE_DINSTALL
-	const char *				tty_commands[2] = { "bin/sh", "bin/sh"};
-#else
-	const char *				tty_commands[2] = { "sbin/dinstall", "bin/sh"};
-#endif
-	char						swap[20];
-	int							serial_console = 0;
+	const char *		    rc_arguments[100];
+	const char *		    arguments[100];
+	int			    run_rc = TRUE;
+	int			    j;
+	int			    pid1 = 0;
+	int			    pid2 = 0;
+	struct stat		    statbuf;
+	const char *		    tty_commands[3] = { "etc/init.d/rcS", "bin/sh"};
+	int			    serial_console = 0;
+	int retval;
 
 	/*
 	 * If I am started as /linuxrc instead of /sbin/init, I don't have the
@@ -278,7 +349,7 @@ init_main(struct FileInfo * i, int argc, char * * argv)
 	signal(SIGUSR1, halt_signal);
 	signal(SIGUSR2, reboot_signal);
 	signal(SIGINT, reboot_signal);
-	signal(SIGTERM, exit_signal);
+	signal(SIGTERM, reboot_signal);
 
 	reboot(RB_DISABLE_CAD);
 
@@ -286,7 +357,7 @@ init_main(struct FileInfo * i, int argc, char * * argv)
 
 	for ( j = 1; j < argc; j++ ) {
 		if ( strcmp(argv[j], "single") == 0 ) {
-			run_rc = 0;
+			run_rc = FALSE;
 			tty_commands[0] = "bin/sh";
 			tty_commands[1] = 0;
 		}
@@ -320,7 +391,6 @@ init_main(struct FileInfo * i, int argc, char * * argv)
 			term_ptr=__environ[j];
 		}
 	}
-	configure_terminals( serial_console );
 
 	printf("mounting /proc ...\n");
 	if (mount("/proc","/proc","proc",0,0)) {
@@ -328,108 +398,75 @@ init_main(struct FileInfo * i, int argc, char * * argv)
 	}
 	printf("\tdone.\n");
 
+	if (get_kernel_revision() >= 2*65536+1*256+71) {
+	    /* if >= 2.1.71 kernel, /dev/console is not a symlink anymore:
+	    * use it as primary console */
+	    serial_console=-1;
+	}
+
+	/* Make sure /etc/init.d/rc exists */
+	retval= stat(tty_commands[0],&statbuf);
+	if (retval)
+	    run_rc = FALSE;
+
+	configure_terminals( serial_console,  run_rc);
+
 	set_free_pages();
 
-	if (mem_total() < 3500) { /* not enough memory for standard install */
-	  int retval;
-	  retval= stat("/etc/swappartition",&statbuf);
-	  if (retval) {
-	    printf("
-You do not have enough RAM, hence you must boot using the Boot Disk
-for Low Memory systems.
-
-Read the instructions in the install.html file.
-");
-	    while (1) {;}
-	  } else { /* everything OK */
-	    FILE *f;
-
-	    f=fopen("/etc/swappartition","r");
-	    fgets(swap,19,f);
-	    fclose(f);
-	    *(strstr(swap,"\n"))='\0';
-
-	    if (swapon(swap,0)) {
-	      perror("swapon failed\n");
-	    } else {
-	      f=fopen("/etc/swaps","w");
-	      fprintf(f,"%s none swap rw 0 0",swap);
-		fclose(f);
-	      create_swap = 0;
+	/* not enough memory to do anything useful*/
+	if (mem_total() < 2000) { 
+	    retval= stat("/etc/fstab",&statbuf);
+	    if (retval) {
+		printf("You do not have enough RAM, sorry.\n");
+		while (1) { sleep(1);}
+	    } else { 
+	      /* Try to turn on swap */
+		static const char * const swapon_args[] = {"/bin/swapon", "-a", 0};
+		waitfor(run("/bin/swapon", swapon_args, console, 0));
+		if (mem_total() < 2000) { 
+		    printf("You do not have enough RAM, sorry.\n");
+		    while (1) { sleep(1);}
+		}
 	    }
-	  }
 	}
 
 	/*
 	 * Don't modify **argv directly, it would show up in the "ps" display.
 	 * I don't want "init" to look like "rc".
 	 */
-	arguments[0] = rc;
+	rc_arguments[0] = tty_commands[0];
 	for ( j = 1; j < argc; j++ ) {
-		arguments[j] = argv[j];
+		rc_arguments[j] = argv[j];
 	}
-	arguments[j] = 0;
-
-	if ( run_rc )
-		waitfor(run(rc, arguments, console, 0));
-
-	if ( 0 == create_swap) {
-	  if (unlink("/etc/swappartition")) {
-	    perror("unlinking /etc/swappartition");
-	  }
-	}
+	rc_arguments[j] = 0;
 
 	arguments[0] = "-sh";
 	arguments[1] = 0;
+	
+	/* Ok, now launch the rc script /etc/init.d/rcS and prepare to start up
+	 * some VTs on tty1 and tty2 if somebody hits enter 
+	 */
 	for ( ; ; ) {
 		int	wpid;
 		int	status;
 
-		if ( pid1 == 0 && tty_commands[0] ) {
-			arguments[0] = tty_commands[0];
-			pid1 = run(tty_commands[0], arguments, first_terminal, 0);
+		if ( pid1 == 0  && tty_commands[0] ) {
+		   if ( run_rc == TRUE ) {
+			pid1 = run(tty_commands[0], rc_arguments, first_terminal, 0);
+		   } else {
+			pid2 = run(tty_commands[1], arguments, first_terminal, 1);
+		   }
 		}
-		if ( pid2 == 0 && tty_commands[1] )
+		if ( pid2 == 0 && second_terminal && tty_commands[1] ) {
 			pid2 = run(tty_commands[1], arguments, second_terminal, 1);
+		}
 		wpid = wait(&status);
-		if ( wpid > 0 ) {
-			/* DEBUGGING */
+		if ( wpid > 0  && wpid != pid1) {
 			message(log, "pid %d exited, status=%x.\n", wpid, status);
 		}
-		if ( wpid == pid1 ) {
-		  pid1 = 0;
-		}
-		if ( wpid == pid2 )
+		if ( wpid == pid2 ) {
 			pid2 = 0;
-	}
-}
-
-void
-configure_terminals( int serial_cons )
-{
-	//struct stat statbuf;
-	char *tty;
-
-	switch (serial_cons) {
-	case 1:
-		strcpy( console, "/dev/ttyS0" );
-		break;
-	case 2:
-		strcpy( console, "/dev/ttyS1" );
-		break;
-	default:
-		tty = ttyname(0);
-		if (tty) {
-			strcpy( console, tty );
-			if (!strncmp( tty, "/dev/ttyS", 9 ))
-				serial_cons=1;
 		}
-		else
-			/* falls back to /dev/tty1 if an error occurs */
-			strcpy( console, default_console );
 	}
-	if (!first_terminal)
-		first_terminal = console;
-	if (serial_cons && !strncmp(term_ptr,"TERM=linux",10))
-		term_ptr = "TERM=vt100";
 }
+

@@ -3,11 +3,12 @@
 #include <string.h>
 #include <stdio.h>
 
-const char			length_usage[] = "length string";
-
-int
-length_main(struct FileInfo * i, int argc, char * * argv)
+extern int
+length_main(int argc, char * * argv)
 {
-	printf("%d\n", strlen(argv[1]));
-	return 0;
+    if ( **(argv+1) == '-' ) {
+	usage("length string\n");
+    }
+    printf("%d\n", strlen(argv[1]));
+    return( TRUE);
 }

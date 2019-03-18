@@ -1,5 +1,6 @@
 /*
- * Mini Cat implementation for busybox
+ * Mini true/false implementation for busybox
+ *
  *
  * Copyright (C) 1999 by Lineo, inc.
  * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
@@ -21,42 +22,17 @@
  */
 
 #include "internal.h"
-#include <stdio.h>
 
 
-static void print_file( FILE *file) 
+extern int
+true_main(int argc, char** argv)
 {
-    int c;
-    while ((c = getc(file)) != EOF)
-	putc(c, stdout);
-    fclose(file);
-    fflush(stdout);
+	return( TRUE);
 }
 
-extern int cat_main(int argc, char **argv)
+extern int
+false_main(int argc, char** argv)
 {
-    FILE *file;
-
-    if (argc==1) {
-	print_file( stdin);
-	exit( TRUE);
-    }
-
-    if ( **(argv+1) == '-' ) {
-	usage ("cat [file ...]\n");
-    }
-    argc--;
-    argv++;
-
-    while (argc-- > 0) {
-	file = fopen(*argv, "r");
-	if (file == NULL) {
-	    perror(*argv);
-	    exit(FALSE);
-	}
-	print_file( file);
-	argc--;
-	argv++;
-    }
-    exit(TRUE);
+	return( FALSE);
 }
+

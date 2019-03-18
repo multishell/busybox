@@ -1,3 +1,24 @@
+/*
+ * Mini loadkmap implementation for busybox
+ *
+ * Copyright (C) 1998 Enrique Zanardi <ezanardi@ull.es>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ *
+ */
+
 #include "internal.h"
 #include <errno.h>
 #include <fcntl.h>
@@ -7,14 +28,14 @@
 #include <sys/ioctl.h>
 
 
-const char			loadkmap_usage[] = "loadkmap\n"
+static const char loadkmap_usage[] = "loadkmap\n"
 "\n"
 "\tLoad a binary keyboard translation table from standard input.\n"
 "\n";
 
 
 int
-loadkmap_main(struct FileInfo * info, int argc, char * * argv)
+loadkmap_main(int argc, char * * argv)
 { 
     struct kbentry ke;
     u_short *ibuff;
@@ -48,7 +69,7 @@ loadkmap_main(struct FileInfo * info, int argc, char * * argv)
 	if (flags[i]==1){
 	    pos=0;
 	    while (pos < ibuffsz) {
-		if ( (readsz = read(0,ibuff+pos,ibuffsz-pos)) < 0 ) {
+		if ( (readsz = read(0,(char *)ibuff+pos,ibuffsz-pos)) < 0 ) {
 		    fprintf(stderr, "Error reading keymap: %s\n", 
 			strerror(errno));
 		    return 1;

@@ -1,11 +1,33 @@
+/*
+ * Mini mknod implementation for busybox
+ *
+ * Copyright (C) 1995, 1996 by Bruce Perens <bruce@pixar.com>.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ *
+ */
+
 #include "internal.h"
+#include <stdio.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 
-const char mknod_usage[] = "mknod file b|c|u|p major minor\n"
+static const char mknod_usage[] = "mknod file b|c|u|p major minor\n"
 "\tMake special files.\n"
 "\n"
 "\tb:\tMake a block (buffered) device.\n"
@@ -13,7 +35,7 @@ const char mknod_usage[] = "mknod file b|c|u|p major minor\n"
 "\tp:\tMake a named pipe. Major and minor are ignored for named pipes.\n";
 
 int
-mknod_main(struct FileInfo * i, int argc, char * * argv)
+mknod_main(int argc, char** argv)
 {
 	mode_t	mode = 0;
 	dev_t	dev = 0;
@@ -30,23 +52,21 @@ mknod_main(struct FileInfo * i, int argc, char * * argv)
 		mode = S_IFIFO;
 		break;
 	default:
-		usage(mknod_usage);
-		return 1;
+		usage (mknod_usage);
 	}
 
 	if ( mode == S_IFCHR || mode == S_IFBLK ) {
 		dev = (atoi(argv[3]) << 8) | atoi(argv[4]);
 		if ( argc != 5 ) {
-			usage(mknod_usage);
-			return 1;
+		    usage (mknod_usage);
 		}
 	}
 
 	mode |= 0666;
 
 	if ( mknod(argv[1], mode, dev) != 0 ) {
-		name_and_error(argv[1]);
-		return 1;
+		perror(argv[1]);
+		return( FALSE);
 	}
-	return 0;
+	return( TRUE);
 }

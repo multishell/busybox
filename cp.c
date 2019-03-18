@@ -1,89 +1,115 @@
+/*
+ * Mini cp implementation for busybox
+ *
+ *
+ * Copyright (C) 1999 by Lineo, inc.
+ * Written by Erik Andersen <andersen@lineo.com>, <andersee@debian.org>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ *
+ */
+
 #include "internal.h"
 #include <stdio.h>
-#include <sys/stat.h>
-#include <sys/fcntl.h>
-#include <sys/param.h>
-#include <errno.h>
+#include <time.h>
+#include <utime.h>
+#include <dirent.h>
 
-const char  cp_usage[] = "cp [-r] source-file destination-file\n"
-"\t\tcp [-r] source-file [source-file ...] destination-directory\n"
-"\n"
-"\tCopy the source files to the destination.\n"
-"\n"
-"\t-r:\tRecursively copy all files and directories\n"
-"\t\tunder the argument directory.";
+static const char cp_usage[] = "cp [OPTION]... SOURCE DEST\n"
+    "   or: cp [OPTION]... SOURCE... DIRECTORY\n"
+    "Copy SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.\n"
+    "\n"
+    "\t-a\tsame as -dpR\n"
+    "\t-d\tpreserve links\n"
+    "\t-p\tpreserve file attributes if possable\n"
+    "\t-R\tcopy directories recursively\n";
 
-extern int
-cp_fn(const struct FileInfo * i)
+
+static int recursiveFlag = FALSE;
+static int followLinks = FALSE;
+static int preserveFlag = FALSE;
+static const char *srcName;
+static const char *destName;
+static const char *skipName;
+static int dirFlag = FALSE;
+
+
+static int fileAction(const char *fileName, struct stat* statbuf)
 {
-    int         sourceFd;
-    int         destinationFd;
-    const char * destination = i->destination;
-    struct stat destination_stat;
-    int         status;
-    char        buf[8192];
-    char        d[PATH_MAX];
+    char newdestName[NAME_MAX];
+    strcpy(newdestName, destName);
+    if (dirFlag==TRUE) {
+	strcat(newdestName, "/");
+	if ( skipName != NULL)
+	    strcat(newdestName, strstr(fileName, skipName));
+    }
+    return (copyFile(fileName, newdestName, preserveFlag, followLinks));
+}
 
-    if ( (i->stat.st_mode & S_IFMT) == S_IFDIR ) {
-        if ( mkdir(destination, i->stat.st_mode & ~S_IFMT)
-         != 0 && errno != EEXIST ) {
-            name_and_error(destination);
-            return 1;
-        }
-        return 0;
-    }
-    if ( (sourceFd = open(i->source, O_RDONLY)) < 0 ) {
-        name_and_error(i->source);
-        return 1;
-    }
-    if ( stat(destination, &destination_stat) == 0 ) {
-        if ( i->stat.st_ino == destination_stat.st_ino
-         &&  i->stat.st_dev == destination_stat.st_dev ) {
-            fprintf(stderr
-            ,"copy of %s to %s would copy file to itself.\n"
-            ,i->source
-            ,destination);
-            close(sourceFd);
-            return 1;
-        }
-    }
-    /*
-     * If the destination is a directory, create a file within it.
-     */
-    if ( (destination_stat.st_mode & S_IFMT) == S_IFDIR ) {
-		destination = join_paths(
-		 d
-		,i->destination
-		,&i->source[i->directoryLength]);
+extern int cp_main(int argc, char **argv)
+{
 
-        if ( stat(destination, &destination_stat) == 0 ) {
-            if ( i->stat.st_ino == destination_stat.st_ino
-             &&  i->stat.st_dev == destination_stat.st_dev ) {
-                fprintf(stderr
-                ,"copy of %s to %s would copy file to itself.\n"
-                ,i->source
-                ,destination);
-                close(sourceFd);
-                return 1;
-            }
-        }
+    if (argc < 3) {
+	usage (cp_usage);
+    }
+    argc--;
+    argv++;
+
+    /* Parse any options */
+    while (**argv == '-') {
+	while (*++(*argv))
+	    switch (**argv) {
+	    case 'a':
+		followLinks = TRUE;
+		preserveFlag = TRUE;
+		recursiveFlag = TRUE;
+		break;
+	    case 'd':
+		followLinks = TRUE;
+		break;
+	    case 'p':
+		preserveFlag = TRUE;
+		break;
+	    case 'R':
+		recursiveFlag = TRUE;
+		break;
+	    default:
+		usage (cp_usage);
+	    }
+	argc--;
+	argv++;
     }
 
-    destinationFd = creat(destination, i->stat.st_mode & 07777);
 
-    while ( (status = read(sourceFd, buf, sizeof(buf))) > 0 ) {
-        if ( write(destinationFd, buf, status) != status ) {
-            name_and_error(destination);
-            close(sourceFd);
-            close(destinationFd);
-            return 1;
-        }
+    destName = argv[argc - 1];
+    dirFlag = isDirectory(destName);
+
+    if ((argc > 3) && dirFlag==FALSE) {
+	fprintf(stderr, "%s: not a directory\n", destName);
+	exit (FALSE);
     }
-    close(sourceFd);
-    close(destinationFd);
-    if ( status < 0 ) {
-        name_and_error(i->source);
-        return 1;
+
+    while (argc-- > 1) {
+	srcName = *(argv++);
+	skipName = strrchr(srcName, '/');
+	if (skipName) 
+	    skipName++;
+	if (recursiveAction(srcName, recursiveFlag, followLinks, FALSE,
+			       fileAction, fileAction) == FALSE) {
+	    exit( FALSE);
+	}
     }
-    return 0;
+    exit( TRUE);
 }

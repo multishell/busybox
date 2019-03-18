@@ -1,51 +1,73 @@
+# Makefile for busybox
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+#
 
-VERSION=0.29alpha1
+
+PROG=busybox
+VERSION=0.30
 BUILDTIME=$(shell date "+%Y%m%d-%H%M")
 
+# Comment out the following to make a debuggable build
+# Leave this off for production use.
+#DODEBUG=true
+
 #This will choke on a non-debian system
-ARCH=$(shell dpkg --print-architecture)
-#ARCH=i386
+ARCH=`uname -m | sed -e 's/i.86/i386/' | sed -e 's/sparc.*/sparc/'`
 
-
-STRIP= strip --remove-section=.note --remove-section=.comment busybox
-LDFLAGS= -s
-
-CFLAGS=-Wall -O2 -fomit-frame-pointer -fno-builtin -D_GNU_SOURCE
-# For debugging only
-#CFLAGS=-Wall -g -D_GNU_SOURCE
-LIBRARIES=-lc
-OBJECTS=$(shell ./busybox.obj)
-
-CFLAGS+= -DBB_VER='"$(VERSION)"'
-CFLAGS+= -DBB_BT='"$(BUILDTIME)"'
 
 # -D_GNU_SOURCE is needed because environ is used in init.c
-ifdef INCLUDE_DINSTALL
-  CFLAGS+= -DINCLUDE_DINSTALL
-  LIBRARIES+= -lnewt -lslang
-ifeq ($(ARCH),sparc)
-  LIBRARIES+= -lm
+ifeq ($(DODEBUG),true)
+    CFLAGS=-Wall -g -D_GNU_SOURCE
+    STRIP=
+    LDFLAGS=
+else
+    CFLAGS=-Wall -Os -fomit-frame-pointer -fno-builtin -D_GNU_SOURCE
+    LDFLAGS= -s
+    STRIP= strip --remove-section=.note --remove-section=.comment $(PROG)
 endif
-  OBJECTS+= $(patsubst %.c,%.o,$(wildcard ../dinstall/*.c)) \
-	  ../libfdisk/libfdisk.a
+
+ifndef $(prefix)
+    prefix=`pwd`
 endif
+BINDIR=$(prefix)
+
+LIBRARIES=-lc
+OBJECTS=$(shell ./busybox.sh)
+CFLAGS+= -DBB_VER='"$(VERSION)"'
+CFLAGS+= -DBB_BT='"$(BUILDTIME)"'
 
 all: busybox links
 
 busybox: $(OBJECTS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o busybox $(OBJECTS) $(LIBRARIES)
+	$(CC) $(LDFLAGS) -o $(PROG) $(OBJECTS) $(LIBRARIES)
 	$(STRIP)
 
 links:
 	- ./busybox.mkll | sort >busybox.links
 	
-../libfdisk/libfdisk.a: force
-	$(MAKE) -C ../libfdisk libfdisk.a
-
 clean:
-	- rm -f busybox busybox.links *~ *.o 
+	- rm -f $(PROG) busybox.links *~ *.o core 
 
 distclean: clean
-	- rm -f busybox
+	- rm -f $(PROG)
 
 force:
+
+$(OBJECTS):  busybox.def.h internal.h Makefile
+
+install:    $(PROG)
+	install.sh $(BINDIR)
+

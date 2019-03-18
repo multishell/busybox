@@ -4,7 +4,7 @@
 
 #include "internal.h"
 
-const char	zcat_usage[] = "zcat\n"
+static const char	zcat_usage[] = "zcat\n"
 "\n"
 "\tuncompress gzipped data from stdin to stdout\n";
 
@@ -59,7 +59,7 @@ static char  *license_msg[] = {
  */
 
 #ifdef RCSID
-static char rcsid[] = "$Id: zcat.c,v 1.2 1998/06/22 14:53:18 sr1 Exp $";
+static char rcsid[] = "$Id: zcat.c,v 1.4 1999/10/19 22:26:25 andersen Exp $";
 #endif
 
 #include <ctype.h>
@@ -80,7 +80,7 @@ static char rcsid[] = "$Id: zcat.c,v 1.2 1998/06/22 14:53:18 sr1 Exp $";
  * The target dependent functions should be defined in tailor.c.
  */
 
-/* $Id: zcat.c,v 1.2 1998/06/22 14:53:18 sr1 Exp $ */
+/* $Id: zcat.c,v 1.4 1999/10/19 22:26:25 andersen Exp $ */
 
 #define RECORD_IO 0
 
@@ -436,7 +436,7 @@ extern int unlzw  OF((int in, int out));
 #  undef LZW
 #endif
 
-/* $Id: zcat.c,v 1.2 1998/06/22 14:53:18 sr1 Exp $ */
+/* $Id: zcat.c,v 1.4 1999/10/19 22:26:25 andersen Exp $ */
 
 /* #include "getopt.h" */
 
@@ -698,7 +698,7 @@ int (*work) OF((int infile, int outfile)) = unzip; /* function to call */
 #define strequ(s1, s2) (strcmp((s1),(s2)) == 0)
 
 /* ======================================================================== */
-int zcat_main (struct FileInfo * i, int argc, char * * argv)
+int zcat_main (int argc, char * * argv)
 {
     int file_count;     /* number of files to precess */
 
@@ -895,7 +895,7 @@ RETSIGTYPE abort_gzip()
  */
 
 #ifdef RCSID
-static char rcsid[] = "$Id: zcat.c,v 1.2 1998/06/22 14:53:18 sr1 Exp $";
+static char rcsid[] = "$Id: zcat.c,v 1.4 1999/10/19 22:26:25 andersen Exp $";
 #endif
 
 /* #include "crypt.h" */
@@ -1021,7 +1021,7 @@ int unzip(in, out)
  */
 
 #ifdef RCSID
-static char rcsid[] = "$Id: zcat.c,v 1.2 1998/06/22 14:53:18 sr1 Exp $";
+static char rcsid[] = "$Id: zcat.c,v 1.4 1999/10/19 22:26:25 andersen Exp $";
 #endif
 
 #include <ctype.h>
@@ -1041,7 +1041,7 @@ static char rcsid[] = "$Id: zcat.c,v 1.2 1998/06/22 14:53:18 sr1 Exp $";
    extern int errno;
 #endif
 
-extern ulg crc_32_tab[];   /* crc table, defined below */
+const ulg crc_32_tab[];   /* crc table, defined below */
 
 /* ===========================================================================
  * Run a set of bytes through the crc shift register.  If s is a NULL
@@ -1255,7 +1255,7 @@ voidp xmalloc (size)
 /* ========================================================================
  * Table of CRC-32's of all single-byte values (made by makecrc.c)
  */
-ulg crc_32_tab[] = {
+const ulg crc_32_tab[] = {
   0x00000000L, 0x77073096L, 0xee0e612cL, 0x990951baL, 0x076dc419L,
   0x706af48fL, 0xe963a535L, 0x9e6495a3L, 0x0edb8832L, 0x79dcb8a4L,
   0xe0d5e91eL, 0x97d2d988L, 0x09b64c2bL, 0x7eb17cbdL, 0xe7b82d07L,
@@ -1408,7 +1408,7 @@ ulg crc_32_tab[] = {
  */
 
 #ifdef RCSID
-static char rcsid[] = "$Id: zcat.c,v 1.2 1998/06/22 14:53:18 sr1 Exp $";
+static char rcsid[] = "$Id: zcat.c,v 1.4 1999/10/19 22:26:25 andersen Exp $";
 #endif
 
 #include <sys/types.h>
