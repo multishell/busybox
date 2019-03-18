@@ -10,6 +10,9 @@
  * Modified for busybox by Erik Andersen <andersee@debian.org>
  * Adjusted to grok stdin/stdout options.
  *
+ * Modified to handle device special files by Matt Porter
+ * <porter@debian.org>
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -34,23 +37,15 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <time.h>
-
-/* Note that tar.c expects TRUE and FALSE to be defined
- * exactly the opposite of how they are used everywhere else.
- * Some time this should be integrated a bit better, but this
- * does the job for now.
- */
-#undef FALSE
-#undef TRUE
-#define FALSE ((int) 0)
-#define TRUE  ((int) 1)
+#include <sys/types.h>
 
 
 static const char tar_usage[] =
-    "tar -[cxtvOf] [tarFileName] [FILE] ...\n"
-    "Create, extract, or list files from a tar file\n\n"
-    "\tc=create, x=extract, t=list contents, v=verbose,\n"
-    "\tO=extract to stdout, f=tarfile or \"-\" for stdin\n";
+"tar -[cxtvOf] [tarFileName] [FILE] ...\n\n"
+"Create, extract, or list files from a tar file\n\n"
+"Options:\n"
+"\tc=create, x=extract, t=list contents, v=verbose,\n"
+"\tO=extract to stdout, f=tarfile or \"-\" for stdin\n";
 
 
 
@@ -102,7 +97,7 @@ static int createFlag;
 static int verboseFlag;
 static int tostdoutFlag;
 
-static int inHeader;
+static int inHeader; // <- check me
 static int badHeader;
 static int errorFlag;
 static int skipFileFlag;
@@ -217,10 +212,13 @@ extern int tar_main (int argc, char **argv)
 		break;
 
 	    case '-':
+		usage( tar_usage);
 		break;
 
 	    default:
-		fprintf (stderr, "Unknown tar flag '%c'\n", *options);
+		fprintf (stderr, "Unknown tar flag '%c'\n"
+			"Try `tar --help' for more information\n", 
+			*options);
 
 		exit (FALSE);
 	    }
@@ -230,7 +228,7 @@ extern int tar_main (int argc, char **argv)
     /* 
      * Validate the options.
      */
-    if (extractFlag + listFlag + createFlag != 1) {
+    if (extractFlag + listFlag + createFlag != (TRUE+FALSE+FALSE)) {
 	fprintf (stderr,
 		 "Exactly one of 'c', 'x' or 't' must be specified\n");
 
@@ -241,13 +239,13 @@ extern int tar_main (int argc, char **argv)
      * Do the correct type of action supplying the rest of the
      * command line arguments as the list of files to process.
      */
-    if (createFlag)
+    if (createFlag==TRUE)
 	writeTarFile (argc, argv);
     else
 	readTarFile (argc, argv);
-    if (errorFlag)
+    if (errorFlag==TRUE)
 	fprintf (stderr, "\n");
-    exit (errorFlag);
+    exit (!errorFlag);
 }
 
 
@@ -292,7 +290,7 @@ static void readTarFile (int fileCount, char **fileTable)
      * Read blocks from the file until an end of file header block
      * has been seen.  (A real end of file from a read is an error.)
      */
-    while (!eofFlag) {
+    while (eofFlag==FALSE) {
 	/* 
 	 * Read the next block of data if necessary.
 	 * This will be a large block if possible, which we will
@@ -319,7 +317,7 @@ static void readTarFile (int fileCount, char **fileTable)
 	/* 
 	 * If we are expecting a header block then examine it.
 	 */
-	if (inHeader) {
+	if (inHeader==TRUE) {
 	    readHeader ((const TarHeader *) cp, fileCount, fileTable);
 
 	    cp += TAR_BLOCK_SIZE;
@@ -383,12 +381,15 @@ readHeader (const TarHeader * hp, int fileCount, char **fileTable)
     int uid;
     int gid;
     int checkSum;
+    int major;
+    int minor;
     long size;
     time_t mtime;
     const char *name;
     int cc;
     int hardLink;
     int softLink;
+    int devFileFlag;
 
     /* 
      * If the block is completely empty, then this is the end of the
@@ -417,9 +418,11 @@ readHeader (const TarHeader * hp, int fileCount, char **fileTable)
     size = getOctal (hp->size, sizeof (hp->size));
     mtime = getOctal (hp->mtime, sizeof (hp->mtime));
     checkSum = getOctal (hp->checkSum, sizeof (hp->checkSum));
+    major = getOctal (hp->devMajor, sizeof (hp->devMajor));
+    minor = getOctal (hp->devMinor, sizeof (hp->devMinor));
 
     if ((mode < 0) || (uid < 0) || (gid < 0) || (size < 0)) {
-	if (!badHeader)
+	if (badHeader==FALSE)
 	    fprintf (stderr, "Bad tar header, skipping\n");
 
 	badHeader = TRUE;
@@ -429,6 +432,7 @@ readHeader (const TarHeader * hp, int fileCount, char **fileTable)
 
     badHeader = FALSE;
     skipFileFlag = FALSE;
+    devFileFlag = FALSE;
 
     /* 
      * Check for the file modes.
@@ -440,12 +444,10 @@ readHeader (const TarHeader * hp, int fileCount, char **fileTable)
 		(hp->typeFlag == TAR_TYPE_SOFT_LINK - '0'));
 
     /* 
-     * Check for a directory or a regular file.
+     * Check for a directory.
      */
     if (name[strlen (name) - 1] == '/')
 	mode |= S_IFDIR;
-    else if ((mode & S_IFMT) == 0)
-	mode |= S_IFREG;
 
     /* 
      * Check for absolute paths in the file.
@@ -455,7 +457,7 @@ readHeader (const TarHeader * hp, int fileCount, char **fileTable)
 	while (*name == '/')
 	    name++;
 
-	if (!warnedRoot) {
+	if (warnedRoot==FALSE) {
 	    fprintf (stderr,
 		     "Absolute path detected, removing leading slashes\n");
 	}
@@ -467,9 +469,10 @@ readHeader (const TarHeader * hp, int fileCount, char **fileTable)
      * See if we want this file to be restored.
      * If not, then set up to skip it.
      */
-    if (!wantFileName (name, fileCount, fileTable)) {
-	if (!hardLink && !softLink && S_ISREG (mode)) {
-	    inHeader = (size == 0);
+    if (wantFileName (name, fileCount, fileTable) == FALSE) {
+	if ( !hardLink && !softLink && (S_ISREG (mode) || S_ISCHR (mode)
+		    || S_ISBLK (mode) || S_ISSOCK(mode) || S_ISFIFO(mode) ) ) {
+	    inHeader = (size == 0)? TRUE : FALSE;
 	    dataCc = size;
 	}
 
@@ -482,8 +485,8 @@ readHeader (const TarHeader * hp, int fileCount, char **fileTable)
      * This file is to be handled.
      * If we aren't extracting then just list information about the file.
      */
-    if (!extractFlag) {
-	if (verboseFlag) {
+    if (extractFlag==FALSE) {
+	if (verboseFlag==TRUE) {
 	    printf ("%s %3d/%-d %9ld %s %s", modeString (mode),
 		    uid, gid, size, timeString (mtime), name);
 	} else
@@ -493,8 +496,9 @@ readHeader (const TarHeader * hp, int fileCount, char **fileTable)
 	    printf (" (link to \"%s\")", hp->linkName);
 	else if (softLink)
 	    printf (" (symlink to \"%s\")", hp->linkName);
-	else if (S_ISREG (mode)) {
-	    inHeader = (size == 0);
+	else if (S_ISREG (mode) || S_ISCHR (mode) || S_ISBLK (mode) || 
+		S_ISSOCK(mode) || S_ISFIFO(mode) ) {
+	    inHeader = (size == 0)? TRUE : FALSE;
 	    dataCc = size;
 	}
 
@@ -506,7 +510,7 @@ readHeader (const TarHeader * hp, int fileCount, char **fileTable)
     /* 
      * We really want to extract the file.
      */
-    if (verboseFlag)
+    if (verboseFlag==TRUE)
 	printf ("x %s\n", name);
 
     if (hardLink) {
@@ -541,7 +545,7 @@ readHeader (const TarHeader * hp, int fileCount, char **fileTable)
      */
     createPath (name, 0777);
 
-    inHeader = (size == 0);
+    inHeader = (size == 0)? TRUE : FALSE;
     dataCc = size;
 
     /* 
@@ -549,8 +553,17 @@ readHeader (const TarHeader * hp, int fileCount, char **fileTable)
      */
     if (tostdoutFlag == TRUE)
 	outFd = STDOUT;
-    else
-	outFd = open (name, O_WRONLY | O_CREAT | O_TRUNC, mode);
+    else {
+	if ( S_ISCHR(mode) || S_ISBLK(mode) || S_ISSOCK(mode) ) {
+	    devFileFlag = TRUE;
+	    outFd = mknod (name, mode, makedev(major, minor) );
+	}
+	else if (S_ISFIFO(mode) ) {
+	    outFd = mkfifo(name, mode);
+	} else {
+	    outFd = open (name, O_WRONLY | O_CREAT | O_TRUNC, mode);
+	}
+    }
 
     if (outFd < 0) {
 	perror (name);
@@ -561,7 +574,7 @@ readHeader (const TarHeader * hp, int fileCount, char **fileTable)
     /* 
      * If the file is empty, then that's all we need to do.
      */
-    if (size == 0 && tostdoutFlag == FALSE) {
+    if (size == 0 && (tostdoutFlag == FALSE) && (devFileFlag == FALSE)) {
 	(void) close (outFd);
 	outFd = -1;
     }
@@ -587,7 +600,7 @@ static void readData (const char *cp, int count)
      * If we aren't extracting files or this file is being
      * skipped then do nothing more.
      */
-    if (!extractFlag || skipFileFlag)
+    if (extractFlag==FALSE || skipFileFlag==TRUE)
 	return;
 
     /* 
@@ -662,7 +675,7 @@ static void writeTarFile (int fileCount, char **fileTable)
      * Append each file name into the archive file.
      * Follow symbolic links for these top level file names.
      */
-    while (!errorFlag && (fileCount-- > 0)) {
+    while (errorFlag==FALSE && (fileCount-- > 0)) {
 	saveFile (*fileTable++, FALSE);
     }
 
@@ -694,7 +707,7 @@ static void saveFile (const char *fileName, int seeLinks)
     int mode;
     struct stat statbuf;
 
-    if (verboseFlag)
+    if (verboseFlag==TRUE)
 	printf ("a %s\n", fileName);
 
     /* 
@@ -710,7 +723,7 @@ static void saveFile (const char *fileName, int seeLinks)
      * Find out about the file.
      */
 #ifdef	S_ISLNK
-    if (seeLinks)
+    if (seeLinks==TRUE)
 	status = lstat (fileName, &statbuf);
     else
 #endif
@@ -741,12 +754,16 @@ static void saveFile (const char *fileName, int seeLinks)
 
 	return;
     }
-
     if (S_ISREG (mode)) {
 	saveRegularFile (fileName, &statbuf);
 
 	return;
     }
+    
+    /* Some day add support for tarring these up... but not today. :) */
+//  if (S_ISLNK(mode) || S_ISFIFO(mode) || S_ISBLK(mode) || S_ISCHR (mode) ) {
+//	fprintf (stderr, "%s: This version of tar can't store this type of file\n", fileName);
+//  }
 
     /* 
      * The file is a strange type of file, ignore it.
@@ -810,7 +827,7 @@ saveRegularFile (const char *fileName, const struct stat *statbuf)
 	 */
 	cc = 0;
 
-	if (!sawEof) {
+	if (sawEof==FALSE) {
 	    cc = fullRead (fileFd, data, dataCount);
 
 	    if (cc < 0) {
@@ -899,7 +916,7 @@ static void saveDirectory (const char *dirName, const struct stat *statbuf)
      * Read all of the directory entries and check them,
      * except for the current and parent directory entries.
      */
-    while (!errorFlag && ((entry = readdir (dir)) != NULL)) {
+    while (errorFlag==FALSE && ((entry = readdir (dir)) != NULL)) {
 	if ((strcmp (entry->d_name, ".") == 0) ||
 	    (strcmp (entry->d_name, "..") == 0)) {
 	    continue;
@@ -998,7 +1015,7 @@ static void writeTarBlock (const char *buf, int len)
     /* 
      * If we had a write error before, then do nothing more.
      */
-    if (errorFlag)
+    if (errorFlag==TRUE)
 	return;
 
     /* 

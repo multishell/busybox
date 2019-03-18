@@ -1,8 +1,20 @@
+0.35
+	* Fixed tar so it now works as expected (it had TRUE/FALSE backwards)
+	* tar now accepts --help
+	* chmod, chown, and chgrp usage now works
+	* General usage (i.e. --help) cleanups for most apps
+	* umount now parses options correctly
+	* tar can now unpack tarballs containing device special files, 
+	    sockets, and fifos (though it can't pack them up) thanks 
+	    to Matt Porter.
+
+	-Erik Andersen
+
 0.34
-	* ls -l now displays lnik names outside the current directory,
+	* ls -l now displays link names outside the current directory,
 	    Patch thanks to Eric Delaunay
 	* init now properly handles sparc serial consoles and does a
-	    better job of finding the real consol device rather than using
+	    better job of finding the real console device rather than using
 	    /dev/console which doesn't support job control. Patch also
 	    thanks to Eric Delaunay.
 	* more started to read from stdin after the last file was finished, and 
