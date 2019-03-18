@@ -186,7 +186,7 @@ int INET_rresolve(char *name, size_t len, struct sockaddr_in *s_in,
 
 #ifdef CONFIG_FEATURE_IPV6
 
-int INET6_resolve(const char *name, struct sockaddr_in6 *sin6)
+int INET6_resolve(char *name, struct sockaddr_in6 *sin6)
 {
 	struct addrinfo req, *ai;
 	int s;

@@ -142,9 +142,6 @@
 #ifdef CONFIG_DELUSER
 	APPLET(deluser, deluser_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
-#ifdef CONFIG_DEVFSD
-	APPLET(devfsd, devfsd_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
-#endif
 #ifdef CONFIG_DF
 	APPLET(df, df_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
@@ -171,6 +168,9 @@
 #endif
 #ifdef CONFIG_DUMPLEASES
         APPLET(dumpleases, dumpleases_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_DUTMP
+	APPLET(dutmp, dutmp_main, _BB_DIR_USR_SBIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_ECHO
 	APPLET(echo, echo_main, _BB_DIR_BIN, _BB_SUID_NEVER)
@@ -241,9 +241,6 @@
 #ifdef CONFIG_HALT
 	APPLET(halt, halt_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
-#ifdef CONFIG_HDPARM
-	APPLET(hdparm, hdparm_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
-#endif
 #ifdef CONFIG_HEAD
 	APPLET(head, head_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
@@ -286,13 +283,10 @@
 #ifdef CONFIG_INSMOD
 	APPLET(insmod, insmod_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
-#ifdef CONFIG_INSTALL
-	APPLET(install, install_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
-#endif
 #ifdef CONFIG_IP
 	APPLET(ip, ip_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
-#ifdef CONFIG_IPADDR
+#ifdef CONFIG_IPADDRESS
 	APPLET(ipaddr, ipaddr_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_IPCALC
@@ -319,9 +313,6 @@
 #ifdef CONFIG_LASH
 	APPLET(lash, lash_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
-#ifdef CONFIG_LAST
-	APPLET(last, last_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
-#endif
 #ifdef CONFIG_LENGTH
 	APPLET(length, length_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
@@ -330,6 +321,9 @@
 #endif
 #ifdef CONFIG_LN
 	APPLET(ln, ln_main, _BB_DIR_BIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_LOADACM
+	APPLET(loadacm, loadacm_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_LOADFONT
 	APPLET(loadfont, loadfont_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
@@ -341,7 +335,7 @@
 	APPLET(logger, logger_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_LOGIN
-	APPLET(login, login_main, _BB_DIR_BIN, _BB_SUID_ALWAYS)
+	APPLET(login, login_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_LOGNAME
 	APPLET(logname, logname_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
@@ -366,6 +360,9 @@
 #endif
 #ifdef CONFIG_MESG
 	APPLET(mesg, mesg_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_MINIT
+	APPLET(minit, minit_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_MKDIR
 	APPLET(mkdir, mkdir_main, _BB_DIR_BIN, _BB_SUID_NEVER)
@@ -392,10 +389,13 @@
 	APPLET(more, more_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_MOUNT
-	APPLET(mount, mount_main, _BB_DIR_BIN, _BB_SUID_NEVER)
+	APPLET(mount, mount_main, _BB_DIR_BIN, _BB_SUID_MAYBE)
 #endif
 #ifdef CONFIG_MSH
 	APPLET_NOUSAGE("msh", msh_main, _BB_DIR_BIN, _BB_SUID_NEVER)
+#endif
+#ifdef CONFIG_MSVC
+	APPLET(msvc, msvc_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_MT
 	APPLET(mt, mt_main, _BB_DIR_BIN, _BB_SUID_NEVER)
@@ -427,6 +427,9 @@
 #ifdef CONFIG_PATCH
 	APPLET(patch, patch_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_PIDFILEHACK
+	APPLET(pidfilehack, pidfilehack_main, _BB_DIR_BIN, _BB_SUID_NEVER)
+#endif
 #ifdef CONFIG_PIDOF
 	APPLET(pidof, pidof_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
@@ -435,9 +438,6 @@
 #endif
 #ifdef CONFIG_PING6
 	APPLET(ping6, ping6_main, _BB_DIR_BIN, _BB_SUID_NEVER)
-#endif
-#ifdef CONFIG_PIPE_PROGRESS
-	APPLET_NOUSAGE("pipe_progress", pipe_progress_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_PIVOT_ROOT
  	APPLET(pivot_root, pivot_root_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
@@ -455,7 +455,7 @@
 	APPLET(pwd, pwd_main, _BB_DIR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_RDATE
-	APPLET(rdate, rdate_main, _BB_DIR_USR_SBIN, _BB_SUID_NEVER)
+	APPLET(rdate, rdate_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_READLINK
 	APPLET(readlink, readlink_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
@@ -492,15 +492,9 @@
 #endif
 #ifdef CONFIG_RUN_PARTS
 	APPLET_ODDNAME("run-parts", run_parts_main, _BB_DIR_BIN, _BB_SUID_NEVER, run_parts)
-#endif
-#ifdef CONFIG_RX
-	APPLET(rx, rx_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
-#endif
+#endif	
 #ifdef CONFIG_SED
 	APPLET(sed, sed_main, _BB_DIR_BIN, _BB_SUID_NEVER)
-#endif
-#ifdef CONFIG_SEQ
-	APPLET(seq, seq_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_SETKEYCODES
 	APPLET(setkeycodes, setkeycodes_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
@@ -546,9 +540,6 @@
 #endif
 #ifdef CONFIG_SYNC
 	APPLET(sync, sync_main, _BB_DIR_BIN, _BB_SUID_NEVER)
-#endif
-#ifdef CONFIG_SYSCTL
-	APPLET(sysctl, sysctl_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
 #endif
 #ifdef CONFIG_SYSLOGD
 	APPLET(syslogd, syslogd_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
@@ -619,6 +610,9 @@
 #ifdef CONFIG_UNZIP
 	APPLET(unzip, unzip_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
+#ifdef CONFIG_UPDATE
+	APPLET(update, update_main, _BB_DIR_SBIN, _BB_SUID_NEVER)
+#endif
 #ifdef CONFIG_UPTIME
 	APPLET(uptime, uptime_main, _BB_DIR_USR_BIN, _BB_SUID_NEVER)
 #endif
@@ -676,3 +670,4 @@
 };
 
 #endif
+

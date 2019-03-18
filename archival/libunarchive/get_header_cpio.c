@@ -18,7 +18,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/sysmacros.h>     /* major() and minor() */
 #include "unarchive.h"
 #include "libbb.h"
 
@@ -37,7 +36,8 @@ extern char get_header_cpio(archive_handle_t *archive_handle)
 	int namesize;
 	char dummy[16];
 	int major, minor, nlink, inode;
-
+	char extract_flag;
+	
 	if (pending_hardlinks) { /* Deal with any pending hardlinks */
 		hardlinks_t *tmp;
 		hardlinks_t *oldtmp;
@@ -71,14 +71,24 @@ extern char get_header_cpio(archive_handle_t *archive_handle)
 	}
 	archive_handle->offset += 110;
 
-	if ((strncmp(&cpio_header[0], "07070", 5) != 0) || ((cpio_header[5] != '1') && (cpio_header[5] != '2'))) {
+	if (strncmp(&cpio_header[0], "07070", 5) != 0) {
+		printf("cpio header is %x-%x-%x-%x-%x\n",
+			cpio_header[0],
+			cpio_header[1],
+			cpio_header[2],
+			cpio_header[3],
+			cpio_header[4]);
+		bb_error_msg_and_die("Unsupported cpio format");
+	}
+		
+	if ((cpio_header[5] != '1') && (cpio_header[5] != '2')) {
 		bb_error_msg_and_die("Unsupported cpio format, use newc or crc");
 	}
 
 	{
 	    unsigned long tmpsize;
 	    sscanf(cpio_header, "%6c%8x%8x%8x%8x%8x%8lx%8lx%16c%8x%8x%8x%8c",
-		    dummy, &inode, (unsigned int*)&file_header->mode,
+		    dummy, &inode, (unsigned int*)&file_header->mode, 
 		    (unsigned int*)&file_header->uid, (unsigned int*)&file_header->gid,
 		    &nlink, &file_header->mtime, &tmpsize,
 		    dummy, &major, &minor, &namesize, dummy);
@@ -118,8 +128,6 @@ extern char get_header_cpio(archive_handle_t *archive_handle)
 		file_header->link_name[file_header->size] = '\0';
 		archive_handle->offset += file_header->size;
 		file_header->size = 0; /* Stop possible seeks in future */
-	} else {
-		file_header->link_name = NULL;
 	}
 	if (nlink > 1 && !S_ISDIR(file_header->mode)) {
 		if (file_header->size == 0) { /* Put file on a linked list for later */
@@ -144,18 +152,38 @@ extern char get_header_cpio(archive_handle_t *archive_handle)
 			}
 		}
 	}
-	file_header->device = makedev(major, minor);
+	file_header->device = (major << 8) | minor;
 
+	extract_flag = FALSE;
 	if (archive_handle->filter(archive_handle) == EXIT_SUCCESS) {
+		struct stat statbuf;
+
+		extract_flag = TRUE;
+
+		/* Check if the file already exists */
+		if (lstat (file_header->name, &statbuf) == 0) {
+			if ((archive_handle->flags & ARCHIVE_EXTRACT_UNCONDITIONAL) || (statbuf.st_mtime < file_header->mtime)) {
+				/* Remove file if flag set or its older than the file to be extracted */
+				if (unlink(file_header->name) == -1) {
+					bb_perror_msg_and_die("Couldnt remove old file");
+				}
+			} else {
+				if (! archive_handle->flags & ARCHIVE_EXTRACT_QUIET) {
+					bb_error_msg("%s not created: newer or same age file exists", file_header->name);
+				}
+				extract_flag = FALSE;
+			}
+		}
+		archive_handle->action_header(file_header);
+	}
+
+	archive_handle->action_header(file_header);
+	if (extract_flag) {
 		archive_handle->action_data(archive_handle);
-		archive_handle->action_header(archive_handle->file_header);
 	} else {
 		data_skip(archive_handle);
 	}
-
 	archive_handle->offset += file_header->size;
-
-	free(file_header->link_name);
-
 	return (EXIT_SUCCESS);
 }
+

@@ -2,7 +2,7 @@
 /*
  * Mini ps implementation(s) for busybox
  *
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the Free
@@ -44,7 +44,12 @@ extern int ps_main(int argc, char **argv)
 {
 	procps_status_t * p;
 	int i, len;
+#ifdef CONFIG_FEATURE_AUTOWIDTH
+	struct winsize win = { 0, 0, 0, 0 };
 	int terminal_width = TERMINAL_WIDTH;
+#else
+#define terminal_width  TERMINAL_WIDTH
+#endif
 
 #ifdef CONFIG_SELINUX
 	int use_selinux = 0;
@@ -53,9 +58,12 @@ extern int ps_main(int argc, char **argv)
 		use_selinux = 1;
 #endif
 
-	get_terminal_width_height(0, &terminal_width, NULL);
-	/* Go one less... */
-	terminal_width--;
+
+#ifdef CONFIG_FEATURE_AUTOWIDTH
+		ioctl(fileno(stdout), TIOCGWINSZ, &win);
+		if (win.ws_col > 0)
+			terminal_width = win.ws_col - 1;
+#endif
 
 #ifdef CONFIG_SELINUX
 	if(use_selinux)

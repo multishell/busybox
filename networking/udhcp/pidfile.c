@@ -2,7 +2,7 @@
  *
  * Functions to assist in the writing and removing of pidfiles.
  *
- * Russ Dill <Russ.Dill@asu.edu> September 2001
+ * Russ Dill <Russ.Dill@asu.edu> Soptember 2001
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,35 +23,25 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
+#include <string.h>
 #include <stdio.h>
-#include <stdlib.h>
 
-#include "pidfile.h"
-#include "common.h"
+#include "debug.h"
 
-static char *saved_pidfile;
-
-static void pidfile_delete(void)
-{
-	if (saved_pidfile) unlink(saved_pidfile);
-}
-
-
-int pidfile_acquire(const char *pidfile)
+int pidfile_acquire(char *pidfile)
 {
 	int pid_fd;
-	if (!pidfile) return -1;
+	if (pidfile == NULL) return -1;
 
 	pid_fd = open(pidfile, O_CREAT | O_WRONLY, 0644);
 	if (pid_fd < 0) {
-		LOG(LOG_ERR, "Unable to open pidfile %s: %m\n", pidfile);
+		LOG(LOG_ERR, "Unable to open pidfile %s: %s\n",
+		    pidfile, strerror(errno));
 	} else {
 		lockf(pid_fd, F_LOCK, 0);
-		if (!saved_pidfile)
-			atexit(pidfile_delete);
-		saved_pidfile = (char *) pidfile;
 	}
-
+	
 	return pid_fd;
 }
 
@@ -71,5 +61,9 @@ void pidfile_write_release(int pid_fd)
 }
 
 
+void pidfile_delete(char *pidfile)
+{
+	if (pidfile) unlink(pidfile);
+}
 
 

@@ -61,7 +61,6 @@ enum {
 #include <signal.h>
 #include <termios.h>
 #include <sys/ioctl.h>
-#include <sys/sysmacros.h>     /* major() and minor() */
 #include "busybox.h"
 #ifdef CONFIG_SELINUX
 #include <fs_secure.h>
@@ -71,6 +70,11 @@ enum {
 
 #ifdef CONFIG_FEATURE_LS_TIMESTAMPS
 #include <time.h>
+#endif
+
+#ifndef MAJOR
+#define MAJOR(dev) (((dev)>>8)&0xff)
+#define MINOR(dev) ((dev)&0xff)
 #endif
 
 /* what is the overall style of the listing */
@@ -199,7 +203,7 @@ static int is_flask_enabled_flag;
 #endif
 
 #ifdef CONFIG_FEATURE_AUTOWIDTH
-static int terminal_width = TERMINAL_WIDTH;
+static unsigned short terminal_width = TERMINAL_WIDTH;
 static unsigned short tabstops = COLUMN_GAP;
 #else
 #define tabstops COLUMN_GAP
@@ -311,7 +315,7 @@ static int count_dirs(struct dnode **dn, int nfiles, int notsubdirs)
 		if (S_ISDIR(dn[i]->dstat.st_mode)
 			&& (notsubdirs
 				|| ((dn[i]->name[0] != '.')
-					|| (dn[i]->name[1]
+					|| (dn[i]->name[1] 
 						&& ((dn[i]->name[1] != '.')
 							|| dn[i]->name[2])))))
 			dirs++;
@@ -528,7 +532,7 @@ static void showfiles(struct dnode **dn, int nfiles)
 }
 
 /*----------------------------------------------------------------------*/
-static void showdirs(struct dnode **dn, int ndirs, int first)
+static void showdirs(struct dnode **dn, int ndirs)
 {
 	int i, nfiles;
 	struct dnode **subdnp;
@@ -543,10 +547,7 @@ static void showdirs(struct dnode **dn, int ndirs, int first)
 
 	for (i = 0; i < ndirs; i++) {
 		if (all_fmt & (DISP_DIRNAME | DISP_RECURSIVE)) {
-			if (!first)
-				printf("\n");
-			first = 0;
-			printf("%s:\n", dn[i]->fullname);
+			printf("\n%s:\n", dn[i]->fullname);
 		}
 		subdnp = list_dir(dn[i]->fullname);
 		nfiles = countfiles(subdnp);
@@ -565,7 +566,7 @@ static void showdirs(struct dnode **dn, int ndirs, int first)
 #ifdef CONFIG_FEATURE_LS_SORTFILES
 					shellsort(dnd, dndirs);
 #endif
-					showdirs(dnd, dndirs, 0);
+					showdirs(dnd, dndirs);
 					free(dnd);	/* free the array of dnode pointers to the dirs */
 				}
 			}
@@ -683,9 +684,9 @@ static int list_single(struct dnode *dn)
 			break;
 		case LIST_ID_NAME:
 #ifdef CONFIG_FEATURE_LS_USERNAME
-			my_getpwuid(scratch, dn->dstat.st_uid, sizeof(scratch));
+			my_getpwuid(scratch, dn->dstat.st_uid);
 			printf("%-8.8s ", scratch);
-			my_getgrgid(scratch, dn->dstat.st_gid, sizeof(scratch));
+			my_getgrgid(scratch, dn->dstat.st_gid);
 			printf("%-8.8s", scratch);
 			column += 17;
 			break;
@@ -696,8 +697,8 @@ static int list_single(struct dnode *dn)
 		case LIST_SIZE:
 		case LIST_DEV:
 			if (S_ISBLK(dn->dstat.st_mode) || S_ISCHR(dn->dstat.st_mode)) {
-				column += printf("%4d, %3d ", (int) major(dn->dstat.st_rdev),
-					   (int) minor(dn->dstat.st_rdev));
+				column += printf("%4d, %3d ", (int) MAJOR(dn->dstat.st_rdev),
+					   (int) MINOR(dn->dstat.st_rdev));
 			} else {
 #ifdef CONFIG_FEATURE_HUMAN_READABLE
 				if (all_fmt & LS_DISP_HR) {
@@ -716,21 +717,21 @@ static int list_single(struct dnode *dn)
 			break;
 #ifdef CONFIG_FEATURE_LS_TIMESTAMPS
 		case LIST_FULLTIME:
-			printf("%24.24s ", filetime);
-			column += 25;
-			break;
 		case LIST_DATE_TIME:
-			if ((all_fmt & LIST_FULLTIME) == 0) {
-				age = time(NULL) - ttime;
-				printf("%6.6s ", filetime + 4);
-				if (age < 3600L * 24 * 365 / 2 && age > -15 * 60) {
-					/* hh:mm if less than 6 months old */
-					printf("%5.5s ", filetime + 11);
-				} else {
-					printf(" %4.4s ", filetime + 20);
-				}
-				column += 13;
+			if (all_fmt & LIST_FULLTIME) {
+				printf("%24.24s ", filetime);
+				column += 25;
+				break;
 			}
+			age = time(NULL) - ttime;
+			printf("%6.6s ", filetime + 4);
+			if (age < 3600L * 24 * 365 / 2 && age > -15 * 60) {
+				/* hh:mm if less than 6 months old */
+				printf("%5.5s ", filetime + 11);
+			} else {
+				printf(" %4.4s ", filetime + 20);
+			}
+			column += 13;
 			break;
 #endif
 #ifdef CONFIG_SELINUX
@@ -807,137 +808,95 @@ static int list_single(struct dnode *dn)
 
 /*----------------------------------------------------------------------*/
 
-/* "[-]Cadil1", POSIX mandated options, busybox always supports */
-/* "[-]gnsx", POSIX non-mandated options, busybox always supports */
-/* "[-]Ak" GNU options, busybox always supports */
-/* "[-]FLRctur", POSIX mandated options, busybox optionally supports */
-/* "[-]p", POSIX non-mandated options, busybox optionally supports */
-/* "[-]SXvThw", GNU options, busybox optionally supports */
-/* "[-]K", SELinux mandated options, busybox optionally supports */
-/* "[-]e", I think we made this one up */
-
-#ifdef CONFIG_FEATURE_LS_TIMESTAMPS
-# define LS_STR_TIMESTAMPS	"cetu"
-#else
-# define LS_STR_TIMESTAMPS	""
-#endif
-
-#ifdef CONFIG_FEATURE_LS_SORTFILES
-# define LS_STR_SORTFILES	"SXrv"
-#else
-# define LS_STR_SORTFILES	""
-#endif
-
+static const char ls_opts[] = "1AaCdgilnsx"
 #ifdef CONFIG_FEATURE_LS_FILETYPES
-# define LS_STR_FILETYPES	"Fp"
-#else
-# define LS_STR_FILETYPES	""
+						 "Fp"
 #endif
-
-#ifdef CONFIG_FEATURE_LS_FOLLOWLINKS
-# define LS_STR_FOLLOW_LINKS	"L"
-#else
-# define LS_STR_FOLLOW_LINKS	""
-#endif
-
 #ifdef CONFIG_FEATURE_LS_RECURSIVE
-# define LS_STR_RECURSIVE	"R"
-#else
-# define LS_STR_RECURSIVE	""
+						 "R"
 #endif
-
+#ifdef CONFIG_FEATURE_LS_SORTFILES
+						 "rSvX"
+#endif
+#ifdef CONFIG_FEATURE_LS_TIMESTAMPS
+						 "ecut"
+#endif
+#ifdef CONFIG_FEATURE_LS_FOLLOWLINKS
+						 "L"
+#endif
 #ifdef CONFIG_FEATURE_HUMAN_READABLE
-# define LS_STR_HUMAN_READABLE	"h"
-#else
-# define LS_STR_HUMAN_READABLE	""
+						 "h"
 #endif
-
+						 "k"
 #ifdef CONFIG_SELINUX
-# define LS_STR_SELINUX	"K"
-#else
-# define LS_STR_SELINUX	""
+						"K"
 #endif
-
 #ifdef CONFIG_FEATURE_AUTOWIDTH
-# define LS_STR_AUTOWIDTH	"T:w:"
-#else
-# define LS_STR_AUTOWIDTH	""
+						 "T:w:"
 #endif
+	;
 
-static const char ls_options[]="Cadil1gnsxAk" \
-	LS_STR_TIMESTAMPS \
-	LS_STR_SORTFILES \
-	LS_STR_FILETYPES \
-	LS_STR_FOLLOW_LINKS \
-	LS_STR_RECURSIVE \
-	LS_STR_HUMAN_READABLE \
-	LS_STR_SELINUX \
-	LS_STR_AUTOWIDTH;
-
-#define LIST_MASK_TRIGGER	0
-#define STYLE_MASK_TRIGGER	STYLE_MASK
-#define SORT_MASK_TRIGGER	SORT_MASK
-#define DISP_MASK_TRIGGER	DISP_ROWS
-#define TIME_MASK_TRIGGER	TIME_MASK
+#define LIST_MASK_TRIGGER   LIST_SHORT
+#define STYLE_MASK_TRIGGER  STYLE_MASK
+#define SORT_MASK_TRIGGER   SORT_MASK
+#define DISP_MASK_TRIGGER   DISP_ROWS
+#define TIME_MASK_TRIGGER   TIME_MASK
 
 static const unsigned opt_flags[] = {
+	LIST_SHORT | STYLE_SINGLE,	/* 1 */
+	DISP_HIDDEN,				/* A */
+	DISP_HIDDEN | DISP_DOT,		/* a */
 	LIST_SHORT | STYLE_COLUMNS,	/* C */
-	DISP_HIDDEN | DISP_DOT,    	/* a */
-	DISP_NOLIST,               	/* d */
-	LIST_INO,                  	/* i */
-	LIST_LONG | STYLE_LONG,    	/* l - remember LS_DISP_HR in mask! */
-	LIST_SHORT | STYLE_SINGLE, 	/* 1 */
-	0,                         	/* g - ingored */
-	LIST_ID_NUMERIC,           	/* n */
-	LIST_BLOCKS,              	/* s */
-	DISP_ROWS,                	/* x */
-	DISP_HIDDEN,              	/* A */
-#ifdef CONFIG_SELINUX
-	LIST_CONTEXT,             	/* k */
-#else
-	0,                        	/* k - ingored */
-#endif
-#ifdef CONFIG_FEATURE_LS_TIMESTAMPS
-# ifdef CONFIG_FEATURE_LS_SORTFILES
-	TIME_CHANGE | SORT_CTIME,	/* c */
-# else
-	TIME_CHANGE,             	/* c */
-# endif
-	LIST_FULLTIME,           	/* e */
-# ifdef CONFIG_FEATURE_LS_SORTFILES
-	SORT_MTIME,              	/* t */
-# else
-	0,                      	/* t - ignored -- is this correct? */
-# endif
-# ifdef CONFIG_FEATURE_LS_SORTFILES
-	TIME_ACCESS | SORT_ATIME,	/* u */
-# else
-	TIME_ACCESS,             	/* u */
-# endif
-#endif
-#ifdef CONFIG_FEATURE_LS_SORTFILES
-	SORT_SIZE,               	/* S */
-	SORT_EXT,                	/* X */
-	SORT_ORDER_REVERSE,       	/* r */
-	SORT_VERSION,             	/* v */
-#endif
+	DISP_NOLIST,				/* d */
+	0,							/* g - ingored */
+	LIST_INO,					/* i */
+	LIST_LONG | STYLE_LONG,		/* l - remember LS_DISP_HR in mask! */
+	LIST_ID_NUMERIC,			/* n */
+	LIST_BLOCKS,				/* s */
+	DISP_ROWS,					/* x */
 #ifdef CONFIG_FEATURE_LS_FILETYPES
 	LIST_FILETYPE | LIST_EXEC,	/* F */
-	LIST_FILETYPE,            	/* p */
-#endif
-#ifdef CONFIG_FEATURE_LS_FOLLOWLINKS
-	FOLLOW_LINKS,             	/* L */
+	LIST_FILETYPE,				/* p */
 #endif
 #ifdef CONFIG_FEATURE_LS_RECURSIVE
-	DISP_RECURSIVE,           	/* R */
+	DISP_RECURSIVE,				/* R */
+#endif
+#ifdef CONFIG_FEATURE_LS_SORTFILES
+	SORT_ORDER_REVERSE,			/* r */
+	SORT_SIZE,					/* S */
+	SORT_VERSION,				/* v */
+	SORT_EXT,					/* v */
+#endif
+#ifdef CONFIG_FEATURE_LS_TIMESTAMPS
+	LIST_FULLTIME,				/* e */
+#ifdef CONFIG_FEATURE_LS_SORTFILES
+	TIME_CHANGE | SORT_CTIME,	/* c */
+#else
+	TIME_CHANGE,				/* c */
+#endif
+#ifdef CONFIG_FEATURE_LS_SORTFILES
+	TIME_ACCESS | SORT_ATIME,	/* u */
+#else
+	TIME_ACCESS,				/* u */
+#endif
+#ifdef CONFIG_FEATURE_LS_SORTFILES
+	SORT_MTIME,					/* t */
+#else
+	0,							/* t - ignored -- is this correct? */
+#endif
+#endif
+#ifdef CONFIG_FEATURE_LS_FOLLOWLINKS
+	FOLLOW_LINKS,				/* L */
 #endif
 #ifdef CONFIG_FEATURE_HUMAN_READABLE
-	LS_DISP_HR,               	/* h */
+LS_DISP_HR,						/* h */
 #endif
-#ifdef CONFIG_SELINUX
+#ifndef CONFIG_SELINUX
+	0,							/* k - ingored */
+#else
+	LIST_CONTEXT,				/* k */
 	LIST_MODEBITS|LIST_NLINKS|LIST_CONTEXT|LIST_SIZE|LIST_DATE_TIME, /* K */
 #endif
-	(1U<<31)
 };
 
 
@@ -945,26 +904,19 @@ static const unsigned opt_flags[] = {
 
 extern int ls_main(int argc, char **argv)
 {
-	struct dnode **dnd;
-	struct dnode **dnf;
-	struct dnode **dnp;
-	struct dnode *dn;
-	struct dnode *cur;
-	long opt;
-	int nfiles = 0;
-	int dnfiles;
-	int dndirs;
-	int oi;
-	int ac;
-	int i;
+	struct dnode **dnf, **dnd;
+	int dnfiles, dndirs;
+	struct dnode *dn, *cur, **dnp;
+	int i, nfiles;
+	int opt;
+	int oi, ac;
 	char **av;
-#ifdef CONFIG_FEATURE_AUTOWIDTH
-	char *tabstops_str = NULL;
-	char *terminal_width_str = NULL;
-#endif
-
 #ifdef CONFIG_SELINUX
 	is_flask_enabled_flag = is_flask_enabled();
+#endif
+
+#ifdef CONFIG_FEATURE_AUTOWIDTH
+	struct winsize win = { 0, 0, 0, 0 };
 #endif
 
 	all_fmt = LIST_SHORT | DISP_NORMAL | STYLE_AUTO
@@ -975,34 +927,40 @@ extern int ls_main(int argc, char **argv)
 		| SORT_NAME | SORT_ORDER_FORWARD
 #endif
 		;
-
 #ifdef CONFIG_FEATURE_AUTOWIDTH
-	/* Obtain the terminal width.  */
-	get_terminal_width_height(STDOUT_FILENO, &terminal_width, NULL);
-	/* Go one less... */
-	terminal_width--;
+	ioctl(fileno(stdout), TIOCGWINSZ, &win);
+	if (win.ws_col > 0)
+		terminal_width = win.ws_col - 1;
 #endif
+	nfiles = 0;
 
 #ifdef CONFIG_FEATURE_LS_COLOR
-	if (isatty(STDOUT_FILENO))
+	if (isatty(fileno(stdout)))
 		show_color = 1;
 #endif
 
 	/* process options */
+	while ((opt = getopt(argc, argv, ls_opts)) > 0) {
 #ifdef CONFIG_FEATURE_AUTOWIDTH
-	opt = bb_getopt_ulflags(argc, argv, ls_options, &tabstops_str, &terminal_width_str);
-	if (tabstops_str) {
-		tabstops = atoi(tabstops_str);
-	}
-	if (terminal_width_str) {
-		terminal_width = atoi(terminal_width_str);
-	}
-#else
-	opt = bb_getopt_ulflags(argc, argv, ls_options);
+		if (opt == 'T') {
+			tabstops = atoi(optarg);
+			continue;
+		}
+		if (opt == 'w') {
+			terminal_width = atoi(optarg);
+			continue;
+		}
+		if (opt == ':') {
+			goto print_usage_message;
+		}
 #endif
-	for (i = 0; opt_flags[i] != (1U<<31); i++) {
-		if (opt & (1 << i)) {
-			unsigned int flags = opt_flags[i];
+		{
+			unsigned int flags;
+			const char *p = strchr(ls_opts, opt);
+			if (!p) {	/* shouldn't be necessary */
+				goto print_usage_message;
+			}
+			flags = opt_flags[(int)(p - ls_opts)];
 			if (flags & LIST_MASK_TRIGGER) {
 				all_fmt &= ~LIST_MASK;
 			}
@@ -1034,6 +992,7 @@ extern int ls_main(int argc, char **argv)
 		}
 	}
 
+
 	/* sort out which command line options take precedence */
 #ifdef CONFIG_FEATURE_LS_RECURSIVE
 	if (all_fmt & DISP_NOLIST)
@@ -1051,14 +1010,14 @@ extern int ls_main(int argc, char **argv)
 	if ((all_fmt & STYLE_MASK) == STYLE_LONG && (all_fmt & LIST_ID_NUMERIC))
 		all_fmt &= ~LIST_ID_NAME;	/* don't list names if numeric uid */
 #endif
-
+			
 	/* choose a display format */
 	if ((all_fmt & STYLE_MASK) == STYLE_AUTO)
 #if STYLE_AUTO != 0
 		all_fmt = (all_fmt & ~STYLE_MASK)
-				| (isatty(STDOUT_FILENO) ? STYLE_COLUMNS : STYLE_SINGLE);
+				| (isatty(fileno(stdout)) ? STYLE_COLUMNS : STYLE_SINGLE);
 #else
-		all_fmt |= (isatty(STDOUT_FILENO) ? STYLE_COLUMNS : STYLE_SINGLE);
+		all_fmt |= (isatty(fileno(stdout)) ? STYLE_COLUMNS : STYLE_SINGLE);
 #endif
 
 	/*
@@ -1106,6 +1065,7 @@ extern int ls_main(int argc, char **argv)
 		cur = cur->next;
 	}
 
+
 	if (all_fmt & DISP_NOLIST) {
 #ifdef CONFIG_FEATURE_LS_SORTFILES
 		shellsort(dnp, nfiles);
@@ -1127,8 +1087,11 @@ extern int ls_main(int argc, char **argv)
 #ifdef CONFIG_FEATURE_LS_SORTFILES
 			shellsort(dnd, dndirs);
 #endif
-			showdirs(dnd, dndirs, dnfiles == 0);
+			showdirs(dnd, dndirs);
 		}
 	}
 	return (status);
+
+  print_usage_message:
+	bb_show_usage();
 }

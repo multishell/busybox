@@ -5,28 +5,27 @@
  * based on GNU expr Mike Parker.
  * Copyright (C) 86, 1991-1997, 1999 Free Software Foundation, Inc.
  *
- * Busybox modifications
+ * Busybox modifications 
  * Copyright (c) 2000  Edward Betts <edward@debian.org>.
- * Aug 2003  Vladimir Oleynik - reduced 464 bytes.
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
+ * this program is free software; you can redistribute it and/or modify
+ * it under the terms of the gnu general public license as published by
+ * the free software foundation; either version 2 of the license, or
  * (at your option) any later version.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * General Public License for more details.
+ * this program is distributed in the hope that it will be useful,
+ * but without any warranty; without even the implied warranty of
+ * merchantability or fitness for a particular purpose. see the gnu
+ * general public license for more details.
  *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+ * you should have received a copy of the gnu general public license
+ * along with this program; if not, write to the free software
+ * foundation, inc., 59 temple place, suite 330, boston, ma 02111-1307 usa
  *
  */
 
 /* This program evaluates expressions.  Each token (operator, operand,
- * parenthesis) of the expression must be a separate argument.  The
+ * parenthesis) of the expression must be a seperate argument.  The
  * parser used is a reasonably general one, though any incarnation of
  * it is language-specific.  It is especially nice for expressions.
  *
@@ -41,7 +40,6 @@
 #include <stdlib.h>
 #include <regex.h>
 #include <sys/types.h>
-#include <errno.h>
 #include "busybox.h"
 
 
@@ -117,7 +115,7 @@ static VALUE *str_value (char *s)
 
 	v = xmalloc (sizeof(VALUE));
 	v->type = string;
-	v->u.s = bb_xstrdup (s);
+	v->u.s = strdup (s);
 	return v;
 }
 
@@ -137,8 +135,10 @@ static int null (VALUE *v)
 	switch (v->type) {
 		case integer:
 			return v->u.i == 0;
-		default: /* string: */
+		case string:
 			return v->u.s[0] == '\0' || strcmp (v->u.s, "0") == 0;
+		default:
+			abort ();
 	}
 }
 
@@ -156,20 +156,24 @@ static void tostring (VALUE *v)
 
 static int toarith (VALUE *v)
 {
-	if(v->type == string) {
-		int i;
-		char *e;
+	int i;
 
-		/* Don't interpret the empty string as an integer.  */
-		/* Currently does not worry about overflow or int/long differences. */
-		i = (int) strtol(v->u.s, &e, 10);
-		if ((v->u.s == e) || *e)
-			return 0;
-		free (v->u.s);
-		v->u.i = i;
-		v->type = integer;
+	switch (v->type) {
+		case integer:
+			return 1;
+		case string:
+			i = 0;
+			/* Don't interpret the empty string as an integer.  */
+			if (v->u.s == 0)
+				return 0;
+			i = atoi(v->u.s);
+			free (v->u.s);
+			v->u.i = i;
+			v->type = integer;
+			return 1;
+		default:
+			abort ();
 	}
-	return 1;
 }
 
 /* Return nonzero if the next token matches STR exactly.
@@ -185,58 +189,55 @@ nextarg (char *str)
 
 /* The comparison operator handling functions.  */
 
-static int cmp_common (VALUE *l, VALUE *r, int op)
-{
-	int cmpval;
-
-	if (l->type == string || r->type == string) {
-		tostring (l);
-		tostring (r);
-		cmpval = strcmp (l->u.s, r->u.s);
-	}
-	else
-		cmpval = l->u.i - r->u.i;
-	switch(op) {
-		case '<':
-			return cmpval < 0;
-		case ('L'+'E'):
-			return cmpval <= 0;
-		case '=':
-			return cmpval == 0;
-		case '!':
-			return cmpval != 0;
-		case '>':
-			return cmpval > 0;
-		default: /* >= */
-			return cmpval >= 0;
-	}
+#define cmpf(name, rel)					\
+static int name (VALUE *l, VALUE *r)		\
+{							\
+	if (l->type == string || r->type == string) {		\
+		tostring (l);				\
+		tostring (r);				\
+		return strcmp (l->u.s, r->u.s) rel 0;	\
+	}						\
+	else						\
+		return l->u.i rel r->u.i;		\
 }
+ cmpf (less_than, <)
+ cmpf (less_equal, <=)
+ cmpf (equal, ==)
+ cmpf (not_equal, !=)
+ cmpf (greater_equal, >=)
+ cmpf (greater_than, >)
+
+#undef cmpf
 
 /* The arithmetic operator handling functions.  */
 
-static int arithmetic_common (VALUE *l, VALUE *r, int op)
-{
-  int li, ri;
-
-  if (!toarith (l) || !toarith (r))
-    bb_error_msg_and_die ("non-numeric argument");
-  li = l->u.i;
-  ri = r->u.i;
-  if((op == '/' || op == '%') && ri == 0)
-    bb_error_msg_and_die ( "division by zero");
-  switch(op) {
-	case '+':
-		return li + ri;
-	case '-':
-		return li - ri;
-	case '*':
-		return li * ri;
-	case '/':
-		return li / ri;
-	default:
-		return li % ri;
-  }
+#define arithf(name, op)			\
+static						\
+int name (VALUE *l, VALUE *r)		\
+{						\
+  if (!toarith (l) || !toarith (r))		\
+    bb_error_msg_and_die ("non-numeric argument");	\
+  return l->u.i op r->u.i;			\
 }
+
+#define arithdivf(name, op)			\
+static int name (VALUE *l, VALUE *r)		\
+{						\
+  if (!toarith (l) || !toarith (r))		\
+    bb_error_msg_and_die ( "non-numeric argument");	\
+  if (r->u.i == 0)				\
+    bb_error_msg_and_die ( "division by zero");		\
+  return l->u.i op r->u.i;			\
+}
+
+ arithf (plus, +)
+ arithf (minus, -)
+ arithf (multiply, *)
+ arithdivf (divide, /)
+ arithdivf (mod, %)
+
+#undef arithf
+#undef arithdivf
 
 /* Do the : operator.
    SV is the VALUE for the lhs (the string),
@@ -407,21 +408,21 @@ static VALUE *eval5 (void)
 static VALUE *eval4 (void)
 {
 	VALUE *l, *r;
-	int op, val;
+	int (*fxn) (VALUE *, VALUE *), val;
 
 	l = eval5 ();
 	while (1) {
 		if (nextarg ("*"))
-			op = '*';
+			fxn = multiply;
 		else if (nextarg ("/"))
-			op = '/';
+			fxn = divide;
 		else if (nextarg ("%"))
-			op = '%';
+			fxn = mod;
 		else
 			return l;
 		args++;
 		r = eval5 ();
-		val = arithmetic_common (l, r, op);
+		val = (*fxn) (l, r);
 		freev (l);
 		freev (r);
 		l = int_value (val);
@@ -433,19 +434,19 @@ static VALUE *eval4 (void)
 static VALUE *eval3 (void)
 {
 	VALUE *l, *r;
-	int op, val;
+	int (*fxn) (VALUE *, VALUE *), val;
 
 	l = eval4 ();
 	while (1) {
 		if (nextarg ("+"))
-			op = '+';
+			fxn = plus;
 		else if (nextarg ("-"))
-			op = '-';
+			fxn = minus;
 		else
 			return l;
 		args++;
 		r = eval4 ();
-		val = arithmetic_common (l, r, op);
+		val = (*fxn) (l, r);
 		freev (l);
 		freev (r);
 		l = int_value (val);
@@ -457,29 +458,29 @@ static VALUE *eval3 (void)
 static VALUE *eval2 (void)
 {
 	VALUE *l, *r;
-	int op, val;
+	int (*fxn) (VALUE *, VALUE *), val;
 
 	l = eval3 ();
 	while (1) {
 		if (nextarg ("<"))
-			op = '<';
+			fxn = less_than;
 		else if (nextarg ("<="))
-			op = 'L'+'E';
+			fxn = less_equal;
 		else if (nextarg ("=") || nextarg ("=="))
-			op = '=';
+			fxn = equal;
 		else if (nextarg ("!="))
-			op = '!';
+			fxn = not_equal;
 		else if (nextarg (">="))
-			op = 'G'+'E';
+			fxn = greater_equal;
 		else if (nextarg (">"))
-			op = '>';
+			fxn = greater_than;
 		else
 			return l;
 		args++;
 		r = eval3 ();
 		toarith (l);
 		toarith (r);
-		val = cmp_common (l, r, op);
+		val = (*fxn) (l, r);
 		freev (l);
 		freev (r);
 		l = int_value (val);

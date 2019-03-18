@@ -73,7 +73,7 @@ Areas Where You Can Help
 ------------------------
 
 Busybox can always use improvement! If you're looking for ways to help, there
-are a variety of areas where you could help.
+there are a variety of areas where you could help.
 
 
 What Busybox Doesn't Need
@@ -116,7 +116,7 @@ Bug Reporting
 If you find bugs, please submit a detailed bug report to the busybox mailing
 list at busybox@busybox.net.  A well-written bug report should include a
 transcript of a shell session that demonstrates the bad behavior and enables
-anyone else to duplicate the bug on their own machine. The following is such
+anyone else to duplicate the bug on their own machine. The following is such 
 an example:
 
     To: busybox@busybox.net
@@ -137,7 +137,7 @@ an example:
 	$ date
 	llegal instruction
 
-    I am using Debian unstable, kernel version 2.4.19-rmk1 on an Netwinder,
+    I am using Debian unstable, kernel version 2.4.19-rmk1 on an Netwinder, 
     and the latest uClibc from CVS.  Thanks for the wonderful program!
 
 	-Diligent
@@ -171,7 +171,7 @@ Consult Existing Sources
 For a quick listing of "needs work" spots in the sources, cd into the Busybox
 directory and run the following:
 
-	for i in TODO FIXME XXX; do find -name '*.[ch]'|xargs grep $i; done
+	for i in TODO FIXME XXX; do grep $i *.[ch]; done
 
 This will show all of the trouble spots or 'questionable' code. Pick a spot,
 any spot, these are all invitations for you to contribute.
@@ -199,22 +199,22 @@ Janitorial Work
 
 These are dirty jobs, but somebody's gotta do 'em.
 
- - Converting applets to use getopt() for option processing. Type 'find -name
-   '*.c'|grep -L getopt' to get a listing of the applets that currently don't
-   use getopt. If a .c file processes no options, it should have a line that
+ - Converting applets to use getopt() for option processing. Type 'grep -L
+   getopt *.c' to get a listing of the applets that currently don't use
+   getopt. If a .c file processes no options, it should have a line that
    reads: /* no options, no getopt */ somewhere in the file.
 
  - Replace any "naked" calls to malloc, calloc, realloc, str[n]dup, fopen with
-   the x* equivalents found in libbb/xfuncs.c.
+   the x* equivalents found in utility.c.
 
  - Security audits:
-   http://www.securityfocus.com/popups/forums/secprog/intro.shtml
+   http://www.securityfocus.com/frames/?content=/forums/secprog/secure-programming.html
 
  - Synthetic code removal: http://www.perl.com/pub/2000/06/commify.html - This
    is very Perl-specific, but the advice given in here applies equally well to
    C.
 
- - C library function use audits: Verifying that functions are being used
+ - C library funciton use audits: Verifying that functions are being used
    properly (called with the right args), replacing unsafe library functions
    with safer versions, making sure return codes are being checked, etc.
 
@@ -231,7 +231,7 @@ These are dirty jobs, but somebody's gotta do 'em.
 
  - "Ten Commandments" compliance: (this is a "maybe", certainly not as
    important as any of the previous items.)
-    http://www.lysator.liu.se/c/ten-commandments.html
+    http://web.onetelnet.ch/~twolf/tw/c/ten_commandments.html
 
 Other useful links:
 

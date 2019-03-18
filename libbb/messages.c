@@ -1,6 +1,6 @@
 /* vi: set sw=4 ts=4: */
 /*
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -88,9 +88,5 @@ const char * const bb_path_securetty_file = SECURETTY_FILE;
 #ifdef L_motd_file
 #define MOTD_FILE          "/etc/motd"
 const char * const bb_path_motd_file = MOTD_FILE;
-#endif
-
-#ifdef L_shell_file
-const char * const bb_default_login_shell = LIBBB_DEFAULT_LOGIN_SHELL;
 #endif
 

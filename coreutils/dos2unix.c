@@ -50,7 +50,7 @@ typedef unsigned long int bb_uint64_t;
 static const char letters[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
 // if fn is NULL then input is stdin and output is stdout
-static int convert(char *fn, int ConvType)
+static int convert(char *fn, int ConvType) 
 {
 	int c, fd;
 	struct timeval tv;
@@ -64,9 +64,7 @@ static int convert(char *fn, int ConvType)
 		c = strlen(tempFn);
 		tempFn[c] = '.';
 		while(1) {
-		    /* tempFn is BUFSIZ so the last addressable spot it BUFSIZ-1.
-		     * The loop increments by 2. So this must check for BUFSIZ-3. */
-		    if (c >=BUFSIZ-3)
+		    if (c >=BUFSIZ)
 			bb_error_msg_and_die("unique name not found");
 		    /* Get some semi random stuff to try and make a
 		     * random filename based (and in the same dir as)
@@ -158,12 +156,12 @@ static int convert(char *fn, int ConvType)
 	return 0;
 }
 
-int dos2unix_main(int argc, char *argv[])
+int dos2unix_main(int argc, char *argv[]) 
 {
 	int ConvType = CT_AUTO;
 	int o;
 
-	//See if we are supposed to be doing dos2unix or unix2dos
+	//See if we are supposed to be doing dos2unix or unix2dos 
 	if (argv[0][0]=='d') {
 	    ConvType = CT_DOS2UNIX;
 	}

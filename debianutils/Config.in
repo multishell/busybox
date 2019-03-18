@@ -11,12 +11,6 @@ config CONFIG_MKTEMP
 	help
 	  mktemp is used to create unique temporary files
 
-config CONFIG_PIPE_PROGRESS
-	bool "pipe_progress"
-	default n
-	help
-	  Display a dot to indicate pipe activity.
-
 config CONFIG_READLINK
 	bool "readlink"
 	default n
@@ -33,19 +27,11 @@ config CONFIG_RUN_PARTS
 	  It is useful to set up a directory like cron.daily, where you need to
 	  execute all the scripts in that directory.
 
-	  In this implementation of run-parts some features (such as report mode)
-	  are not implemented.
+	  This implementation of run-parts does not accept long options, and
+	  some features (such as report mode) are not implemented.
 
 	  Unless you know that run-parts is used in some of your scripts
 	  you can safely say N here.
-
-config CONFIG_START_STOP_DAEMON
-	bool "start-stop-daemon"
-	default y
-	help
-	  start-stop-daemon is used to control the creation and
-	  termination of system-level processes, usually the ones
-	  started during the startup of the system.
 
 config CONFIG_WHICH
 	bool "which"

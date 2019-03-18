@@ -11,53 +11,57 @@ config CONFIG_INSMOD
 	help
 	  insmod is used to load specified modules in the running kernel.
 
-config CONFIG_FEATURE_2_4_MODULES
-	bool "  Support version 2.2.x to 2.4.x Linux kernels"
-	default y
-	depends on CONFIG_INSMOD
-	help
-	  Support module loading for 2.2.x and 2.4.x Linux kernels.
-
-config CONFIG_FEATURE_2_6_MODULES
-	bool "  Support version 2.6.x Linux kernels"
+config CONFIG_FEATURE_OLD_MODULE_INTERFACE
+	bool "  Support older (pre 2.1) Linux kernels"
 	default n
 	depends on CONFIG_INSMOD
 	help
-	  Support module loading for newer 2.6.x Linux kernels.
+	  Please submit a patch to add help text for this item.
+
+if CONFIG_INSMOD && !CONFIG_FEATURE_OLD_MODULE_INTERFACE
+    config CONFIG_FEATURE_NEW_MODULE_INTERFACE
+	    default y
+    comment "  Support new (post 2.1) Linux kernels (Forced enabled)"
+endif
+
+if CONFIG_FEATURE_OLD_MODULE_INTERFACE
+config CONFIG_FEATURE_NEW_MODULE_INTERFACE
+	bool "  Support new (post 2.1) Linux kernels"
+	default y
+	depends on CONFIG_INSMOD
+	help
+	  Please submit a patch to add help text for this item.
+endif
 
 config CONFIG_FEATURE_INSMOD_VERSION_CHECKING
 	bool "  Module version checking"
 	default n
-	depends on CONFIG_INSMOD && CONFIG_FEATURE_2_4_MODULES
+	depends on CONFIG_INSMOD
 	help
-	  Support checking of versions for modules.  This is used to
-	  ensure that the kernel and module are made for each other.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_FEATURE_INSMOD_KSYMOOPS_SYMBOLS
 	bool "  Add module symbols to kernel symbol table"
 	default n
-	depends on CONFIG_INSMOD && CONFIG_FEATURE_2_4_MODULES
+	depends on CONFIG_INSMOD
 	help
-	  By adding module symbols to the kernel symbol table, Oops messages
+	  By adding module symbols to the kernel symbol table, Oops messages 
 	  occuring within kernel modules can be properly debugged.  By enabling
-	  this feature, module symbols will always be added to the kernel symbol
+	  this feature, module symbols will always be added to the kernel symbol 
 	  table for properly debugging support.  If you are not interested in
 	  Oops messages from kernel modules, say N.
 
 config CONFIG_FEATURE_INSMOD_LOADINKMEM
 	bool "  In kernel memory optimization (uClinux only)"
 	default n
-	depends on CONFIG_INSMOD && CONFIG_FEATURE_2_4_MODULES
+	depends on CONFIG_INSMOD
 	help
-	  This is a special uClinux only memory optimization that lets insmod
-	  load the specified kernel module directly into kernel space, reducing
-	  memory usage by preventing the need for two copies of the module
-	  being loaded into memory.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_FEATURE_INSMOD_LOAD_MAP
-	bool "  Enable load map (-m) option"
+	bool "  Enable load map (-m) option" 
 	default n
-	depends on CONFIG_INSMOD && CONFIG_FEATURE_2_4_MODULES
+	depends on CONFIG_INSMOD
 	help
 	  Enabling this, one would be able to get a load map
 	  output on stdout. This makes kernel module debugging
@@ -71,8 +75,9 @@ config CONFIG_FEATURE_INSMOD_LOAD_MAP_FULL
 	depends on CONFIG_FEATURE_INSMOD_LOAD_MAP
 	help
 	  Without this option, -m will only output section
-	  load map.  With this option, -m will also output
-	  symbols load map.
+	  load map.
+	  With this option, -m will also output symbols
+	  load map.
 
 config CONFIG_LSMOD
 	bool "lsmod"
@@ -81,15 +86,17 @@ config CONFIG_LSMOD
 	  lsmod is used to display a list of loaded modules.
 
 config CONFIG_FEATURE_QUERY_MODULE_INTERFACE
-	bool
+	bool "  Support lsmod query_module interface (add 638 bytes)"
 	default y
-	depends on CONFIG_FEATURE_2_4_MODULES && !CONFIG_FEATURE_2_6_MODULES
+	depends on CONFIG_LSMOD && CONFIG_FEATURE_NEW_MODULE_INTERFACE
+	help
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_MODPROBE
 	bool "modprobe"
 	default n
 	help
-	  Handle the loading of modules, and their dependancies on a high
+	  Handle the loading of modules, and their dependancies on a high 
 	  level.
 
 config CONFIG_RMMOD
@@ -103,10 +110,7 @@ config CONFIG_FEATURE_CHECK_TAINTED_MODULE
 	default y
 	depends on CONFIG_INSMOD || CONFIG_LSMOD
 	help
-	  Support checking for tainted modules.  These are usually binary
-	  only modules that will make the linux-kernel list ignore your
-	  support request.
-	  This option is required to support GPLONLY modules.
+	  Please submit a patch to add help text for this item.
 
 
 endmenu

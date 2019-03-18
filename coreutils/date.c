@@ -3,7 +3,7 @@
  * Mini date implementation for busybox
  *
  * by Matthew Grant <grantma@anathoth.gen.nz>
- *
+ * 
  * iso-format handling added by Robert Griebl <griebl@gmx.de>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -33,7 +33,7 @@
 #include "busybox.h"
 
 
-/* This 'date' command supports only 2 time setting formats,
+/* This 'date' command supports only 2 time setting formats, 
    all the GNU strftime stuff (its in libc, lets use it),
    setting time using UTC and displaying int, as well as
    an RFC 822 complient date output for shell scripting
@@ -42,12 +42,11 @@
 /* Input parsing code is always bulky - used heavy duty libc stuff as
    much as possible, missed out a lot of bounds checking */
 
-/* Default input handling to save surprising some people */
+/* Default input handling to save suprising some people */
 
 static struct tm *date_conv_time(struct tm *tm_time, const char *t_string)
 {
 	int nr;
-	char *cp;
 
 	nr = sscanf(t_string, "%2d%2d%2d%2d%d", &(tm_time->tm_mon),
 				&(tm_time->tm_mday), &(tm_time->tm_hour), &(tm_time->tm_min),
@@ -55,14 +54,6 @@ static struct tm *date_conv_time(struct tm *tm_time, const char *t_string)
 
 	if (nr < 4 || nr > 5) {
 		bb_error_msg_and_die(bb_msg_invalid_date, t_string);
-	}
-
-	cp = strchr(t_string, '.');
-	if (cp) {
-		nr = sscanf(cp + 1, "%2d", &(tm_time->tm_sec));
-		if (nr != 1) {
-			bb_error_msg_and_die(bb_msg_invalid_date, t_string);
-		}
 	}
 
 	/* correct for century  - minor Y2K problem here? */
@@ -123,14 +114,6 @@ static struct tm *date_conv_ftime(struct tm *tm_time, const char *t_string)
 	return (tm_time);
 }
 
-#define DATE_OPT_RFC2822	0x01
-#define DATE_OPT_SET    	0x02
-#define DATE_OPT_UTC    	0x04
-#define DATE_OPT_DATE   	0x08
-#define DATE_OPT_REFERENCE	0x10
-#ifdef CONFIG_FEATURE_DATE_ISOFMT
-# define DATE_OPT_TIMESPEC	0x20
-#endif
 
 int date_main(int argc, char **argv)
 {
@@ -138,12 +121,12 @@ int date_main(int argc, char **argv)
 	char *date_fmt = NULL;
 	char *t_buff;
 	int set_time;
+	int rfc822;
 	int utc;
 	int use_arg = 0;
 	time_t tm;
 	unsigned long opt;
 	struct tm tm_time;
-	char *filename = NULL;
 
 #ifdef CONFIG_FEATURE_DATE_ISOFMT
 	int ifmt = 0;
@@ -154,41 +137,43 @@ int date_main(int argc, char **argv)
 # define GETOPT_ISOFMT
 #endif
 	bb_opt_complementaly = "d~ds:s~ds";
-	opt = bb_getopt_ulflags(argc, argv, "Rs:ud:r:" GETOPT_ISOFMT,
-					&date_str, &date_str, &filename
+	opt = bb_getopt_ulflags(argc, argv, "Rs:ud:" GETOPT_ISOFMT,
+					&date_str, &date_str
 #ifdef CONFIG_FEATURE_DATE_ISOFMT
 					, &isofmt_arg
 #endif
 					);
-	set_time = opt & DATE_OPT_SET;
-	utc = opt & DATE_OPT_UTC;
-	if ((utc) && (putenv("TZ=UTC0") != 0)) {
-		bb_error_msg_and_die(bb_msg_memory_exhausted);
+	rfc822 = opt & 1;
+	set_time = opt & 2;
+	utc = opt & 4;
+	if(utc) {
+			if (putenv("TZ=UTC0") != 0)
+				bb_error_msg_and_die(bb_msg_memory_exhausted);
 	}
-	use_arg = opt & DATE_OPT_DATE;
+	use_arg = opt & 8;
 	if(opt & 0x80000000UL)
-		bb_show_usage();
+				bb_show_usage();
 #ifdef CONFIG_FEATURE_DATE_ISOFMT
-	if(opt & DATE_OPT_TIMESPEC) {
-		if (!isofmt_arg) {
-			ifmt = 1;
-		} else {
+	if(opt & 16) {
+		if (!isofmt_arg)
+				ifmt = 1;
+			else {
 			int ifmt_len = bb_strlen(isofmt_arg);
 
-			if ((ifmt_len <= 4)
+				if ((ifmt_len <= 4)
 				&& (strncmp(isofmt_arg, "date", ifmt_len) == 0)) {
-				ifmt = 1;
-			} else if ((ifmt_len <= 5)
-				   && (strncmp(isofmt_arg, "hours", ifmt_len) == 0)) {
-				ifmt = 2;
-			} else if ((ifmt_len <= 7)
-				   && (strncmp(isofmt_arg, "minutes", ifmt_len) == 0)) {
-				ifmt = 3;
-			} else if ((ifmt_len <= 7)
-				   && (strncmp(isofmt_arg, "seconds", ifmt_len) == 0)) {
-				ifmt = 4;
+					ifmt = 1;
+				} else if ((ifmt_len <= 5)
+					   && (strncmp(isofmt_arg, "hours", ifmt_len) == 0)) {
+					ifmt = 2;
+				} else if ((ifmt_len <= 7)
+					   && (strncmp(isofmt_arg, "minutes", ifmt_len) == 0)) {
+					ifmt = 3;
+				} else if ((ifmt_len <= 7)
+					   && (strncmp(isofmt_arg, "seconds", ifmt_len) == 0)) {
+					ifmt = 4;
+				}
 			}
-		}
 		if (!ifmt) {
 			bb_show_usage();
 		}
@@ -205,20 +190,18 @@ int date_main(int argc, char **argv)
 	/* Now we have parsed all the information except the date format
 	   which depends on whether the clock is being set or read */
 
-	if(filename) {
-		struct stat statbuf;
-		if(stat(filename,&statbuf))
-			bb_perror_msg_and_die("File '%s' not found.\n",filename);
-		tm=statbuf.st_mtime;
-	} else time(&tm);
+	time(&tm);
 	memcpy(&tm_time, localtime(&tm), sizeof(tm_time));
 	/* Zero out fields - take her back to midnight! */
 	if (date_str != NULL) {
 		tm_time.tm_sec = 0;
 		tm_time.tm_min = 0;
 		tm_time.tm_hour = 0;
+	}
 
-		/* Process any date input to UNIX time since 1 Jan 1970 */
+	/* Process any date input to UNIX time since 1 Jan 1970 */
+	if (date_str != NULL) {
+
 		if (strchr(date_str, ':') != NULL) {
 			date_conv_ftime(&tm_time, date_str);
 		} else {
@@ -226,7 +209,6 @@ int date_main(int argc, char **argv)
 		}
 
 		/* Correct any day of week and day of year etc. fields */
-		tm_time.tm_isdst = -1;	/* Be sure to recheck dst. */
 		tm = mktime(&tm_time);
 		if (tm < 0) {
 			bb_error_msg_and_die(bb_msg_invalid_date, date_str);
@@ -262,10 +244,10 @@ int date_main(int argc, char **argv)
 		case 0:
 		default:
 #endif
-			date_fmt = (opt & DATE_OPT_RFC2822 ?
-					(utc ? "%a, %d %b %Y %H:%M:%S GMT" :
-					"%a, %d %b %Y %H:%M:%S %z") :
-					"%a %b %e %H:%M:%S %Z %Y");
+			date_fmt =
+				(rfc822
+				 ? (utc ? "%a, %e %b %Y %H:%M:%S GMT" :
+					"%a, %e %b %Y %H:%M:%S %z") : "%a %b %e %H:%M:%S %Z %Y");
 
 #ifdef CONFIG_FEATURE_DATE_ISOFMT
 			break;

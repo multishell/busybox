@@ -13,7 +13,7 @@ int been_there_done_that = 0; /* Also used in applets.c */
 const char *bb_applet_name;
 
 #ifdef CONFIG_FEATURE_INSTALLER
-/*
+/* 
  * directory table
  *		this should be consistent w/ the enum, busybox.h::Location,
  *		or else...
@@ -32,7 +32,7 @@ static const char* const install_dir[] = {
 /* abstract link() */
 typedef int (*__link_f)(const char *, const char *);
 
-/*
+/* 
  * Where in the filesystem is this busybox?
  * [return]
  *		malloc'd string w/ full pathname of busybox's location
@@ -52,7 +52,7 @@ static void install_links(const char *busybox, int use_symbolic_links)
 	int i;
 	int rc;
 
-	if (use_symbolic_links)
+	if (use_symbolic_links) 
 		Link = symlink;
 
 	for (i = 0; applets[i].name != NULL; i++) {
@@ -82,7 +82,7 @@ int main(int argc, char **argv)
 			bb_applet_name = s;
 	}
 
-#ifdef CONFIG_LOCALE_SUPPORT
+#ifdef CONFIG_LOCALE_SUPPORT 
 #ifdef CONFIG_INIT
 	if(getpid()!=1)	/* Do not set locale for `init' */
 #endif
@@ -100,9 +100,9 @@ int busybox_main(int argc, char **argv)
 {
 	int col = 0, len, i;
 
-#ifdef CONFIG_FEATURE_INSTALLER
-	/*
-	 * This style of argument parsing doesn't scale well
+#ifdef CONFIG_FEATURE_INSTALLER	
+	/* 
+	 * This style of argument parsing doesn't scale well 
 	 * in the event that busybox starts wanting more --options.
 	 * If someone has a cleaner approach, by all means implement it.
 	 */
@@ -113,8 +113,8 @@ int busybox_main(int argc, char **argv)
 
 		/* to use symlinks, or not to use symlinks... */
 		if (argc > 2) {
-			if ((strcmp(argv[2], "-s") == 0)) {
-				use_symbolic_links = 1;
+			if ((strcmp(argv[2], "-s") == 0)) { 
+				use_symbolic_links = 1; 
 			}
 		}
 
@@ -135,14 +135,6 @@ int busybox_main(int argc, char **argv)
 	/* If we've already been here once, exit now */
 	if (been_there_done_that == 1 || argc < 1) {
 		const struct BB_applet *a = applets;
-		int output_width = 60;
-
-#ifdef CONFIG_FEATURE_AUTOWIDTH
-		/* Obtain the terminal width.  */
-		get_terminal_width_height(0, &output_width, NULL);
-		/* leading tab and room to wrap */
-		output_width -= 20;
-#endif
 
 		fprintf(stderr, "%s\n\n"
 				"Usage: busybox [function] [arguments]...\n"
@@ -150,14 +142,14 @@ int busybox_main(int argc, char **argv)
 				"\tBusyBox is a multi-call binary that combines many common Unix\n"
 				"\tutilities into a single executable.  Most people will create a\n"
 				"\tlink to busybox for each function they wish to use, and BusyBox\n"
-				"\twill act like whatever it was invoked as.\n"
+				"\twill act like whatever it was invoked as.\n" 
 				"\nCurrently defined functions:\n", bb_msg_full_version);
 
 		while (a->name != 0) {
 			col +=
 				fprintf(stderr, "%s%s", ((col == 0) ? "\t" : ", "),
 						(a++)->name);
-			if (col > output_width && a->name != 0) {
+			if (col > 60 && a->name != 0) {
 				fprintf(stderr, ",\n");
 				col = 0;
 			}
@@ -168,9 +160,8 @@ int busybox_main(int argc, char **argv)
 
 	/* Flag that we've been here already */
 	been_there_done_that = 1;
-
+	
 	/* Move the command line down a notch */
-	/* Preserve pointers so setproctitle() works consistently */
 	len = argv[argc] + strlen(argv[argc]) - argv[1];
 	memmove(argv[0], argv[1], len);
 	memset(argv[0] + len, 0, argv[1] - argv[0]);

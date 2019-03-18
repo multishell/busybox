@@ -46,7 +46,9 @@ extern int loadfont_main(int argc, char **argv)
 	if (argc != 1)
 		bb_show_usage();
 
-	fd = bb_xopen(CURRENT_VC, O_RDWR);
+	fd = open(CURRENT_VC, O_RDWR);
+	if (fd < 0)
+		bb_perror_msg_and_die("Error opening " CURRENT_VC);
 	loadnewfont(fd);
 
 	return EXIT_SUCCESS;

@@ -123,8 +123,7 @@ int copy_file(const char *source, const char *dest, int flags)
 			status = -1;
 		}
 	} else if (S_ISREG(source_stat.st_mode)) {
-		int src_fd;
-		int dst_fd;
+		FILE *sfp, *dfp=NULL;
 #ifdef CONFIG_FEATURE_PRESERVE_HARDLINKS
 		char *link_name;
 
@@ -138,32 +137,30 @@ int copy_file(const char *source, const char *dest, int flags)
 			return 0;
 		}
 #endif
-		src_fd = open(source, O_RDONLY);
-		if (src_fd == -1) {
-			bb_perror_msg("unable to open `%s'", source);
-			return(-1);
+
+		if ((sfp = bb_wfopen(source, "r")) == NULL) {
+			return -1;
 		}
 
 		if (dest_exists) {
 			if (flags & FILEUTILS_INTERACTIVE) {
-				bb_error_msg("overwrite `%s'? ", dest);
+				fprintf(stderr, "%s: overwrite `%s'? ", bb_applet_name, dest);
 				if (!bb_ask_confirmation()) {
-					close (src_fd);
+					fclose (sfp);
 					return 0;
 				}
 			}
 
-			dst_fd = open(dest, O_WRONLY|O_TRUNC);
-			if (dst_fd == -1) {
+			if ((dfp = fopen(dest, "w")) == NULL) {
 				if (!(flags & FILEUTILS_FORCE)) {
 					bb_perror_msg("unable to open `%s'", dest);
-					close(src_fd);
+					fclose (sfp);
 					return -1;
 				}
 
 				if (unlink(dest) < 0) {
 					bb_perror_msg("unable to remove `%s'", dest);
-					close(src_fd);
+					fclose (sfp);
 					return -1;
 				}
 
@@ -172,23 +169,27 @@ int copy_file(const char *source, const char *dest, int flags)
 		}
 
 		if (!dest_exists) {
-			dst_fd = open(dest, O_WRONLY|O_CREAT, source_stat.st_mode);
-			if (dst_fd == -1) {
+			int fd;
+
+			if ((fd = open(dest, O_WRONLY|O_CREAT, source_stat.st_mode)) < 0 ||
+					(dfp = fdopen(fd, "w")) == NULL) {
+				if (fd >= 0)
+					close(fd);
 				bb_perror_msg("unable to open `%s'", dest);
-				close(src_fd);
-				return(-1);
+				fclose (sfp);
+				return -1;
 			}
 		}
 
-		if (bb_copyfd_eof(src_fd, dst_fd) == -1)
+		if (bb_copyfd(fileno(sfp), fileno(dfp), 0) == -1)
 			status = -1;
 
-		if (close(dst_fd) < 0) {
+		if (fclose(dfp) < 0) {
 			bb_perror_msg("unable to close `%s'", dest);
 			status = -1;
 		}
 
-		if (close(src_fd) < 0) {
+		if (fclose(sfp) < 0) {
 			bb_perror_msg("unable to close `%s'", source);
 			status = -1;
 		}
@@ -242,9 +243,7 @@ int copy_file(const char *source, const char *dest, int flags)
 	}
 
 #ifdef CONFIG_FEATURE_PRESERVE_HARDLINKS
-	if (! S_ISDIR(source_stat.st_mode)) {
-		add_to_ino_dev_hashtable(&source_stat, dest);
-	}
+	add_to_ino_dev_hashtable(&source_stat, dest);
 #endif
 
 end:

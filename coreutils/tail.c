@@ -89,9 +89,9 @@ static ssize_t tail_read(int fd, char *buf, size_t count)
 }
 
 static const char tail_opts[] =
-	"fn:c:"
+	"fn:"
 #ifdef CONFIG_FEATURE_FANCY_TAIL
-	"qs:v"
+	"c:qs:v"
 #endif
 	;
 
@@ -104,7 +104,9 @@ int tail_main(int argc, char **argv)
 	int from_top = 0;
 	int follow = 0;
 	int header_threshhold = 1;
+#ifdef CONFIG_FEATURE_FANCY_TAIL
 	int count_bytes = 0;
+#endif
 
 	char *tailbuf;
 	size_t tailbufsize;
@@ -118,7 +120,7 @@ int tail_main(int argc, char **argv)
 	/* Allow legacy syntax of an initial numeric option without -n. */
 	if (argc >=2 && ((argv[1][0] == '+') || ((argv[1][0] == '-')
 			/* && (isdigit)(argv[1][1]) */
-			&& (((unsigned int)(argv[1][1] - '0')) <= 9))))
+			&& (((unsigned int)(argv[1][1] - '0')) <= 9)))) 
 	{
 		optind = 2;
 		optarg = argv[1];
@@ -130,9 +132,11 @@ int tail_main(int argc, char **argv)
 			case 'f':
 				follow = 1;
 				break;
+#ifdef CONFIG_FEATURE_FANCY_TAIL
 			case 'c':
 				count_bytes = 1;
 				/* FALLS THROUGH */
+#endif
 			case 'n':
 			GET_COUNT:
 				count = bb_xgetlarg10_sfx(optarg, tail_suffixes);
@@ -197,7 +201,7 @@ int tail_main(int argc, char **argv)
 	}
 
 	tailbufsize = BUFSIZ;
-
+#ifdef CONFIG_FEATURE_FANCY_TAIL
 	/* tail the files */
 	if (from_top < count_bytes) {	/* Each is 0 or 1, so true iff 0 < 1. */
 		/* Hence, !from_top && count_bytes */
@@ -205,7 +209,7 @@ int tail_main(int argc, char **argv)
 			tailbufsize = count + BUFSIZ;
 		}
 	}
-
+#endif
 	buf = tailbuf = xmalloc(tailbufsize);
 
 	fmt = header_fmt + 1;	/* Skip header leading newline on first output. */
@@ -228,16 +232,18 @@ int tail_main(int argc, char **argv)
 		buf = tailbuf;
 		taillen = 0;
 		seen = 1;
-		newline = 0;
 
 		while ((nread = tail_read(fds[i], buf, tailbufsize-taillen)) > 0) {
 			if (from_top) {
 				nwrite = nread;
 				if (seen < count) {
+#ifdef CONFIG_FEATURE_FANCY_TAIL
 					if (count_bytes) {
 						nwrite -= (count - seen);
 						seen = count;
-					} else {
+					} else
+#endif
+					{
 						s = buf;
 						do {
 							--nwrite;
@@ -249,13 +255,16 @@ int tail_main(int argc, char **argv)
 				}
 				tail_xbb_full_write(buf + nread - nwrite, nwrite);
 			} else if (count) {
+#ifdef CONFIG_FEATURE_FANCY_TAIL
 				if (count_bytes) {
 					taillen += nread;
 					if (taillen > count) {
 						memmove(tailbuf, tailbuf + taillen - count, count);
 						taillen = count;
 					}
-				} else {
+				} else
+#endif
+				{
 					int k = nread;
 					int nbuf = 0;
 

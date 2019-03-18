@@ -6,7 +6,7 @@
  * Bjorn Wesen, Axis Communications AB
  *
  *
- * Authors of the original ifconfig was:
+ * Authors of the original ifconfig was:      
  *              Fred N. van Kempen, <waltje@uwalt.nl.mugnet.org>
  *
  * This program is free software; you can redistribute it
@@ -15,7 +15,7 @@
  * Foundation;  either  version 2 of the License, or  (at
  * your option) any later version.
  *
- * $Id: ifconfig.c,v 1.29 2004/03/15 08:28:48 andersen Exp $
+ * $Id: ifconfig.c,v 1.26 2003/06/21 09:05:49 andersen Exp $
  *
  */
 
@@ -37,7 +37,6 @@
 #include <string.h>		/* strcmp and friends */
 #include <ctype.h>		/* isdigit and friends */
 #include <stddef.h>		/* offsetof */
-#include <netdb.h>
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <net/if_arp.h>
@@ -164,7 +163,7 @@ struct in6_ifreq {
 #define ARG_NETMASK      (A_ARG_REQ | A_CAST_HOST_COPY_RESOLVE | A_NETMASK)
 #define ARG_BROADCAST    (A_ARG_REQ | A_CAST_HOST_COPY_RESOLVE | A_SET_AFTER | A_BROADCAST)
 #define ARG_HW           (A_ARG_REQ | A_CAST_HOST_COPY_IN_ETHER)
-#define ARG_POINTOPOINT  (A_ARG_REQ | A_CAST_HOST_COPY_RESOLVE | A_SET_AFTER)
+#define ARG_POINTOPOINT  (A_CAST_HOST_COPY_RESOLVE | A_SET_AFTER)
 #define ARG_KEEPALIVE    (A_ARG_REQ | A_CAST_CHAR_PTR)
 #define ARG_OUTFILL      (A_ARG_REQ | A_CAST_CHAR_PTR)
 #define ARG_HOSTNAME     (A_CAST_HOST_COPY_RESOLVE | A_SET_AFTER | A_COLON_CHK | A_HOSTNAME)
@@ -395,9 +394,8 @@ int ifconfig_main(int argc, char **argv)
 						safe_strncpy(host, *argv, (sizeof host));
 #ifdef CONFIG_FEATURE_IPV6
 						if ((prefix = strchr(host, '/'))) {
-							if (safe_strtoi(prefix + 1, &prefix_len) ||
-								(prefix_len < 0) || (prefix_len > 128))
-							{
+							prefix_len = atol(prefix + 1);
+							if ((prefix_len < 0) || (prefix_len > 128)) {
 								++goterr;
 								goto LOOP;
 							}
@@ -444,13 +442,8 @@ int ifconfig_main(int argc, char **argv)
 #endif
 						} else if (inet_aton(host, &sai.sin_addr) == 0) {
 							/* It's not a dotted quad. */
-							struct hostent *hp;
-							if ((hp = gethostbyname(host)) == (struct hostent *)NULL) {
-								++goterr;
-								continue;
-							}
-							memcpy((char *) &sai.sin_addr, (char *) hp->h_addr_list[0],
-							sizeof(struct in_addr));
+							++goterr;
+							continue;
 						}
 #ifdef CONFIG_FEATURE_IFCONFIG_BROADCAST_PLUS
 						if (mask & A_HOSTNAME) {
@@ -516,7 +509,7 @@ int ifconfig_main(int argc, char **argv)
 					 * a - at the end, since it's deleted already! - Roman
 					 *
 					 * Should really use regex.h here, not sure though how well
-					 * it'll go with the cross-platform support etc.
+					 * it'll go with the cross-platform support etc. 
 					 */
 					char *ptr;
 					short int found_colon = 0;

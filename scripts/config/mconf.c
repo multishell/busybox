@@ -28,7 +28,6 @@
 #define LKC_DIRECT_LINK
 #include "lkc.h"
 
-static char menu_backtitle[128];
 static const char menu_instructions[] =
 	"Arrow keys navigate the menu.  "
 	"<Enter> selects submenus --->.  "
@@ -66,7 +65,7 @@ load_config_help[] =
 	"configurations available on a single machine.\n"
 	"\n"
 	"If you have saved a previous configuration in a file other than the\n"
-	"BusyBox's default, entering the name of the file here will allow you\n"
+	"BusyBox default, entering the name of the file here will allow you\n"
 	"to modify that configuration.\n"
 	"\n"
 	"If you are uncertain, then you have probably never used alternate\n"
@@ -101,7 +100,7 @@ static char filename[PATH_MAX+1] = ".config";
 static int indent = 0;
 static struct termios ios_org;
 static int rows, cols;
-struct menu *current_menu;
+static struct menu *current_menu;
 static int child_count;
 static int single_menu_mode;
 
@@ -121,7 +120,6 @@ static void show_readme(void);
 static void init_wsize(void)
 {
 	struct winsize ws;
-	char *env;
 
 	if (ioctl(1, TIOCGWINSZ, &ws) == -1) {
 		rows = 24;
@@ -129,20 +127,6 @@ static void init_wsize(void)
 	} else {
 		rows = ws.ws_row;
 		cols = ws.ws_col;
-		if (!rows) {
-			env = getenv("LINES");
-			if (env)
-				rows = atoi(env);
-			if (!rows)
-				rows = 24;
-		}
-		if (!cols) {
-			env = getenv("COLUMNS");
-			if (env)
-				cols = atoi(env);
-			if (!cols)
-				cols = 80;
-		}
 	}
 
 	if (rows < 19 || cols < 80) {
@@ -169,7 +153,7 @@ static void cmake(void)
 	items[item_no]->namelen = 0;
 	item_no++;
 }
-
+  
 static int cprint_name(const char *fmt, ...)
 {
 	va_list ap;
@@ -186,7 +170,7 @@ static int cprint_name(const char *fmt, ...)
 
 	return res;
 }
-
+  
 static int cprint_tag(const char *fmt, ...)
 {
 	va_list ap;
@@ -200,7 +184,7 @@ static int cprint_tag(const char *fmt, ...)
 
 	return res;
 }
-
+  
 static void cdone(void)
 {
 	int i;
@@ -242,7 +226,9 @@ static void build_conf(struct menu *menu)
 						menu->data ? "-->" : "++>",
 						indent + 1, ' ', prompt);
 				} else {
-					cprint_name("   %*c%s  --->", indent + 1, ' ', prompt);
+					if (menu->parent != &rootmenu)
+						cprint_name("   %*c", indent + 1, ' ');
+					cprint_name("%s  --->", prompt);
 				}
 
 				if (single_menu_mode && menu->data)
@@ -317,10 +303,7 @@ static void build_conf(struct menu *menu)
 			switch (type) {
 			case S_BOOLEAN:
 				cprint_tag("t%p", menu);
-				if (sym_is_changable(sym))
-					cprint_name("[%c]", val == no ? ' ' : '*');
-				else
-					cprint_name("---");
+				cprint_name("[%c]", val == no ? ' ' : '*');
 				break;
 			case S_TRISTATE:
 				cprint_tag("t%p", menu);
@@ -329,10 +312,7 @@ static void build_conf(struct menu *menu)
 				case mod: ch = 'M'; break;
 				default:  ch = ' '; break;
 				}
-				if (sym_is_changable(sym))
-					cprint_name("<%c>", ch);
-				else
-					cprint_name("---");
+				cprint_name("<%c>", ch);
 				break;
 			default:
 				cprint_tag("s%p", menu);
@@ -341,18 +321,12 @@ static void build_conf(struct menu *menu)
 				if (tmp < 0)
 					tmp = 0;
 				cprint_name("%*c%s%s", tmp, ' ', menu_get_prompt(menu),
-					(sym_has_value(sym) || !sym_is_changable(sym)) ?
-					"" : " (NEW)");
+					sym_has_value(sym) ? "" : " (NEW)");
 				goto conf_childs;
 			}
 		}
 		cprint_name("%*c%s%s", indent + 1, ' ', menu_get_prompt(menu),
-			(sym_has_value(sym) || !sym_is_changable(sym)) ?
-			"" : " (NEW)");
-		if (menu->prompt->type == P_MENU) {
-			cprint_name("  --->");
-			return;
-		}
+			sym_has_value(sym) ? "" : " (NEW)");
 	}
 
 conf_childs:
@@ -416,15 +390,13 @@ static void conf(struct menu *menu)
 			switch (type) {
 			case 'm':
 				if (single_menu_mode)
-					submenu->data = (void *) (long) !submenu->data;
+					submenu->data = (submenu->data)? NULL : (void *)1;
 				else
 					conf(submenu);
 				break;
 			case 't':
 				if (sym_is_choice(sym) && sym_get_tristate_value(sym) == yes)
 					conf_choice(submenu);
-				else if (submenu->prompt->type == P_MENU)
-					conf(submenu);
 				break;
 			case 's':
 				conf_string(submenu);
@@ -515,9 +487,9 @@ static void conf_choice(struct menu *menu)
 	struct menu *child;
 	struct symbol *active;
 
-	active = sym_get_choice_value(menu->sym);
 	while (1) {
 		current_menu = menu;
+		active = sym_get_choice_value(menu->sym);
 		cdone(); cinit();
 		for (child = menu->list; child; child = child->next) {
 			if (!menu_is_visible(child))
@@ -525,28 +497,19 @@ static void conf_choice(struct menu *menu)
 			cmake();
 			cprint_tag("%p", child);
 			cprint_name("%s", menu_get_prompt(child));
-			if (child->sym == sym_get_choice_value(menu->sym))
-				items[item_no - 1]->selected = 1; /* ON */
-			else if (child->sym == active)
-				items[item_no - 1]->selected = 2; /* SELECTED */
-			else
-				items[item_no - 1]->selected = 0; /* OFF */
+			items[item_no - 1]->selected = (child->sym == active);
 		}
 
 		switch (dialog_checklist(prompt ? prompt : "Main Menu",
 					radiolist_instructions, 15, 70, 6,
 					item_no, items, FLAG_RADIO)) {
 		case 0:
-			if (sscanf(first_sel_item(item_no, items)->tag, "%p", &child) != 1)
+			if (sscanf(first_sel_item(item_no, items)->tag, "%p", &menu) != 1)
 				break;
-			sym_set_tristate_value(child->sym, yes);
+			sym_set_tristate_value(menu->sym, yes);
 			return;
 		case 1:
-			if (sscanf(first_sel_item(item_no, items)->tag, "%p", &child) == 1) {
-				show_help(child);
-				active = child->sym;
-			} else
-				show_help(menu);
+			show_help(menu);
 			break;
 		case 255:
 			return;
@@ -639,6 +602,7 @@ static void conf_cleanup(void)
 {
 	tcsetattr(1, TCSAFLUSH, &ios_org);
 	unlink(".help.tmp");
+	unlink("lxdialog.scrltmp");
 }
 
 static void winch_handler(int sig)
@@ -674,9 +638,10 @@ int main(int ac, char **av)
 	conf_parse(av[1]);
 	conf_read(NULL);
 
+	backtitle = malloc(128);
 	sym = sym_lookup("VERSION", 0);
 	sym_calc_value(sym);
-	snprintf(menu_backtitle, 128, "BusyBox v%s Configuration",
+	snprintf(backtitle, 128, "BusyBox v%s Configuration",
 		sym_get_string_value(sym));
 
 	mode = getenv("MENUCONFIG_MODE");
@@ -684,19 +649,19 @@ int main(int ac, char **av)
 		if (!strcasecmp(mode, "single_menu"))
 			single_menu_mode = 1;
 	}
-
+  
 	tcgetattr(1, &ios_org);
 	atexit(conf_cleanup);
 	init_wsize();
 	init_dialog();
-	signal(SIGWINCH, winch_handler);
+	signal(SIGWINCH, winch_handler); 
 	conf(&rootmenu);
 	end_dialog();
 
 	/* Restart dialog to act more like when lxdialog was still separate */
 	init_dialog();
 	do {
-		stat = dialog_yesno(NULL,
+		stat = dialog_yesno(NULL, 
 				"Do you wish to save your new BusyBox configuration?", 5, 60);
 	} while (stat < 0);
 	end_dialog();

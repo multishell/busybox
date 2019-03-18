@@ -9,8 +9,7 @@ config CONFIG_FEATURE_IPV6
 	bool "Enable IPv6 support"
 	default n
 	help
-	  Enable IPv6 support to busybox. This makes applets that talk IP
-	  able to work with IPv6.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_ARPING
 	bool "arping"
@@ -43,7 +42,7 @@ config CONFIG_HTTPD
 	  Serve web pages via an HTTP server.
 
 config CONFIG_FEATURE_HTTPD_USAGE_FROM_INETD_ONLY
-	bool "  Support using httpd only from inetd"
+	bool "  Support call from inetd only"
 	default n
 	depends on CONFIG_HTTPD
 	help
@@ -51,25 +50,17 @@ config CONFIG_FEATURE_HTTPD_USAGE_FROM_INETD_ONLY
 	  but requires inetd server daemon.
 
 config CONFIG_FEATURE_HTTPD_BASIC_AUTH
-	bool "  Enable Basic http Authentication"
+	bool "  Enable Basic Authentication"
 	default y
 	depends on CONFIG_HTTPD
 	help
 	  Utilizes password settings from /etc/httpd.conf for basic
 	  authentication on a per url basis.
 
-config CONFIG_FEATURE_HTTPD_AUTH_MD5
-	bool "  Support MD5 crypted passwords for http Authentication"
-	default n
-	depends on CONFIG_FEATURE_HTTPD_BASIC_AUTH
-	help
-	  Enables basic per url authentication from /etc/httpd.conf
-	  using md5 passwords.
-
 
 if !CONFIG_FEATURE_HTTPD_USAGE_FROM_INETD_ONLY
 config CONFIG_FEATURE_HTTPD_RELOAD_CONFIG_SIGHUP
-	bool "  Support reloading the global config file using hup signal"
+	bool "  Enable support reload global config file after hup signaled"
 	default n
 	depends on CONFIG_HTTPD
 	help
@@ -83,20 +74,20 @@ config CONFIG_FEATURE_HTTPD_SETUID
 	help
 	  This option allows the server to run as a specific user
 	  rather than defaulting to the user that starts the server.
-	  Use of this option requires special privileges to change to a
+	  Use of this option requires special privilegies to change to a
 	  different user.
 endif
 
 config CONFIG_FEATURE_HTTPD_CONFIG_WITH_MIME_TYPES
-	bool "  Support loading additional MIME types at run-time"
+	bool "  Enable support load from config file mime types"
 	default n
 	depends on CONFIG_HTTPD
 	help
-	  This option enables support for additional MIME types at
+	  This option enables support for additional mime types at
 	  run-time to be specified in the configuration file.
 
 config CONFIG_FEATURE_HTTPD_CGI
-	bool "  Support Common Gateway Interface (CGI)"
+	bool "  Enable support Common Gateway Interface"
 	default y
 	depends on CONFIG_HTTPD
 	help
@@ -104,12 +95,24 @@ config CONFIG_FEATURE_HTTPD_CGI
   	  when specific urls are requested.
 
 config CONFIG_FEATURE_HTTPD_SET_REMOTE_PORT_TO_ENV
-	bool "  Support the REMOTE_PORT environment variable for CGI"
+	bool "  Enable support set eviroment REMOTE_PORT variable for CGI"
 	default n
 	depends on CONFIG_FEATURE_HTTPD_CGI
 	help
 	  Use of this option can assist scripts in generating
 	  references that contain a unique port number.
+
+config CONFIG_FEATURE_HTTPD_SET_CGI_VARS_TO_ENV
+	bool "  Enable setting of CGI_varname=value environment vars for CGI"
+	default y
+	depends on CONFIG_FEATURE_HTTPD_CGI
+	help
+	  This option parses POST or GET arguments from a form and
+	  sets environment variables with their value.  This simplifies
+	  and speeds up CGI scripts.  A form argument of foo=bar would
+	  result in a script having the environment variable CGI_foo set
+	  to 'bar'.  In addition, this option sets a variable that
+	  lists all the argument names.  e.g. CGI_VARNAMES_="name1 name2".
 
 config CONFIG_FEATURE_HTTPD_ENCODE_URL_STR
 	bool "  Enable the -e option for shell script CGI simplification."
@@ -140,8 +143,7 @@ config CONFIG_FEATURE_IFCONFIG_SLIP
 	default n
 	depends on CONFIG_IFCONFIG
 	help
-	  Allow "keepalive" and "outfill" support for SLIP.  If you're not
-	  planning on using serial lines, leave this unchecked.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_FEATURE_IFCONFIG_MEMSTART_IOADDR_IRQ
 	bool "  Enable options \"mem_start\", \"io_addr\", and \"irq\""
@@ -165,82 +167,41 @@ config CONFIG_FEATURE_IFCONFIG_BROADCAST_PLUS
 	default n
 	depends on CONFIG_IFCONFIG
 	help
-	  Setting this will make ifconfig attempt to find the broadcast
-	  automatically if the value '+' is used.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_IFUPDOWN
 	bool "ifupdown"
 	default n
 	help
-	  Activate or deactivate the specified interfaces.  This applet makes
-	  use of either "ifconfig" and "route" or the "ip" command to actually
-	  configure network interfaces.  Therefore, you will probably also want
-	  to enable either CONFIG_IFCONFIG and CONFIG_ROUTE, or enable
-	  CONFIG_FEATURE_IFUPDOWN_IP and the various CONFIG_IP options.  Of
-	  course you could use non-busybox versions of these programs, so
-	  against my better judgement (since this will surely result in plenty
-	  of support questions on the mailing list), I do not force you to
-	  enable these additional options.  It is up to you to supply either
-	  "ifconfig" and "route" or the "ip" command, either via busybox or via
-	  standalone utilities.
+	  Activate or deactivate the specified interface.
 
 config CONFIG_FEATURE_IFUPDOWN_IP
 	bool "  Use ip applet"
 	default n
-	depends on CONFIG_IFUPDOWN
+	depends on CONFIG_IFUPDOWN && CONFIG_IP && CONFIG_FEATURE_IP_ADDRESS && CONFIG_FEATURE_IP_LINK && CONFIG_FEATURE_IP_ROUTE
 	help
-	  Use the iproute "ip" command to implement "ifup" and "ifdown", rather
-	  than the default of using the older 'ifconfig' and 'route' utilities.
-
-config CONFIG_FEATURE_IFUPDOWN_IP_BUILTIN
-	bool "  Use busybox ip applet"
-	default y
-	depends on CONFIG_FEATURE_IFUPDOWN_IP
-	select CONFIG_IP
-	select CONFIG_FEATURE_IP_ADDRESS
-	select CONFIG_FEATURE_IP_LINK
-	select CONFIG_FEATURE_IP_ROUTE
-	help
-	  Use the busybox iproute "ip" applet to implement "ifupdown".
-
-	  If leave this disabled, you must install the full-blown iproute2
-	  utility or the  "ifup" and "ifdown" applets will not work.
-
-config CONFIG_FEATURE_IFUPDOWN_IP_BUILTIN
-	bool "  Use busybox ifconfig and route applets"
-	default y
-	depends on CONFIG_IFUPDOWN && !CONFIG_FEATURE_IFUPDOWN_IP
-	select CONFIG_IFCONFIG
-	select CONFIG_ROUTE
-	help
-	  Use the busybox iproute "ifconfig" and "route" applets to
-	  implement the "ifup" and "ifdown" utilities.
-
-	  If leave this disabled, you must install the full-blown ifconfig
-	  and route utilities, or the  "ifup" and "ifdown" applets will not
-	  work.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_FEATURE_IFUPDOWN_IPV4
 	bool "  Enable support for IPv4"
 	default y
 	depends on CONFIG_IFUPDOWN
 	help
-	  If you want busybox to talk IPv4, leave this on.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_FEATURE_IFUPDOWN_IPV6
 	bool "  Enable support for IPv6"
 	default n
 	depends on CONFIG_IFUPDOWN
 	help
-	  If you need support for IPv6, turn this option on.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_FEATURE_IFUPDOWN_IPX
 	bool "  Enable support for IPX"
 	default n
 	depends on CONFIG_IFUPDOWN
 	help
-	  If this option is selected you can use busybox to work with IPX
-	  networks.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_FEATURE_IFUPDOWN_MAPPING
 	bool "  Enable mapping support"
@@ -248,7 +209,7 @@ config CONFIG_FEATURE_IFUPDOWN_MAPPING
 	depends on CONFIG_IFUPDOWN
 	help
 	  This enables support for the "mapping" stanza, unless you have
-	  a weird network setup you don't need it.
+	  a weird network setup you dont need it.
 
 config CONFIG_INETD
 	bool "inetd"
@@ -296,9 +257,7 @@ config CONFIG_IP
 	bool "ip"
 	default n
 	help
-	  The "ip" applet is a TCP/IP interface configuration and routing
-	  utility.  You generally don't need "ip" to use busybox with
-	  TCP/IP.
+	  Please submit a patch to add help text for this item.
 
 if CONFIG_IP && CONFIG_IPADDR
 	config CONFIG_FEATURE_IP_ADDRESS
@@ -311,7 +270,7 @@ if ! (CONFIG_IP && CONFIG_IPADDR)
 		default y
 		depends on CONFIG_IP
 		help
-		  Address manipulation support for the "ip" applet.
+		  Please submit a patch to add help text for this item.
 endif
 
 if CONFIG_IP && CONFIG_IPLINK
@@ -325,7 +284,7 @@ if !(CONFIG_IP && CONFIG_IPLINK)
 		default y
 		depends on CONFIG_IP
 		help
-		  Configure network devices with "ip".
+		  Please submit a patch to add help text for this item.
 endif
 
 if CONFIG_IP && CONFIG_IPROUTE
@@ -339,7 +298,7 @@ if !(CONFIG_IP && CONFIG_IPROUTE)
 		default y
 		depends on CONFIG_IP
 		help
-		  Add support for routing table management to "ip".
+		  Please submit a patch to add help text for this item.
 endif
 
 if CONFIG_IP && CONFIG_IPTUNNEL
@@ -353,7 +312,7 @@ if !(CONFIG_IP && CONFIG_IPTUNNEL)
 		default n
 		depends on CONFIG_IP
 		help
-		  Add support for tunneling commands to "ip".
+		  Please submit a patch to add help text for this item.
 endif
 
 config CONFIG_IPCALC
@@ -364,46 +323,46 @@ config CONFIG_IPCALC
 	  resulting broadcast, network, and host range.
 
 config CONFIG_FEATURE_IPCALC_FANCY
-	bool "  Fancy IPCALC, more options, adds 1 kbyte"
+	bool "  Fancy IPCALC, more options, adds 300 bytes"
 	default y
 	depends on CONFIG_IPCALC
 	help
-	  Adds the options hostname, prefix and silent to the output of "ipcalc".
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_IPADDR
 	bool "ipaddr"
 	default n
 	help
-	  Equivalent to selecting address support to "ip", above.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_IPLINK
 	bool "iplink"
 	default n
 	help
-	  Equivalent to selecting link support to "ip", above.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_IPROUTE
 	bool "iproute"
 	default n
 	help
-	  Equivalent to selecting route support to "ip", above.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_IPTUNNEL
 	bool "iptunnel"
 	default n
 	help
-	  Equivalent to selecting tunnel support to "ip", above.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_NAMEIF
 	bool "nameif"
 	default n
 	help
-	  nameif is used to rename network interface by its MAC address.
+	  nameif used to rename network interface by its MAC address.
 	  Renamed interfaces MUST be in the down state.
-	  It is possible to use a file (default: /etc/mactab)
+	  It is possible to use file (default: /etc/mactab)
 	  with list of new interface names and MACs.
 	  Maximum interface name length: IF_NAMESIZE = 16
-	  File fields are separated by space or tab.
+	  File fields are sepatated by space or tab.
 	  File format:
 	  # Comment
 	  new_interface_name	XX:XX:XX:XX:XX:XX
@@ -419,19 +378,19 @@ config CONFIG_NETSTAT
 	bool "netstat"
 	default n
 	help
-	  netstat prints information about the Linux networking subsystem.
+	  Netstat prints information about the Linux networking  subsystem.
 
 config CONFIG_NSLOOKUP
 	bool "nslookup"
 	default n
 	help
-	  nslookup is a tool to query Internet name servers.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_PING
 	bool "ping"
 	default n
 	help
-	  ping uses the ICMP protocol's mandatory ECHO_REQUEST datagram to
+	  Ping uses the ICMP protocol's mandatory ECHO_REQUEST datagram to
 	  elicit an ICMP ECHO_RESPONSE from a host or gateway.
 
 config CONFIG_FEATURE_FANCY_PING
@@ -439,23 +398,21 @@ config CONFIG_FEATURE_FANCY_PING
 	default y
 	depends on CONFIG_PING
 	help
-	  Make the output from the ping applet include statistics, and at the
-	  same time provide full support for ICMP packets.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_PING6
 	bool "ping6"
 	default n
 	depends on CONFIG_FEATURE_IPV6
 	help
-	  This will give you a ping that can talk IPv6.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_FEATURE_FANCY_PING6
 	bool "  Enable fancy ping6 output"
 	default y
 	depends on CONFIG_PING6
 	help
-	  Make the output from the ping6 applet include statistics, and at the
-	  same time provide full support for ICMP packets.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_ROUTE
 	bool "route"
@@ -467,84 +424,33 @@ config CONFIG_TELNET
 	bool "telnet"
 	default n
 	help
-	  Telnet is an interface to the TELNET protocol, but is also commonly
-	  used to test other simple protocols.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_FEATURE_TELNET_TTYPE
 	bool "  Pass TERM type to remote host"
 	default y
 	depends on CONFIG_TELNET
 	help
-	  Setting this option will forward the TERM environment variable to the
-	  remote host you are connecting to.  This is useful to make sure that
-	  things like ANSI colors and other control sequences behave.
-
-config CONFIG_FEATURE_TELNET_AUTOLOGIN
-	bool "  Pass USER type to remote host"
-	default y
-	depends on CONFIG_TELNET
-	help
-	  Setting this option will forward the USER environment variable to the
-	  remote host you are connecting to. This is useful when you need to
-	  log into a machine without telling the username (autologin). This
-	  option enables `-a' and `-l USER' arguments.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_TELNETD
 	bool "telnetd"
 	default n
-	select CONFIG_LOGIN
 	help
-	  A daemon for the TELNET protocol, allowing you to log onto the host
-	  running the daemon.  Please keep in mind that the TELNET protocol
-	  sends passwords in plain text.  If you can't afford the space for an
-	  SSH daemon and you trust your network, you may say 'y' here.  As a
-	  more secure alternative, you should seriously consider installing the
-	  very small Dropbear SSH daemon instead:
-		http://matt.ucc.asn.au/dropbear/dropbear.html
-
-	  Note that for busybox telnetd to work you need several things:
-	  First of all, your kernel needs:
-		  CONFIG_UNIX98_PTYS=y
-		  CONFIG_DEVPTS_FS=y
-
-	  Next, you need a /dev/pts directory on your root filesystem:
-
-		  $ ls -ld /dev/pts
-		  drwxr-xr-x  2 root root 0 Sep 23 13:21 /dev/pts/
-
-	  Next you need the pseudo terminal master multiplexer /dev/ptmx:
-
-		  $ ls -la /dev/ptmx
-		  crw-rw-rw-  1 root tty 5, 2 Sep 23 13:55 /dev/ptmx
-
-	  Any /dev/ttyp[0-9]* files you may have can be removed.
-	  Next, you need to mount the devpts filesystem on /dev/pts using:
-
-		  mount -t devpts devpts /dev/pts
-
-	  You need to be sure that Busybox has CONFIG_LOGIN and
-	  CONFIG_FEATURE_SUID enabled.  And finally, you should make
-	  certain that Busybox has been installed setuid root:
-
-		chown root.root /bin/busybox
-		chmod 4755 /bin/busybox
-
-	  with all that done, telnetd _should_ work....
-
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_FEATURE_TELNETD_INETD
 	bool "  Support call from inetd only"
 	default n
 	depends on CONFIG_TELNETD
 	help
-	  Selecting this will make telnetd only callable from inetd,
-	  removing the standalone support.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_TFTP
 	bool "tftp"
 	default n
 	help
-	  This enables the Trivial File Transfer Protocol client program.  TFTP
+	  This enables the Tirvial File Transfer Protocol client program.  TFTP
 	  is usually used for simple, small transfers such as a root image
 	  for a network-enabled bootloader.
 
@@ -554,7 +460,7 @@ config CONFIG_FEATURE_TFTP_GET
 	depends on CONFIG_TFTP
 	help
 	  Add support for the GET command within the TFTP client.  This allows
-	  a client to retrieve a file from a TFTP server.
+	  a client to retreive a file from a TFTP server.
 
 config CONFIG_FEATURE_TFTP_PUT
 	bool "  Enable \"put\" command"
@@ -576,9 +482,7 @@ config CONFIG_FEATURE_TFTP_DEBUG
 	default n
 	depends on CONFIG_TFTP
 	help
-	  Enable debug settings for tftp.  This is useful if you're running
-	  into problems with tftp as the protocol doesn't help you much when
-	  you run into problems.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_TRACEROUTE
 	bool "traceroute"
@@ -591,8 +495,14 @@ config CONFIG_FEATURE_TRACEROUTE_VERBOSE
 	default n
 	depends on CONFIG_TRACEROUTE
 	help
-	  Add some verbosity to traceroute.  This includes amongst other things
-	  hostnames and ICMP response types.
+	  Please submit a patch to add help text for this item.
+
+config CONFIG_FEATURE_TRACEROUTE_SO_DEBUG
+	bool "  Enable SO_DEBUG option"
+	default n
+	depends on CONFIG_TRACEROUTE
+	help
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_VCONFIG
 	bool "vconfig"
@@ -604,7 +514,7 @@ config CONFIG_WGET
 	bool "wget"
 	default n
 	help
-	  wget is a utility for non-interactive download of files from HTTP,
+	  Wget is a utility for non-interactive download of files from HTTP,
 	  HTTPS, and FTP servers.
 
 config CONFIG_FEATURE_WGET_STATUSBAR
@@ -620,13 +530,6 @@ config CONFIG_FEATURE_WGET_AUTHENTICATION
 	depends on CONFIG_WGET
 	help
 	  Support authenticated HTTP transfers.
-
-config CONFIG_FEATURE_WGET_IP6_LITERAL
-	bool "  Enable IPv6 literal addresses"
-	default y
-	depends on CONFIG_WGET
-	help
-	  Support IPv6 address literal notation in URLs.
 
 source networking/udhcp/Config.in
 

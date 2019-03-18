@@ -76,7 +76,7 @@ static int print_route(struct sockaddr_nl *who, struct nlmsghdr *n, void *arg)
 	inet_prefix src;
 	int host_len = -1;
 	SPRINT_BUF(b1);
-
+	
 
 	if (n->nlmsg_type != RTM_NEWROUTE && n->nlmsg_type != RTM_DELROUTE) {
 		fprintf(stderr, "Not a route: %08x %08x %08x\n",
@@ -228,7 +228,7 @@ static int print_route(struct sockaddr_nl *who, struct nlmsghdr *n, void *arg)
 		fprintf(fp, "from 0/%u ", r->rtm_src_len);
 	}
 	if (tb[RTA_GATEWAY] && filter.rvia.bitlen != host_len) {
-		fprintf(fp, "via %s ",
+		fprintf(fp, "via %s ", 
 			format_host(r->rtm_family,
 				    RTA_PAYLOAD(tb[RTA_GATEWAY]),
 				    RTA_DATA(tb[RTA_GATEWAY]),
@@ -242,7 +242,7 @@ static int print_route(struct sockaddr_nl *who, struct nlmsghdr *n, void *arg)
 		/* Do not use format_host(). It is our local addr
 		   and symbolic name will not be useful.
 		 */
-		fprintf(fp, " src %s ",
+		fprintf(fp, " src %s ", 
 			rt_addr_n2a(r->rtm_family,
 				    RTA_PAYLOAD(tb[RTA_PREFSRC]),
 				    RTA_DATA(tb[RTA_PREFSRC]),
@@ -665,7 +665,7 @@ static int iproute_get(int argc, char **argv)
 	req.r.rtm_src_len = 0;
 	req.r.rtm_dst_len = 0;
 	req.r.rtm_tos = 0;
-
+	
 	while (argc > 0) {
 		switch (compare_string_array(options, *argv)) {
 			case 0: /* from */
@@ -808,8 +808,8 @@ static int iproute_get(int argc, char **argv)
 int do_iproute(int argc, char **argv)
 {
 	const char *ip_route_commands[] = { "add", "append", "change", "chg",
-		"delete", "del", "get", "list", "show", "prepend", "replace", "test", "flush", 0 };
-	unsigned short command_num = 7;
+		"delete", "get", "list", "show", "prepend", "replace", "test", "flush", 0 };
+	unsigned short command_num = 6;
 	unsigned int flags = 0;
 	int cmd = RTM_NEWROUTE;
 
@@ -828,21 +828,20 @@ int do_iproute(int argc, char **argv)
 			flags = NLM_F_REPLACE;
 			break;
 		case 4: /* delete */
-		case 5: /* del */
 			cmd = RTM_DELROUTE;
 			break;
-		case 6: /* get */
+		case 5: /* get */
 			return iproute_get(argc-1, argv+1);
-		case 7: /* list */
-		case 8: /* show */
+		case 6: /* list */
+		case 7: /* show */
 			return iproute_list_or_flush(argc-1, argv+1, 0);
-		case 9: /* prepend */
+		case 8: /* prepend */
 			flags = NLM_F_CREATE;
-		case 10: /* replace */
+		case 9: /* replace */
 			flags = NLM_F_CREATE|NLM_F_REPLACE;
-		case 11: /* test */
+		case 10: /* test */
 			flags = NLM_F_EXCL;
-		case 12: /* flush */
+		case 11: /* flush */
 			return iproute_list_or_flush(argc-1, argv+1, 1);
 		default:
 			bb_error_msg_and_die("Unknown command %s", *argv);
@@ -850,3 +849,4 @@ int do_iproute(int argc, char **argv)
 
 	return iproute_modify(cmd, flags, argc-1, argv+1);
 }
+

@@ -35,7 +35,7 @@
  *
  * 30.10.94 - added support for v2 filesystem
  *	      (Andreas Schwab, schwab@issan.informatik.uni-dortmund.de)
- *
+ * 
  * 09.11.94  -	Added test to prevent overwrite of mounted fs adapted
  *		from Theodore Ts'o's (tytso@athena.mit.edu) mke2fs
  *		program.  (Daniel Quinlan, quinlan@yggdrasil.com)
@@ -49,14 +49,14 @@
  *
  * Usage:  mkfs [-c | -l filename ] [-v] [-nXX] [-iXX] device [size-in-blocks]
  *
- *	-c for readability checking (SLOW!)
+ *	-c for readablility checking (SLOW!)
  *      -l for getting a list of bad blocks from a file.
  *	-n for namelength (currently the kernel only uses 14 or 30)
  *	-i for number of inodes
  *	-v for v2 filesystem
  *
  * The device may be a block device or a image of one, but this isn't
- * enforced (but it's not much fun on a character device :-).
+ * enforced (but it's not much fun on a character device :-). 
  *
  * Modified for BusyBox by Erik Andersen <andersen@debian.org> --
  *	removed getopt based parser and added a hand rolled one.
@@ -70,7 +70,6 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include <termios.h>
 #include <sys/ioctl.h>
 #include <sys/param.h>
@@ -103,13 +102,13 @@
  * Note the 8-bit gid and atime and ctime.
  */
 struct minix_inode {
-	uint16_t i_mode;
-	uint16_t i_uid;
-	uint32_t i_size;
-	uint32_t i_time;
-	uint8_t  i_gid;
-	uint8_t  i_nlinks;
-	uint16_t i_zone[9];
+	u_int16_t i_mode;
+	u_int16_t i_uid;
+	u_int32_t i_size;
+	u_int32_t i_time;
+	u_int8_t  i_gid;
+	u_int8_t  i_nlinks;
+	u_int16_t i_zone[9];
 };
 
 /*
@@ -119,35 +118,35 @@ struct minix_inode {
  * now 16-bit. The inode is now 64 bytes instead of 32.
  */
 struct minix2_inode {
-	uint16_t i_mode;
-	uint16_t i_nlinks;
-	uint16_t i_uid;
-	uint16_t i_gid;
-	uint32_t i_size;
-	uint32_t i_atime;
-	uint32_t i_mtime;
-	uint32_t i_ctime;
-	uint32_t i_zone[10];
+	u_int16_t i_mode;
+	u_int16_t i_nlinks;
+	u_int16_t i_uid;
+	u_int16_t i_gid;
+	u_int32_t i_size;
+	u_int32_t i_atime;
+	u_int32_t i_mtime;
+	u_int32_t i_ctime;
+	u_int32_t i_zone[10];
 };
 
 /*
  * minix super-block data on disk
  */
 struct minix_super_block {
-	uint16_t s_ninodes;
-	uint16_t s_nzones;
-	uint16_t s_imap_blocks;
-	uint16_t s_zmap_blocks;
-	uint16_t s_firstdatazone;
-	uint16_t s_log_zone_size;
-	uint32_t s_max_size;
-	uint16_t s_magic;
-	uint16_t s_state;
-	uint32_t s_zones;
+	u_int16_t s_ninodes;
+	u_int16_t s_nzones;
+	u_int16_t s_imap_blocks;
+	u_int16_t s_zmap_blocks;
+	u_int16_t s_firstdatazone;
+	u_int16_t s_log_zone_size;
+	u_int32_t s_max_size;
+	u_int16_t s_magic;
+	u_int16_t s_state;
+	u_int32_t s_zones;
 };
 
 struct minix_dir_entry {
-	uint16_t inode;
+	u_int16_t inode;
 	char name[0];
 };
 
@@ -194,7 +193,7 @@ struct minix_dir_entry {
 
 static char *device_name = NULL;
 static int DEV = -1;
-static uint32_t BLOCKS = 0;
+static long BLOCKS = 0;
 static int check = 0;
 static int badblocks = 0;
 static int namelen = 30;		/* default (changed to 30, per Linus's
@@ -216,17 +215,17 @@ static char super_block_buffer[BLOCK_SIZE];
 static char boot_block_buffer[512];
 
 #define Super (*(struct minix_super_block *)super_block_buffer)
-#define INODES (Super.s_ninodes)
+#define INODES ((unsigned long)Super.s_ninodes)
 #ifdef CONFIG_FEATURE_MINIX2
-#define ZONES (version2 ? Super.s_zones : Super.s_nzones)
+#define ZONES ((unsigned long)(version2 ? Super.s_zones : Super.s_nzones))
 #else
-#define ZONES (Super.s_nzones)
+#define ZONES ((unsigned long)(Super.s_nzones))
 #endif
-#define IMAPS (Super.s_imap_blocks)
-#define ZMAPS (Super.s_zmap_blocks)
-#define FIRSTZONE (Super.s_firstdatazone)
-#define ZONESIZE (Super.s_log_zone_size)
-#define MAXSIZE (Super.s_max_size)
+#define IMAPS ((unsigned long)Super.s_imap_blocks)
+#define ZMAPS ((unsigned long)Super.s_zmap_blocks)
+#define FIRSTZONE ((unsigned long)Super.s_firstdatazone)
+#define ZONESIZE ((unsigned long)Super.s_log_zone_size)
+#define MAXSIZE ((unsigned long)Super.s_max_size)
 #define MAGIC (Super.s_magic)
 #define NORM_FIRSTZONE (2+IMAPS+ZMAPS+INODE_BLOCKS)
 
@@ -255,7 +254,7 @@ static inline int bit(char * a,unsigned int i)
  * an already mounted partition.  Code adapted from mke2fs, Copyright
  * (C) 1994 Theodore Ts'o.  Also licensed under GPL.
  */
-static inline void check_mount(void)
+extern inline void check_mount(void)
 {
 	FILE *f;
 	struct mntent *mnt;
@@ -283,7 +282,7 @@ static long valid_offset(int fd, int offset)
 	return 1;
 }
 
-static inline int count_blocks(int fd)
+extern inline int count_blocks(int fd)
 {
 	int high, low;
 
@@ -302,7 +301,7 @@ static inline int count_blocks(int fd)
 	return (low + 1);
 }
 
-static inline int get_size(const char *file)
+extern inline int get_size(const char *file)
 {
 	int fd;
 	long size;
@@ -319,7 +318,7 @@ static inline int get_size(const char *file)
 	return size;
 }
 
-static inline void write_tables(void)
+extern inline void write_tables(void)
 {
 	/* Mark the super block valid. */
 	Super.s_state |= MINIX_VALID_FS;
@@ -369,7 +368,7 @@ static int get_free_block(void)
 	return blk;
 }
 
-static inline void mark_good_blocks(void)
+extern inline void mark_good_blocks(void)
 {
 	int blk;
 
@@ -387,7 +386,7 @@ static int next(int zone)
 	return 0;
 }
 
-static inline void make_bad_inode(void)
+extern inline void make_bad_inode(void)
 {
 	struct minix_inode *inode = &Inode[MINIX_BAD_INO];
 	int i, j, zone;
@@ -438,7 +437,7 @@ static inline void make_bad_inode(void)
 }
 
 #ifdef CONFIG_FEATURE_MINIX2
-static inline void make_bad_inode2(void)
+extern inline void make_bad_inode2(void)
 {
 	struct minix2_inode *inode = &Inode2[MINIX_BAD_INO];
 	int i, j, zone;
@@ -488,7 +487,7 @@ static inline void make_bad_inode2(void)
 }
 #endif
 
-static inline void make_root_inode(void)
+extern inline void make_root_inode(void)
 {
 	struct minix_inode *inode = &Inode[MINIX_ROOT_INO];
 
@@ -511,7 +510,7 @@ static inline void make_root_inode(void)
 }
 
 #ifdef CONFIG_FEATURE_MINIX2
-static inline void make_root_inode2(void)
+extern inline void make_root_inode2(void)
 {
 	struct minix2_inode *inode = &Inode2[MINIX_ROOT_INO];
 
@@ -534,7 +533,7 @@ static inline void make_root_inode2(void)
 }
 #endif
 
-static inline void setup_tables(void)
+extern inline void setup_tables(void)
 {
 	int i;
 	unsigned long inodes;
@@ -544,13 +543,7 @@ static inline void setup_tables(void)
 	MAGIC = magic;
 	ZONESIZE = 0;
 	MAXSIZE = version2 ? 0x7fffffff : (7 + 512 + 512 * 512) * 1024;
-#ifdef CONFIG_FEATURE_MINIX2
-	if (version2) {
-		Super.s_zones =  BLOCKS;
-	} else
-#endif
-		Super.s_nzones = BLOCKS;
-
+	ZONES = BLOCKS;
 /* some magic nrs: 1 inode / 3 blocks */
 	if (req_nr_inodes == 0)
 		inodes = BLOCKS / 3;
@@ -599,18 +592,18 @@ static inline void setup_tables(void)
 		unmark_inode(i);
 	inode_buffer = xmalloc(INODE_BUFFER_SIZE);
 	memset(inode_buffer, 0, INODE_BUFFER_SIZE);
-	printf("%ld inodes\n", (long)INODES);
-	printf("%ld blocks\n", (long)ZONES);
-	printf("Firstdatazone=%ld (%ld)\n", (long)FIRSTZONE, (long)NORM_FIRSTZONE);
+	printf("%ld inodes\n", INODES);
+	printf("%ld blocks\n", ZONES);
+	printf("Firstdatazone=%ld (%ld)\n", FIRSTZONE, NORM_FIRSTZONE);
 	printf("Zonesize=%d\n", BLOCK_SIZE << ZONESIZE);
-	printf("Maxsize=%ld\n\n", (long)MAXSIZE);
+	printf("Maxsize=%ld\n\n", MAXSIZE);
 }
 
 /*
  * Perform a test of a block; return the number of
- * blocks readable/writable.
+ * blocks readable/writeable.
  */
-static inline long do_check(char *buffer, int try, unsigned int current_block)
+extern inline long do_check(char *buffer, int try, unsigned int current_block)
 {
 	long got;
 
@@ -708,7 +701,7 @@ extern int mkfs_minix_main(int argc, char **argv)
 	if (INODE_SIZE2 * MINIX2_INODES_PER_BLOCK != BLOCK_SIZE)
 		bb_error_msg_and_die("bad inode size");
 #endif
-
+	
 	/* Parse options */
 	argv++;
 	while (--argc >= 0 && *argv && **argv) {
@@ -761,7 +754,7 @@ extern int mkfs_minix_main(int argc, char **argv)
 								magic = MINIX_SUPER_MAGIC;
 							else if (i == 30)
 								magic = MINIX_SUPER_MAGIC2;
-							else
+							else 
 								bb_show_usage();
 							namelen = i;
 							dirsize = i + 2;

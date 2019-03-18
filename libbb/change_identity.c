@@ -40,23 +40,15 @@
 
 
 /* Become the user and group(s) specified by PW.  */
-const char *change_identity_e2str ( const struct passwd *pw )
+void change_identity ( const struct passwd *pw )
 {
 	if ( initgroups ( pw-> pw_name, pw-> pw_gid ) == -1 )
-		return "cannot set groups";
+		bb_perror_msg_and_die ( "cannot set groups" );
 	endgrent ( );
 
 	if ( setgid ( pw-> pw_gid ))
-		return "cannot set group id";
+		bb_perror_msg_and_die ( "cannot set group id" );
 	if ( setuid ( pw->pw_uid ))
-		return "cannot set user id";
-	return NULL;
+		bb_perror_msg_and_die ( "cannot set user id" );
 }
 
-void change_identity ( const struct passwd *pw )
-{
-	const char *err_msg = change_identity_e2str(pw);
-
-	if(err_msg)
-		bb_perror_msg_and_die ( "%s", err_msg );
-}

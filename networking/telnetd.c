@@ -1,4 +1,4 @@
-/* $Id: telnetd.c,v 1.10 2004/02/22 09:45:57 bug1 Exp $
+/* $Id: telnetd.c,v 1.6 2003/04/25 12:32:37 andersen Exp $
  *
  * Simple telnet server
  * Bjorn Wesen, Axis Communications AB (bjornw@axis.com)
@@ -27,7 +27,6 @@
 #include <sys/time.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
-#include <sys/ioctl.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -49,10 +48,11 @@
 
 #define BUFSIZE 4000
 
+static const char *loginpath = 
 #ifdef CONFIG_LOGIN
-static const char *loginpath = "/bin/login";
+"/bin/login";
 #else
-static const char *loginpath;
+"/bin/sh";
 #endif
 static const char *issuefile = "/etc/issue.net";
 
@@ -116,8 +116,6 @@ static struct tsession *sessions;
    FIXME - if we mean to send 0xFF to the terminal then it will be escaped,
    what is the escape character?  We aren't handling that situation here.
 
-   CR-LF ->'s CR mapping is also done here, for convenience
-
   */
 static char *
 remove_iacs(struct tsession *ts, int *pnum_totty) {
@@ -130,45 +128,22 @@ remove_iacs(struct tsession *ts, int *pnum_totty) {
 
 	while (ptr < end) {
 		if (*ptr != IAC) {
-			int c = *ptr;
 			*totty++ = *ptr++;
-			/* We now map \r\n ==> \r for pragmatic reasons.
-			 * Many client implementations send \r\n when
-			 * the user hits the CarriageReturn key.
-			 */
-			if (c == '\r' && (*ptr == '\n' || *ptr == 0) && ptr < end)
-				ptr++;
 		}
 		else {
-			/*
-			 * TELOPT_NAWS support!
-			 */
-			if ((ptr+2) >= end) {
+			if ((ptr+2) < end) {
+			/* the entire IAC is contained in the buffer
+			we were asked to process. */
+#ifdef DEBUG
+				fprintf(stderr, "Ignoring IAC %s,%s\n",
+				    *ptr, TELCMD(*(ptr+1)), TELOPT(*(ptr+2)));
+#endif
+				ptr += 3;
+			} else {
 				/* only the beginning of the IAC is in the
 				buffer we were asked to process, we can't
 				process this char. */
 				break;
-			}
-
-			/*
-			 * IAC -> SB -> TELOPT_NAWS -> 4-byte -> IAC -> SE
-			 */
-			else if (ptr[1] == SB && ptr[2] == TELOPT_NAWS) {
-				struct winsize ws;
-				if ((ptr+8) >= end)
-					break; 	/* incomplete, can't process */
-				ws.ws_col = (ptr[3] << 8) | ptr[4];
-				ws.ws_row = (ptr[5] << 8) | ptr[6];
-				(void) ioctl(ts->ptyfd, TIOCSWINSZ, (char *)&ws);
-				ptr += 9;
-			}
-			else {
-				/* skip 3-byte IAC non-SB cmd */
-#ifdef DEBUG
-				fprintf(stderr, "Ignoring IAC %s,%s\n",
-					TELCMD(*(ptr+1)), TELOPT(*(ptr+2)));
-#endif
-				ptr += 3;
 			}
 		}
 	}
@@ -268,7 +243,7 @@ make_new_session(int sockfd)
 	pty = getpty(tty_name);
 
 	if (pty < 0) {
-		syslog(LOG_ERR, "All network ports in use!");
+		syslog_msg(LOG_USER, LOG_ERR, "All network ports in use!");
 		return 0;
 	}
 
@@ -284,14 +259,13 @@ make_new_session(int sockfd)
 	 */
 
 	send_iac(ts, DO, TELOPT_ECHO);
-	send_iac(ts, DO, TELOPT_NAWS);
 	send_iac(ts, DO, TELOPT_LFLOW);
 	send_iac(ts, WILL, TELOPT_ECHO);
 	send_iac(ts, WILL, TELOPT_SGA);
 
 
 	if ((pid = fork()) < 0) {
-		syslog(LOG_ERR, "Can`t forking");
+		syslog_msg(LOG_USER, LOG_ERR, "Can`t forking");
 	}
 	if (pid == 0) {
 		/* In child, open the child's side of the tty.  */
@@ -303,7 +277,7 @@ make_new_session(int sockfd)
 		setsid();
 
 		if (open(tty_name, O_RDWR /*| O_NOCTTY*/) < 0) {
-			syslog(LOG_ERR, "Could not open tty");
+			syslog_msg(LOG_USER, LOG_ERR, "Could not open tty");
 			exit(1);
 			}
 		dup(0);
@@ -329,7 +303,7 @@ make_new_session(int sockfd)
 		execv(loginpath, (char *const *)argv_init);
 
 		/* NOT REACHED */
-		syslog(LOG_ERR, "execv error");
+		syslog_msg(LOG_USER, LOG_ERR, "execv error");
 		exit(1);
 	}
 
@@ -391,19 +365,15 @@ telnetd_main(int argc, char **argv)
 #endif /* CONFIG_FEATURE_TELNETD_INETD */
 	int maxlen, w, r;
 
-#ifndef CONFIG_LOGIN
-	loginpath = DEFAULT_SHELL;
-#endif
-
 	for (;;) {
 		c = getopt( argc, argv, options);
 		if (c == EOF) break;
 		switch (c) {
 			case 'f':
-				issuefile = optarg;
+				issuefile = strdup (optarg);
 				break;
 			case 'l':
-				loginpath = optarg;
+				loginpath = strdup (optarg);
 				break;
 #ifndef CONFIG_FEATURE_TELNETD_INETD
 			case 'p':
@@ -420,8 +390,6 @@ telnetd_main(int argc, char **argv)
 	}
 
 	argv_init[0] = loginpath;
-
-	openlog(bb_applet_name, 0, LOG_USER);
 
 #ifdef CONFIG_FEATURE_TELNETD_INETD
 	maxfd = 1;
@@ -541,7 +509,7 @@ telnetd_main(int argc, char **argv)
 #ifndef CONFIG_FEATURE_TELNETD_INETD
 			struct tsession *next = ts->next; /* in case we free ts. */
 #endif /* CONFIG_FEATURE_TELNETD_INETD */
-
+			
 			if (ts->size1 && FD_ISSET(ts->ptyfd, &wrfdset)) {
 				int num_totty;
 				char *ptr;

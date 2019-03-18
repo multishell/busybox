@@ -61,7 +61,7 @@ extern "C" {
 typedef char fhandle[FHSIZE];
 
 typedef struct {
-	unsigned int fhandle3_len;
+	u_int fhandle3_len;
 	char *fhandle3_val;
 } fhandle3;
 
@@ -80,7 +80,7 @@ enum mountstat3 {
 typedef enum mountstat3 mountstat3;
 
 struct fhstatus {
-	unsigned int fhs_status;
+	u_int fhs_status;
 	union {
 		fhandle fhs_fhandle;
 	} fhstatus_u;
@@ -90,7 +90,7 @@ typedef struct fhstatus fhstatus;
 struct mountres3_ok {
 	fhandle3 fhandle;
 	struct {
-		unsigned int auth_flavours_len;
+		u_int auth_flavours_len;
 		int *auth_flavours_val;
 	} auth_flavours;
 };

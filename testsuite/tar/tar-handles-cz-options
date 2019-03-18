@@ -1,5 +1,4 @@
-# FEATURE: CONFIG_FEATURE_TAR_CREATE
-# FEATURE: CONFIG_FEATURE_TAR_GZIP
+# XFAIL
 touch foo
 busybox tar czf foo.tar.gz foo
 gzip -d foo.tar.gz

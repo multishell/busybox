@@ -3,7 +3,7 @@
  * Mini mount implementation for busybox
  *
  * Copyright (C) 1995, 1996 by Bruce Perens <bruce@pixar.com>.
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,11 +27,11 @@
  *
  * 1999-10-07	Erik Andersen <andersen@codepoet.org>.
  *              Rewrite of a lot of code. Removed mtab usage (I plan on
- *              putting it back as a compile-time option some time),
- *              major adjustments to option parsing, and some serious
+ *              putting it back as a compile-time option some time), 
+ *              major adjustments to option parsing, and some serious 
  *              dieting all around.
  *
- * 1999-11-06	mtab support is back - andersee
+ * 1999-11-06	mtab suppport is back - andersee
  *
  * 2000-01-12   Ben Collins <bcollins@debian.org>, Borrowed utils-linux's
  *              mount to add loop support.
@@ -40,8 +40,8 @@
  *		Rewrote fstab while loop and lower mount section. Can now do
  *		single mounts from fstab. Can override fstab options for single
  *		mount. Common mount_one call for single mounts and 'all'. Fixed
- *		mtab updating and stale entries. Removed 'remount' default.
- *
+ *		mtab updating and stale entries. Removed 'remount' default. 
+ *	
  */
 
 #include <limits.h>
@@ -53,12 +53,6 @@
 #include <mntent.h>
 #include <ctype.h>
 #include "busybox.h"
-
-#ifdef CONFIG_NFSMOUNT
-#if defined(__UCLIBC__) && ! defined(__UCLIBC_HAS_RPC__)
-#error "You need to build uClibc with UCLIBC_HAS_RPC for busybox mount with NFS support to compile."
-#endif
-#endif
 
 enum {
 	MS_MGC_VAL = 0xc0ed0000,	/* Magic number indicatng "new" flags */
@@ -75,7 +69,6 @@ enum {
 	MS_NOATIME = 1024,	/* Do not update access times. */
 	MS_NODIRATIME = 2048,	/* Do not update directory access times */
 	MS_BIND = 4096,		/* Use the new linux 2.4.x "mount --bind" feature */
-	MS_MOVE = 8192,		/* Use the new linux 2.4.x "mount --move" feature */
 };
 
 
@@ -118,7 +111,6 @@ static const struct mount_options mount_options[] = {
 	{"suid", ~MS_NOSUID, 0},
 	{"sync", ~0, MS_SYNCHRONOUS},
 	{"bind", ~0, MS_BIND},
-	{"move", ~0, MS_MOVE},
 	{0, 0, 0}
 };
 
@@ -275,7 +267,8 @@ static int mount_one(char *blockDevice, char *directory, char *filesystemType,
 					filesystemType = buf;
 
 					if (bb_strlen(filesystemType)) {
-						status = do_mount(blockDevice, directory, filesystemType,
+						status =
+							do_mount(blockDevice, directory, filesystemType,
 									 flags | MS_MGC_VAL, string_flags,
 									 useMtab, fakeIt, mtab_opts, mount_all);
 						if (status) {
@@ -286,12 +279,9 @@ static int mount_one(char *blockDevice, char *directory, char *filesystemType,
 				}
 			}
 			fclose(f);
-		} else {
-			read_proc = 1;
 		}
 
-		if (read_proc && !status) {
-
+		if ((!f || read_proc) && !status) {
 			f = bb_xfopen("/proc/filesystems", "r");
 
 			while (fgets(buf, sizeof(buf), f) != NULL) {
@@ -307,7 +297,8 @@ static int mount_one(char *blockDevice, char *directory, char *filesystemType,
 					filesystemType = buf;
 					filesystemType++;	/* hop past tab */
 
-					status = do_mount(blockDevice, directory, filesystemType,
+					status =
+						do_mount(blockDevice, directory, filesystemType,
 								 flags | MS_MGC_VAL, string_flags, useMtab,
 								 fakeIt, mtab_opts, mount_all);
 					if (status) {
@@ -315,10 +306,11 @@ static int mount_one(char *blockDevice, char *directory, char *filesystemType,
 					}
 				}
 			}
-			fclose(f);
 		}
+		fclose(f);
 	} else {
-		status = do_mount(blockDevice, directory, filesystemType,
+		status =
+			do_mount(blockDevice, directory, filesystemType,
 					 flags | MS_MGC_VAL, string_flags, useMtab, fakeIt,
 					 mtab_opts, mount_all);
 	}
@@ -345,7 +337,7 @@ static void show_mounts(char *onlytype)
 			if (strcmp(blockDevice, "rootfs") == 0) {
 				continue;
 			} else if (strcmp(blockDevice, "/dev/root") == 0) {
-				blockDevice = find_real_root_device_name();
+				blockDevice = find_real_root_device_name(blockDevice);
 			}
 			if (!onlytype || (strcmp(m->mnt_type, onlytype) == 0)) {
 				printf("%s on %s type %s (%s)\n", blockDevice, m->mnt_dir,
@@ -404,11 +396,11 @@ extern int mount_main(int argc, char **argv)
 		case 'f':
 			fakeIt = TRUE;
 			break;
-		case 'n':
 #ifdef CONFIG_FEATURE_MTAB_SUPPORT
+		case 'n':
 			useMtab = FALSE;
-#endif
 			break;
+#endif
 		case 'v':
 			break;		/* ignore -v */
 		}

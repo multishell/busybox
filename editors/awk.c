@@ -82,7 +82,6 @@ typedef struct func_s {
 typedef struct rstream_s {
 	FILE *F;
 	char *buffer;
-	int adv;
 	int size;
 	int pos;
 	unsigned short is_pipe;
@@ -378,7 +377,7 @@ static unsigned long tokeninfo[] = {
 };
 
 /* internal variable names and their initial values       */
-/* asterisk marks SPECIAL vars; $ is just no-named Field0 */
+/* asterisk marks SPECIAL vars; $ is just no-named Field0 */ 
 enum {
 	CONVFMT=0,	OFMT,		FS,			OFS,
 	ORS,		RS,			RT,			FILENAME,
@@ -390,7 +389,7 @@ enum {
 
 static char * vNames =
 	"CONVFMT\0"	"OFMT\0"	"FS\0*"		"OFS\0"
-	"ORS\0"		"RS\0*"		"RT\0"		"FILENAME\0"
+	"ORS\0"		"RS\0*"		"RT\0"		"FILENAME\0"	
 	"SUBSEP\0"	"ARGIND\0"	"ARGC\0"	"ARGV\0"
 	"ERRNO\0"	"FNR\0"
 	"NR\0"		"NF\0*"		"IGNORECASE\0*"
@@ -427,7 +426,6 @@ static nvblock *cb = NULL;
 static char *pos;
 static char *buf;
 static int icase = FALSE;
-static int exiting = FALSE;
 
 static struct {
 	unsigned long tclass;
@@ -466,7 +464,7 @@ static const char EMSG_NO_MATH[] = "Math support is not compiled in";
 static void syntax_error(const char * const message)
 {
 	bb_error_msg("%s:%i: %s", programname, lineno, message);
-	exit(1);
+	awk_exit(1);
 }
 
 #define runtime_error(x) syntax_error(x)
@@ -486,7 +484,7 @@ static unsigned int hashidx(char *name) {
 static xhash *hash_init(void) {
 
 	xhash *newhash;
-
+	
 	newhash = (xhash *)xcalloc(1, sizeof(xhash));
 	newhash->csize = FIRST_PRIME;
 	newhash->items = (hash_item **)xcalloc(newhash->csize, sizeof(hash_item *));
@@ -784,7 +782,7 @@ static int istrue(var *v) {
 		return (v->string && *(v->string)) ? 1 : 0;
 }
 
-/* temporary variables allocator. Last allocated should be first freed */
+/* temporary varables allocator. Last allocated should be first freed */
 static var *nvalloc(int n) {
 
 	nvblock *pb = NULL;
@@ -1045,7 +1043,6 @@ static node *parse_expr(unsigned long iexp) {
 		if (glptr && (t.info == (OC_COMPARE|VV|P(39)|2))) {
 			/* input redirection (<) attached to glptr node */
 			cn = glptr->l.n = new_node(OC_CONCAT|SS|P(37));
-			cn->a.n = glptr;
 			xtc = TC_OPERAND | TC_UOPPRE;
 			glptr = NULL;
 
@@ -1053,7 +1050,7 @@ static node *parse_expr(unsigned long iexp) {
 			/* for binary and postfix-unary operators, jump back over
 			 * previous operators with higher priority */
 			vn = cn;
-			while ( ((t.info & PRIMASK) > (vn->a.n->info & PRIMASK2)) ||
+			while ( ((t.info & PRIMASK) > (vn->a.n->info & PRIMASK2)) || 
 			  ((t.info == vn->info) && ((t.info & OPCLSMASK) == OC_COLON)) )
 				vn = vn->a.n;
 			if ((t.info & OPCLSMASK) == OC_TERNARY)
@@ -1085,7 +1082,7 @@ static node *parse_expr(unsigned long iexp) {
 			xtc = TC_OPERAND | TC_UOPPRE | TC_REGEXP;
 			if (tc & (TC_OPERAND | TC_REGEXP)) {
 				xtc = TC_UOPPRE | TC_BINOP | TC_OPERAND | iexp;
-				/* one should be very careful with switch on tclass -
+				/* one should be very careful with switch on tclass - 
 				 * only simple tclasses should be used! */
 				switch (tc) {
 				  case TC_VARIABLE:
@@ -1103,7 +1100,7 @@ static node *parse_expr(unsigned long iexp) {
 					}
 					xtc = TC_UOPPOST | TC_UOPPRE | TC_BINOP | TC_OPERAND | iexp;
 					break;
-				
+				  	
 				  case TC_NUMBER:
 				  case TC_STRING:
 					cn->info = OC_VAR;
@@ -1211,7 +1208,6 @@ static void chain_group(void) {
 
 	if (c & TC_GRPSTART) {
 		while(next_token(TC_GRPSEQ | TC_GRPTERM) != TC_GRPTERM) {
-			if (t.tclass & TC_NEWLINE) continue;	
 			rollback_token();
 			chain_group();
 		}
@@ -1387,7 +1383,7 @@ static node *mk_splitter(char *s, tsplitter *spl) {
 }
 
 /* use node as a regular expression. Supplied with node ptr and regex_t
- * storage space. Return ptr to regex (if result points to preg, it should
+ * storage space. Return ptr to regex (if result points to preg, it shuold
  * be later regfree'd manually
  */
 static regex_t *as_regex(node *op, regex_t *preg) {
@@ -1554,7 +1550,7 @@ static void handle_special(var *v) {
 			memcpy(b+len, s, l);
 			len += l;
 		}
-		if (b) b[len] = '\0';
+		b[len] = '\0';
 		setvar_p(V[F0], b);
 		is_f0_split = TRUE;
 
@@ -1638,24 +1634,21 @@ static int awk_getline(rstream *rsm, var *v) {
 
 	char *b;
 	regmatch_t pmatch[2];
-	int a, p, pp=0, size;
+	int p, pp=0, size;
 	int fd, so, eo, r, rp;
-	char c, *m, *s;
+	char c, *s;
 
 	/* we're using our own buffer since we need access to accumulating
 	 * characters
 	 */
 	fd = fileno(rsm->F);
-	m = rsm->buffer;
-	a = rsm->adv;
+	b = rsm->buffer;
 	p = rsm->pos;
 	size = rsm->size;
 	c = (char) rsplitter.n.info;
 	rp = 0;
-
-	if (! m) qrealloc(&m, 256, &size);
 	do {
-		b = m + a;
+		qrealloc(&b, p+128, &size);
 		so = eo = p;
 		r = 1;
 		if (p > 0) {
@@ -1687,14 +1680,6 @@ static int awk_getline(rstream *rsm, var *v) {
 			}
 		}
 
-		if (a > 0) {
-			memmove(m, (const void *)(m+a), p+1);
-			b = m;
-			a = 0;
-		}
-
-		qrealloc(&m, a+p+128, &size);
-		b = m + a;
 		pp = p;
 		p += safe_read(fd, b+p, size-p-1);
 		if (p < pp) {
@@ -1718,9 +1703,11 @@ static int awk_getline(rstream *rsm, var *v) {
 		b[eo] = c;
 	}
 
-	rsm->buffer = m;
-	rsm->adv = a + eo;
-	rsm->pos = p - eo;
+	p -= eo;
+	if (p) memmove(b, (const void *)(b+eo), p+1);
+
+	rsm->buffer = b;
+	rsm->pos = p;
 	rsm->size = size;
 
 	return r;
@@ -1764,7 +1751,7 @@ static char *awk_printf(node *n) {
 		s = f;
 		while (*f && (*f != '%' || *(++f) == '%'))
 			f++;
-		while (*f && !isalpha(*f))
+		while (*f && !isalpha(*f)) 
 			f++;
 
 		incr = (f - s) + MAXVARFMT;
@@ -2547,13 +2534,6 @@ static int awk_exit(int r) {
 
 	unsigned int i;
 	hash_item *hi;
-	static var tv;
-
-	if (! exiting) {
-		exiting = TRUE;
-		nextrec = FALSE;
-		evaluate(endseq.first, &tv);
-	}
 
 	/* waiting for children */
 	for (i=0; i<fdhash->csize; i++) {
@@ -2601,7 +2581,7 @@ static rstream *next_input_file(void) {
 
 	if (rsm.F) fclose(rsm.F);
 	rsm.F = NULL;
-	rsm.pos = rsm.adv = 0;
+	rsm.pos = 0;
 
 	do {
 		if (getvar_i(V[ARGIND])+1 >= getvar_i(V[ARGC])) {
@@ -2671,12 +2651,8 @@ extern int awk_main(int argc, char **argv) {
 	for (envp=environ; *envp; envp++) {
 		s = bb_xstrdup(*envp);
 		s1 = strchr(s, '=');
-		if (!s1) {
-			goto keep_going;
-		}
 		*(s1++) = '\0';
 		setvar_u(findvar(iamarray(V[ENVIRON]), s), s1);
-keep_going:
 		free(s);
 	}
 
@@ -2757,6 +2733,7 @@ keep_going:
 
 	}
 
+	evaluate(endseq.first, &tv);
 	awk_exit(EXIT_SUCCESS);
 
 	return 0;

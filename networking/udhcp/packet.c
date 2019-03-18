@@ -14,7 +14,6 @@
 #endif
 #include <errno.h>
 
-#include "packet.h"
 #include "dhcpd.h"
 #include "options.h"
 #include "common.h"
@@ -66,10 +65,10 @@ int get_packet(struct dhcpMessage *packet, int fd)
 		return -2;
 	}
 	DEBUG(LOG_INFO, "Received a packet");
-
+	
 	if (packet->op == BOOTREQUEST && (vendor = get_option(packet, DHCP_VENDOR))) {
 		for (i = 0; broken_vendors[i][0]; i++) {
-			if (vendor[OPT_LEN - 2] == (uint8_t) strlen(broken_vendors[i]) &&
+			if (vendor[OPT_LEN - 2] == (unsigned char) strlen(broken_vendors[i]) &&
 			    !strncmp(vendor, broken_vendors[i], vendor[OPT_LEN - 2])) {
 			    	DEBUG(LOG_INFO, "broken client (%s), forcing broadcast",
 			    		broken_vendors[i]);
@@ -77,19 +76,19 @@ int get_packet(struct dhcpMessage *packet, int fd)
 			}
 		}
 	}
-			
+			    	
 
 	return bytes;
 }
 
 
-uint16_t checksum(void *addr, int count)
+u_int16_t checksum(void *addr, int count)
 {
 	/* Compute Internet Checksum for "count" bytes
 	 *         beginning at location "addr".
 	 */
 	register int32_t sum = 0;
-	uint16_t *source = (uint16_t *) addr;
+	u_int16_t *source = (u_int16_t *) addr;
 
 	while (count > 1)  {
 		/*  This is the inner loop */
@@ -101,8 +100,8 @@ uint16_t checksum(void *addr, int count)
 	if (count > 0) {
 		/* Make sure that the left-over byte is added correctly both
 		 * with little and big endian hosts */
-		uint16_t tmp = 0;
-		*(uint8_t *) (&tmp) = * (uint8_t *) source;
+		u_int16_t tmp = 0;
+		*(unsigned char *) (&tmp) = * (unsigned char *) source;
 		sum += tmp;
 	}
 	/*  Fold 32-bit sum to 16 bits */
@@ -113,9 +112,9 @@ uint16_t checksum(void *addr, int count)
 }
 
 
-/* Construct a ip/udp header for a packet, and specify the source and dest hardware address */
-int raw_packet(struct dhcpMessage *payload, uint32_t source_ip, int source_port,
-		   uint32_t dest_ip, int dest_port, uint8_t *dest_arp, int ifindex)
+/* Constuct a ip/udp header for a packet, and specify the source and dest hardware address */
+int raw_packet(struct dhcpMessage *payload, u_int32_t source_ip, int source_port,
+		   u_int32_t dest_ip, int dest_port, unsigned char *dest_arp, int ifindex)
 {
 	int fd;
 	int result;
@@ -126,10 +125,10 @@ int raw_packet(struct dhcpMessage *payload, uint32_t source_ip, int source_port,
 		DEBUG(LOG_ERR, "socket call failed: %m");
 		return -1;
 	}
-
+	
 	memset(&dest, 0, sizeof(dest));
 	memset(&packet, 0, sizeof(packet));
-
+	
 	dest.sll_family = AF_PACKET;
 	dest.sll_protocol = htons(ETH_P_IP);
 	dest.sll_ifindex = ifindex;
@@ -150,7 +149,7 @@ int raw_packet(struct dhcpMessage *payload, uint32_t source_ip, int source_port,
 	packet.ip.tot_len = packet.udp.len;
 	memcpy(&(packet.data), payload, sizeof(struct dhcpMessage));
 	packet.udp.check = checksum(&packet, sizeof(struct udp_dhcp_packet));
-
+	
 	packet.ip.tot_len = htons(sizeof(struct udp_dhcp_packet));
 	packet.ip.ihl = sizeof(packet.ip) >> 2;
 	packet.ip.version = IPVERSION;
@@ -167,16 +166,16 @@ int raw_packet(struct dhcpMessage *payload, uint32_t source_ip, int source_port,
 
 
 /* Let the kernel do all the work for packet generation */
-int kernel_packet(struct dhcpMessage *payload, uint32_t source_ip, int source_port,
-		   uint32_t dest_ip, int dest_port)
+int kernel_packet(struct dhcpMessage *payload, u_int32_t source_ip, int source_port,
+		   u_int32_t dest_ip, int dest_port)
 {
 	int n = 1;
 	int fd, result;
 	struct sockaddr_in client;
-
+	
 	if ((fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
 		return -1;
-
+	
 	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *) &n, sizeof(n)) == -1)
 		return -1;
 
@@ -191,7 +190,7 @@ int kernel_packet(struct dhcpMessage *payload, uint32_t source_ip, int source_po
 	memset(&client, 0, sizeof(client));
 	client.sin_family = AF_INET;
 	client.sin_port = htons(dest_port);
-	client.sin_addr.s_addr = dest_ip;
+	client.sin_addr.s_addr = dest_ip; 
 
 	if (connect(fd, (struct sockaddr *)&client, sizeof(struct sockaddr)) == -1)
 		return -1;
@@ -199,4 +198,4 @@ int kernel_packet(struct dhcpMessage *payload, uint32_t source_ip, int source_po
 	result = write(fd, payload, sizeof(struct dhcpMessage));
 	close(fd);
 	return result;
-}
+}	

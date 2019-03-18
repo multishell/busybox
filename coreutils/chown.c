@@ -2,7 +2,7 @@
 /*
  * Mini chown implementation for busybox
  *
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,7 +30,7 @@
 #include <string.h>
 #include "busybox.h"
 
-/* Don't use lchown for glibc older then 2.1.x */
+/* Don't use lchown for libc5 or glibc older then 2.1.x */
 #if (__GLIBC__ <= 2) && (__GLIBC_MINOR__ < 1)
 #define lchown	chown
 #endif
@@ -43,7 +43,6 @@ static int (*chown_func)(const char *, uid_t, gid_t) = chown;
 static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
 {
 	if (chown_func(fileName, uid, (gid == -1) ? statbuf->st_gid : gid) == 0) {
-		chmod(fileName, statbuf->st_mode);
 		return (TRUE);
 	}
 	bb_perror_msg("%s", fileName);	/* Avoid multibyte problems. */
@@ -52,6 +51,19 @@ static int fileAction(const char *fileName, struct stat *statbuf, void* junk)
 
 #define FLAG_R 1
 #define FLAG_h 2
+
+static unsigned long get_ug_id(const char *s, long (*my_getxxnam)(const char *))
+{
+	unsigned long r;
+	char *p;
+
+	r = strtoul(s, &p, 10);
+	if (*p || (s == p)) {
+		r = my_getxxnam(s);
+	}
+
+	return r;
+}
 
 int chown_main(int argc, char **argv)
 {
@@ -84,10 +96,10 @@ int chown_main(int argc, char **argv)
 	uid = get_ug_id(*argv, my_getpwnam);
 
 	++argv;
-
+	
 	/* Ok, ready to do the deed now */
 	do {
-		if (! recursive_action (*argv, (flags & FLAG_R), FALSE, FALSE,
+		if (! recursive_action (*argv, (flags & FLAG_R), FALSE, FALSE, 
 								fileAction, fileAction, NULL)) {
 			retval = EXIT_FAILURE;
 		}

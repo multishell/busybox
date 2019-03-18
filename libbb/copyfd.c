@@ -2,7 +2,7 @@
 /*
  * Utility routines.
  *
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,72 +19,54 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
-#include <errno.h>
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
-
+#include <string.h>
+#include <errno.h>
 #include "busybox.h"
-
 
 #if BUFSIZ < 4096
 #undef BUFSIZ
 #define BUFSIZ 4096
 #endif
 
-
-/* If size is 0 copy until EOF */
-static size_t bb_full_fd_action(int src_fd, int dst_fd, const size_t size)
+/* If chunksize is 0 copy until EOF */
+extern int bb_copyfd(int fd1, int fd2, const off_t chunksize)
 {
-	size_t read_total = 0;
+	ssize_t nread;
+	size_t size;
+	off_t remaining;
 	RESERVE_CONFIG_BUFFER(buffer,BUFSIZ);
 
-	while ((size == 0) || (read_total < size)) {
-		size_t read_try;
-		ssize_t read_actual;
+	remaining = size = BUFSIZ;
+	if (chunksize) {
+		remaining = chunksize;
+	}
 
- 		if ((size == 0) || (size - read_total > BUFSIZ)) {
-			read_try = BUFSIZ;
-		} else {
-			read_try = size - read_total;
+	do {
+		if (size > remaining) {
+			size = remaining;
 		}
 
-		read_actual = safe_read(src_fd, buffer, read_try);
-		if (read_actual > 0) {
-			if ((dst_fd >= 0) && (bb_full_write(dst_fd, buffer, (size_t) read_actual) != read_actual)) {
+		if ((nread = safe_read(fd1, buffer, size)) > 0) {
+			if (bb_full_write(fd2, buffer, nread) < 0) {
 				bb_perror_msg(bb_msg_write_error);	/* match Read error below */
 				break;
 			}
-		}
-		else if (read_actual == 0) {
-			if (size) {
-				bb_error_msg("Unable to read all data");
+			if (chunksize && ((remaining -= nread) == 0)) {
+				return 0;
 			}
-			break;
-		} else {
-			/* read_actual < 0 */
-			bb_perror_msg("Read error");
+		} else if (!nread) {
+			if (chunksize) {
+				bb_error_msg("Unable to read all data");
+				break;
+			}
+			return 0;
+		} else {				/* nread < 0 */
+			bb_perror_msg("Read error");	/* match bb_msg_write_error above */
 			break;
 		}
 
-		read_total += read_actual;
-	}
+	} while (1);
 
-	RELEASE_CONFIG_BUFFER(buffer);
-
-	return(read_total);
-}
-
-
-extern int bb_copyfd_size(int fd1, int fd2, const off_t size)
-{
-	if (size) {
-		return(bb_full_fd_action(fd1, fd2, size));
-	}
-	return(0);
-}
-
-extern int bb_copyfd_eof(int fd1, int fd2)
-{
-	return(bb_full_fd_action(fd1, fd2, 0));
+	return -1;
 }

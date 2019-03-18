@@ -20,11 +20,6 @@
  *
  */
 
-/* Aug 13, 2003
- * Fix a bug reported by junkio@cox.net involving the mode_chars index.
- */
-
-
 #include <assert.h>
 #include <sys/stat.h>
 
@@ -124,7 +119,7 @@ const char *bb_mode_string(int mode)
 		} while (++j < 3);
 		++i;
 		if (mode & (010000 >> i)) {
-			*p = mode_chars[3 + (k & 2) + (i == 3)];
+			*p = mode_chars[3 + k + (i >> 1)];
 		}
 	} while (i < 3);
 

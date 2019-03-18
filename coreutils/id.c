@@ -21,115 +21,90 @@
  */
 
 /* BB_AUDIT SUSv3 _NOT_ compliant -- option -G is not currently supported. */
-/* Hacked by Tito Ragusa (C) 2004 to handle usernames of whatever length and to
- * be more similar to GNU id. 
- */
 
 #include "busybox.h"
-#include "pwd_.h"
 #include <stdio.h>
 #include <unistd.h>
+#include <getopt.h>
+#include <string.h>
 #include <sys/types.h>
-
 #ifdef CONFIG_SELINUX
 #include <proc_secure.h>
 #include <flask_util.h>
 #endif
 
-#define PRINT_REAL        1
-#define NAME_NOT_NUMBER   2
-#define JUST_USER         4
-#define JUST_GROUP        8
-
-static short printf_full(unsigned int id, const char *arg, const char prefix)
-{	
-	const char *fmt = "%cid=%u";
-	short status=EXIT_FAILURE;
-	
-	if(arg) {
-		fmt = "%cid=%u(%s)";
-		status=EXIT_SUCCESS;
-	}
-	bb_printf(fmt, prefix, id, arg);
-	return status;
-}
+#define JUST_USER         1
+#define JUST_GROUP        2
+#define PRINT_REAL        4
+#define NAME_NOT_NUMBER   8
 
 extern int id_main(int argc, char **argv)
 {
-	struct passwd *p;
-	uid_t uid;
-	gid_t gid;
-	unsigned long flags;
-	short status;
+	char user[9], group[9];
+	long pwnam, grnam;
+	int uid, gid;
+	int flags;
 #ifdef CONFIG_SELINUX
 	int is_flask_enabled_flag = is_flask_enabled();
 #endif
+	
+	flags = bb_getopt_ulflags(argc, argv, "ugrn");
 
-	bb_opt_complementaly = "u~g:g~u";
-	flags = bb_getopt_ulflags(argc, argv, "rnug");
-
-	if ((flags & 0x80000000UL)
-	/* Don't allow -n -r -nr */
-	|| (flags <= 3 && flags > 0) 
-	/* Don't allow more than one username */
-	|| (argc > optind + 1))
+	if (((flags & (JUST_USER | JUST_GROUP)) == (JUST_USER | JUST_GROUP))
+		|| (argc > optind + 1)
+	) {
 		bb_show_usage();
-	
-	/* This values could be overwritten later */
-	uid = geteuid();
-	gid = getegid();
-	if (flags & PRINT_REAL) {
-		uid = getuid();
-		gid = getgid();
-	}
-	
-	if(argv[optind]) {
-		p=getpwnam(argv[optind]);
-		/* my_getpwnam is needed because it exits on failure */
-		uid = my_getpwnam(argv[optind]);
-		gid = p->pw_gid;
-		/* in this case PRINT_REAL is the same */ 
 	}
 
-	if(flags & (JUST_GROUP | JUST_USER)) {
-		/* JUST_GROUP and JUST_USER are mutually exclusive */
-		if(flags & NAME_NOT_NUMBER) {
-			/* my_getpwuid and my_getgrgid exit on failure so puts cannot segfault */
-			puts((flags & JUST_USER) ? my_getpwuid(NULL, uid, -1 ) : my_getgrgid(NULL, gid, -1 ));
+	if (argv[optind] == NULL) {
+		if (flags & PRINT_REAL) {
+			uid = getuid();
+			gid = getgid();
 		} else {
-			bb_printf("%u\n",(flags & JUST_USER) ? uid : gid);
+			uid = geteuid();
+			gid = getegid();
 		}
-		/* exit */ 
-		bb_fflush_stdout_and_exit(EXIT_SUCCESS);
+		my_getpwuid(user, uid);
+	} else {
+		safe_strncpy(user, argv[optind], sizeof(user));
+	    gid = my_getpwnamegid(user);
 	}
+	my_getgrgid(group, gid);
 
-	/* Print full info like GNU id */
-	/* my_getpwuid doesn't exit on failure here */
-	status=printf_full(uid, my_getpwuid(NULL, uid, 0), 'u');
-	putchar(' ');
-	/* my_getgrgid doesn't exit on failure here */
-	status|=printf_full(gid, my_getgrgid(NULL, gid, 0), 'g');
+	pwnam=my_getpwnam(user);
+	grnam=my_getgrnam(group);
+
+	if (flags & (JUST_GROUP | JUST_USER)) {
+		char *s = group;
+		if (flags & JUST_USER) {
+			s = user;
+			grnam = pwnam;
+		}
+		if (flags & NAME_NOT_NUMBER) {
+			puts(s);
+		} else {
+			printf("%ld\n", grnam);
+		}
+	} else {
 #ifdef CONFIG_SELINUX
-	if(is_flask_enabled_flag) {
-		security_id_t mysid = getsecsid();
-		char context[80];
-		int len = sizeof(context);
-		context[0] = '\0';
-		if(security_sid_to_context(mysid, context, &len))
-			strcpy(context, "unknown");
-		bb_printf(" context=%s", context);
-	}
+		printf("uid=%ld(%s) gid=%ld(%s)", pwnam, user, grnam, group);
+		if(is_flask_enabled_flag)
+		{
+			security_id_t mysid = getsecsid();
+			char context[80];
+			int len = sizeof(context);
+			context[0] = '\0';
+			if(security_sid_to_context(mysid, context, &len))
+				strcpy(context, "unknown");
+			printf(" context=%s\n", context);
+		}
+		else
+			printf("\n");
+#else
+		printf("uid=%ld(%s) gid=%ld(%s)\n", pwnam, user, grnam, group);
 #endif
-	putchar('\n');
-	bb_fflush_stdout_and_exit(status);
+
+	}
+
+	bb_fflush_stdout_and_exit(0);
 }
-
-/* END CODE */
-/*
-Local Variables:
-c-file-style: "linux"
-c-basic-offset: 4
-tab-width: 4
-End:
-*/
-

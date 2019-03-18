@@ -12,8 +12,8 @@
  * handling.
  *
  * General cleanup to better adhere to the style guide and make use of standard
- * busybox functions by Glenn McGrath <bug1@iinet.net.au>
- *
+ * busybox functions by Glenn McGrath <bug1@optushome.com.au>
+ * 
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -71,20 +71,37 @@ static char *license_msg[] = {
 #include "busybox.h"
 #include "unarchive.h"
 
-#define GUNZIP_OPT_STDOUT	1
-#define GUNZIP_OPT_FORCE	2
-#define GUNZIP_OPT_TEST		4
-#define GUNZIP_OPT_DECOMPRESS	8
+const char gunzip_to_stdout = 1;
+const char gunzip_force = 2;
+const char gunzip_test = 4;
 
 extern int gunzip_main(int argc, char **argv)
 {
 	char status = EXIT_SUCCESS;
-	unsigned long opt;
+	char flags = 0;
+	int opt;
 
-	opt = bb_getopt_ulflags(argc, argv, "cftd");
 	/* if called as zcat */
 	if (strcmp(bb_applet_name, "zcat") == 0) {
-		opt |= GUNZIP_OPT_STDOUT;
+		flags |= gunzip_to_stdout;
+	}
+
+	while ((opt = getopt(argc, argv, "ctfhd")) != -1) {
+		switch (opt) {
+		case 'c':
+			flags |= gunzip_to_stdout;
+			break;
+		case 'f':
+			flags |= gunzip_force;
+			break;
+		case 't':
+			flags |= gunzip_test;
+			break;
+		case 'd':		/* Used to convert gzip to gunzip. */
+			break;
+		default:
+			bb_show_usage();	/* exit's inside usage */
+		}
 	}
 
 	do {
@@ -98,8 +115,8 @@ extern int gunzip_main(int argc, char **argv)
 		optind++;
 
 		if (old_path == NULL || strcmp(old_path, "-") == 0) {
-			src_fd = STDIN_FILENO;
-			opt |= GUNZIP_OPT_STDOUT;
+			src_fd = fileno(stdin);
+			flags |= gunzip_to_stdout;
 		} else {
 			src_fd = bb_xopen(old_path, O_RDONLY);
 
@@ -110,16 +127,16 @@ extern int gunzip_main(int argc, char **argv)
 		}
 
 		/* Check that the input is sane.  */
-		if (isatty(src_fd) && ((opt & GUNZIP_OPT_FORCE) == 0)) {
+		if (isatty(src_fd) && ((flags & gunzip_force) == 0)) {
 			bb_error_msg_and_die
 				("compressed data not read from terminal.  Use -f to force it.");
 		}
 
 		/* Set output filename and number */
-		if (opt & GUNZIP_OPT_TEST) {
+		if (flags & gunzip_test) {
 			dst_fd = bb_xopen("/dev/null", O_WRONLY);	/* why does test use filenum 2 ? */
-		} else if (opt & GUNZIP_OPT_STDOUT) {
-			dst_fd = STDOUT_FILENO;
+		} else if (flags & gunzip_to_stdout) {
+			dst_fd = fileno(stdout);
 		} else {
 			char *extension;
 
@@ -153,19 +170,20 @@ extern int gunzip_main(int argc, char **argv)
 		/* do the decompression, and cleanup */
 		if (bb_xread_char(src_fd) == 0x1f) {
 			unsigned char magic2;
-
+			
 			magic2 = bb_xread_char(src_fd);
 #ifdef CONFIG_FEATURE_GUNZIP_UNCOMPRESS
 			if (magic2 == 0x9d) {
 				status = uncompress(src_fd, dst_fd);
-			} else
+			} else 
 #endif
 				if (magic2 == 0x8b) {
 					check_header_gzip(src_fd);
-					status = inflate_gunzip(src_fd, dst_fd);
+					status = inflate(src_fd, dst_fd);
 					if (status != 0) {
 						bb_error_msg_and_die("Error inflating");
 					}
+					check_trailer_gzip(src_fd);
 				} else {
 					bb_error_msg_and_die("Invalid magic");
 				}
@@ -178,10 +196,10 @@ extern int gunzip_main(int argc, char **argv)
 			delete_path = new_path;
 		}
 
-		if (dst_fd != STDOUT_FILENO) {
+		if (dst_fd != fileno(stdout)) {
 			close(dst_fd);
 		}
-		if (src_fd != STDIN_FILENO) {
+		if (src_fd != fileno(stdin)) {
 			close(src_fd);
 		}
 

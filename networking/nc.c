@@ -4,7 +4,7 @@
 
     0.0.1   6K      It works.
     0.0.2   5K      Smaller and you can also check the exit condition if you wish.
-    0.0.3	    Uses select()
+    0.0.3	    Uses select()	
 
     19980918 Busy Boxed! Dave Cinege
     19990512 Uses Select. Charles P. Wright
@@ -47,7 +47,7 @@ int nc_main(int argc, char **argv)
 	int do_listen = 0, lport = 0, delay = 0, tmpfd, opt, sfd, x;
 	char buf[BUFSIZ];
 #ifdef GAPING_SECURITY_HOLE
-	char * pr00gie = NULL;
+	char * pr00gie = NULL;                  
 #endif
 
 	struct sockaddr_in address;
@@ -61,7 +61,7 @@ int nc_main(int argc, char **argv)
 				do_listen++;
 				break;
 			case 'p':
-				lport = bb_lookup_port(optarg, "tcp", 0);
+				lport = atoi(optarg);
 				break;
 			case 'i':
 				delay = atoi(optarg);
@@ -79,7 +79,7 @@ int nc_main(int argc, char **argv)
 #ifdef GAPING_SECURITY_HOLE
 	if (pr00gie) {
 		/* won't need stdin */
-		close (STDIN_FILENO);      
+		close (fileno(stdin));                          
 	}
 #endif /* GAPING_SECURITY_HOLE */
 
@@ -96,7 +96,7 @@ int nc_main(int argc, char **argv)
 
 	if (lport != 0) {
 		memset(&address.sin_addr, 0, sizeof(address.sin_addr));
-		address.sin_port = lport;
+		address.sin_port = htons(lport);
 
 		if (bind(sfd, (struct sockaddr *) &address, sizeof(address)) < 0)
 			bb_perror_msg_and_die("bind");
@@ -117,7 +117,7 @@ int nc_main(int argc, char **argv)
 		hostinfo = xgethostbyname(argv[optind]);
 
 		address.sin_addr = *(struct in_addr *) *hostinfo->h_addr_list;
-		address.sin_port = bb_lookup_port(argv[optind+1], "tcp", 0);
+		address.sin_port = htons(atoi(argv[optind+1]));
 
 		if (connect(sfd, (struct sockaddr *) &address, sizeof(address)) < 0)
 			bb_perror_msg_and_die("connect");

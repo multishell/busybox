@@ -1,9 +1,9 @@
 /* vi: set sw=4 ts=4: */
 /*
  * public domain -- Dave 'Kill a Cop' Cinege <dcinege@psychosis.com>
- *
+ * 
  * makedevs
- * Make ranges of device files quickly.
+ * Make ranges of device files quickly. 
  * known bugs: can't deal with alpha ranges
  */
 
@@ -13,21 +13,20 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/types.h>
-#include <sys/sysmacros.h>     /* major() and minor() */
 #include "busybox.h"
 
 int makedevs_main(int argc, char **argv)
 {
 	mode_t mode;
 	char *basedev, *type, *nodname, buf[255];
-	int Smajor, Sminor, S, E;
+	int major, Sminor, S, E;
 
 	if (argc < 7 || *argv[1]=='-')
 		bb_show_usage();
 
 	basedev = argv[1];
 	type = argv[2];
-	Smajor = atoi(argv[3]);
+	major = atoi(argv[3]) << 8;  /* correcting param to mknod() */
 	Sminor = atoi(argv[4]);
 	S = atoi(argv[5]);
 	E = atoi(argv[6]);
@@ -58,7 +57,7 @@ int makedevs_main(int argc, char **argv)
 
 	/* if mode != S_IFCHR and != S_IFBLK third param in mknod() ignored */
 
-		if (mknod(nodname, mode, makedev(Smajor, Sminor)))
+		if (mknod(nodname, mode, major | Sminor))
 			bb_error_msg("Failed to create: %s", nodname);
 
 		if (nodname == basedev) /* ex. /dev/hda - to /dev/hda1 ... */

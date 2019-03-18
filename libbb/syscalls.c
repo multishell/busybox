@@ -2,7 +2,7 @@
 /*
  * some system calls possibly missing from libc
  *
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,6 +27,10 @@
    _syscall* defined.  */
 #define __LIBRARY__
 #include <sys/syscall.h>
+#if __GNU_LIBRARY__ < 5
+/* This is needed for libc5 */
+#include <asm/unistd.h>
+#endif
 #include "libbb.h"
 
 int sysfs( int option, unsigned int fs_index, char * buf)
@@ -55,9 +59,9 @@ int pivot_root(const char * new_root,const char * put_old)
 
 
 
-/* These syscalls are not included in ancient glibc versions */
-#if ((__GLIBC__ <= 2) && (__GLIBC_MINOR__ < 1))
+#if __GNU_LIBRARY__ < 5 || ((__GLIBC__ <= 2) && (__GLIBC_MINOR__ < 1))
 
+/* These syscalls are not included as part of libc5 */
 int bdflush(int func, int data)
 {
     return(syscall(__NR_bdflush, func, data));
@@ -92,7 +96,7 @@ int umount2(const char * special_file, int flags)
 }
 
 
-#endif
+#endif /* __GNU_LIBRARY__ < 5 */
 
 
 /* END CODE */

@@ -2,7 +2,7 @@
 /*
  * Utility routines.
  *
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,7 +36,7 @@ ssize_t bb_full_write(int fd, const void *buf, size_t len)
 	total = 0;
 
 	while (len > 0) {
-		cc = safe_write(fd, buf, len);
+		cc = write(fd, buf, len);
 
 		if (cc < 0)
 			return cc;		/* write() returns -1 on failure. */

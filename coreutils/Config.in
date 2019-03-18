@@ -10,14 +10,14 @@ config CONFIG_BASENAME
 	default n
 	help
 	  basename is used to strip the directory and suffix from filenames,
-	  leaving just the filename itself.  Enable this option if you wish
+	  leaving just the filename itself.  Enable this option if you wish 
 	  to enable the 'basename' utility.
 
 config CONFIG_CAL
 	bool "cal"
 	default n
 	help
-	  cal is used to display a monthly calender.
+	  cal is used to display a montly calender.
 
 config CONFIG_CAT
 	bool "cat"
@@ -30,7 +30,7 @@ config CONFIG_CHGRP
 	bool "chgrp"
 	default n
 	help
-	  chgrp is used to change the group ownership of files.
+	  chgrp is used to change the group owership of files.
 
 config CONFIG_CHMOD
 	bool "chmod"
@@ -42,7 +42,7 @@ config CONFIG_CHOWN
 	bool "chown"
 	default n
 	help
-	  chown is used to change the user and/or group ownership
+	  chown is used too change the user and/or group ownership
 	  of files.
 
 config CONFIG_CHROOT
@@ -101,7 +101,7 @@ config CONFIG_DD
 	help
 	  dd copies a file (from standard input to standard output,
 	  by default) using specific input and output blocksizes,
-	  while optionally performing conversions on it.
+	  while optionally performing conversions on it. 
 
 config CONFIG_DF
 	bool "df"
@@ -114,14 +114,14 @@ config CONFIG_DIRNAME
 	bool "dirname"
 	default n
 	help
-	  dirname is used to strip a non-directory suffix from
+	  dirname is used to strip a non directory suffix from
 	  a file name.
 
 config CONFIG_DOS2UNIX
 	bool "dos2unix/unix2dos"
 	default n
 	help
-	  dos2unix is used to convert a text file from DOS format to
+	  dos2unix is uses to convert a text file from DOS format to
 	  UNIX format, and vice versa.
 
 config CONFIG_UNIX2DOS
@@ -144,7 +144,7 @@ config CONFIG_FEATURE_DU_DEFALT_BLOCKSIZE_1K
 	  Use a blocksize of (1K) instead of the default 512b.
 
 config CONFIG_ECHO
-	bool "echo (basic SUSv3 version taking no options)"
+	bool "echo (basic SUSv3 version taking no options"
 	default n
 	help
 	  echo is used to print a specified string to stdout.
@@ -154,14 +154,14 @@ config CONFIG_FEATURE_FANCY_ECHO
 	default y
 	depends on CONFIG_ECHO
 	help
-	  This adds options (-n and -e) to echo.
+	  This adds options (-n and -e) to echo. 
 
 config CONFIG_ENV
 	bool "env"
 	default n
 	help
 	  env is used to set an environment variable and run
-	  a command; without options it displays the current
+	  a command, without options it displays the current
 	  environment.
 
 config CONFIG_EXPR
@@ -217,12 +217,6 @@ config CONFIG_ID
 	default n
 	help
 	  id displays the current user and group ID names.
-
-config CONFIG_INSTALL
-	bool "install"
-	default n
-	help
-	  Copy files and set attributes.
 
 config CONFIG_LENGTH
 	bool "length"
@@ -353,7 +347,7 @@ config CONFIG_REALPATH
 	default n
 	help
 	  Return the canonicalized absolute pathname.
-	  This isn't provided by GNU shellutils, but where else does it belong.
+	  This isnt provided by GNU shellutils, but where else does it belong.
 
 config CONFIG_RM
 	bool "rm"
@@ -367,17 +361,18 @@ config CONFIG_RMDIR
 	help
 	  rmdir is used to remove empty directories.
 
-config CONFIG_SEQ
-	bool "seq"
-	default n
-	help
-	  print a sequence of numbers
-
 config CONFIG_SHA1SUM
 	bool "sha1sum"
 	default n
 	help
 	  Compute and check SHA1 message digest
+
+config CONFIG_FEATURE_SHA1SUM_CHECK
+	bool "  Enale -c and -w options"
+	default n
+	help
+	  Enabling the -c and -w options allow files to be checked
+	  against pre-calculated hash values.
 
 config CONFIG_SLEEP
 	bool "sleep (single integer arg with no suffix)"
@@ -397,6 +392,22 @@ config CONFIG_SORT
 	default n
 	help
 	  sort is used to sort lines of text in specified files.
+
+config CONFIG_FEATURE_SORT_REVERSE
+	bool "  Enable reverse sort"
+	default y
+	depends on CONFIG_SORT
+	help
+	  Enable the `-r' option that allows sort to sort lines of
+	  text in reverse.
+
+config CONFIG_FEATURE_SORT_UNIQUE
+	bool "  Enable unique sort"
+	default y
+	depends on CONFIG_SORT
+	help
+	  Enable the `-u' option that allows sort to only sort lines
+	  that are uniq. 
 
 config CONFIG_STTY
 	bool "stty"
@@ -418,12 +429,11 @@ config CONFIG_TAIL
 	  from files.
 
 config CONFIG_FEATURE_FANCY_TAIL
-	bool "  Enable extra tail options (-q, -s, and -v)"
+	bool "  Enable extra tail options (-c, -q, -s, and -v)"
 	default y
 	depends on CONFIG_TAIL
 	help
-	  The options (-q, -s, and -v) are provided by GNU tail, but
-	  are not specific in the SUSv3 standard.
+	  Enable tail options (-c, -q, -s, and -v).
 
 config CONFIG_TEE
 	bool "tee"
@@ -452,15 +462,8 @@ if !CONFIG_ASH && !CONFIG_HUSH && !CONFIG_LASH && !CONFIG_MSH
 	    help
 	      test is used to check file types and compare values,
 	      returning an appropriate exit code. The shells (ash
-	      and bash) have test builtin.
+	      and bash have test builtin).
 endif
-
-config CONFIG_FEATURE_TEST_64
-	bool "  Extend test to 64 bit"
-	default n
-	depends on CONFIG_TEST
-	help
-	  Enable 64-bit support in test.
 
 config CONFIG_TOUCH
 	bool "touch"
@@ -545,7 +548,6 @@ config CONFIG_WC
 config CONFIG_WHO
 	bool "who"
 	default n
-	select CONFIG_FEATURE_U_W_TMP
 	help
 	  who is used to show who is logged on.
 
@@ -574,18 +576,14 @@ config CONFIG_FEATURE_PRESERVE_HARDLINKS
 	  Allow cp and mv to preserve hard links.
 
 comment "Common options for ls and more"
-	depends on CONFIG_LS || CONFIG_MORE
+    depends on CONFIG_LS || CONFIG_MORE
 
 config CONFIG_FEATURE_AUTOWIDTH
 	bool "  Calculate terminal & column widths"
-	default y
+	default n
 	depends on CONFIG_LS || CONFIG_MORE
 	help
-	  This option allows utilities such as 'ls' and 'more' to determine the
-	  width of the screen, which can allow them to display additional text
-	  or avoid wrapping text onto the next line.  If you leave this
-	  disabled, your utilities will be especially primitive and will be
-	  unable to determine the current screen width.
+	  Allow ls and more to calculate terminal and column widths.
 
 comment "Common options for df, du, ls"
     depends on CONFIG_DF || CONFIG_DU || CONFIG_LS
@@ -596,18 +594,5 @@ config CONFIG_FEATURE_HUMAN_READABLE
 	depends on CONFIG_DF || CONFIG_DU || CONFIG_LS
 	help
 	  Allow df, du, and ls to have human readable output.
-
-comment "Common options for md5sum, sha1sum"
-    depends on CONFIG_MD5SUM || CONFIG_SHA1SUM
-
-config CONFIG_FEATURE_MD5_SHA1_SUM_CHECK
-	bool "  Enable -c, -s and -w options"
-	default n
-	depends on CONFIG_MD5SUM || CONFIG_SHA1SUM
-	help
-	  Enabling the -c options allows files to be checked
-	  against pre-calculated hash values.
-
-	  -s and -w are useful options when verifying checksums.
 
 endmenu

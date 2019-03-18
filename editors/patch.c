@@ -1,7 +1,7 @@
 /* vi: set sw=4 ts=4: */
 /*
  *  busybox patch applet to handle the unified diff format.
- *  Copyright (C) 2003 Glenn McGrath <bug1@iinet.net.au>
+ *  Copyright (C) 2003 Glenn McGrath <bug1@optushome.com.au>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -31,7 +31,7 @@
  *   - Non-interactive
  *   - Patches must apply cleanly or the hunk will fail.
  *   - Reject file isnt saved
- *   -
+ *   - 
  */
 
 #include <getopt.h>
@@ -55,7 +55,7 @@ static int copy_lines(FILE *src_stream, FILE *dest_stream, const unsigned int li
 			bb_perror_msg_and_die("Error writing to new file");
 		}
 		free(line);
-
+		
 		i++;
 	}
 	return(i);
@@ -282,7 +282,7 @@ extern int patch_main(int argc, char **argv)
 		}
 	}
 
-	/* 0 = SUCCESS
+	/* 0 = SUCCESS 
 	 * 1 = Some hunks failed
 	 * 2 = More serious problems
 	 */

@@ -41,10 +41,9 @@
 #include <linux/if_ether.h>
 #endif
 
-#include "socket.h"
 #include "common.h"
 
-int read_interface(char *interface, int *ifindex, uint32_t *addr, uint8_t *arp)
+int read_interface(char *interface, int *ifindex, u_int32_t *addr, unsigned char *arp)
 {
 	int fd;
 	struct ifreq ifr;
@@ -55,7 +54,7 @@ int read_interface(char *interface, int *ifindex, uint32_t *addr, uint8_t *arp)
 		ifr.ifr_addr.sa_family = AF_INET;
 		strcpy(ifr.ifr_name, interface);
 
-		if (addr) {
+		if (addr) { 
 			if (ioctl(fd, SIOCGIFADDR, &ifr) == 0) {
 				our_ip = (struct sockaddr_in *) &ifr.ifr_addr;
 				*addr = our_ip->sin_addr.s_addr;
@@ -65,7 +64,7 @@ int read_interface(char *interface, int *ifindex, uint32_t *addr, uint8_t *arp)
 				return -1;
 			}
 		}
-
+		
 		if (ioctl(fd, SIOCGIFINDEX, &ifr) == 0) {
 			DEBUG(LOG_INFO, "adapter index %d", ifr.ifr_ifindex);
 			*ifindex = ifr.ifr_ifindex;
@@ -90,19 +89,19 @@ int read_interface(char *interface, int *ifindex, uint32_t *addr, uint8_t *arp)
 }
 
 
-int listen_socket(uint32_t ip, int port, char *inf)
+int listen_socket(unsigned int ip, int port, char *inf)
 {
 	struct ifreq interface;
 	int fd;
 	struct sockaddr_in addr;
 	int n = 1;
 
-	DEBUG(LOG_INFO, "Opening listen socket on 0x%08x:%d %s", ip, port, inf);
+	DEBUG(LOG_INFO, "Opening listen socket on 0x%08x:%d %s\n", ip, port, inf);
 	if ((fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
 		DEBUG(LOG_ERR, "socket call failed: %m");
 		return -1;
 	}
-
+	
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	addr.sin_port = htons(port);
@@ -124,6 +123,30 @@ int listen_socket(uint32_t ip, int port, char *inf)
 	}
 
 	if (bind(fd, (struct sockaddr *)&addr, sizeof(struct sockaddr)) == -1) {
+		close(fd);
+		return -1;
+	}
+	
+	return fd;
+}
+
+
+int raw_socket(int ifindex)
+{
+	int fd;
+	struct sockaddr_ll sock;
+
+	DEBUG(LOG_INFO, "Opening raw socket on ifindex %d\n", ifindex);
+	if ((fd = socket(PF_PACKET, SOCK_DGRAM, htons(ETH_P_IP))) < 0) {
+		DEBUG(LOG_ERR, "socket call failed: %m");
+		return -1;
+	}
+	
+	sock.sll_family = AF_PACKET;
+	sock.sll_protocol = htons(ETH_P_IP);
+	sock.sll_ifindex = ifindex;
+	if (bind(fd, (struct sockaddr *) &sock, sizeof(sock)) < 0) {
+		DEBUG(LOG_ERR, "bind call failed: %m");
 		close(fd);
 		return -1;
 	}

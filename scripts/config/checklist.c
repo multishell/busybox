@@ -120,7 +120,7 @@ int
 dialog_checklist (const char *title, const char *prompt, int height, int width,
 	int list_height, int item_no, struct dialog_list_item ** items,
 	int flag)
-
+	
 {
     int i, x, y, box_x, box_y;
     int key = 0, button = 0, choice = 0, scroll = 0, max_choice, *status;
@@ -138,12 +138,10 @@ dialog_checklist (const char *title, const char *prompt, int height, int width,
 
     /* Initializes status */
     for (i = 0; i < item_no; i++) {
-	status[i] = (items[i]->selected == 1); /* ON */
-	if ((!choice && status[i]) || items[i]->selected == 2) /* SELECTED */
-            choice = i + 1;
+	status[i] = items[i]->selected;
+	if (!choice && status[i])
+            choice = i;
     }
-    if (choice)
-	    choice--;
 
     max_choice = MIN (list_height, item_no);
 
@@ -197,7 +195,7 @@ dialog_checklist (const char *title, const char *prompt, int height, int width,
 
     /* Find length of longest item in order to center checklist */
     check_x = 0;
-    for (i = 0; i < item_no; i++)
+    for (i = 0; i < item_no; i++) 
 	check_x = MAX (check_x, + strlen (items[i]->name) + 4);
 
     check_x = (list_width - check_x) / 2;
@@ -231,7 +229,7 @@ dialog_checklist (const char *title, const char *prompt, int height, int width,
                 break;
 
 
-	if ( i < max_choice || key == KEY_UP || key == KEY_DOWN ||
+	if ( i < max_choice || key == KEY_UP || key == KEY_DOWN || 
 	    key == '+' || key == '-' ) {
 	    if (key == KEY_UP || key == '-') {
 		if (!choice) {
@@ -305,9 +303,6 @@ dialog_checklist (const char *title, const char *prompt, int height, int width,
 	case 'H':
 	case 'h':
 	case '?':
-	    for (i = 0; i < item_no; i++)
-		items[i]->selected = 0;
-	    items[scroll + choice]->selected = 1;
 	    delwin (dialog);
 	    free (status);
 	    return 1;
@@ -342,15 +337,11 @@ dialog_checklist (const char *title, const char *prompt, int height, int width,
 		}
 		wnoutrefresh (list);
 		wrefresh (dialog);
-
+            
 		for (i = 0; i < item_no; i++) {
 			items[i]->selected = status[i];
 		}
-            } else {
-		    for (i = 0; i < item_no; i++)
-			    items[i]->selected = 0;
-		    items[scroll + choice]->selected = 1;
-	    }
+            }
 	    delwin (dialog);
 	    free (status);
 	    return button;
@@ -364,7 +355,7 @@ dialog_checklist (const char *title, const char *prompt, int height, int width,
 	/* Now, update everything... */
 	doupdate ();
     }
-
+    
 
     delwin (dialog);
     free (status);

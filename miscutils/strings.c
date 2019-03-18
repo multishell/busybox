@@ -37,11 +37,10 @@
 
 int strings_main(int argc, char **argv)
 {
-	int n=4, c, i, opt=0, status=EXIT_SUCCESS;
+	int n=4, c, i, opt=0, a=0, status=EXIT_SUCCESS;
 	long t=0, count;
-	FILE *file = stdin;
+	FILE *file;
 	char *string=NULL;
-	const char *fmt="%s: ";
 
 	while ((i = getopt(argc, argv, "afon:")) > 0)
 		switch(i)
@@ -70,21 +69,21 @@ int strings_main(int argc, char **argv)
 	string[n]='\0';
 	n-=1;
 
-	if(argc==0)
+	if(!argc )
 	{
-		fmt="{%s}: ";
-		*argv=(char *)bb_msg_standard_input;
+		file = stdin;
 		goto pipe;
 	}
 
-	for( ;*argv!=NULL && argc>0;argv++)
+	for(a=0;a<argc;a++)
 	{
-		if((file=bb_wfopen(*argv,"r")))
+		if((file=fopen(argv[a],"r")))
 		{
 pipe:
 
 			count=0;
-			do{
+			do
+			{
 				c=fgetc(file);
 				if(ISSTR(c))
 				{
@@ -95,7 +94,7 @@ pipe:
 					if(i==n)
 					{
 						if(opt == 1 || opt == 3 )
-							printf(fmt,*argv);
+							printf("%s: ", (!argv[a])? "{stdin}" : argv[a]);
 						if(opt >= 2 )
 							printf("%7lo ", t);
 						printf("%s", string);
@@ -107,18 +106,23 @@ pipe:
 				else
 				{
 					if(i>n)
-						putchar('\n');
+						puts("");
 					i=0;
 				}
 				count++;
-			}while(c!=EOF);
+			}
+			while(c!=EOF);
 
-			bb_fclose_nonstdin(file);
+			if(file!=stdin)
+				fclose(file);
 		}
 		else
+		{
+			bb_perror_msg("%s",argv[a]);
 			status=EXIT_FAILURE;
+		}
 	}
-	/*free(string);*/
+	free(string);
 	exit(status);
 }
 
@@ -136,7 +140,7 @@ pipe:
  *    documentation and/or other materials provided with the distribution.
  *
  * 3. <BSD Advertising Clause omitted per the July 22, 1999 licensing change
- *		ftp://ftp.cs.berkeley.edu/pub/4bsd/README.Impt.License.Change>
+ *		ftp://ftp.cs.berkeley.edu/pub/4bsd/README.Impt.License.Change> 
  *
  * 4. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software

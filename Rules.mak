@@ -1,6 +1,6 @@
 # Rules.make for busybox
 #
-# Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+# Copyright (C) 2001-2003 Erik Andersen <andersen@codepoet.org>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,7 +19,7 @@
 
 #--------------------------------------------------------
 PROG      := busybox
-VERSION   := 1.00
+VERSION   := 1.00-pre1
 BUILDTIME := $(shell TZ=UTC date -u "+%Y.%m.%d-%H:%M%z")
 
 
@@ -35,6 +35,7 @@ BUILDTIME := $(shell TZ=UTC date -u "+%Y.%m.%d-%H:%M%z")
 # by asking the CC compiler what arch it compiles things for, so unless
 # your compiler is broken, you should not need to specify TARGET_ARCH
 CROSS           =$(subst ",, $(strip $(CROSS_COMPILER_PREFIX)))
+#CROSS           =/usr/i386-linux-uclibc/bin/i386-uclibc-
 CC             = $(CROSS)gcc
 AR             = $(CROSS)ar
 AS             = $(CROSS)as
@@ -42,7 +43,7 @@ LD             = $(CROSS)ld
 NM             = $(CROSS)nm
 STRIP          = $(CROSS)strip
 CPP            = $(CC) -E
-# MAKEFILES      = $(top_builddir)/.config
+MAKEFILES      = $(TOPDIR).config
 
 # What OS are you compiling busybox for?  This allows you to include
 # OS specific things, syscall overrides, etc.
@@ -52,14 +53,14 @@ TARGET_OS=linux
 HOSTCC    = gcc
 HOSTCFLAGS= -Wall -Wstrict-prototypes -O2 -fomit-frame-pointer
 
-# Ensure consistent sort order, 'gcc -print-search-dirs' behavior, etc.
+# Ensure consistent sort order, 'gcc -print-search-dirs' behavior, etc. 
 LC_ALL:= C
 
 # If you want to add some simple compiler switches (like -march=i686),
 # especially from the command line, use this instead of CFLAGS directly.
 # For optimization overrides, it's better still to set OPTIMIZATION.
 CFLAGS_EXTRA=$(subst ",, $(strip $(EXTRA_CFLAGS_OPTIONS)))
-
+ 
 # If you have a "pristine" source directory, point BB_SRC_DIR to it.
 # Experimental and incomplete; tell the mailing list
 # <busybox@busybox.net> if you do or don't like it so far.
@@ -73,14 +74,18 @@ BB_SRC_DIR=
 # using the compatible RPMs (compat-*) at http://www.redhat.com !
 #LIBCDIR:=/usr/i386-glibc20-linux
 #
-# For other libraries, you are on your own.  But these may (or may not) help...
+# The following is used for libc5 (if you install altgcc and libc5-altdev
+# on a Debian system).  
+#LIBCDIR:=/usr/i486-linuxlibc1
+#
+# For other libraries, you are on your own...
 #LDFLAGS+=-nostdlib
 #LIBRARIES:=$(LIBCDIR)/lib/libc.a -lgcc
 #CROSS_CFLAGS+=-nostdinc -I$(LIBCDIR)/include -I$(GCCINCDIR)
 #GCCINCDIR:=$(shell gcc -print-search-dirs | sed -ne "s/install: \(.*\)/\1include/gp")
 
 WARNINGS=-Wall -Wstrict-prototypes -Wshadow
-CFLAGS=-I$(top_builddir)/include -I$(top_srcdir)/include -I$(srcdir)
+CFLAGS=-I$(TOPDIR)include
 ARFLAGS=-r
 
 #--------------------------------------------------------
@@ -100,9 +105,9 @@ TARGET_ARCH=$(shell $(CC) -dumpmachine | sed -e s'/-.*//' \
 		)
 endif
 
-# Pull in the user's busybox configuration
+# Pull in the user's uClibc configuration
 ifeq ($(filter $(noconfig_targets),$(MAKECMDGOALS)),)
--include $(top_builddir)/.config
+-include $(TOPDIR).config
 endif
 
 # A nifty macro to make testing gcc features easier
@@ -123,7 +128,7 @@ ifeq ($(strip $(TARGET_ARCH)),arm)
 	OPTIMIZATION+=-fstrict-aliasing
 endif
 ifeq ($(strip $(TARGET_ARCH)),i386)
-	OPTIMIZATION+=$(call check_gcc,-march=i386,)
+	OPTIMIZATION+=-march=i386
 	OPTIMIZATION+=$(call check_gcc,-mpreferred-stack-boundary=2,)
 	OPTIMIZATION+=$(call check_gcc,-falign-functions=0 -falign-jumps=0 -falign-loops=0,\
 		-malign-functions=0 -malign-jumps=0 -malign-loops=0)
@@ -137,22 +142,22 @@ OPTIMIZATIONS=$(OPTIMIZATION) -fomit-frame-pointer
 # by itself, instead of following it by the same half-dozen overrides
 # every time.  The stuff below, on the other hand, is probably less
 # prone to casual user adjustment.
-#
+# 
 
-ifeq ($(strip $(CONFIG_LFS)),y)
+ifeq ($(strip $(DOLFS)),y)
     # For large file summit support
     CFLAGS+=-D_LARGEFILE_SOURCE -D_LARGEFILE64_SOURCE -D_FILE_OFFSET_BITS=64
 endif
-ifeq ($(strip $(CONFIG_DMALLOC)),y)
+ifeq ($(strip $(DODMALLOC)),y)
     # For testing mem leaks with dmalloc
     CFLAGS+=-DDMALLOC
     LIBRARIES:=-ldmalloc
 else
-    ifeq ($(strip $(CONFIG_EFENCE)),y)
+    ifeq ($(strip $(DOEFENCE)),y)
 	LIBRARIES:=-lefence
     endif
 endif
-ifeq ($(strip $(CONFIG_DEBUG)),y)
+ifeq ($(strip $(DODEBUG)),y)
     CFLAGS  +=$(WARNINGS) -g -D_GNU_SOURCE
     LDFLAGS +=-Wl,-warn-common
     STRIPCMD:=/bin/true -Not_stripping_since_we_are_debugging
@@ -161,7 +166,7 @@ else
     LDFLAGS += -s -Wl,-warn-common
     STRIPCMD:=$(STRIP) --remove-section=.note --remove-section=.comment
 endif
-ifeq ($(strip $(CONFIG_STATIC)),y)
+ifeq ($(strip $(DOSTATIC)),y)
     LDFLAGS += --static
 endif
 
@@ -189,7 +194,22 @@ endif
 # have a chance of winning.
 CFLAGS += $(CFLAGS_EXTRA)
 
+%.o: %.c
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
+
+ifdef _FASTDEP_ALL_SUB_DIRS
+fastdep: dummy
+	$(TOPDIR)scripts/mkdep $(CFLAGS) $(EXTRA_CFLAGS_nostdinc) -- $(wildcard *.[chS]) > .depend
+ifdef ALL_SUB_DIRS
+	$(MAKE) $(patsubst %,_sfdep_%,$(ALL_SUB_DIRS)) _FASTDEP_ALL_SUB_DIRS="$(ALL_SUB_DIRS)"
+endif
+
+$(patsubst %,_sfdep_%,$(_FASTDEP_ALL_SUB_DIRS)):
+	$(MAKE) -C $(patsubst _sfdep_%,%,$@) fastdep
+endif
+
 .PHONY: dummy
+
 
 
 .EXPORT_ALL_VARIABLES:

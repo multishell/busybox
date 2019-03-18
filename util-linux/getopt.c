@@ -37,7 +37,7 @@
  *     <misiek@misiek.eu.org>)
  * Ported to Busybox - Alfred M. Szmidt <ams@trillian.itslinux.org>
  *  Removed --version/-V and --help/-h in
- *  Removed parse_error(), using bb_error_msg() from Busybox instead
+ *  Removed prase_error(), using bb_error_msg() from Busybox instead
  *  Replaced our_malloc with xmalloc and our_realloc with xrealloc
  *
  */
@@ -99,7 +99,7 @@ const char *normalize(const char *arg)
                 return BUFFER;
         }
 
-        /* Each character in arg may take up to four characters in the result:
+        /* Each character in arg may take upto four characters in the result:
            For a quote we need a closing quote, a backslash, a quote and an
            opening quote! We need also the global opening and closing quote,
            and one extra character for '\0'. */
@@ -278,7 +278,7 @@ void set_shell(const char *new_shell)
 
 
 /* Exit codes:
- *   0) No errors, successful operation.
+ *   0) No errors, succesful operation.
  *   1) getopt(3) returned an error.
  *   2) A problem with parameter parsing for getopt(1).
  *   3) Internal error, out of memory
@@ -305,8 +305,8 @@ static const char *shortopts="+ao:l:n:qQs:Tu";
 
 int getopt_main(int argc, char *argv[])
 {
-        const char *optstr = NULL;
-        const char *name = NULL;
+        char *optstr=NULL;
+        char *name=NULL;
         int opt;
         int compatible=0;
 
@@ -340,14 +340,14 @@ int getopt_main(int argc, char *argv[])
                         break;
                 case 'o':
                        free(optstr);
-                       optstr = optarg;
+                       optstr=bb_xstrdup(optarg);
                         break;
                 case 'l':
                         add_long_options(optarg);
                         break;
                 case 'n':
                        free(name);
-                       name = optarg;
+                       name=bb_xstrdup(optarg);
                         break;
                 case 'q':
                         quiet_errors=1;

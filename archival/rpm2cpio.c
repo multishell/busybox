@@ -31,21 +31,21 @@
 
 struct rpm_lead {
     unsigned char magic[4];
-    uint8_t major, minor;
-    uint16_t type;
-    uint16_t archnum;
+    u_int8_t major, minor;
+    u_int16_t type;
+    u_int16_t archnum;
     char name[66];
-    uint16_t osnum;
-    uint16_t signature_type;
+    u_int16_t osnum;
+    u_int16_t signature_type;
     char reserved[16];
 };
 
 struct rpm_header {
 	char magic[3]; /* 3 byte magic: 0x8e 0xad 0xe8 */
-	uint8_t version; /* 1 byte version number */
-	uint32_t reserved; /* 4 bytes reserved */
-	uint32_t entries; /* Number of entries in header (4 bytes) */
-	uint32_t size; /* Size of store (4 bytes) */
+	u_int8_t version; /* 1 byte version number */
+	u_int32_t reserved; /* 4 bytes reserved */
+	u_int32_t entries; /* Number of entries in header (4 bytes) */
+	u_int32_t size; /* Size of store (4 bytes) */
 };
 
 void skip_header(int rpm_fd)
@@ -73,7 +73,7 @@ extern int rpm2cpio_main(int argc, char **argv)
 	unsigned char magic[2];
 
 	if (argc == 1) {
-		rpm_fd = STDIN_FILENO;
+		rpm_fd = fileno(stdin);
 	} else {
 		rpm_fd = bb_xopen(argv[1], O_RDONLY);
 	}
@@ -89,16 +89,17 @@ extern int rpm2cpio_main(int argc, char **argv)
 
 	/* Skip the main header */
 	skip_header(rpm_fd);
-
+	
 	bb_xread_all(rpm_fd, &magic, 2);
 	if ((magic[0] != 0x1f) || (magic[1] != 0x8b)) {
 		bb_error_msg_and_die("Invalid gzip magic");
 	}
 
 	check_header_gzip(rpm_fd);
-	if (inflate_gunzip(rpm_fd, STDOUT_FILENO) != 0) {
+	if (inflate(rpm_fd, fileno(stdout)) != 0) {
 		bb_error_msg("Error inflating");
 	}
+	check_trailer_gzip(rpm_fd);
 
 	close(rpm_fd);
 

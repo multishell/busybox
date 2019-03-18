@@ -3,7 +3,7 @@
  * Mini init implementation for busybox
  *
  * Copyright (C) 1995, 1996 by Bruce Perens <bruce@pixar.com>.
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
  * Adjusted by so many folks, it's impossible to keep track.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -22,7 +22,7 @@
  *
  */
 
-/* Turn this on to disable all the dangerous
+/* Turn this on to disable all the dangerous 
    rebooting stuff when debugging.
 #define DEBUG_INIT
 */
@@ -42,7 +42,6 @@
 #include <sys/mount.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <sys/reboot.h>
 #include "busybox.h"
 
 #include "init_shared.h"
@@ -51,7 +50,14 @@
 #ifdef CONFIG_SYSLOGD
 # include <sys/syslog.h>
 #endif
+#if (__GNU_LIBRARY__ > 5) || defined(__dietlibc__)
+#include <sys/reboot.h>
+#endif
 
+
+#if defined(__UCLIBC__) && !defined(__UCLIBC_HAS_MMU__)
+#define fork	vfork
+#endif
 
 #define INIT_BUFFS_SIZE 256
 
@@ -65,25 +71,20 @@ static const int VT_GETSTATE = 0x5603;	/* get global vt state info */
 
 /* From <linux/serial.h> */
 struct serial_struct {
-	int	type;
-	int	line;
-	unsigned int	port;
-	int	irq;
-	int	flags;
-	int	xmit_fifo_size;
-	int	custom_divisor;
-	int	baud_base;
-	unsigned short	close_delay;
-	char	io_type;
-	char	reserved_char[1];
-	int	hub6;
-	unsigned short	closing_wait; /* time to wait before closing */
-	unsigned short	closing_wait2; /* no longer used... */
-	unsigned char	*iomem_base;
-	unsigned short	iomem_reg_shift;
-	unsigned int	port_high;
-	unsigned long	iomap_base;	/* cookie passed into ioremap */
-	int	reserved[1];
+	int type;
+	int line;
+	int port;
+	int irq;
+	int flags;
+	int xmit_fifo_size;
+	int custom_divisor;
+	int baud_base;
+	unsigned short close_delay;
+	char reserved_char[2];
+	int hub6;
+	unsigned short closing_wait;	/* time to wait before closing */
+	unsigned short closing_wait2;	/* no longer used... */
+	int reserved[4];
 };
 
 
@@ -93,7 +94,7 @@ struct serial_struct {
 
 #if defined CONFIG_FEATURE_INIT_COREDUMPS
 /*
- * When a file named CORE_ENABLE_FLAG_FILE exists, setrlimit is called
+ * When a file named CORE_ENABLE_FLAG_FILE exists, setrlimit is called 
  * before processes are spawned to set core file size as unlimited.
  * This is for debugging only.  Don't use this is production, unless
  * you want core dumps lying about....
@@ -105,6 +106,8 @@ struct serial_struct {
 
 #define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))
 
+#define SHELL        "/bin/sh"	/* Default shell */
+#define LOGIN_SHELL  "-" SHELL	/* Default login shell */
 #define INITTAB      "/etc/inittab"	/* inittab file location */
 #ifndef INIT_SCRIPT
 #define INIT_SCRIPT  "/etc/init.d/rcS"	/* Default sysinit script. */
@@ -179,7 +182,7 @@ static const int RB_AUTOBOOT = 0x01234567;
 static const char * const environment[] = {
 	"HOME=/",
 	"PATH=" _PATH_STDPATH,
-	"SHELL=/bin/sh",
+	"SHELL=" SHELL,
 	"USER=root",
 	NULL
 };
@@ -225,9 +228,7 @@ static void message(int device, const char *fmt, ...)
 	/* Log the message to syslogd */
 	if (device & LOG) {
 		/* don`t out "\r\n" */
-		openlog(bb_applet_name, 0, LOG_DAEMON);
-		syslog(LOG_INFO, "%s", msg);
-		closelog();
+		syslog_msg(LOG_DAEMON, LOG_INFO, msg + 1);
 	}
 
 	msg[l++] = '\n';
@@ -311,7 +312,7 @@ static void set_term(int fd)
 
 /* How much memory does this machine have?
    Units are kBytes to avoid overflow on 4GB machines */
-static unsigned int check_free_memory(void)
+static int check_free_memory(void)
 {
 	struct sysinfo info;
 	unsigned int result, u, s = 10;
@@ -331,11 +332,10 @@ static unsigned int check_free_memory(void)
 		s--;
 	}
 	result = (info.totalram >> s) + (info.totalswap >> s);
-	if (((unsigned long long)result * (unsigned long long)u) > UINT_MAX) {
-		return(UINT_MAX);
-	} else {
-		return(result * u);
-	}
+	result = result * u;
+	if (result < 0)
+		result = INT_MAX;
+	return result;
 }
 
 static void console_init(void)
@@ -349,7 +349,7 @@ static void console_init(void)
 	if ((s = getenv("CONSOLE")) != NULL || (s = getenv("console")) != NULL) {
 		safe_strncpy(console, s, sizeof(console));
 #if #cpu(sparc)
-	/* sparc kernel supports console=tty[ab] parameter which is also
+	/* sparc kernel supports console=tty[ab] parameter which is also 
 	 * passed to init, so catch it here */
 		/* remap tty[ab] to /dev/ttyS[01] */
 		if (strcmp(s, "ttya") == 0)
@@ -498,12 +498,7 @@ static pid_t run(const struct init_action *a)
 				signal(SIGCHLD, SIG_DFL);
 
 				/* Wait for child to exit */
-				while ((tmp_pid = waitpid(pid, &junk, 0)) != pid) {
-					if (tmp_pid == -1 && errno == ECHILD) {
-						break;
-					}
-					/* FIXME handle other errors */
-                }
+				while ((tmp_pid = waitpid(pid, &junk, 0)) != pid);
 
 				/* See if stealing the controlling tty back is necessary */
 				pgrp = tcgetpgrp(0);
@@ -532,7 +527,7 @@ static pid_t run(const struct init_action *a)
 
 		/* See if any special /bin/sh requiring characters are present */
 		if (strpbrk(a->command, "~`!$^&*()=|\\{}[];\"'<>?") != NULL) {
-			cmd[0] = (char *)DEFAULT_SHELL;
+			cmd[0] = SHELL;
 			cmd[1] = "-c";
 			cmd[2] = strcat(strcpy(buf, "exec "), a->command);
 			cmd[3] = NULL;
@@ -553,8 +548,8 @@ static pid_t run(const struct init_action *a)
 
 		/*
 		   Interactive shells want to see a dash in argv[0].  This
-		   typically is handled by login, argv will be setup this
-		   way if a dash appears at the front of the command path
+		   typically is handled by login, argv will be setup this 
+		   way if a dash appears at the front of the command path 
 		   (like "-/bin/sh").
 		 */
 
@@ -576,7 +571,6 @@ static pid_t run(const struct init_action *a)
 			}
 		}
 
-#if !defined(__UCLIBC__) || defined(__ARCH_HAS_MMU__)
 		if (a->action & ASKFIRST) {
 			char c;
 			/*
@@ -584,7 +578,7 @@ static pid_t run(const struct init_action *a)
 			 * before the user wants it. This is critical if swap is not
 			 * enabled and the system has low memory. Generally this will
 			 * be run on the second virtual console, and the first will
-			 * be allowed to start a shell or whatever an init script
+			 * be allowed to start a shell or whatever an init script 
 			 * specifies.
 			 */
 			messageD(LOG, "Waiting for enter to start '%s'"
@@ -594,7 +588,6 @@ static pid_t run(const struct init_action *a)
 			while(read(0, &c, 1) == 1 && c != '\n')
 				;
 		}
-#endif
 
 		/* Log the process name and args */
 		message(LOG, "Starting pid %d, console %s: '%s'",
@@ -610,7 +603,7 @@ static pid_t run(const struct init_action *a)
 		}
 #endif
 
-		/* Now run it.  The new program will take over this PID,
+		/* Now run it.  The new program will take over this PID, 
 		 * so nothing further in init.c should be run. */
 		execv(cmdpath, cmd);
 
@@ -629,15 +622,12 @@ static int waitfor(const struct init_action *a)
 
 	pid = run(a);
 	while (1) {
-		wpid = waitpid(pid,&status,0);
+		wpid = wait(&status);
+		if (wpid > 0 && wpid != pid) {
+			continue;
+		}
 		if (wpid == pid)
 			break;
-		if (wpid == -1 && errno == ECHILD) {
-			/* we missed its termination */
-			break;
-		}
-		/* FIXME other errors should maybe trigger an error, but allow
-		 * the program to continue */
 	}
 	return wpid;
 }
@@ -672,10 +662,14 @@ static void init_reboot(unsigned long magic)
 {
 	pid_t pid;
 	/* We have to fork here, since the kernel calls do_exit(0) in
-	 * linux/kernel/sys.c, which can cause the machine to panic when
+	 * linux/kernel/sys.c, which can cause the machine to panic when 
 	 * the init process is killed.... */
 	if ((pid = fork()) == 0) {
+#if (__GNU_LIBRARY__ > 5) || defined(__dietlibc__)
 		reboot(magic);
+#else
+		reboot(0xfee1dead, 672274793, magic);
+#endif
 		_exit(0);
 	}
 	waitpid (pid, NULL, 0);
@@ -746,11 +740,6 @@ static void exec_signal(int sig)
 			sigaddset(&unblock_signals, SIGSTOP);
 			sigaddset(&unblock_signals, SIGTSTP);
 			sigprocmask(SIG_UNBLOCK, &unblock_signals, NULL);
-
-			/* Close whatever files are open. */
-			close(0);
-			close(1);
-			close(2);
 
 			/* Open the new terminal device */
 			if ((device_open(a->terminal, O_RDWR)) < 0) {
@@ -844,9 +833,9 @@ static void cont_handler(int sig)
 
 #endif							/* ! DEBUG_INIT */
 
-static void new_init_action(int action, const char *command, const char *cons)
+static void new_init_action(int action, char *command, const char *cons)
 {
-	struct init_action *new_action, *a, *last;
+	struct init_action *new_action, *a;
 
 	if (*cons == '\0')
 		cons = console;
@@ -864,19 +853,9 @@ static void new_init_action(int action, const char *command, const char *cons)
 	}
 
 	/* Append to the end of the list */
-	for (a = last = init_action_list; a; a = a->next) {
-		/* don't enter action if it's already in the list,
-		 * but do overwrite existing actions */
-		if ((strcmp(a->command, command) == 0) &&
-		    (strcmp(a->terminal, cons) ==0)) {
-			a->action = action;
-			free(new_action);
-			return;
-		}
-		last = a;
-	}
-	if (last) {
-		last->next = new_action;
+	for (a = init_action_list; a && a->next; a = a->next);
+	if (a) {
+		a->next = new_action;
 	} else {
 		init_action_list = new_action;
 	}
@@ -916,7 +895,7 @@ static void check_memory(void)
 	if (check_free_memory() > 1000)
 		return;
 
-#if !defined(__UCLIBC__) || defined(__ARCH_HAS_MMU__)
+#if !defined(__UCLIBC__) || defined(__UCLIBC_HAS_MMU__)
 	if (stat("/etc/fstab", &statBuf) == 0) {
 		/* swapon -a requires /proc typically */
 		new_init_action(SYSINIT, "/bin/mount -t proc proc /proc", "");
@@ -937,9 +916,9 @@ static void check_memory(void)
 
 /* NOTE that if CONFIG_FEATURE_USE_INITTAB is NOT defined,
  * then parse_inittab() simply adds in some default
- * actions(i.e., runs INIT_SCRIPT and then starts a pair
- * of "askfirst" shells).  If CONFIG_FEATURE_USE_INITTAB
- * _is_ defined, but /etc/inittab is missing, this
+ * actions(i.e., runs INIT_SCRIPT and then starts a pair 
+ * of "askfirst" shells).  If CONFIG_FEATURE_USE_INITTAB 
+ * _is_ defined, but /etc/inittab is missing, this 
  * results in the same set of default behaviors.
  */
 static void parse_inittab(void)
@@ -960,17 +939,17 @@ static void parse_inittab(void)
 		new_init_action(CTRLALTDEL, "/sbin/reboot", "");
 		/* Umount all filesystems on halt/reboot */
 		new_init_action(SHUTDOWN, "/bin/umount -a -r", "");
-#if !defined(__UCLIBC__) || defined(__ARCH_HAS_MMU__)
+#if !defined(__UCLIBC__) || defined(__UCLIBC_HAS_MMU__)
 		/* Swapoff on halt/reboot */
 		new_init_action(SHUTDOWN, "/sbin/swapoff -a", "");
 #endif
 		/* Prepare to restart init when a HUP is received */
 		new_init_action(RESTART, "/sbin/init", "");
 		/* Askfirst shell on tty1-4 */
-		new_init_action(ASKFIRST, bb_default_login_shell, "");
-		new_init_action(ASKFIRST, bb_default_login_shell, VC_2);
-		new_init_action(ASKFIRST, bb_default_login_shell, VC_3);
-		new_init_action(ASKFIRST, bb_default_login_shell, VC_4);
+		new_init_action(ASKFIRST, LOGIN_SHELL, "");
+		new_init_action(ASKFIRST, LOGIN_SHELL, VC_2);
+		new_init_action(ASKFIRST, LOGIN_SHELL, VC_3);
+		new_init_action(ASKFIRST, LOGIN_SHELL, VC_4);
 		/* sysinit */
 		new_init_action(SYSINIT, INIT_SCRIPT, "");
 
@@ -1049,32 +1028,6 @@ static void parse_inittab(void)
 #endif							/* CONFIG_FEATURE_USE_INITTAB */
 }
 
-#ifdef CONFIG_FEATURE_USE_INITTAB
-static void reload_signal(int sig)
-{
-	struct init_action *a, *tmp;
-
-	message(LOG, "Reloading /etc/inittab");
-
-	/* disable old entrys */
-	for (a = init_action_list; a; a = a->next ) {
-		a->action = ONCE;
-	}
-
-	parse_inittab();
-
-	/* remove unused entrys */
-	for (a = init_action_list; a; a = tmp) {
-		tmp = a->next;
-		if (a->action & (ONCE | SYSINIT | WAIT ) &&
-				a->pid == 0 ) {
-			delete_init_action(a);
-		}
-	}
-	run_actions(RESPAWN);
-	return;
-}
-#endif							/* CONFIG_FEATURE_USE_INITTAB */
 
 extern int init_main(int argc, char **argv)
 {
@@ -1105,7 +1058,7 @@ extern int init_main(int argc, char **argv)
 	signal(SIGSTOP, stop_handler);
 	signal(SIGTSTP, stop_handler);
 
-	/* Turn off rebooting via CTL-ALT-DEL -- we get a
+	/* Turn off rebooting via CTL-ALT-DEL -- we get a 
 	 * SIGINT on CAD so we can shut things down gracefully... */
 	init_reboot(RB_DISABLE_CAD);
 #endif
@@ -1141,13 +1094,13 @@ extern int init_main(int argc, char **argv)
 	if (argc > 1 && (!strcmp(argv[1], "single") ||
 					 !strcmp(argv[1], "-s") || !strcmp(argv[1], "1"))) {
 		/* Start a shell on console */
-		new_init_action(RESPAWN, bb_default_login_shell, "");
+		new_init_action(RESPAWN, LOGIN_SHELL, "");
 	} else {
 		/* Not in single user mode -- see what inittab says */
 
 		/* NOTE that if CONFIG_FEATURE_USE_INITTAB is NOT defined,
 		 * then parse_inittab() simply adds in some default
-		 * actions(i.e., runs INIT_SCRIPT and then starts a pair
+		 * actions(i.e., runs INIT_SCRIPT and then starts a pair 
 		 * of "askfirst" shells */
 		parse_inittab();
 	}
@@ -1166,13 +1119,12 @@ extern int init_main(int argc, char **argv)
 	/* Next run anything to be run only once */
 	run_actions(ONCE);
 
-#ifdef CONFIG_FEATURE_USE_INITTAB
-	/* Redefine SIGHUP to reread /etc/inittab */
-	signal(SIGHUP, reload_signal);
-#else
-	signal(SIGHUP, SIG_IGN);
-#endif /* CONFIG_FEATURE_USE_INITTAB */
-
+	/* If there is nothing else to do, stop */
+	if (init_action_list == NULL) {
+		message(LOG | CONSOLE,
+				"No more tasks for init -- sleeping forever.");
+		loop_forever();
+	}
 
 	/* Now run the looping stuff for the rest of forever */
 	while (1) {

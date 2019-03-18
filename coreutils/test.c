@@ -2,7 +2,7 @@
 /*
  * test implementation for busybox
  *
- * Copyright (c) by a whole pile of folks:
+ * Copyright (c) by a whole pile of folks: 
  *
  * 	test(1); version 7-like  --  author Erik Baalbergen
  * 	modified by Eric Gisin to be used as built-in.
@@ -10,7 +10,7 @@
  * 	(-x -c -b -p -u -g -k) plus Korn's -L -nt -ot -ef and new -S (socket).
  * 	modified by J.T. Conklin for NetBSD.
  * 	modified by Herbert Xu to be used as built-in in ash.
- * 	modified by Erik Andersen <andersen@codepoet.org> to be used
+ * 	modified by Erik Andersen <andersen@codepoet.org> to be used 
  * 	in busybox.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -155,25 +155,19 @@ static const struct t_op {
 	0, 0, 0}
 };
 
-#ifdef CONFIG_FEATURE_TEST_64
-typedef int64_t arith_t;
-#else
-typedef int arith_t;
-#endif
-
 static char **t_wp;
 static struct t_op const *t_wp_op;
 static gid_t *group_array = NULL;
 static int ngroups;
 
 static enum token t_lex(char *s);
-static arith_t oexpr(enum token n);
-static arith_t aexpr(enum token n);
-static arith_t nexpr(enum token n);
+static int oexpr(enum token n);
+static int aexpr(enum token n);
+static int nexpr(enum token n);
 static int binop(void);
-static arith_t primary(enum token n);
+static int primary(enum token n);
 static int filstat(char *nm, enum token mode);
-static arith_t getn(const char *s);
+static int getn(const char *s);
 static int newerf(const char *f1, const char *f2);
 static int olderf(const char *f1, const char *f2);
 static int equalf(const char *f1, const char *f2);
@@ -238,9 +232,9 @@ static void syntax(const char *op, const char *msg)
 	}
 }
 
-static arith_t oexpr(enum token n)
+static int oexpr(enum token n)
 {
-	arith_t res;
+	int res;
 
 	res = aexpr(n);
 	if (t_lex(*++t_wp) == BOR) {
@@ -250,9 +244,9 @@ static arith_t oexpr(enum token n)
 	return res;
 }
 
-static arith_t aexpr(enum token n)
+static int aexpr(enum token n)
 {
-	arith_t res;
+	int res;
 
 	res = nexpr(n);
 	if (t_lex(*++t_wp) == BAND)
@@ -261,16 +255,16 @@ static arith_t aexpr(enum token n)
 	return res;
 }
 
-static arith_t nexpr(enum token n)
+static int nexpr(enum token n)
 {
 	if (n == UNOT)
 		return !nexpr(t_lex(*++t_wp));
 	return primary(n);
 }
 
-static arith_t primary(enum token n)
+static int primary(enum token n)
 {
-	arith_t res;
+	int res;
 
 	if (n == EOI) {
 		syntax(NULL, "argument expected");
@@ -447,21 +441,13 @@ static enum token t_lex(char *s)
 }
 
 /* atoi with error detection */
-static arith_t getn(const char *s)
+static int getn(const char *s)
 {
 	char *p;
-#ifdef CONFIG_FEATURE_TEST_64
-	long long r;
-#else
 	long r;
-#endif
 
 	errno = 0;
-#ifdef CONFIG_FEATURE_TEST_64
-	r = strtoll(s, &p, 10);
-#else
 	r = strtol(s, &p, 10);
-#endif
 
 	if (errno != 0)
 		bb_error_msg_and_die("%s: out of range", s);
@@ -470,7 +456,7 @@ static arith_t getn(const char *s)
 	if (*(bb_skip_whitespace(p)))
 		bb_error_msg_and_die("%s: bad number", s);
 
-	return r;
+	return (int) r;
 }
 
 static int newerf(const char *f1, const char *f2)

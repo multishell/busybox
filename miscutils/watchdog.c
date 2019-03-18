@@ -2,7 +2,7 @@
 /*
  * Mini watchdog implementation for busybox
  *
- * Copyright (C) 2003  Paul Mundt <lethal@linux-sh.org>
+ * Copyright (C) 2000  spoon <spoon@ix.netcom.com>.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,62 +20,30 @@
  *
  */
 
+/* getopt not needed */
+
 #include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <signal.h>
 #include "busybox.h"
-
-/* Userspace timer duration, in seconds */
-static unsigned int timer_duration = 30;
-
-/* Watchdog file descriptor */
-static int fd;
-
-static void watchdog_shutdown(int unused)
-{
-	write(fd, "V", 1);	/* Magic */
-	close(fd);
-	exit(0);
-}
 
 extern int watchdog_main(int argc, char **argv)
 {
-	int opt;
+	int fd;
 
-	while ((opt = getopt(argc, argv, "t:")) > 0) {
-		switch (opt) {
-			case 't':
-				timer_duration = bb_xgetlarg(optarg, 10, 0, INT_MAX);
-				break;
-			default:
-				bb_show_usage();
-		}
+	if (argc != 2) {
+		bb_show_usage();
 	}
 
-	/* We're only interested in the watchdog device .. */
-	if (optind < argc - 1 || argc == 1)
-		bb_show_usage();
-
-	if (daemon(0, 1) < 0)
-		bb_perror_msg_and_die("Failed forking watchdog daemon");
-
-	signal(SIGHUP, watchdog_shutdown);
-	signal(SIGINT, watchdog_shutdown);
-
-	fd = bb_xopen(argv[argc - 1], O_WRONLY);
+	if ((fd=open(argv[1], O_WRONLY)) == -1) {
+		bb_perror_msg_and_die(argv[1]);
+	}
 
 	while (1) {
-		/*
-		 * Make sure we clear the counter before sleeping, as the counter value
-		 * is undefined at this point -- PFM
-		 */
+		sleep(30);
 		write(fd, "\0", 1);
-		sleep(timer_duration);
 	}
 
-	watchdog_shutdown(0);
-
-	return EXIT_SUCCESS;
+	return EXIT_FAILURE;
 }

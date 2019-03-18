@@ -1,5 +1,5 @@
 /*
- * stolen from net-tools-1.59 and stripped down for busybox by
+ * stolen from net-tools-1.59 and stripped down for busybox by 
  *			Erik Andersen <andersen@codepoet.org>
  *
  * Heavily modified by Manuel Novoa III       Mar 12, 2001
@@ -15,7 +15,7 @@
  *              that either displays or sets the characteristics of
  *              one or more of the system's networking interfaces.
  *
- * Version:     $Id: interface.c,v 1.21 2004/03/15 08:28:42 andersen Exp $
+ * Version:     $Id: interface.c,v 1.16 2003/07/14 21:20:55 andersen Exp $
  *
  * Author:      Fred N. van Kempen, <waltje@uwalt.nl.mugnet.org>
  *              and others.  Copyright 1993 MicroWalt Corporation
@@ -31,17 +31,17 @@
  *
  * {1.34} - 19980630 - Arnaldo Carvalho de Melo <acme@conectiva.com.br>
  *                     - gettext instead of catgets for i18n
- *          10/1998  - Andi Kleen. Use interface list primitives.
- *	    20001008 - Bernd Eckenfels, Patch from RH for setting mtu
+ *          10/1998  - Andi Kleen. Use interface list primitives.       
+ *	    20001008 - Bernd Eckenfels, Patch from RH for setting mtu 
  *			(default AF was wrong)
  */
 
 /* #define KEEP_UNUSED */
 
-/*
- *
+/* 
+ * 
  * Protocol Families.
- *
+ * 
  */
 #define HAVE_AFINET 1
 #undef HAVE_AFIPX
@@ -51,10 +51,16 @@
 #undef HAVE_AFECONET
 #undef HAVE_AFASH
 
-/*
- *
+#ifdef CONFIG_FEATURE_IPV6
+# define HAVE_AFINET6 1
+#else
+# undef HAVE_AFINET6
+#endif
+
+/* 
+ * 
  * Device Hardware types.
- *
+ * 
  */
 #define HAVE_HWETHER	1
 #define HAVE_HWPPP	1
@@ -70,22 +76,21 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <sys/ioctl.h>
-#include <sys/types.h>
 #include <net/if.h>
 #include <net/if_arp.h>
 #include "libbb.h"
-
-#ifdef CONFIG_FEATURE_IPV6
-# define HAVE_AFINET6 1
-#else
-# undef HAVE_AFINET6
-#endif
 
 #define _(x) x
 #define _PATH_PROCNET_DEV               "/proc/net/dev"
 #define _PATH_PROCNET_IFINET6           "/proc/net/if_inet6"
 #define new(p) ((p) = xcalloc(1,sizeof(*(p))))
 #define KRELEASE(maj,min,patch) ((maj) * 65536 + (min)*256 + (patch))
+
+static int procnetdev_vsn = 1;
+
+/* Ugh.  But libc5 doesn't provide POSIX types.  */
+#include <asm/types.h>
+
 
 #ifdef HAVE_HWSLIP
 #include <net/if_slip.h>
@@ -100,7 +105,7 @@
 
 struct in6_ifreq {
 	struct in6_addr ifr6_addr;
-	uint32_t ifr6_prefixlen;
+	__u32 ifr6_prefixlen;
 	unsigned int ifr6_ifindex;
 };
 
@@ -889,25 +894,30 @@ static int sockets_open(int family)
 }
 
 /* like strcmp(), but knows about numbers */
-static int nstrcmp(const char *a, const char *b)
+static int nstrcmp(const char *astr, const char *b)
 {
-	const char *a_ptr = a;
-	const char *b_ptr = b;
+	const char *a = astr;
 
 	while (*a == *b) {
-		if (*a == '\0') {
+		if (*a == '\0')
 			return 0;
-		}
-		if (!isdigit(*a) && isdigit(*(a+1))) {
-			a_ptr = a+1;
-			b_ptr = b+1;
-		}
 		a++;
 		b++;
 	}
-
-	if (isdigit(*a) && isdigit(*b)) {
-		return atoi(a_ptr) > atoi(b_ptr) ? 1 : -1;
+	if (isdigit(*a)) {
+		if (!isdigit(*b))
+			return -1;
+		while (a > astr) {
+			a--;
+			if (!isdigit(*a)) {
+				a++;
+				break;
+			}
+			if (!isdigit(*b))
+				return -1;
+			b--;
+		}
+		return atoi(a) > atoi(b) ? 1 : -1;
 	}
 	return *a - *b;
 }
@@ -986,109 +996,99 @@ static int if_readconf(void)
 	return err;
 }
 
-char *get_name(char *name, char *p)
+static char *get_name(char *name, char *p)
 {
-	/* Extract <name>[:<alias>] from nul-terminated p where p matches
-	   <name>[:<alias>]: after leading whitespace.
-	   If match is not made, set name empty and return unchanged p */
-	int namestart=0, nameend=0, aliasend;
-	while (isspace(p[namestart]))
-		namestart++;
-	nameend=namestart;
-	while (p[nameend] && p[nameend]!=':' && !isspace(p[nameend]))
-		nameend++;
-	if (p[nameend]==':') {
-		aliasend=nameend+1;
-		while (p[aliasend] && isdigit(p[aliasend]))
-			aliasend++;
-		if (p[aliasend]==':') {
-			nameend=aliasend;
+	while (isspace(*p))
+		p++;
+	while (*p) {
+		if (isspace(*p))
+			break;
+		if (*p == ':') {	/* could be an alias */
+			char *dot = p, *dotname = name;
+
+			*name++ = *p++;
+			while (isdigit(*p))
+				*name++ = *p++;
+			if (*p != ':') {	/* it wasn't, backup */
+				p = dot;
+				name = dotname;
+			}
+			if (*p == '\0')
+				return NULL;
+			p++;
+			break;
 		}
-		if ((nameend-namestart)<IFNAMSIZ) {
-			memcpy(name,&p[namestart],nameend-namestart);
-			name[nameend-namestart]='\0';
-			p=&p[nameend];
-		} else {
-			/* Interface name too large */
-			name[0]='\0';
-		}
-	} else {
-		/* first ':' not found - return empty */
-		name[0]='\0';
+		*name++ = *p++;
 	}
-	return p + 1;
+	*name++ = '\0';
+	return p;
 }
 
-/* If scanf supports size qualifiers for %n conversions, then we can
- * use a modified fmt that simply stores the position in the fields
- * having no associated fields in the proc string.  Of course, we need
- * to zero them again when we're done.  But that is smaller than the
- * old approach of multiple scanf occurrences with large numbers of
- * args. */
-
-/* static const char *ss_fmt[] = { */
-/* 	"%Ln%Lu%lu%lu%lu%lu%ln%ln%Ln%Lu%lu%lu%lu%lu%lu", */
-/* 	"%Lu%Lu%lu%lu%lu%lu%ln%ln%Lu%Lu%lu%lu%lu%lu%lu", */
-/* 	"%Lu%Lu%lu%lu%lu%lu%lu%lu%Lu%Lu%lu%lu%lu%lu%lu%lu" */
-/* }; */
-
-	/* Lie about the size of the int pointed to for %n. */
-#if INT_MAX == LONG_MAX
-static const char *ss_fmt[] = {
-	"%n%Lu%u%u%u%u%n%n%n%Lu%u%u%u%u%u",
-	"%Lu%Lu%u%u%u%u%n%n%Lu%Lu%u%u%u%u%u",
-	"%Lu%Lu%u%u%u%u%u%u%Lu%Lu%u%u%u%u%u%u"
-};
-#else
-static const char *ss_fmt[] = {
-	"%n%Lu%lu%lu%lu%lu%n%n%n%Lu%lu%lu%lu%lu%lu",
-	"%Lu%Lu%lu%lu%lu%lu%n%n%Lu%Lu%lu%lu%lu%lu%lu",
-	"%Lu%Lu%lu%lu%lu%lu%lu%lu%Lu%Lu%lu%lu%lu%lu%lu%lu"
-};
-
-#endif
-
-static void get_dev_fields(char *bp, struct interface *ife, int procnetdev_vsn)
+static int get_dev_fields(char *bp, struct interface *ife)
 {
-	memset(&ife->stats, 0, sizeof(struct user_net_device_stats));
-
-	sscanf(bp, ss_fmt[procnetdev_vsn],
-		   &ife->stats.rx_bytes, /* missing for 0 */
-		   &ife->stats.rx_packets,
-		   &ife->stats.rx_errors,
-		   &ife->stats.rx_dropped,
-		   &ife->stats.rx_fifo_errors,
-		   &ife->stats.rx_frame_errors,
-		   &ife->stats.rx_compressed, /* missing for <= 1 */
-		   &ife->stats.rx_multicast, /* missing for <= 1 */
-		   &ife->stats.tx_bytes, /* missing for 0 */
-		   &ife->stats.tx_packets,
-		   &ife->stats.tx_errors,
-		   &ife->stats.tx_dropped,
-		   &ife->stats.tx_fifo_errors,
-		   &ife->stats.collisions,
-		   &ife->stats.tx_carrier_errors,
-		   &ife->stats.tx_compressed /* missing for <= 1 */
-		   );
-
-	if (procnetdev_vsn <= 1) {
-		if (procnetdev_vsn == 0) {
-			ife->stats.rx_bytes = 0;
-			ife->stats.tx_bytes = 0;
-		}
+	switch (procnetdev_vsn) {
+	case 3:
+		sscanf(bp,
+			   "%Lu %Lu %lu %lu %lu %lu %lu %lu %Lu %Lu %lu %lu %lu %lu %lu %lu",
+			   &ife->stats.rx_bytes,
+			   &ife->stats.rx_packets,
+			   &ife->stats.rx_errors,
+			   &ife->stats.rx_dropped,
+			   &ife->stats.rx_fifo_errors,
+			   &ife->stats.rx_frame_errors,
+			   &ife->stats.rx_compressed,
+			   &ife->stats.rx_multicast,
+			   &ife->stats.tx_bytes,
+			   &ife->stats.tx_packets,
+			   &ife->stats.tx_errors,
+			   &ife->stats.tx_dropped,
+			   &ife->stats.tx_fifo_errors,
+			   &ife->stats.collisions,
+			   &ife->stats.tx_carrier_errors, &ife->stats.tx_compressed);
+		break;
+	case 2:
+		sscanf(bp, "%Lu %Lu %lu %lu %lu %lu %Lu %Lu %lu %lu %lu %lu %lu",
+			   &ife->stats.rx_bytes,
+			   &ife->stats.rx_packets,
+			   &ife->stats.rx_errors,
+			   &ife->stats.rx_dropped,
+			   &ife->stats.rx_fifo_errors,
+			   &ife->stats.rx_frame_errors,
+			   &ife->stats.tx_bytes,
+			   &ife->stats.tx_packets,
+			   &ife->stats.tx_errors,
+			   &ife->stats.tx_dropped,
+			   &ife->stats.tx_fifo_errors,
+			   &ife->stats.collisions, &ife->stats.tx_carrier_errors);
 		ife->stats.rx_multicast = 0;
-		ife->stats.rx_compressed = 0;
-		ife->stats.tx_compressed = 0;
+		break;
+	case 1:
+		sscanf(bp, "%Lu %lu %lu %lu %lu %Lu %lu %lu %lu %lu %lu",
+			   &ife->stats.rx_packets,
+			   &ife->stats.rx_errors,
+			   &ife->stats.rx_dropped,
+			   &ife->stats.rx_fifo_errors,
+			   &ife->stats.rx_frame_errors,
+			   &ife->stats.tx_packets,
+			   &ife->stats.tx_errors,
+			   &ife->stats.tx_dropped,
+			   &ife->stats.tx_fifo_errors,
+			   &ife->stats.collisions, &ife->stats.tx_carrier_errors);
+		ife->stats.rx_bytes = 0;
+		ife->stats.tx_bytes = 0;
+		ife->stats.rx_multicast = 0;
+		break;
 	}
+	return 0;
 }
 
 static inline int procnetdev_version(char *buf)
 {
 	if (strstr(buf, "compressed"))
-		return 2;
+		return 3;
 	if (strstr(buf, "bytes"))
-		return 1;
-	return 0;
+		return 2;
+	return 1;
 }
 
 static int if_readlist_proc(char *target)
@@ -1097,7 +1097,7 @@ static int if_readlist_proc(char *target)
 	FILE *fh;
 	char buf[512];
 	struct interface *ife;
-	int err, procnetdev_vsn;
+	int err;
 
 	if (proc_read)
 		return 0;
@@ -1112,15 +1112,36 @@ static int if_readlist_proc(char *target)
 	fgets(buf, sizeof buf, fh);	/* eat line */
 	fgets(buf, sizeof buf, fh);
 
+#if 0					/* pretty, but can't cope with missing fields */
+	fmt = proc_gen_fmt(_PATH_PROCNET_DEV, 1, fh, "face", "",	/* parsed separately */
+					   "bytes", "%lu",
+					   "packets", "%lu",
+					   "errs", "%lu",
+					   "drop", "%lu",
+					   "fifo", "%lu",
+					   "frame", "%lu",
+					   "compressed", "%lu",
+					   "multicast", "%lu",
+					   "bytes", "%lu",
+					   "packets", "%lu",
+					   "errs", "%lu",
+					   "drop", "%lu",
+					   "fifo", "%lu",
+					   "colls", "%lu",
+					   "carrier", "%lu", "compressed", "%lu", NULL);
+	if (!fmt)
+		return -1;
+#else
 	procnetdev_vsn = procnetdev_version(buf);
+#endif
 
 	err = 0;
 	while (fgets(buf, sizeof buf, fh)) {
-		char *s, name[128];
+		char *s, name[IFNAMSIZ];
 
 		s = get_name(name, buf);
 		ife = add_interface(name);
-		get_dev_fields(s, ife, procnetdev_vsn);
+		get_dev_fields(s, ife);
 		ife->statistics_valid = 1;
 		if (target && !strcmp(target, name))
 			break;
@@ -1130,6 +1151,9 @@ static int if_readlist_proc(char *target)
 		err = -1;
 		proc_read = 0;
 	}
+#if 0
+	free(fmt);
+#endif
 	fclose(fh);
 	return err;
 }
@@ -1649,8 +1673,7 @@ static void hwinit()
 #endif							/* KEEP_UNUSED */
 
 #ifdef IFF_PORTSEL
-#if 0
-static const char * const if_port_text[][4] = {
+static const char *if_port_text[][4] = {
 	/* Keep in step with <linux/netdevice.h> */
 	{"unknown", NULL, NULL, NULL},
 	{"10base2", "bnc", "coax", NULL},
@@ -1661,19 +1684,6 @@ static const char * const if_port_text[][4] = {
 	{"100baseFX", NULL, NULL, NULL},
 	{NULL, NULL, NULL, NULL},
 };
-#else
-static const char * const if_port_text[] = {
-	/* Keep in step with <linux/netdevice.h> */
-	"unknown",
-	"10base2",
-	"10baseT",
-	"AUI",
-	"100baseT",
-	"100baseTX",
-	"100baseFX",
-	NULL
-};
-#endif
 #endif
 
 /* Check our hardware type table for this type. */
@@ -1707,81 +1717,28 @@ static int hw_null_address(struct hwtype *hw, void *ap)
 	return 1;
 }
 
-static const char TRext[] = "\0\0\0Ki\0Mi\0Gi\0Ti";
+static const char TRext[] = "\0\0k\0M";
 
 static void print_bytes_scaled(unsigned long long ull, const char *end)
 {
 	unsigned long long int_part;
+	unsigned long frac_part;
 	const char *ext;
-	unsigned int frac_part;
 	int i;
 
 	frac_part = 0;
 	ext = TRext;
 	int_part = ull;
-	i = 4;
-	do {
-#if 0
-		/* This does correct rounding and is a little larger.  But it
-		 * uses KiB as the smallest displayed unit. */
-		if ((int_part < (1024*1024 - 51)) || !--i) {
-			i = 0;
-			int_part += 51;		/* 1024*.05 = 51.2 */
-			frac_part = ((((unsigned int) int_part) & (1024-1)) * 10) / 1024;
-		}
-		int_part /= 1024;
-		ext += 3;	/* KiB, MiB, GiB, TiB */
-#else
+	for (i = 0; i < 2; i++) {
 		if (int_part >= 1024) {
-			frac_part = ((((unsigned int) int_part) & (1024-1)) * 10) / 1024;
+			frac_part = ((int_part % 1024) * 10) / 1024;
 			int_part /= 1024;
-			ext += 3;	/* KiB, MiB, GiB, TiB */
+			ext += 2;	/* Kb, Mb */
 		}
-		--i;
-#endif
-	} while (i);
+	}
 
-	printf("X bytes:%Lu (%Lu.%u %sB)%s", ull, int_part, frac_part, ext, end);
+	printf("X bytes:%Lu (%Lu.%lu %siB)%s", ull, int_part, frac_part, ext, end);
 }
-
-static const char * const ife_print_flags_strs[] = {
-	"UP ",
-	"BROADCAST ",
-	"DEBUG ",
-	"LOOPBACK ",
-	"POINTOPOINT ",
-	"NOTRAILERS ",
-	"RUNNING ",
-	"NOARP ",
-	"PROMISC ",
-	"ALLMULTI ",
-	"SLAVE ",
-	"MASTER ",
-	"MULTICAST ",
-#ifdef HAVE_DYNAMIC
-	"DYNAMIC "
-#endif
-};
-
-static const unsigned short ife_print_flags_mask[] = {
-	IFF_UP,
-	IFF_BROADCAST,
-	IFF_DEBUG,
-	IFF_LOOPBACK,
-	IFF_POINTOPOINT,
-	IFF_NOTRAILERS,
-	IFF_RUNNING,
-	IFF_NOARP,
-	IFF_PROMISC,
-	IFF_ALLMULTI,
-	IFF_SLAVE,
-	IFF_MASTER,
-	IFF_MULTICAST,
-#ifdef HAVE_DYNAMIC
-	IFF_DYNAMIC
-#endif
-	0
-};
 
 static void ife_print(struct interface *ptr)
 {
@@ -1821,14 +1778,14 @@ static void ife_print(struct interface *ptr)
 		hw = get_hwntype(-1);
 
 	printf(_("%-9.9s Link encap:%s  "), ptr->name, _(hw->title));
-	/* For some hardware types (eg Ash, ATM) we don't print the
+	/* For some hardware types (eg Ash, ATM) we don't print the 
 	   hardware address if it's null.  */
 	if (hw->print != NULL && (!(hw_null_address(hw, ptr->hwaddr) &&
 								hw->suppress_null_addr)))
 		printf(_("HWaddr %s  "), hw->print(ptr->hwaddr));
 #ifdef IFF_PORTSEL
 	if (ptr->flags & IFF_PORTSEL) {
-		printf(_("Media:%s"), if_port_text[ptr->map.port] /* [0] */);
+		printf(_("Media:%s"), if_port_text[ptr->map.port][0]);
 		if (ptr->flags & IFF_AUTOMEDIA)
 			printf(_("(auto)"));
 	}
@@ -1953,18 +1910,38 @@ static void ife_print(struct interface *ptr)
 
 	printf("          ");
 	/* DONT FORGET TO ADD THE FLAGS IN ife_print_short, too */
-
-	if (ptr->flags == 0) {
+	if (ptr->flags == 0)
 		printf(_("[NO FLAGS] "));
-	} else {
-		int i = 0;
-		do {
-			if (ptr->flags & ife_print_flags_mask[i]) {
-				printf(_(ife_print_flags_strs[i]));
-			}
-		} while (ife_print_flags_mask[++i]);
-	}
-
+	if (ptr->flags & IFF_UP)
+		printf(_("UP "));
+	if (ptr->flags & IFF_BROADCAST)
+		printf(_("BROADCAST "));
+	if (ptr->flags & IFF_DEBUG)
+		printf(_("DEBUG "));
+	if (ptr->flags & IFF_LOOPBACK)
+		printf(_("LOOPBACK "));
+	if (ptr->flags & IFF_POINTOPOINT)
+		printf(_("POINTOPOINT "));
+	if (ptr->flags & IFF_NOTRAILERS)
+		printf(_("NOTRAILERS "));
+	if (ptr->flags & IFF_RUNNING)
+		printf(_("RUNNING "));
+	if (ptr->flags & IFF_NOARP)
+		printf(_("NOARP "));
+	if (ptr->flags & IFF_PROMISC)
+		printf(_("PROMISC "));
+	if (ptr->flags & IFF_ALLMULTI)
+		printf(_("ALLMULTI "));
+	if (ptr->flags & IFF_SLAVE)
+		printf(_("SLAVE "));
+	if (ptr->flags & IFF_MASTER)
+		printf(_("MASTER "));
+	if (ptr->flags & IFF_MULTICAST)
+		printf(_("MULTICAST "));
+#ifdef HAVE_DYNAMIC
+	if (ptr->flags & IFF_DYNAMIC)
+		printf(_("DYNAMIC "));
+#endif
 	/* DONT FORGET TO ADD THE FLAGS IN ife_print_short */
 	printf(_(" MTU:%d  Metric:%d"), ptr->mtu, ptr->metric ? ptr->metric : 1);
 #ifdef SIOCSKEEPALIVE
@@ -1982,7 +1959,8 @@ static void ife_print(struct interface *ptr)
 		 */
 		printf("          ");
 
-		printf(_("RX packets:%Lu errors:%lu dropped:%lu overruns:%lu frame:%lu\n"),
+		printf(_
+			   ("RX packets:%Lu errors:%lu dropped:%lu overruns:%lu frame:%lu\n"),
 			   ptr->stats.rx_packets, ptr->stats.rx_errors,
 			   ptr->stats.rx_dropped, ptr->stats.rx_fifo_errors,
 			   ptr->stats.rx_frame_errors);
@@ -1990,7 +1968,8 @@ static void ife_print(struct interface *ptr)
 			printf(_("             compressed:%lu\n"),
 				   ptr->stats.rx_compressed);
 		printf("          ");
-		printf(_("TX packets:%Lu errors:%lu dropped:%lu overruns:%lu carrier:%lu\n"),
+		printf(_
+			   ("TX packets:%Lu errors:%lu dropped:%lu overruns:%lu carrier:%lu\n"),
 			   ptr->stats.tx_packets, ptr->stats.tx_errors,
 			   ptr->stats.tx_dropped, ptr->stats.tx_fifo_errors,
 			   ptr->stats.tx_carrier_errors);
@@ -2010,7 +1989,7 @@ static void ife_print(struct interface *ptr)
 		printf("          ");
 		if (ptr->map.irq)
 			printf(_("Interrupt:%d "), ptr->map.irq);
-		if (ptr->map.base_addr >= 0x100)	/* Only print devices using it for
+		if (ptr->map.base_addr >= 0x100)	/* Only print devices using it for 
 											   I/O maps */
 			printf(_("Base address:0x%lx "),
 				   (unsigned long) ptr->map.base_addr);

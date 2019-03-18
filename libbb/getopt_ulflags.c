@@ -46,7 +46,7 @@ Warning! You can check returned flag, pointer to "d:" argument seted
 to own optarg always.
 Example two: cut applet must only one type of list may be specified,
 and -b, -c and -f incongruously option, overwited option is error also.
-You must set bb_opt_complementaly = "b~cf:c~bf:f~bc".
+You must set bb_opt_complementaly = "b~bcf:c~bcf:f~bcf".
 If called have more one specified, return value have error flag -
 high bite set (0x80000000UL).
 Example three: grep applet can have one or more "-e pattern" arguments.
@@ -60,7 +60,7 @@ const char *bb_opt_complementaly;
 
 typedef struct
 {
-	unsigned char opt;
+	char opt;
 	char list_flg;
 	unsigned long switch_on;
 	unsigned long switch_off;
@@ -81,41 +81,38 @@ const struct option *bb_applet_long_options = bb_default_long_options;
 unsigned long
 bb_getopt_ulflags (int argc, char **argv, const char *applet_opts, ...)
 {
-  unsigned long flags = 0;
-  t_complementaly complementaly[sizeof(flags) * 8 + 1];
-  int c;
-  const unsigned char *s;
+	unsigned long flags = 0;
+  int c = 0;
+	const char *s;
+  t_complementaly *complementaly;
   t_complementaly *on_off;
   va_list p;
 
   va_start (p, applet_opts);
 
-  /* skip GNU extension */
-  s = applet_opts;
-  if(*s == '+' || *s == '-')
-	s++;
-
+  for (s = applet_opts; *s; s++) {
+	c++;
+	while (s[1] == ':') {
+	    /* check GNU extension "o::" - optional arg */
+	    s++;
+	}
+  }
+  complementaly = xcalloc (c + 1, sizeof (t_complementaly));
   c = 0;
-  on_off = complementaly;
-  for (; *s; s++) {
-	if(c >= (sizeof(flags)*8))
-		break;
-	on_off->opt = *s;
-	on_off->switch_on = (1 << c);
-	on_off->list_flg = 0;
-	on_off->switch_off = 0;
-	on_off->incongruously = 0;
-	on_off->optarg = NULL;
+  for (s = applet_opts; *s; s++) {
+	complementaly->opt = *s;
+	complementaly->switch_on |= (1 << c);
+	c++;
 	if (s[1] == ':') {
-	  on_off->optarg = va_arg (p, void **);
+	  complementaly->optarg = va_arg (p, void **);
 	  do
 		s++;
 	  while (s[1] == ':');
+		}
+	complementaly++;
 	}
-	on_off++;
-	c++;
-  }
-  on_off->opt = 0;
+  complementaly->opt = 0;
+  complementaly -= c;
   c = 0;
   for (s = bb_opt_complementaly; s && *s; s++) {
     t_complementaly *pair;
@@ -152,9 +149,10 @@ bb_getopt_ulflags (int argc, char **argv, const char *applet_opts, ...)
 
   while ((c = getopt_long (argc, argv, applet_opts,
 			    bb_applet_long_options, NULL)) > 0) {
+
 	for (on_off = complementaly; on_off->opt != c; on_off++) {
 	    if(!on_off->opt)
-			bb_show_usage ();
+		bb_show_usage ();
 	}
 	if(flags & on_off->incongruously)
 	    flags |= 0x80000000UL;
@@ -167,5 +165,6 @@ bb_getopt_ulflags (int argc, char **argv, const char *applet_opts, ...)
 	    *(char **)(on_off->optarg) = optarg;
 	}
   }
-  return flags;
+  free(complementaly);
+	return flags;
 }

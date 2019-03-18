@@ -44,7 +44,14 @@
 #include <sys/types.h>
 #include <stdlib.h>
 #include <unistd.h>
+
+#if __GNU_LIBRARY__ < 5
 #include <sys/timex.h>
+extern int adjtimex(struct timex *buf);
+#else
+#include <sys/timex.h>
+#endif
+
 #include "busybox.h"
 
 static struct {int bit; char *name;} statlist[] = {
@@ -76,7 +83,7 @@ static char *ret_code_descript[] = {
 #else
 void usage(char *prog)
 {
-	fprintf(stderr,
+	fprintf(stderr, 
 		"Usage: %s [ -q ] [ -o offset ] [ -f frequency ] [ -p timeconstant ] [ -t tick ]\n",
 		prog);
 }
@@ -126,7 +133,7 @@ int main(int argc, char ** argv)
 	ret = adjtimex(&txc);
 
 	if (ret < 0) perror("adjtimex");
-
+	
 	if (!quiet && ret>=0) {
 		printf(
 			"    mode:         %d\n"

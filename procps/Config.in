@@ -58,11 +58,11 @@ config CONFIG_TOP
 	  system.
 
 config FEATURE_CPU_USAGE_PERCENTAGE
-	bool "  Support showing CPU usage percentage (add 2k bytes)"
+	bool "  Support show CPU usage percentage (add 2k bytes)"
 	default y
 	depends on CONFIG_TOP
 	help
-	  Make top display CPU usage.
+	  Please submit a patch to add help text for this item.
 
 config CONFIG_UPTIME
 	bool "uptime"
@@ -71,12 +71,6 @@ config CONFIG_UPTIME
 	  uptime gives a one line display of the current time, how long
 	  the system has been running, how many users are currently logged
 	  on, and the system load averages for the past 1, 5, and 15 minutes.
-
-config CONFIG_SYSCTL
-	bool "sysctl"
-	default n
-	help
-	  sysctl - configure kernel parameters at runtime
 
 endmenu
 

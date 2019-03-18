@@ -3,7 +3,7 @@
  * Mini kill/killall implementation for busybox
  *
  * Copyright (C) 1995, 1996 by Bruce Perens <bruce@pixar.com>.
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,77 +32,74 @@
 #include <unistd.h>
 #include "busybox.h"
 
-#define KILL 0
-#define KILLALL 1
+static const int KILL = 0;
+static const int KILLALL = 1;
+
 
 extern int kill_main(int argc, char **argv)
 {
-	int whichApp, signo = SIGTERM;
+	int whichApp, sig = SIGTERM, quiet;
 	const char *name;
 	int errors = 0;
 
 #ifdef CONFIG_KILLALL
-	int quiet=0;
 	/* Figure out what we are trying to do here */
-	whichApp = (strcmp(bb_applet_name, "killall") == 0)? KILLALL : KILL;
+	whichApp = (strcmp(bb_applet_name, "killall") == 0)? KILLALL : KILL; 
 #else
 	whichApp = KILL;
 #endif
 
+	quiet=0;
+	argc--;
+	argv++;
 	/* Parse any options */
-	if (argc < 2)
+	if (argc < 1)
 		bb_show_usage();
 
-	if(argv[1][0] != '-'){
-		argv++;
-		argc--;
-		goto do_it_now;
-	}
-
-	/* The -l option, which prints out signal names. */
-	if(argv[1][1]=='l' && argv[1][2]=='\0'){
-		if(argc==2) {
-			/* Print the whole signal list */
-			int col = 0;
-			for(signo=1; signo < NSIG; signo++) {
-				name = u_signal_names(0, &signo, 1);
-				if(name==NULL)  /* unnamed */
-					continue;
-				col += printf("%2d) %-16s", signo, name);
-				if (col > 60) {
-					printf("\n");
-					col = 0;
-				}
-			}
-			printf("\n");
-
-		} else {
-			for(argv++; *argv; argv++) {
-				name = u_signal_names(*argv, &signo, -1);
-				if(name!=NULL)
-					printf("%s\n", name);
-			}
-		}
-		/* If they specified -l, were all done */
-		return EXIT_SUCCESS;
-	}
-
-#ifdef CONFIG_KILLALL	
-	/* The -q quiet option */
-	if(argv[1][1]=='q' && argv[1][2]=='\0'){
-		quiet++;
-		argv++;
-		argc--;
-		if(argc<2 || argv[1][0] != '-'){
-			goto do_it_now;
-		}
-	}
+	while (argc > 0 && **argv == '-') {
+		while (*++(*argv)) {
+			switch (**argv) {
+#ifdef CONFIG_KILLALL
+				case 'q':
+					quiet++;
+					break;
 #endif
-
-	if(!u_signal_names(argv[1]+1, &signo, 0))
-		bb_error_msg_and_die( "bad signal name '%s'", argv[1]+1);
-	argv+=2;
-	argc-=2;
+				case 'l':
+					if(argc>1) {
+						for(argv++; *argv; argv++) {
+							name = u_signal_names(*argv, &sig, -1);
+							if(name!=NULL)
+								printf("%s\n", name);
+						}
+					} else {
+						int col = 0;
+						for(sig=1; sig < NSIG; sig++) {
+							name = u_signal_names(0, &sig, 1);
+							if(name==NULL)  /* unnamed */
+								continue;
+							col += printf("%2d) %-16s", sig, name);
+							if (col > 60) {
+								printf("\n");
+								col = 0;
+							}
+						}
+						printf("\n");
+					}
+					return EXIT_SUCCESS;
+				case '-':
+					bb_show_usage();
+				default:
+					name = u_signal_names(*argv, &sig, 0);
+					if(name==NULL)
+						bb_error_msg_and_die( "bad signal name: %s", *argv);
+					argc--;
+					argv++;
+					goto do_it_now;
+			}
+			argc--;
+			argv++;
+		}
+	}
 
 do_it_now:
 
@@ -112,16 +109,16 @@ do_it_now:
 			int pid;
 
 			if (!isdigit(**argv))
-				bb_error_msg_and_die( "Bad PID '%s'", *argv);
+				bb_perror_msg_and_die( "Bad PID");
 			pid = strtol(*argv, NULL, 0);
-			if (kill(pid, signo) != 0) {
+			if (kill(pid, sig) != 0) {
 				bb_perror_msg( "Could not kill pid '%d'", pid);
 				errors++;
 			}
 			argv++;
 		}
 
-	}
+	} 
 #ifdef CONFIG_KILLALL
 	else {
 		pid_t myPid=getpid();
@@ -130,22 +127,22 @@ do_it_now:
 			long* pidList;
 
 			pidList = find_pid_by_name(*argv);
-			if (!pidList || *pidList<=0) {
+			if (*pidList <= 0) {
 				errors++;
 				if (quiet==0)
 					bb_error_msg( "%s: no process killed", *argv);
-			} else {
-				long *pl;
+				} else {
+					long *pl;
 
-				for(pl = pidList; *pl !=0 ; pl++) {
-					if (*pl==myPid)
-						continue;
-					if (kill(*pl, signo) != 0) {
-						errors++;
-						if (quiet==0)
-							bb_perror_msg( "Could not kill pid '%ld'", *pl);
+					for(pl = pidList; *pl !=0 ; pl++) {
+						if (*pl==myPid)
+							continue;
+						if (kill(*pl, sig) != 0) {
+							errors++;
+							if (quiet==0)
+								bb_perror_msg( "Could not kill pid '%ld'", *pl);
+						}
 					}
-				}
 			}
 			free(pidList);
 			argv++;

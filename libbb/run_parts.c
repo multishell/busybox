@@ -43,11 +43,11 @@ static int valid_name(const struct dirent *d)
 	return 1;
 }
 
-/* test mode = 1 is the same as official run_parts
- * test_mode = 2 means to fail silently on missing directories
+/* test mode = 1 is the same as offical run_parts
+ * test_mode = 2 means to fail siliently on missing directories
  */
 
-extern int run_parts(char **args, const unsigned char test_mode, char **env)
+extern int run_parts(char **args, const unsigned char test_mode)
 {
 	struct dirent **namelist = 0;
 	struct stat st;
@@ -80,7 +80,7 @@ extern int run_parts(char **args, const unsigned char test_mode, char **env)
 			bb_perror_msg_and_die("failed to stat component %s", filename);
 		}
 		if (S_ISREG(st.st_mode) && !access(filename, X_OK)) {
-			if (test_mode) {
+			if (test_mode & 1) {
 				puts(filename);
 			} else {
 				/* exec_errno is common vfork variable */
@@ -92,7 +92,7 @@ extern int run_parts(char **args, const unsigned char test_mode, char **env)
 					bb_perror_msg_and_die("failed to fork");
 				} else if (!pid) {
 					args[0] = filename;
-					execve(filename, args, env);
+					execv(filename, args);
 					exec_errno = errno;
 					_exit(1);
 				}
@@ -100,8 +100,7 @@ extern int run_parts(char **args, const unsigned char test_mode, char **env)
 				waitpid(pid, &result, 0);
 				if(exec_errno) {
 					errno = exec_errno;
-					bb_perror_msg("failed to exec %s", filename);
-					exitstatus = 1;
+					bb_perror_msg_and_die("failed to exec %s", filename);
 				}
 				if (WIFEXITED(result) && WEXITSTATUS(result)) {
 					bb_perror_msg("%s exited with return code %d", filename, WEXITSTATUS(result));
@@ -111,7 +110,7 @@ extern int run_parts(char **args, const unsigned char test_mode, char **env)
 					exitstatus = 1;
 				}
 			}
-		}
+		} 
 		else if (!S_ISDIR(st.st_mode)) {
 			bb_error_msg("component %s is not an executable plain file", filename);
 			exitstatus = 1;
@@ -121,6 +120,6 @@ extern int run_parts(char **args, const unsigned char test_mode, char **env)
 		free(filename);
 	}
 	free(namelist);
-
+	
 	return(exitstatus);
 }

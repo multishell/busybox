@@ -7,7 +7,7 @@
  */
 
 /*
- * 09.11.91  -  made the first rudimentary functions
+ * 09.11.91  -  made the first rudimetary functions
  *
  * 10.11.91  -  updated, does checking, no repairs yet.
  *		Sent out to the mailing-list for testing.
@@ -49,15 +49,15 @@
  * 01.07.96  - Fixed the v2 fs stuff to use the right #defines and such
  *	       for modern libcs (janl@math.uio.no, Nicolai Langfeldt)
  *
- * 02.07.96  - Added C bit fiddling routines from rmk@ecs.soton.ac.uk
+ * 02.07.96  - Added C bit fiddling routines from rmk@ecs.soton.ac.uk 
  *             (Russell King).  He made them for ARM.  It would seem
  *	       that the ARM is powerful enough to do this in C whereas
  *             i386 and m64k must use assembly to get it fast >:-)
- *	       This should make minix fsck system-independent.
+ *	       This should make minix fsck systemindependent.
  *	       (janl@math.uio.no, Nicolai Langfeldt)
  *
  * 04.11.96  - Added minor fixes from Andreas Schwab to avoid compiler
- *             warnings.  Added mc68k bitops from
+ *             warnings.  Added mc68k bitops from 
  *	       Joerg Dorchain <dorchain@mpi-sb.mpg.de>.
  *
  * 06.11.96  - Added v2 code submitted by Joerg Dorchain, but written by
@@ -73,7 +73,7 @@
  * unless you can be sure nobody is writing to it (and remember that the
  * kernel can write to it when it searches for files).
  *
- * Usage: fsck [-larvsm] device
+ * Usuage: fsck [-larvsm] device
  *	-l for a listing of all the filenames
  *	-a for automatic repairs (not implemented)
  *	-r for repairs (interactive) (not implemented)
@@ -83,7 +83,7 @@
  *	-f force filesystem check even if filesystem marked as valid
  *
  * The device may be a block device or a image of one, but this isn't
- * enforced (but it's not much fun on a character device :-).
+ * enforced (but it's not much fun on a character device :-). 
  */
 
 #include <stdio.h>
@@ -124,13 +124,13 @@ static const int MINIX_V2 = 0x0002;		/* minix V2 fs */
  * Note the 8-bit gid and atime and ctime.
  */
 struct minix_inode {
-	uint16_t i_mode;
-	uint16_t i_uid;
-	uint32_t i_size;
-	uint32_t i_time;
-	uint8_t  i_gid;
-	uint8_t  i_nlinks;
-	uint16_t i_zone[9];
+	u_int16_t i_mode;
+	u_int16_t i_uid;
+	u_int32_t i_size;
+	u_int32_t i_time;
+	u_int8_t  i_gid;
+	u_int8_t  i_nlinks;
+	u_int16_t i_zone[9];
 };
 
 /*
@@ -140,35 +140,35 @@ struct minix_inode {
  * now 16-bit. The inode is now 64 bytes instead of 32.
  */
 struct minix2_inode {
-	uint16_t i_mode;
-	uint16_t i_nlinks;
-	uint16_t i_uid;
-	uint16_t i_gid;
-	uint32_t i_size;
-	uint32_t i_atime;
-	uint32_t i_mtime;
-	uint32_t i_ctime;
-	uint32_t i_zone[10];
+	u_int16_t i_mode;
+	u_int16_t i_nlinks;
+	u_int16_t i_uid;
+	u_int16_t i_gid;
+	u_int32_t i_size;
+	u_int32_t i_atime;
+	u_int32_t i_mtime;
+	u_int32_t i_ctime;
+	u_int32_t i_zone[10];
 };
 
 /*
  * minix super-block data on disk
  */
 struct minix_super_block {
-	uint16_t s_ninodes;
-	uint16_t s_nzones;
-	uint16_t s_imap_blocks;
-	uint16_t s_zmap_blocks;
-	uint16_t s_firstdatazone;
-	uint16_t s_log_zone_size;
-	uint32_t s_max_size;
-	uint16_t s_magic;
-	uint16_t s_state;
-	uint32_t s_zones;
+	u_int16_t s_ninodes;
+	u_int16_t s_nzones;
+	u_int16_t s_imap_blocks;
+	u_int16_t s_zmap_blocks;
+	u_int16_t s_firstdatazone;
+	u_int16_t s_log_zone_size;
+	u_int32_t s_max_size;
+	u_int16_t s_magic;
+	u_int16_t s_state;
+	u_int32_t s_zones;
 };
 
 struct minix_dir_entry {
-	uint16_t inode;
+	u_int16_t inode;
 	char name[0];
 };
 
@@ -1312,7 +1312,7 @@ static void free_name_list(void)
 {
 	int i;
 
-	if (name_list) {
+	if (name_list) { 
 		for (i = 0; i < MAX_DEPTH; i++) {
 			free(name_list[i]);
 		}
@@ -1396,7 +1396,7 @@ extern int fsck_minix_main(int argc, char **argv)
 	/*
 	 * Determine whether or not we should continue with the checking.
 	 * This is based on the status of the filesystem valid and error
-	 * flags and whether or not the -f switch was specified on the
+	 * flags and whether or not the -f switch was specified on the 
 	 * command line.
 	 */
 	printf("%s, %s\n", bb_applet_name, program_version);

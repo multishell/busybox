@@ -41,8 +41,7 @@
 #include "busybox.h"
 #include "libcoreutils/coreutils.h"
 
-/* WARNING!! ORDER IS IMPORTANT!! */
-static const char cp_opts[] = "pdRfiar";
+static const char cp_opts[] = "pdRfia";	/* WARNING!! ORDER IS IMPORTANT!! */
 
 extern int cp_main(int argc, char **argv)
 {
@@ -66,12 +65,6 @@ extern int cp_main(int argc, char **argv)
 
 	if (flags & 32) {
 		flags |= (FILEUTILS_PRESERVE_STATUS | FILEUTILS_RECUR | FILEUTILS_DEREFERENCE);
-	}
-	if (flags & 64) {
-		/* Make -r a synonym for -R,
-		 * -r was marked as obsolete in SUSv3, but is included for compatability
- 		 */
-		flags |= FILEUTILS_RECUR;
 	}
 
 	flags ^= FILEUTILS_DEREFERENCE;		/* The sense of this flag was reversed. */

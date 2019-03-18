@@ -1,9 +1,3 @@
 echo foo >foo
 echo bar >bar
-set +e
-busybox cmp -s foo bar
-if [ $? != 0 ] ; then
-	exit 0;
-fi
-
-exit 1;
+! busybox cmp -s foo bar

@@ -2,7 +2,7 @@
 /*
  * Mini ln implementation for busybox
  *
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -43,8 +43,7 @@ extern int ln_main(int argc, char **argv)
 	int flag;
 	char *last;
 	char *src_name;
-	char *src;
-	struct stat statbuf;
+	const char *src;
 	int (*link_func)(const char *, const char *);
 
 	flag = bb_getopt_ulflags(argc, argv, "sfn");
@@ -62,7 +61,7 @@ extern int ln_main(int argc, char **argv)
 	}
 
 	do {
-		src_name = NULL;
+		src_name = 0;
 		src = last;
 
 		if (is_directory(src,
@@ -71,13 +70,7 @@ extern int ln_main(int argc, char **argv)
 			src_name = bb_xstrdup(*argv);
 			src = concat_path_file(src, bb_get_last_path_component(src_name));
 			free(src_name);
-			src_name = src;
-		}
-		if (!(flag & LN_SYMLINK) && stat(*argv, &statbuf)) {
-			bb_perror_msg(*argv);
-			status = EXIT_FAILURE;
-			free(src_name);
-			continue;
+			src_name = (char *)src;
 		}
 
 		if (flag & LN_FORCE) {
@@ -88,15 +81,25 @@ extern int ln_main(int argc, char **argv)
 		if (flag & LN_SYMLINK) {
 			link_func = symlink;
 		}
-
+		
 		if (link_func(*argv, src) != 0) {
 			bb_perror_msg(src);
-			status = EXIT_FAILURE;
+			status = EXIT_FAILURE;;
 		}
 
 		free(src_name);
-
+		
 	} while ((++argv)[1]);
 
 	return status;
 }
+
+
+
+
+
+
+
+
+
+

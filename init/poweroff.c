@@ -2,7 +2,8 @@
 /*
  * Mini poweroff implementation for busybox
  *
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1995, 1996 by Bruce Perens <bruce@pixar.com>.
+ * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,37 +21,10 @@
  *
  */
 
-#include <signal.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <getopt.h>
-#include <sys/reboot.h>
 #include "busybox.h"
-#include "init_shared.h"
-
+#include <signal.h>
 
 extern int poweroff_main(int argc, char **argv)
 {
-	char *delay; /* delay in seconds before rebooting */
-
-	if(bb_getopt_ulflags(argc, argv, "d:", &delay)) {
-		sleep(atoi(delay));
-	}
-
-#ifndef CONFIG_INIT
-#ifndef RB_POWER_OFF
-#define RB_POWER_OFF		0x4321fedc
-#endif
-	return(bb_shutdown_system(RB_POWER_OFF));
-#else
 	return kill_init(SIGUSR2);
-#endif
 }
-
-/*
-Local Variables:
-c-file-style: "linux"
-c-basic-offset: 4
-tab-width: 4
-End:
-*/

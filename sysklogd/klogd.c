@@ -6,7 +6,7 @@
  * Changes: Made this a standalone busybox module which uses standalone
  * 					syslog() client interface.
  *
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
  *
  * Copyright (C) 2000 by Karl M. Hegbloom <karlheg@debian.org>
  *
@@ -38,7 +38,14 @@
 #include <unistd.h>
 #include <ctype.h>
 #include <sys/syslog.h>
-#include <sys/klog.h>
+
+#if __GNU_LIBRARY__ < 5
+# ifdef __alpha__
+#   define klogctl syslog
+# endif
+#else
+# include <sys/klog.h>
+#endif
 
 #include "busybox.h"
 
@@ -47,19 +54,17 @@ static void klogd_signal(int sig)
 	klogctl(7, NULL, 0);
 	klogctl(0, 0, 0);
 	/* logMessage(0, "Kernel log daemon exiting."); */
-	syslog(LOG_NOTICE, "Kernel log daemon exiting.");
-	exit(EXIT_SUCCESS);
+	syslog_msg(LOG_SYSLOG, LOG_NOTICE, "Kernel log daemon exiting.");
+	exit(TRUE);
 }
 
-static void doKlogd(const int console_log_level) __attribute__ ((noreturn));
-static void doKlogd(const int console_log_level)
+static void doKlogd(const char console_log_level) __attribute__ ((noreturn));
+static void doKlogd(const char console_log_level)
 {
 	int priority = LOG_INFO;
 	char log_buffer[4096];
 	int i, n, lastc;
 	char *start;
-
-	openlog("kernel", 0, LOG_KERN);
 
 	/* Set up sig handlers */
 	signal(SIGINT, klogd_signal);
@@ -71,20 +76,25 @@ static void doKlogd(const int console_log_level)
 	klogctl(1, NULL, 0);
 
 	/* Set level of kernel console messaging.. */
-	if (console_log_level != -1)
+	if (console_log_level)
 		klogctl(8, NULL, console_log_level);
 
-	syslog(LOG_NOTICE, "klogd started: " BB_BANNER);
+	syslog_msg(LOG_SYSLOG, LOG_NOTICE, "klogd started: " BB_BANNER);
 
 	while (1) {
 		/* Use kernel syscalls */
 		memset(log_buffer, '\0', sizeof(log_buffer));
 		n = klogctl(2, log_buffer, sizeof(log_buffer));
 		if (n < 0) {
+			char message[80];
+
 			if (errno == EINTR)
 				continue;
-			syslog(LOG_ERR, "klogd: Error return from sys_sycall: %d - %m.\n", errno);
-			exit(EXIT_FAILURE);
+			snprintf(message, 79,
+					 "klogd: Error return from sys_sycall: %d - %s.\n", errno,
+					 strerror(errno));
+			syslog_msg(LOG_SYSLOG, LOG_ERR, message);
+			exit(1);
 		}
 
 		/* klogctl buffer parsing modelled after code in dmesg.c */
@@ -104,7 +114,7 @@ static void doKlogd(const int console_log_level)
 			}
 			if (log_buffer[i] == '\n') {
 				log_buffer[i] = '\0';	/* zero terminate this message */
-				syslog(priority, "%s", start);
+				syslog_msg(LOG_KERN, priority, start);
 				start = &log_buffer[i + 1];
 				priority = LOG_INFO;
 			}
@@ -118,7 +128,7 @@ extern int klogd_main(int argc, char **argv)
 	/* no options, no getopt */
 	int opt;
 	int doFork = TRUE;
-	unsigned char console_log_level = -1;
+	unsigned char console_log_level = 7;
 
 	/* do normal option parsing */
 	while ((opt = getopt(argc, argv, "c:n")) > 0) {
@@ -133,7 +143,7 @@ extern int klogd_main(int argc, char **argv)
 				bb_show_usage();
 			}
 			console_log_level++;
-
+			
 			break;
 		case 'n':
 			doFork = FALSE;
@@ -144,12 +154,12 @@ extern int klogd_main(int argc, char **argv)
 	}
 
 	if (doFork) {
-#if defined(__uClinux__)
-		vfork_daemon_rexec(0, 1, argc, argv, "-n");
-#else /* __uClinux__ */
+#if !defined(__UCLIBC__) || defined(__UCLIBC_HAS_MMU__)
 		if (daemon(0, 1) < 0)
 			bb_perror_msg_and_die("daemon");
-#endif /* __uClinux__ */
+#else
+		bb_error_msg_and_die("daemon not supported");
+#endif
 	}
 	doKlogd(console_log_level);
 

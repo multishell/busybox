@@ -320,7 +320,7 @@ EditFile(const char *user, const char *file)
 	    ptr = PATH_VI;
 
 	snprintf(visual, sizeof(visual), "%s %s", ptr, file);
-	execl(DEFAULT_SHELL, DEFAULT_SHELL, "-c", visual, NULL);
+	execl("/bin/sh", "/bin/sh", "-c", visual, NULL);
 	perror("exec");
 	exit(0);
     }
@@ -333,33 +333,56 @@ EditFile(const char *user, const char *file)
     wait4(pid, NULL, 0, NULL);
 }
 
+static void
+log(const char *ctl, ...)
+{
+    va_list va;
+    char buf[1024];
+
+    va_start(va, ctl);
+    vsnprintf(buf, sizeof(buf), ctl, va);
+    syslog(LOG_NOTICE, "%s",buf );
+    va_end(va);
+}
+
 static int
 ChangeUser(const char *user, short dochdir)
 {
     struct passwd *pas;
 
     /*
-     * Obtain password entry and change privileges
+     * Obtain password entry and change privilages
      */
 
     if ((pas = getpwnam(user)) == 0) {
-	bb_perror_msg_and_die("failed to get uid for %s", user);
+	log("failed to get uid for %s", user);
 	return(-1);
     }
     setenv("USER", pas->pw_name, 1);
     setenv("HOME", pas->pw_dir, 1);
-    setenv("SHELL", DEFAULT_SHELL, 1);
+    setenv("SHELL", "/bin/sh", 1);
 
     /*
      * Change running state to the user in question
      */
-    change_identity(pas);
 
+    if (initgroups(user, pas->pw_gid) < 0) {
+	log("initgroups failed: %s %m", user);
+	return(-1);
+    }
+    if (setregid(pas->pw_gid, pas->pw_gid) < 0) {
+	log("setregid failed: %s %d", user, pas->pw_gid);
+	return(-1);
+    }
+    if (setreuid(pas->pw_uid, pas->pw_uid) < 0) {
+	log("setreuid failed: %s %d", user, pas->pw_uid);
+	return(-1);
+    }
     if (dochdir) {
 	if (chdir(pas->pw_dir) < 0) {
-	    bb_perror_msg_and_die("chdir failed: %s %s", user, pas->pw_dir);
 	    if (chdir(TMPDIR) < 0) {
-		bb_perror_msg_and_die("chdir failed: %s %s", user, TMPDIR);
+		log("chdir failed: %s %s", user, pas->pw_dir);
+		log("chdir failed: %s " TMPDIR, user);
 		return(-1);
 	    }
 	}

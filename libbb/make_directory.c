@@ -31,13 +31,12 @@
  * sure that (flags & FILEUTILS_RECUR) is non-zero.  Newly created
  * intermediate directories will have at least u+wx perms.
  *
- * To set specific permissions on 'path', pass the appropriate 'mode'
- * val.  Otherwise, pass -1 to get default permissions.
+ * To set specific permisions on 'path', pass the appropriate 'mode'
+ * val.  Otherwise, pass -1 to get default permisions.
  */
 
 #include <errno.h>
 #include <unistd.h>
-#include <sys/stat.h>
 #include "libbb.h"
 
 int bb_make_directory (char *path, long mode, int flags)
@@ -46,17 +45,9 @@ int bb_make_directory (char *path, long mode, int flags)
 	const char *fail_msg;
 	char *s = path;
 	char c;
-	struct stat st;
 
 	mask = umask(0);
-	if (mode == -1) {
-		umask(mask);
-		mode = (S_IXUSR | S_IXGRP | S_IXOTH |
-				S_IWUSR | S_IWGRP | S_IWOTH |
-				S_IRUSR | S_IRGRP | S_IROTH) & ~mask;
-	} else {
-		umask(mask & ~0300);
-	}
+	umask(mask & ~0300);
 
 	do {
 		c = 0;
@@ -79,9 +70,7 @@ int bb_make_directory (char *path, long mode, int flags)
 		if (mkdir(path, 0777) < 0) {
 			/* If we failed for any other reason than the directory
 			 * already exists, output a diagnostic and return -1.*/
-			if (errno != EEXIST
-				|| !(flags & FILEUTILS_RECUR)
-				|| (stat(path, &st) < 0 || !S_ISDIR(st.st_mode))) {
+			if (errno != EEXIST) {
 				fail_msg = "create";
 				umask(mask);
 				break;

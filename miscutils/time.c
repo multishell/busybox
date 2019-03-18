@@ -17,7 +17,7 @@
    02111-1307, USA.  */
 
 /* Originally written by David Keppel <pardo@cs.washington.edu>.
-   Heavily modified by David MacKenzie <djm@gnu.ai.mit.edu>.
+   Heavily modified by David MacKenzie <djm@gnu.ai.mit.edu>.  
    Heavily modified for busybox by Erik Andersen <andersen@codepoet.org>
    */
 
@@ -489,8 +489,8 @@ extern int time_main (int argc, char **argv)
 	bb_show_usage();
 
     run_command (argv, &res);
-    summarize (stderr, output_format, argv, &res);
-    fflush (stderr);
+    summarize (stdout, output_format, argv, &res);
+    fflush (stdout);
 
     if (WIFSTOPPED (res.waitstatus))
 	exit (WSTOPSIG (res.waitstatus));

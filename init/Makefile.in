@@ -1,6 +1,6 @@
 # Makefile for busybox
 #
-# Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+# Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,16 +19,19 @@
 
 INIT_AR:=init.a
 ifndef $(INIT_DIR)
-INIT_DIR:=$(top_builddir)/init/
+INIT_DIR:=$(TOPDIR)init/
 endif
-srcdir=$(top_srcdir)/init
 
 INIT-y:=
 INIT-$(CONFIG_HALT)			+= halt.o
 INIT-$(CONFIG_INIT)			+= init.o
 INIT-$(CONFIG_MESG)			+= mesg.o
+INIT-$(CONFIG_MINIT)			+= minit.o
+INIT-$(CONFIG_MSVC)			+= msvc.o
+INIT-$(CONFIG_PIDFILEHACK)		+= pidfilehack.o
 INIT-$(CONFIG_POWEROFF)			+= poweroff.o
 INIT-$(CONFIG_REBOOT)			+= reboot.o
+INIT-$(CONFIG_START_STOP_DAEMON)	+= start_stop_daemon.o
 
 ifeq ($(CONFIG_HALT), y)
 CONFIG_INIT_SHARED=y
@@ -56,7 +59,4 @@ libraries-y+=$(INIT_DIR)$(INIT_AR)
 
 $(INIT_DIR)$(INIT_AR): $(patsubst %,$(INIT_DIR)%, $(INIT-y))
 	$(AR) -ro $@ $(patsubst %,$(INIT_DIR)%, $(INIT-y))
-
-$(INIT_DIR)%.o: $(srcdir)/%.c
-	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -o $@ $<
 

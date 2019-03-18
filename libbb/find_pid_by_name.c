@@ -2,7 +2,7 @@
 /*
  * Utility routines.
  *
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,15 +25,11 @@
 #include <stdlib.h>
 #include "libbb.h"
 
-#define COMM_LEN 16 /* synchronize with size of comm in struct task_struct
-					   in /usr/include/linux/sched.h */
-
-
 /* find_pid_by_name()
- *
+ *  
  *  Modified by Vladimir Oleynik for use with libbb/procps.c
  *  This finds the pid of the specified process.
- *  Currently, it's implemented by rummaging through
+ *  Currently, it's implemented by rummaging through 
  *  the proc filesystem.
  *
  *  Returns a list of all matching PIDs
@@ -50,7 +46,7 @@ extern long* find_pid_by_name( const char* pidName)
 #else
 	while ((p = procps_scan(0)) != 0) {
 #endif
-		if (strncmp(p->short_cmd, pidName, COMM_LEN-1) == 0) {
+		if (strcmp(p->short_cmd, pidName) == 0) {
 			pidList=xrealloc( pidList, sizeof(long) * (i+2));
 			pidList[i++]=p->pid;
 		}

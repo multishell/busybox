@@ -19,7 +19,7 @@
  */
 
 static const char vi_Version[] =
-	"$Id: vi.c,v 1.35 2004/03/31 11:12:51 andersen Exp $";
+	"$Id: vi.c,v 1.28 2003/03/19 09:11:45 mjn3 Exp $";
 
 /*
  * To compile for standalone use:
@@ -45,7 +45,7 @@ static const char vi_Version[] =
  *	An "ex" line oriented mode- maybe using "cmdedit"
  */
 
-//----  Feature --------------  Bytes to implement
+//----  Feature --------------  Bytes to immplement
 #ifdef STANDALONE
 #define vi_main			main
 #define CONFIG_FEATURE_VI_COLON	// 4288
@@ -197,6 +197,9 @@ static jmp_buf restart;		// catch_sig()
 #if defined(CONFIG_FEATURE_VI_USE_SIGNALS) || defined(CONFIG_FEATURE_VI_CRASHME)
 static int my_pid;
 #endif
+#ifdef CONFIG_FEATURE_VI_WIN_RESIZE
+static struct winsize winsize;	// remember the window size
+#endif							/* CONFIG_FEATURE_VI_WIN_RESIZE */
 #ifdef CONFIG_FEATURE_VI_DOT_CMD
 static int adding2q;		// are we currently adding user input to q
 static Byte *last_modifying_cmd;	// last modifying cmd for "."
@@ -375,7 +378,6 @@ extern int vi_main(int argc, char **argv)
 #ifdef CONFIG_FEATURE_VI_READONLY
 		case 'R':		// Read-only flag
 			readonly = TRUE;
-			vi_readonly = TRUE;
 			break;
 #endif							/* CONFIG_FEATURE_VI_READONLY */
 			//case 'r':	// recover flag-  ignore- we don't use tmp file
@@ -409,14 +411,6 @@ extern int vi_main(int argc, char **argv)
 
 	return (0);
 }
-
-#ifdef CONFIG_FEATURE_VI_WIN_RESIZE
-//----- See what the window size currently is --------------------
-static inline void window_size_get(int fd)
-{
-	get_terminal_width_height(fd, &columns, &rows);
-}
-#endif							/* CONFIG_FEATURE_VI_WIN_RESIZE */
 
 static void edit_file(Byte * fn)
 {
@@ -507,6 +501,7 @@ static void edit_file(Byte * fn)
 #endif							/* CONFIG_FEATURE_VI_DOT_CMD */
 	redraw(FALSE);			// dont force every col re-draw
 	show_status_line();
+	fflush(stdout);
 
 	//------This is the main Vi cmd handling loop -----------------------
 	while (editing > 0) {
@@ -640,7 +635,7 @@ static Byte *get_address(Byte *p, int *b, int *e)	// get two colon addrs, if pre
 	p = get_one_address(p, b);
 	while (isblnk(*p))
 		p++;
-	if (*p == ',') {			// is there a address separator
+	if (*p == ',') {			// is there a address seperator
 		p++;
 		while (isblnk(*p))
 			p++;
@@ -675,7 +670,7 @@ static void colon(Byte * buf)
 	Byte c, *orig_buf, *buf1, *q, *r;
 	Byte *fn, cmd[BUFSIZ], args[BUFSIZ];
 	int i, l, li, ch, st, b, e;
-	int useforce = FALSE, forced = FALSE;
+	int useforce, forced;
 	struct stat st_buf;
 
 	// :3154	// if (-e line 3154) goto it  else stay put
@@ -692,12 +687,12 @@ static void colon(Byte * buf)
 	// :s/find/replace/ // substitute pattern "find" with "replace"
 	// :!<cmd>	// run <cmd> then return
 	//
-
 	if (strlen((char *) buf) <= 0)
 		goto vc1;
 	if (*buf == ':')
 		buf++;			// move past the ':'
 
+	forced = useforce = FALSE;
 	li = st = ch = i = 0;
 	b = e = -1;
 	q = text;			// assume 1,$ for the range
@@ -1451,7 +1446,7 @@ static Byte *new_screen(int ro, int co)
 	screen = (Byte *) xmalloc(screensize);
 	// initialize the new screen. assume this will be a empty file.
 	screen_erase();
-	//   non-existent text[] lines start with a tilde (~).
+	//   non-existant text[] lines start with a tilde (~).
 	for (li = 1; li < ro - 1; li++) {
 		screen[(li * co) + 0] = '~';
 	}
@@ -1669,13 +1664,8 @@ static Byte find_range(Byte ** start, Byte ** stop, Byte c)
 		q = dot;
 	} else if (strchr("wW", c)) {
 		do_cmd(c);		// execute movement cmd
- 		// if we are at the next word's first char
- 		// step back one char
- 		// but check the possibilities when it is true
-		if (dot > text && ((isspace(dot[-1]) && !isspace(dot[0]))
- 				|| (ispunct(dot[-1]) && !ispunct(dot[0]))
- 				|| (isalnum(dot[-1]) && !isalnum(dot[0]))))
-  			dot--;		// move back off of next word
+		if (dot > text)
+			dot--;		// move back off of next word
 		if (dot > text && *dot == '\n')
 			dot--;		// stay off NL
 		q = dot;
@@ -2118,8 +2108,10 @@ static void rawmode(void)
 	term_vi.c_lflag &= (~ICANON & ~ECHO);	// leave ISIG ON- allow intr's
 	term_vi.c_iflag &= (~IXON & ~ICRNL);
 	term_vi.c_oflag &= (~ONLCR);
+#ifndef linux
 	term_vi.c_cc[VMIN] = 1;
 	term_vi.c_cc[VTIME] = 0;
+#endif
 	erase_char = term_vi.c_cc[VERASE];
 	tcsetattr(0, TCSANOW, &term_vi);
 }
@@ -2129,6 +2121,29 @@ static void cookmode(void)
 	fflush(stdout);
 	tcsetattr(0, TCSANOW, &term_orig);
 }
+
+#ifdef CONFIG_FEATURE_VI_WIN_RESIZE
+//----- See what the window size currently is --------------------
+static void window_size_get(int sig)
+{
+	int i;
+
+	i = ioctl(0, TIOCGWINSZ, &winsize);
+	if (i != 0) {
+		// force 24x80
+		winsize.ws_row = 24;
+		winsize.ws_col = 80;
+	}
+	if (winsize.ws_row <= 1) {
+		winsize.ws_row = 24;
+	}
+	if (winsize.ws_col <= 1) {
+		winsize.ws_col = 80;
+	}
+	rows = (int) winsize.ws_row;
+	columns = (int) winsize.ws_col;
+}
+#endif							/* CONFIG_FEATURE_VI_WIN_RESIZE */
 
 //----- Come here when we get a window resize signal ---------
 #ifdef CONFIG_FEATURE_VI_USE_SIGNALS
@@ -2527,7 +2542,7 @@ static int file_write(Byte * fn, Byte * first, Byte * last)
 
 //----- Terminal Drawing ---------------------------------------
 // The terminal is made up of 'rows' line of 'columns' columns.
-// classically this would be 24 x 80.
+// classicly this would be 24 x 80.
 //  screen coordinates
 //  0,0     ...     0,79
 //  1,0     ...     1,79
@@ -2548,14 +2563,14 @@ static void place_cursor(int row, int col, int opti)
 	// char cm3[BUFSIZ];
 	int Rrow= last_row;
 #endif							/* CONFIG_FEATURE_VI_OPTIMIZE_CURSOR */
-
+	
 	memset(cm1, '\0', BUFSIZ - 1);  // clear the buffer
 
 	if (row < 0) row = 0;
 	if (row >= rows) row = rows - 1;
 	if (col < 0) col = 0;
 	if (col >= columns) col = columns - 1;
-
+	
 	//----- 1.  Try the standard terminal ESC sequence
 	sprintf((char *) cm1, CMrc, row + 1, col + 1);
 	cm= cm1;
@@ -2565,7 +2580,7 @@ static void place_cursor(int row, int col, int opti)
 	//----- find the minimum # of chars to move cursor -------------
 	//----- 2.  Try moving with discreet chars (Newline, [back]space, ...)
 	memset(cm2, '\0', BUFSIZ - 1);  // clear the buffer
-
+	
 	// move to the correct row
 	while (row < Rrow) {
 		// the cursor has to move up
@@ -2577,7 +2592,7 @@ static void place_cursor(int row, int col, int opti)
 		strcat(cm2, CMdown);
 		Rrow++;
 	}
-
+	
 	// now move to the correct column
 	strcat(cm2, "\r");			// start at col 0
 	// just send out orignal source char to get to correct place
@@ -2659,7 +2674,6 @@ static void show_status_line(void)
 	static int last_cksum;
 	int l, cnt, cksum;
 
-	edit_status();
 	cnt = strlen((char *) status_buffer);
 	for (cksum= l= 0; l < cnt; l++) { cksum += (int)(status_buffer[l]); }
 	// don't write the status line unless it changes
@@ -2670,7 +2684,6 @@ static void show_status_line(void)
 		clear_to_eol();
 		place_cursor(crow, ccol, FALSE);	// put cursor back in correct place
 	}
-	fflush(stdout);
 }
 
 //----- format the status buffer, the bottom line of screen ------
@@ -2750,7 +2763,7 @@ static void format_line(Byte *dest, Byte *src, int li)
 {
 	int co;
 	Byte c;
-
+	
 	for (co= 0; co < MAX_SCR_COLS; co++) {
 		c= ' ';		// assume blank
 		if (li > 0 && co == 0) {
@@ -2901,7 +2914,7 @@ static void refresh(int full_screen)
 #else
 	place_cursor(crow, ccol, FALSE);
 #endif							/* CONFIG_FEATURE_VI_OPTIMIZE_CURSOR */
-
+	
 	if (offset != old_offset)
 		old_offset = offset;
 }
@@ -2999,29 +3012,29 @@ key_cmd_mode:
 		//case 0x1d:	// gs
 		//case 0x1e:	// rs
 		//case 0x1f:	// us
-		//case '!':	// !-
-		//case '#':	// #-
-		//case '&':	// &-
-		//case '(':	// (-
-		//case ')':	// )-
-		//case '*':	// *-
-		//case ',':	// ,-
-		//case '=':	// =-
-		//case '@':	// @-
-		//case 'F':	// F-
-		//case 'K':	// K-
-		//case 'Q':	// Q-
-		//case 'S':	// S-
-		//case 'T':	// T-
-		//case 'V':	// V-
-		//case '[':	// [-
-		//case '\\':	// \-
-		//case ']':	// ]-
-		//case '_':	// _-
-		//case '`':	// `-
-		//case 'g':	// g-
+		//case '!':	// !- 
+		//case '#':	// #- 
+		//case '&':	// &- 
+		//case '(':	// (- 
+		//case ')':	// )- 
+		//case '*':	// *- 
+		//case ',':	// ,- 
+		//case '=':	// =- 
+		//case '@':	// @- 
+		//case 'F':	// F- 
+		//case 'K':	// K- 
+		//case 'Q':	// Q- 
+		//case 'S':	// S- 
+		//case 'T':	// T- 
+		//case 'V':	// V- 
+		//case '[':	// [- 
+		//case '\\':	// \- 
+		//case ']':	// ]- 
+		//case '_':	// _- 
+		//case '`':	// `- 
+		//case 'g':	// g- 
 		//case 'u':	// u- FIXME- there is no undo
-		//case 'v':	// v-
+		//case 'v':	// v- 
 	default:			// unrecognised command
 		buf[0] = c;
 		buf[1] = '\0';
@@ -3202,7 +3215,7 @@ key_cmd_mode:
 		if (cmdcnt-- > 1) {
 			do_cmd(c);
 		}				// repeat cnt
-		dot = end_line(dot);
+		dot = end_line(dot + 1);
 		break;
 	case '%':			// %- find matching char of pair () [] {}
 		for (q = dot; q < end && *q != '\n'; q++) {
@@ -3223,7 +3236,7 @@ key_cmd_mode:
 	case 'f':			// f- forward to a user specified char
 		last_forward_char = get_one_char();	// get the search char
 		//
-		// dont separate these two commands. 'f' depends on ';'
+		// dont seperate these two commands. 'f' depends on ';'
 		//
 		//**** fall thru to ... 'i'
 	case ';':			// ;- look at rest of line for last forward char
@@ -3340,15 +3353,15 @@ key_cmd_mode:
 		break;
 #endif							/* CONFIG_FEATURE_VI_SEARCH */
 	case '0':			// 0- goto begining of line
-	case '1':			// 1-
-	case '2':			// 2-
-	case '3':			// 3-
-	case '4':			// 4-
-	case '5':			// 5-
-	case '6':			// 6-
-	case '7':			// 7-
-	case '8':			// 8-
-	case '9':			// 9-
+	case '1':			// 1- 
+	case '2':			// 2- 
+	case '3':			// 3- 
+	case '4':			// 4- 
+	case '5':			// 5- 
+	case '6':			// 6- 
+	case '7':			// 7- 
+	case '8':			// 8- 
+	case '9':			// 9- 
 		if (c == '0' && cmdcnt < 1) {
 			dot_begin();	// this was a standalone zero
 		} else {

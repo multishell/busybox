@@ -4,20 +4,22 @@
 
 
 struct dhcpOfferedAddr {
-	uint8_t chaddr[16];
-	uint32_t yiaddr;	/* network order */
-	uint32_t expires;	/* host order */
+	u_int8_t chaddr[16];
+	u_int32_t yiaddr;	/* network order */
+	u_int32_t expires;	/* host order */
 };
 
-extern uint8_t blank_chaddr[];
+extern const char leases_file[];
 
-void clear_lease(uint8_t *chaddr, uint32_t yiaddr);
-struct dhcpOfferedAddr *add_lease(uint8_t *chaddr, uint32_t yiaddr, unsigned long lease);
+extern unsigned char blank_chaddr[];
+
+void clear_lease(u_int8_t *chaddr, u_int32_t yiaddr);
+struct dhcpOfferedAddr *add_lease(u_int8_t *chaddr, u_int32_t yiaddr, unsigned long lease);
 int lease_expired(struct dhcpOfferedAddr *lease);
 struct dhcpOfferedAddr *oldest_expired_lease(void);
-struct dhcpOfferedAddr *find_lease_by_chaddr(uint8_t *chaddr);
-struct dhcpOfferedAddr *find_lease_by_yiaddr(uint32_t yiaddr);
-uint32_t find_address(int check_expired);
+struct dhcpOfferedAddr *find_lease_by_chaddr(u_int8_t *chaddr);
+struct dhcpOfferedAddr *find_lease_by_yiaddr(u_int32_t yiaddr);
+u_int32_t find_address(int check_expired);
 
 
 #endif

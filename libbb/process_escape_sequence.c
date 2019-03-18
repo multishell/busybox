@@ -19,19 +19,12 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  *
- *
+ * 
  */
 
 #include <stdio.h>
 #include <limits.h>
-#include <ctype.h>
 #include "libbb.h"
-
-#define WANT_HEX_ESCAPES 1
-
-/* Usual "this only works for ascii compatible encodings" disclaimer. */
-#undef _tolower
-#define _tolower(X) ((X)|((char) 0x20))
 
 char bb_process_escape_sequence(const char **ptr)
 {
@@ -44,47 +37,24 @@ char bb_process_escape_sequence(const char **ptr)
 	unsigned int num_digits;
 	unsigned int r;
 	unsigned int n;
-	unsigned int d;
-	unsigned int base;
-
-	num_digits = n = 0;
-	base = 8;
+	
+	n = 0;
 	q = *ptr;
 
-#ifdef WANT_HEX_ESCAPES
-	if (*q == 'x') {
-		++q;
-		base = 16;
-		++num_digits;
-	}
-#endif
-
+	num_digits = 0;
 	do {
-		d = (unsigned int)(*q - '0');
-#ifdef WANT_HEX_ESCAPES
-		if (d >= 10) {
-			d = ((unsigned int)(_tolower(*q) - 'a')) + 10;
-		}
-#endif
-
-		if (d >= base) {
-#ifdef WANT_HEX_ESCAPES
-			if ((base == 16) && (!--num_digits)) {
-/* 				return '\\'; */
-				--q;
+		if (((unsigned int)(*q - '0')) <= 7) {
+			r = n * 8 + (*q - '0');
+			if (r <= UCHAR_MAX) {
+				n = r;
+				++q;
+				if (++num_digits < 3) {
+					continue;
+				}
 			}
-#endif
-			break;
 		}
-
-		r = n * base + d;
-		if (r > UCHAR_MAX) {
-			break;
-		}
-
-		n = r;
-		++q;
-	} while (++num_digits < 3);
+		break;
+	} while (1);
 
 	if (num_digits == 0) {	/* mnemonic escape sequence? */
 		p = charmap;
@@ -98,7 +68,6 @@ char bb_process_escape_sequence(const char **ptr)
 	}
 
 	*ptr = q;
-
 	return (char) n;
 }
 

@@ -2,7 +2,7 @@
 /*
  * Mini df implementation for busybox
  *
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
  * based on original code by (I think) Bruce Perens <bruce@pixar.com>.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -27,7 +27,7 @@
 /* Mar 16, 2003      Manuel Novoa III   (mjn3@codepoet.org)
  *
  * Size reduction.  Removed floating point dependency.  Added error checking
- * on output.  Output stats on 0-sized filesystems if specifically listed on
+ * on output.  Output stats on 0-sized filesystems if specificly listed on
  * the command line.  Properly round *-blocks, Used, and Available quantities.
  */
 
@@ -51,7 +51,7 @@ extern int df_main(int argc, char **argv)
 	long blocks_used;
 	long blocks_percent_used;
 #ifdef CONFIG_FEATURE_HUMAN_READABLE
-	unsigned long df_disp_hr = KILOBYTE;
+	unsigned long df_disp_hr = KILOBYTE; 
 #endif
 	int status = EXIT_SUCCESS;
 	unsigned long opt;
@@ -115,7 +115,7 @@ extern int df_main(int argc, char **argv)
 			bb_perror_msg("%s", mount_point);
 			goto SET_ERROR;
 		}
-
+		
 		if ((s.f_blocks > 0) || !mount_table){
 			blocks_used = s.f_blocks - s.f_bfree;
 			blocks_percent_used = 0;
@@ -124,25 +124,25 @@ extern int df_main(int argc, char **argv)
 									   + (blocks_used + s.f_bavail)/2
 									   ) / (blocks_used + s.f_bavail);
 			}
-
+			
 			if (strcmp(device, "rootfs") == 0) {
 				continue;
 			} else if (strcmp(device, "/dev/root") == 0) {
 				/* Adjusts device to be the real root device,
 				* or leaves device alone if it can't find it */
-				if ((device = find_real_root_device_name()) == NULL) {
+				if ((device = find_real_root_device_name(device)) == NULL) {
 					goto SET_ERROR;
 				}
 			}
-
+			
 #ifdef CONFIG_FEATURE_HUMAN_READABLE
 			bb_printf("%-21s%9s ", device,
 					  make_human_readable_str(s.f_blocks, s.f_bsize, df_disp_hr));
-
+			
 			bb_printf("%9s ",
 					  make_human_readable_str( (s.f_blocks - s.f_bfree),
 											  s.f_bsize, df_disp_hr));
-
+			
 			bb_printf("%9s %3ld%% %s\n",
 					  make_human_readable_str(s.f_bavail, s.f_bsize, df_disp_hr),
 					  blocks_percent_used, mount_point);

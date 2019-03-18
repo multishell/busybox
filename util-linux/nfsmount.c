@@ -24,7 +24,7 @@
  *
  * 1999-02-22 Arkadiusz Mi¶kiewicz <misiek@misiek.eu.org>
  * - added Native Language Support
- *
+ * 
  * Modified by Olaf Kirch and Trond Myklebust for new NFS code,
  * plus NFSv3 stuff.
  */
@@ -95,7 +95,7 @@ enum nfs_stat {
 	NFSERR_BADTYPE = 10007,		/*    v3 */
 	NFSERR_JUKEBOX = 10008		/*    v3 */
 };
-
+ 
 #define NFS_PROGRAM	100003
 
 
@@ -315,7 +315,7 @@ int nfsmount(const char *spec, const char *node, int *flags,
 	char new_opts[1024];
 	struct timeval total_timeout;
 	enum clnt_stat clnt_stat;
-	struct nfs_mount_data data;
+	static struct nfs_mount_data data;
 	char *opt, *opteq;
 	int val;
 	struct hostent *hp;
@@ -445,7 +445,7 @@ int nfsmount(const char *spec, const char *node, int *flags,
 
 	for (opt = strtok(old_opts, ","); opt; opt = strtok(NULL, ",")) {
 		if ((opteq = strchr(opt, '='))) {
-			val = atoi(opteq + 1);
+			val = atoi(opteq + 1);	
 			*opteq = '\0';
 			if (!strcmp(opt, "rsize"))
 				data.rsize = val;
@@ -515,9 +515,9 @@ int nfsmount(const char *spec, const char *node, int *flags,
 				val = 0;
 				opt += 2;
 			}
-			if (!strcmp(opt, "bg"))
+			if (!strcmp(opt, "bg")) 
 				bg = val;
-			else if (!strcmp(opt, "fg"))
+			else if (!strcmp(opt, "fg")) 
 				bg = !val;
 			else if (!strcmp(opt, "soft"))
 				soft = val;
@@ -602,9 +602,10 @@ int nfsmount(const char *spec, const char *node, int *flags,
 #endif
 
 	data.version = nfs_mount_version;
+	*mount_opts = (char *) &data;
 
 	if (*flags & MS_REMOUNT)
-		goto copy_data_and_return;
+		return 0;
 
 	/*
 	 * If the previous mount operation on the same host was
@@ -856,9 +857,6 @@ int nfsmount(const char *spec, const char *node, int *flags,
 	auth_destroy(mclient->cl_auth);
 	clnt_destroy(mclient);
 	close(msock);
-copy_data_and_return:
-	*mount_opts = xrealloc(*mount_opts, sizeof(data));
-	memcpy(*mount_opts, &data, sizeof(data));
 	return 0;
 
 	/* abort */
@@ -874,7 +872,7 @@ fail:
 	if (fsock != -1)
 		close(fsock);
 	return retval;
-}
+}	
 
 /*
  * We need to translate between nfs status return values and
@@ -978,7 +976,7 @@ xdr_fhandle3 (XDR *xdrs, fhandle3 *objp)
 {
 	//register int32_t *buf;
 
-	 if (!xdr_bytes (xdrs, (char **)&objp->fhandle3_val, (unsigned int *) &objp->fhandle3_len, FHSIZE3))
+	 if (!xdr_bytes (xdrs, (char **)&objp->fhandle3_val, (u_int *) &objp->fhandle3_len, FHSIZE3))
 		 return FALSE;
 	return TRUE;
 }
@@ -990,7 +988,7 @@ xdr_mountres3_ok (XDR *xdrs, mountres3_ok *objp)
 
 	 if (!xdr_fhandle3 (xdrs, &objp->fhandle))
 		 return FALSE;
-	 if (!xdr_array (xdrs, (char **)&objp->auth_flavours.auth_flavours_val, (unsigned int *) &objp->auth_flavours.auth_flavours_len, ~0,
+	 if (!xdr_array (xdrs, (char **)&objp->auth_flavours.auth_flavours_val, (u_int *) &objp->auth_flavours.auth_flavours_len, ~0,
 		sizeof (int), (xdrproc_t) xdr_int))
 		 return FALSE;
 	return TRUE;

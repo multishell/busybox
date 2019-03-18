@@ -27,7 +27,7 @@
 
 /* Mar 16, 2003      Manuel Novoa III   (mjn3@codepoet.org)
  *
- * Because of behavioral differences, implemented configurable SUSv3
+ * Because of behavioral differences, implemented configureable SUSv3
  * or 'fancy' gnu-ish behaviors.  Also, reduced size and fixed bugs.
  * 1) In handling '\c' escape, the previous version only suppressed the
  *     trailing newline.  SUSv3 specifies _no_ output after '\c'.
@@ -55,7 +55,7 @@ extern int echo_main(int argc, char** argv)
 		 * that all of the options specified are actually valid.
 		 * Otherwise, the string should just be echoed.
 		 */
-
+		
 		if (!*(p = *argv + 1)) {	/* A single '-', so echo it. */
 			goto just_echo;
 		}
@@ -87,7 +87,7 @@ just_echo:
 		while ((c = *(*argv)++)) {
 			if (c == eflag) {	/* Check for escape seq. */
 				if (**argv == 'c') {
-					/* '\c' means cancel newline and
+					/* '\c' means cancel newline and 
 					 * ignore all subsequent chars. */
 					goto DONE;
 				}
@@ -141,8 +141,8 @@ DONE:
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
  *
- * 3. <BSD Advertising Clause omitted per the July 22, 1999 licensing change
- *		ftp://ftp.cs.berkeley.edu/pub/4bsd/README.Impt.License.Change>
+ * 3. <BSD Advertising Clause omitted per the July 22, 1999 licensing change 
+ *		ftp://ftp.cs.berkeley.edu/pub/4bsd/README.Impt.License.Change> 
  *
  *	California, Berkeley and its contributors.
  * 4. Neither the name of the University nor the names of its contributors

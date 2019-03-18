@@ -32,34 +32,23 @@
 #include <time.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <signal.h>
-
 #include "busybox.h"
 
 
 static const int RFC_868_BIAS = 2208988800UL;
 
-static void socket_timeout(int sig)
-{
-	bb_error_msg_and_die("timeout connecting to time server");
-}
-
 static time_t askremotedate(const char *host)
 {
 	unsigned long int nett, localt;
-	struct sockaddr_in s_in;
+	const char *port="37";
 	int fd;
 
-	bb_lookup_host(&s_in, host);
-	s_in.sin_port = bb_lookup_port("time", "tcp", 37);
+	if (getservbyname("time", "tcp") != NULL)
+		port="time";
 
-	/* Add a timeout for dead or non accessable servers */
-	alarm(10);
-	signal(SIGALRM, socket_timeout);
+	fd = xconnect(host, port);
 
-	fd = xconnect(&s_in);
-
-	if (safe_read(fd, (void *)&nett, 4) != 4)    /* read time from server */
+	if (read(fd, (void *)&nett, 4) != 4)    /* read time from server */
 		bb_error_msg_and_die("%s did not send the complete time", host);
 
 	close(fd);
@@ -104,14 +93,8 @@ int rdate_main(int argc, char **argv)
 	remote_time = askremotedate(argv[optind]);
 
 	if (setdate) {
-		time_t current_time;
-
-		time(&current_time);
-		if (current_time == remote_time)
-			bb_error_msg("Current time matches remote time.");
-		else
-			if (stime(&remote_time) < 0)
-				bb_perror_msg_and_die("Could not set time of day");
+		if (stime(&remote_time) < 0)
+			bb_perror_msg_and_die("Could not set time of day");
 	}
 
 	if (printdate)

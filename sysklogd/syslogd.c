@@ -2,7 +2,7 @@
 /*
  * Mini syslogd implementation for busybox
  *
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
  *
  * Copyright (C) 2000 by Karl M. Hegbloom <karlheg@debian.org>
  *
@@ -31,12 +31,10 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <getopt.h>
 #include <netdb.h>
 #include <paths.h>
 #include <signal.h>
 #include <stdarg.h>
-#include <stdbool.h>
 #include <time.h>
 #include <string.h>
 #include <unistd.h>
@@ -58,15 +56,7 @@
 /* Path to the unix socket */
 static char lfile[MAXPATHLEN];
 
-static const char *logFilePath = __LOG_FILE;
-
-#ifdef CONFIG_FEATURE_ROTATE_LOGFILE
-/* max size of message file before being rotated */
-static int logFileSize = 200 * 1024;
-
-/* number of rotated message files */
-static int logFileRotate = 1;
-#endif
+static char *logFilePath = __LOG_FILE;
 
 /* interval between marks in seconds */
 static int MarkInterval = 20 * 60;
@@ -78,7 +68,6 @@ static char LocalHostName[64];
 #include <netinet/in.h>
 /* udp socket for logging to remote host */
 static int remotefd = -1;
-static struct sockaddr_in remoteaddr;
 
 /* where do we log? */
 static char *RemoteHost;
@@ -91,19 +80,16 @@ static int doRemoteLog = FALSE;
 static int local_logging = FALSE;
 #endif
 
-/* Make loging output smaller. */
-static bool small = false;
-
 
 #define MAXLINE         1024	/* maximum line length */
 
 
 /* circular buffer variables/structures */
 #ifdef CONFIG_FEATURE_IPC_SYSLOG
-
-#if CONFIG_FEATURE_IPC_SYSLOG_BUFFER_SIZE < 4
-#error Sorry, you must set the syslogd buffer size to at least 4KB.
-#error Please check CONFIG_FEATURE_IPC_SYSLOG_BUFFER_SIZE
+#if __GNU_LIBRARY__ < 5
+#error Sorry.  Looks like you are using libc5.
+#error libc5 shm support isnt good enough.
+#error Please disable CONFIG_FEATURE_IPC_SYSLOG
 #endif
 
 #include <sys/ipc.h>
@@ -126,7 +112,8 @@ static struct sembuf SMwdn[3] = { {0, 0}, {1, 0}, {1, +1} };	// set SMwdn
 
 static int shmid = -1;	// ipc shared memory id
 static int s_semid = -1;	// ipc semaphore id
-static int shm_size = ((CONFIG_FEATURE_IPC_SYSLOG_BUFFER_SIZE)*1024);	// default shm size
+int data_size = 16000;	// data size
+int shm_size = 16000 + sizeof(*buf);	// our buffer size
 static int circular_logging = FALSE;
 
 /*
@@ -176,7 +163,7 @@ void ipcsyslog_init(void)
 			bb_perror_msg_and_die("shmat");
 		}
 
-		buf->size = shm_size - sizeof(*buf);
+		buf->size = data_size;
 		buf->head = buf->tail = 0;
 
 		// we'll trust the OS to set initial semval to 0 (let's hope)
@@ -325,36 +312,6 @@ static void message(char *fmt, ...)
 							 O_NONBLOCK)) >= 0) {
 		fl.l_type = F_WRLCK;
 		fcntl(fd, F_SETLKW, &fl);
-#ifdef CONFIG_FEATURE_ROTATE_LOGFILE
-		if ( logFileSize > 0 ) {
-			struct stat statf;
-			int r = fstat(fd, &statf);
-			if( !r && (statf.st_mode & S_IFREG)
-				&& (lseek(fd,0,SEEK_END) > logFileSize) ) {
-				if(logFileRotate > 0) {
-					int i;
-					char oldFile[(strlen(logFilePath)+3)], newFile[(strlen(logFilePath)+3)];
-					for(i=logFileRotate-1;i>0;i--) {
-						sprintf(oldFile, "%s.%d", logFilePath, i-1);
-						sprintf(newFile, "%s.%d", logFilePath, i);
-						rename(oldFile, newFile);
-					}
-					sprintf(newFile, "%s.%d", logFilePath, 0);
-					fl.l_type = F_UNLCK;
-					fcntl (fd, F_SETLKW, &fl);
-					close(fd);
-					rename(logFilePath, newFile);
-					fd = device_open (logFilePath,
-						   O_WRONLY | O_CREAT | O_NOCTTY | O_APPEND |
-						   O_NONBLOCK);
-					fl.l_type = F_WRLCK;
-					fcntl (fd, F_SETLKW, &fl);
-				} else {
-					ftruncate( fd, 0 );
-				}
-			}
-		}
-#endif
 		va_start(arguments, fmt);
 		vdprintf(fd, fmt, arguments);
 		va_end(arguments);
@@ -380,30 +337,11 @@ static void message(char *fmt, ...)
 	}
 }
 
-#ifdef CONFIG_FEATURE_REMOTE_LOG
-static void init_RemoteLog(void)
-{
-	memset(&remoteaddr, 0, sizeof(remoteaddr));
-	remotefd = socket(AF_INET, SOCK_DGRAM, 0);
-
-	if (remotefd < 0) {
-		bb_error_msg("cannot create socket");
-	}
-
-	remoteaddr.sin_family = AF_INET;
-	remoteaddr.sin_addr = *(struct in_addr *) *(xgethostbyname(RemoteHost))->h_addr_list;
-	remoteaddr.sin_port = htons(RemotePort);
-}
-#endif
-
 static void logMessage(int pri, char *msg)
 {
 	time_t now;
 	char *timestamp;
 	static char res[20] = "";
-#ifdef CONFIG_FEATURE_REMOTE_LOG	
-	static char line[MAXLINE + 1];
-#endif
 	CODE *c_pri, *c_fac;
 
 	if (pri != 0) {
@@ -432,39 +370,29 @@ static void logMessage(int pri, char *msg)
 	/* todo: supress duplicates */
 
 #ifdef CONFIG_FEATURE_REMOTE_LOG
-	if (doRemoteLog == TRUE) {
-		/* trying connect the socket */
-		if (-1 == remotefd) {
-			init_RemoteLog();
-		}
+	/* send message to remote logger */
+	if (-1 != remotefd) {
+		static const int IOV_COUNT = 2;
+		struct iovec iov[IOV_COUNT];
+		struct iovec *v = iov;
 
-		/* if we have a valid socket, send the message */
-		if (-1 != remotefd) {
-			now = 1;
-			snprintf(line, sizeof(line), "<%d> %s", pri, msg);
+		memset(&res, 0, sizeof(res));
+		snprintf(res, sizeof(res), "<%d>", pri);
+		v->iov_base = res;
+		v->iov_len = strlen(res);
+		v++;
 
-		retry:
-			/* send message to remote logger */
-			if(( -1 == sendto(remotefd, line, strlen(line), 0,
-							(struct sockaddr *) &remoteaddr,
-							sizeof(remoteaddr))) && (errno == EINTR)) {
-				/* sleep now seconds and retry (with now * 2) */
-				sleep(now);
-				now *= 2;
-				goto retry;
-			}
+		v->iov_base = msg;
+		v->iov_len = strlen(msg);
+	  writev_retry:
+		if ((-1 == writev(remotefd, iov, IOV_COUNT)) && (errno == EINTR)) {
+			goto writev_retry;
 		}
 	}
-
 	if (local_logging == TRUE)
 #endif
-	{
 		/* now spew out the message to wherever it is supposed to go */
-		if (small)
-			message("%s %s\n", timestamp, msg);
-		else
-			message("%s %s %s %s\n", timestamp, LocalHostName, res, msg);
-	}
+		message("%s %s %s %s\n", timestamp, LocalHostName, res, msg);
 }
 
 static void quit_signal(int sig)
@@ -486,7 +414,7 @@ static void domark(int sig)
 	}
 }
 
-/* This must be a #define, since when CONFIG_DEBUG and BUFFERS_GO_IN_BSS are
+/* This must be a #define, since when DODEBUG and BUFFERS_GO_IN_BSS are
  * enabled, we otherwise get a "storage size isn't constant error. */
 static int serveConnection(char *tmpbuf, int n_read)
 {
@@ -528,6 +456,40 @@ static int serveConnection(char *tmpbuf, int n_read)
 	}
 	return n_read;
 }
+
+
+#ifdef CONFIG_FEATURE_REMOTE_LOG
+static void init_RemoteLog(void)
+{
+
+	struct sockaddr_in remoteaddr;
+	struct hostent *hostinfo;
+	int len = sizeof(remoteaddr);
+
+	memset(&remoteaddr, 0, len);
+
+	remotefd = socket(AF_INET, SOCK_DGRAM, 0);
+
+	if (remotefd < 0) {
+		bb_error_msg_and_die("cannot create socket");
+	}
+
+	hostinfo = xgethostbyname(RemoteHost);
+
+	remoteaddr.sin_family = AF_INET;
+	remoteaddr.sin_addr = *(struct in_addr *) *hostinfo->h_addr_list;
+	remoteaddr.sin_port = htons(RemotePort);
+
+	/* Since we are using UDP sockets, connect just sets the default host and port
+	 * for future operations
+	 */
+	if (0 != (connect(remotefd, (struct sockaddr *) &remoteaddr, len))) {
+		bb_error_msg_and_die("cannot connect to remote host %s:%d", RemoteHost,
+						  RemotePort);
+	}
+
+}
+#endif
 
 static void doSyslogd(void) __attribute__ ((noreturn));
 static void doSyslogd(void)
@@ -618,31 +580,26 @@ extern int syslogd_main(int argc, char **argv)
 {
 	int opt;
 
+#if ! defined(__uClinux__)
 	int doFork = TRUE;
+#endif
 
 	char *p;
 
 	/* do normal option parsing */
-	while ((opt = getopt(argc, argv, "m:nO:s:Sb:R:LC::")) > 0) {
+	while ((opt = getopt(argc, argv, "m:nO:R:LC")) > 0) {
 		switch (opt) {
 		case 'm':
 			MarkInterval = atoi(optarg) * 60;
 			break;
+#if ! defined(__uClinux__)
 		case 'n':
 			doFork = FALSE;
 			break;
-		case 'O':
-			logFilePath = optarg;
-			break;
-#ifdef CONFIG_FEATURE_ROTATE_LOGFILE
-		case 's':
-			logFileSize = atoi(optarg) * 1024;
-			break;
-		case 'b':
-			logFileRotate = atoi(optarg);
-			if( logFileRotate > 99 ) logFileRotate = 99;
-			break;
 #endif
+		case 'O':
+			logFilePath = bb_xstrdup(optarg);
+			break;
 #ifdef CONFIG_FEATURE_REMOTE_LOG
 		case 'R':
 			RemoteHost = bb_xstrdup(optarg);
@@ -658,18 +615,9 @@ extern int syslogd_main(int argc, char **argv)
 #endif
 #ifdef CONFIG_FEATURE_IPC_SYSLOG
 		case 'C':
-			if (optarg) {
-				int buf_size = atoi(optarg);
-				if (buf_size >= 4) {
-					shm_size = buf_size * 1024;
-				}
-			}
 			circular_logging = TRUE;
 			break;
 #endif
-		case 'S':
-			small = true;
-			break;
 		default:
 			bb_show_usage();
 		}
@@ -685,19 +633,16 @@ extern int syslogd_main(int argc, char **argv)
 	/* Store away localhost's name before the fork */
 	gethostname(LocalHostName, sizeof(LocalHostName));
 	if ((p = strchr(LocalHostName, '.'))) {
-		*p = '\0';
+		*p++ = '\0';
 	}
 
 	umask(0);
 
-	if (doFork == TRUE) {
-#if defined(__uClinux__)
-		vfork_daemon_rexec(0, 1, argc, argv, "-n");
-#else /* __uClinux__ */
-		if(daemon(0, 1) < 0)
-			bb_perror_msg_and_die("daemon");
-#endif /* __uClinux__ */
+#if ! defined(__uClinux__)
+	if ((doFork == TRUE) && (daemon(0, 1) < 0)) {
+		bb_perror_msg_and_die("daemon");
 	}
+#endif
 	doSyslogd();
 
 	return EXIT_SUCCESS;

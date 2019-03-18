@@ -7,7 +7,6 @@
  * Released under the terms of the GNU GPL v2.0.
  */
 
-#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,6 +14,7 @@
 
 #define LKC_DIRECT_LINK
 #include "lkc.h"
+#include "zconf.tab.h"
 
 #define START_STRSIZE	16
 
@@ -96,7 +96,6 @@ n	[A-Za-z0-9_]
 	"endchoice"		BEGIN(PARAM); return T_ENDCHOICE;
 	"comment"		BEGIN(PARAM); return T_COMMENT;
 	"config"		BEGIN(PARAM); return T_CONFIG;
-	"menuconfig"		BEGIN(PARAM); return T_MENUCONFIG;
 	"help"			BEGIN(PARAM); return T_HELP;
 	"if"			BEGIN(PARAM); return T_IF;
 	"endif"			BEGIN(PARAM); return T_ENDIF;
@@ -106,17 +105,11 @@ n	[A-Za-z0-9_]
 	"default"		BEGIN(PARAM); return T_DEFAULT;
 	"prompt"		BEGIN(PARAM); return T_PROMPT;
 	"tristate"		BEGIN(PARAM); return T_TRISTATE;
-	"def_tristate"		BEGIN(PARAM); return T_DEF_TRISTATE;
 	"bool"			BEGIN(PARAM); return T_BOOLEAN;
 	"boolean"		BEGIN(PARAM); return T_BOOLEAN;
-	"def_bool"		BEGIN(PARAM); return T_DEF_BOOLEAN;
-	"def_boolean"		BEGIN(PARAM); return T_DEF_BOOLEAN;
 	"int"			BEGIN(PARAM); return T_INT;
 	"hex"			BEGIN(PARAM); return T_HEX;
 	"string"		BEGIN(PARAM); return T_STRING;
-	"select"		BEGIN(PARAM); return T_SELECT;
-	"enable"		BEGIN(PARAM); return T_SELECT;
-	"range"			BEGIN(PARAM); return T_RANGE;
 	{n}+	{
 		alloc_string(yytext, yyleng);
 		zconflval.string = text;
@@ -148,8 +141,6 @@ n	[A-Za-z0-9_]
 		zconflval.string = text;
 		return T_WORD;
 	}
-	#.*	/* comment */
-	\\\n	current_file->lineno++;
 	.
 	<<EOF>> {
 		BEGIN(INITIAL);
@@ -160,30 +151,29 @@ n	[A-Za-z0-9_]
 	[^'"\\\n]+/\n	{
 		append_string(yytext, yyleng);
 		zconflval.string = text;
-		return T_WORD_QUOTE;
+		return T_STRING;
 	}
 	[^'"\\\n]+	{
 		append_string(yytext, yyleng);
 	}
 	\\.?/\n	{
-		append_string(yytext + 1, yyleng - 1);
+		append_string(yytext+1, yyleng);
 		zconflval.string = text;
-		return T_WORD_QUOTE;
+		return T_STRING;
 	}
 	\\.?	{
-		append_string(yytext + 1, yyleng - 1);
+		append_string(yytext+1, yyleng);
 	}
 	\'|\"	{
 		if (str == yytext[0]) {
 			BEGIN(PARAM);
 			zconflval.string = text;
-			return T_WORD_QUOTE;
+			return T_STRING;
 		} else
 			append_string(yytext, 1);
 	}
 	\n	{
 		printf("%s:%d:warning: multi-line strings not supported\n", zconf_curname(), zconf_lineno());
-		current_file->lineno++;
 		BEGIN(INITIAL);
 		return T_EOL;
 	}
@@ -214,8 +204,9 @@ n	[A-Za-z0-9_]
 			}
 			append_string("        ", ts);
 		}
+		
 	}
-	[ \t]*\n/[^ \t\n] {
+	\n/[^ \t\n] {
 		current_file->lineno++;
 		zconf_endhelp();
 		return T_HELPTEXT;
@@ -255,37 +246,12 @@ void zconf_starthelp(void)
 static void zconf_endhelp(void)
 {
 	zconflval.string = text;
-	BEGIN(INITIAL);
-}
-
-
-/*
- * Try to open specified file with following names:
- * ./name
- * $(srctree)/name
- * The latter is used when srctree is separate from objtree
- * when compiling the kernel.
- * Return NULL if file is not found.
- */
-FILE *zconf_fopen(const char *name)
-{
-	char *env, fullname[PATH_MAX+1];
-	FILE *f;
-
-	f = fopen(name, "r");
-	if (!f && name[0] != '/') {
-		env = getenv(SRCTREE);
-		if (env) {
-			sprintf(fullname, "%s/%s", env, name);
-			f = fopen(fullname, "r");
-		}
-	}
-	return f;
+	BEGIN(INITIAL); 
 }
 
 void zconf_initscan(const char *name)
 {
-	yyin = zconf_fopen(name);
+	yyin = fopen(name, "r");
 	if (!yyin) {
 		printf("can't find file %s\n", name);
 		exit(1);
@@ -306,7 +272,7 @@ void zconf_nextfile(const char *name)
 	memset(buf, 0, sizeof(*buf));
 
 	current_buf->state = YY_CURRENT_BUFFER;
-	yyin = zconf_fopen(name);
+	yyin = fopen(name, "r");
 	if (!yyin) {
 		printf("%s:%d: can't open file \"%s\"\n", zconf_curname(), zconf_lineno(), name);
 		exit(1);
@@ -352,7 +318,7 @@ static struct buffer *zconf_endfile(void)
 int zconf_lineno(void)
 {
 	if (current_buf)
-		return current_file->lineno - 1;
+		return current_file->lineno;
 	else
 		return 0;
 }

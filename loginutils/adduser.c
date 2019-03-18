@@ -53,6 +53,7 @@ typedef struct {
 static const char default_passwd[] = "x";
 static const char default_gecos[] = "Linux User,,,";
 static const char default_home_prefix[] = "/home";
+static const char default_shell[] = "/bin/sh";
 
 #ifdef CONFIG_FEATURE_SHADOWPASSWDS
 /* shadow in use? */
@@ -77,7 +78,7 @@ static int passwd_study(const char *filename, struct passwd *p)
 	if ((p->pw_uid > max) || (p->pw_uid < min))
 		p->pw_uid = min;
 
-	/* stuff to do:
+	/* stuff to do:  
 	 * make sure login isn't taken;
 	 * find free uid and gid;
 	 */
@@ -238,15 +239,15 @@ void if_i_am_not_root(void)
 	}
 }
 
-#define SETPASS				(1 << 4)
-#define MAKEHOME			(1 << 6)
+#define SETPASS				1
+#define MAKEHOME			4
 
 /*
  * adduser will take a login_name as its first parameter.
  *
  * home
  * shell
- * gecos
+ * gecos 
  *
  * can be customized via command-line parameters.
  * ________________________________________________________________________ */
@@ -256,7 +257,7 @@ int adduser_main(int argc, char **argv)
 	const char *login;
 	const char *gecos = default_gecos;
 	const char *home = NULL;
-	const char *shell = DEFAULT_SHELL;
+	const char *shell = default_shell;
  	const char *usegroup = NULL;
 	int flags;
 	int setpass = 1;
@@ -305,8 +306,13 @@ int adduser_main(int argc, char **argv)
 
 	if (usegroup) {
 		/* Add user to a group that already exists */
-		pw.pw_gid = my_getgrnam(usegroup);
-		/* exits on error */	
+		struct group *g;
+
+		g = getgrnam(usegroup);
+		if (g == NULL)
+			bb_error_msg_and_die("group %s does not exist", usegroup);
+
+		pw.pw_gid = g->gr_gid;
 	}
 
 	/* grand finale */

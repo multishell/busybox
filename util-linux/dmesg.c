@@ -10,8 +10,8 @@
  * 1999-02-22 Arkadiusz Mi¶kiewicz <misiek@misiek.eu.org>
  * - added Native Language Support
  *
- * from util-linux -- adapted for busybox by
- * Erik Andersen <andersen@codepoet.org>. I ripped out Native Language
+ * from util-linux -- adapted for busybox by 
+ * Erik Andersen <andersen@codepoet.org>. I ripped out Native Language 
  * Support, replaced getopt, added some gotos for redundant stuff.
  *
  * Audited and cleaned up on 7 March 2003 to reduce size of
@@ -22,17 +22,20 @@
 #include <stdlib.h>
 #include <getopt.h>
 #include <errno.h>
-#include <sys/klog.h>
+
+#if __GNU_LIBRARY__ < 5
+# ifdef __alpha__
+#   define klogctl syslog
+# endif
+#else
+# include <sys/klog.h>
+#endif
 
 #include "busybox.h"
 
 int dmesg_main(int argc, char **argv)
 {
-	char *buf
-#ifdef CONFIG_FEATURE_CLEAN_UP
-		= NULL
-#endif
-		;
+	char *buf;
 	int bufsize = 8196;
 	int i, n;
 	int level = 0;

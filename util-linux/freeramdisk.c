@@ -27,7 +27,6 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include "busybox.h"
 
 
@@ -45,7 +44,7 @@ freeramdisk_main(int argc, char **argv)
 	}
 
 	fd = bb_xopen(argv[1], O_RDWR);
-
+	
 	result = ioctl(fd, BLKFLSBUF);
 #ifdef CONFIG_FEATURE_CLEAN_UP
 	close(fd);

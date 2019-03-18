@@ -1,6 +1,8 @@
+0.9.10
+  Size optimization (over 3k), more busybox integration
+  (Vladimir Oleynik <dzo@simtreas.ru>
+
 0.9.9 (pending)
-+ Various other size optimizations (Vladimir)
-+ Change strerror(errno) to %m (Vladimir N. Oleynik <dzo@simtreas.ru>)
 + Fixed a little endian problem in mton (Bastian Blank <waldi@debian.org>)
 + Fixed a arpping alignment problem (Rui He <rhe@3eti.com>)
 + Added sanity check for max_leases (udhcp bug #1285) (me)
@@ -14,7 +16,7 @@
 + use /dev/urandom to seed xid's (instead of time(0)) (me)
 + fixed renew behavior (me)
 + udhcp now fits nicely into busybox
-  (Glenn McGrath <bug1@iinet.net.au> as well as myself)
+  (Glenn McGrath <bug1@optushome.com.au> as well as myself)
 + updated client manpage (me)
 + both client and server now use sockets for signal handling,
   hopefully, this will be the last needed change in signal
@@ -34,12 +36,12 @@
   udhcp bug#1256
 + Fixed reading of client id (David Poole <davep@portsmith.com>)
 + change sys_errlist[] to strerror() as it aparently doesn't exist
-  (Erik Andersen <andersee@codepoet.org>)
+  (Erik Andersen <andersen@codepoet.org>)
 + fixed get_raw_packet so it returns -2 on non fatal errors
   (Ted Lemon <Ted.Lemon@nominum.com>)
 + Improved (hopefully) NAKing behavior (me)
 + Added -b option (Jouni Malinen)
-+ Compute checksums correctly on big endian hosts
++ Compute checksums correctly on big endian hosts 
   (Jouni Malinen <jkmaline@cc.hut.fi>)
 
 0.9.7 (020526)

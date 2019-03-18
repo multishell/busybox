@@ -2,7 +2,7 @@
 /*
  * Mini umount implementation for busybox
  *
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -28,7 +28,7 @@
 #include <stdlib.h>
 #include "busybox.h"
 
-/* Teach libc5 about realpath -- it includes it but the
+/* Teach libc5 about realpath -- it includes it but the 
  * prototype is missing... */
 #if (__GLIBC__ <= 2) && (__GLIBC_MINOR__ < 1)
 extern char *realpath(const char *path, char *resolved_path);
@@ -115,7 +115,7 @@ static char *mtab_getinfo(const char *match, const char which)
 				} else if (strcmp(cur->device, "/dev/root") == 0) {
 					/* Adjusts device to be the real root device,
 					 * or leaves device alone if it can't find it */
-					cur->device = find_real_root_device_name();
+					cur->device = find_real_root_device_name(cur->device);
 				}
 #endif
 				return cur->device;
@@ -148,7 +148,7 @@ static char *mtab_first(void **iter)
 	return mtab_next(iter);
 }
 
-/* Don't bother to clean up, since exit() does that
+/* Don't bother to clean up, since exit() does that 
  * automagically, so we can save a few bytes */
 #ifdef CONFIG_FEATURE_CLEAN_UP
 static void mtab_free(void)
@@ -238,7 +238,7 @@ static int umount_all(void)
 
 extern int umount_main(int argc, char **argv)
 {
-	char path[PATH_MAX], result = 0;
+	char path[PATH_MAX];
 
 	if (argc < 2) {
 		bb_show_usage();
@@ -286,13 +286,10 @@ extern int umount_main(int argc, char **argv)
 		else
 			return EXIT_FAILURE;
 	}
-
-	do {
-		if (realpath(*argv, path) != NULL)
-			if (do_umount(path))
-				continue;
-		bb_perror_msg("%s", path);
-		result++;
-	} while (--argc > 0 && ++argv);
-	return result;
+	if (realpath(*argv, path) == NULL)
+		bb_perror_msg_and_die("%s", path);
+	if (do_umount(path))
+		return EXIT_SUCCESS;
+	bb_perror_msg_and_die("%s", *argv);
 }
+

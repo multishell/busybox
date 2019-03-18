@@ -17,7 +17,7 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  *
- * Based in part on code from sash, Copyright (c) 1999 by David I. Bell
+ * Based in part on code from sash, Copyright (c) 1999 by David I. Bell 
  * Permission has been granted to redistribute this code under the GPL.
  *
  */
@@ -25,13 +25,10 @@
 #define	__LIBCONFIG_H__    1
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <stdarg.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <regex.h>
 #include <termios.h>
-#include <stdint.h>
 
 #include <netdb.h>
 
@@ -54,6 +51,23 @@
 #ifdef CONFIG_FEATURE_SHA1_PASSWORDS
 # include "sha1.h"
 #endif
+
+/* Compatability with ANSI C */
+#ifndef inline
+# define inline
+#endif
+
+#if (__GNU_LIBRARY__ < 5) && (!defined __dietlibc__)
+/* libc5 doesn't define socklen_t */
+#ifndef _SOCKLEN_T
+#define _SOCKLEN_T
+typedef unsigned int socklen_t;
+#endif
+/* libc5 doesn't implement BSD 4.4 daemon() */
+extern int daemon (int nochdir, int noclose);
+/* libc5 doesn't implement strtok_r */
+char *strtok_r(char *s, const char *delim, char **ptrptr);
+#endif	
 
 /* Convenience macros to test the version of gcc. */
 #if defined __GNUC__ && defined __GNUC_MINOR__
@@ -111,9 +125,8 @@ extern int is_directory(const char *name, int followLinks, struct stat *statBuf)
 extern int remove_file(const char *path, int flags);
 extern int copy_file(const char *source, const char *dest, int flags);
 extern ssize_t safe_read(int fd, void *buf, size_t count);
-extern ssize_t bb_full_read(int fd, void *buf, size_t len);
-extern ssize_t safe_write(int fd, const void *buf, size_t count);
 extern ssize_t bb_full_write(int fd, const void *buf, size_t len);
+extern ssize_t bb_full_read(int fd, void *buf, size_t len);
 extern int recursive_action(const char *fileName, int recurse,
 	  int followLinks, int depthFirst,
 	  int (*fileAction) (const char *fileName, struct stat* statbuf, void* userData),
@@ -130,15 +143,14 @@ extern int get_kernel_revision(void);
 
 extern int get_console_fd(void);
 extern struct mntent *find_mount_point(const char *name, const char *table);
-extern void write_mtab(char* blockDevice, char* directory,
+extern void write_mtab(char* blockDevice, char* directory, 
 					   char* filesystemType, long flags, char* string_flags);
 extern void erase_mtab(const char * name);
 extern long *find_pid_by_name( const char* pidName);
-extern char *find_real_root_device_name(void);
+extern char *find_real_root_device_name(const char* name);
 extern char *bb_get_line_from_file(FILE *file);
 extern char *bb_get_chomped_line_from_file(FILE *file);
-extern int bb_copyfd_size(int fd1, int fd2, const off_t size);
-extern int bb_copyfd_eof(int fd1, int fd2);
+extern int   bb_copyfd(int fd1, int fd2, const off_t chunksize);
 extern void  bb_xprint_and_close_file(FILE *file);
 extern int   bb_xprint_file_by_name(const char *filename);
 extern char  bb_process_escape_sequence(const char **ptr);
@@ -188,11 +200,7 @@ extern void *xcalloc(size_t nmemb, size_t size);
 #endif
 extern char *bb_xstrdup (const char *s);
 extern char *bb_xstrndup (const char *s, int n);
-extern char *safe_strncpy(char *dst, const char *src, size_t size);
-extern int safe_strtoi(char *arg, int* value);
-extern int safe_strtod(char *arg, double* value);
-extern int safe_strtol(char *arg, long* value);
-extern int safe_strtoul(char *arg, unsigned long* value);
+extern char * safe_strncpy(char *dst, const char *src, size_t size);
 
 struct suffix_mult {
 	const char *suffix;
@@ -230,10 +238,9 @@ extern unsigned long bb_xparse_number(const char *numstr,
  * increases target size and is often not needed embedded systems.  */
 extern long my_getpwnam(const char *name);
 extern long my_getgrnam(const char *name);
-extern char * my_getug(char *buffer, char *idname, long id, int bufsize, char prefix);
-extern char * my_getpwuid(char *name, long uid, int bufsize);
-extern char * my_getgrgid(char *group, long gid, int bufsize);
-extern char *bb_askpass(int timeout, const char * prompt);
+extern char * my_getpwuid(char *name, long uid);
+extern char * my_getgrgid(char *group, long gid);
+extern long my_getpwnamegid(const char *name);
 
 extern int device_open(const char *device, int mode);
 
@@ -248,6 +255,9 @@ extern int vdprintf(int d, const char *format, va_list ap);
 
 int nfsmount(const char *spec, const char *node, int *flags,
 	     char **extra_opts, char **mount_opts, int running_bg);
+
+void syslog_msg_with_name(const char *name, int facility, int pri, const char *msg);
+void syslog_msg(int facility, int pri, const char *msg);
 
 /* Include our own copy of struct sysinfo to avoid binary compatability
  * problems with Linux 2.4, which changed things.  Grumble, grumble. */
@@ -274,8 +284,7 @@ enum {
 	MEGABYTE = (KILOBYTE*1024),
 	GIGABYTE = (MEGABYTE*1024)
 };
-const char *make_human_readable_str(unsigned long long size,
-		unsigned long block_size, unsigned long display_unit);
+const char *make_human_readable_str(unsigned long size, unsigned long block_size, unsigned long display_unit);
 
 int bb_ask_confirmation(void);
 int klogctl(int type, char * b, int len);
@@ -285,6 +294,8 @@ char *xreadlink(const char *path);
 char *concat_path_file(const char *path, const char *filename);
 char *concat_subpath_file(const char *path, const char *filename);
 char *last_char_is(const char *s, int c);
+
+extern long arith (const char *startbuf, int *errcode);
 
 int read_package_field(const char *package_buffer, char **field_name, char **field_value);
 //#warning yuk!
@@ -297,9 +308,7 @@ extern struct hostent *xgethostbyname(const char *name);
 extern struct hostent *xgethostbyname2(const char *name, int af);
 extern int create_icmp_socket(void);
 extern int create_icmp6_socket(void);
-extern int xconnect(struct sockaddr_in *s_addr);
-extern unsigned short bb_lookup_port(const char *port, const char *protocol, unsigned short default_port);
-extern void bb_lookup_host(struct sockaddr_in *s_in, const char *host);
+extern int xconnect(const char *host, const char *port);
 
 //#warning wrap this?
 char *dirname (char *path);
@@ -339,21 +348,6 @@ extern const char * const bb_path_group_file;
 extern const char * const bb_path_securetty_file;
 extern const char * const bb_path_motd_file;
 
-/*
- * You can change LIBBB_DEFAULT_LOGIN_SHELL, but don`t use,
- * use bb_default_login_shell and next defines,
- * if you LIBBB_DEFAULT_LOGIN_SHELL change,
- * don`t lose change increment constant!
- */
-#define LIBBB_DEFAULT_LOGIN_SHELL      "-/bin/sh"
-
-extern const char * const bb_default_login_shell;
-/* "/bin/sh" */
-#define DEFAULT_SHELL     (bb_default_login_shell+1)
-/* "sh" */
-#define DEFAULT_SHELL_SHORT_NAME     (bb_default_login_shell+6)
-
-
 extern const char bb_path_mtab_file[];
 
 extern int bb_default_error_retval;
@@ -365,21 +359,11 @@ extern int bb_default_error_retval;
 # define VC_3 "/dev/vc/3"
 # define VC_4 "/dev/vc/4"
 # define VC_5 "/dev/vc/5"
-#if defined(__sh__) || defined(__H8300H__) || defined(__H8300S__)
-/* Yes, this sucks, but both SH (including sh64) and H8 have a SCI(F) for their
-   respective serial ports .. as such, we can't use the common device paths for
-   these. -- PFM */
-#  define SC_0 "/dev/ttsc/0"
-#  define SC_1 "/dev/ttsc/1"
-#  define SC_FORMAT "/dev/ttsc/%d"
-#else
-#  define SC_0 "/dev/tts/0"
-#  define SC_1 "/dev/tts/1"
-#  define SC_FORMAT "/dev/tts/%d"
-#endif
+# define SC_0 "/dev/tts/0"
+# define SC_1 "/dev/tts/1"
 # define VC_FORMAT "/dev/vc/%d"
+# define SC_FORMAT "/dev/tts/%d"
 # define LOOP_FORMAT "/dev/loop/%d"
-# define FB_0 "/dev/fb/0"
 #else
 # define CURRENT_VC "/dev/tty0"
 # define VC_1 "/dev/tty1"
@@ -387,18 +371,11 @@ extern int bb_default_error_retval;
 # define VC_3 "/dev/tty3"
 # define VC_4 "/dev/tty4"
 # define VC_5 "/dev/tty5"
-#if defined(__sh__) || defined(__H8300H__) || defined(__H8300S__)
-#  define SC_0 "/dev/ttySC0"
-#  define SC_1 "/dev/ttySC1"
-#  define SC_FORMAT "/dev/ttySC%d"
-#else
-#  define SC_0 "/dev/ttyS0"
-#  define SC_1 "/dev/ttyS1"
-#  define SC_FORMAT "/dev/ttyS%d"
-#endif
+# define SC_0 "/dev/ttyS0"
+# define SC_1 "/dev/ttyS1"
 # define VC_FORMAT "/dev/tty%d"
+# define SC_FORMAT "/dev/ttyS%d"
 # define LOOP_FORMAT "/dev/loop%d"
-# define FB_0 "/dev/fb0"
 #endif
 
 //#warning put these in .o files
@@ -420,13 +397,12 @@ void bb_xasprintf(char **string_ptr, const char *format, ...) __attribute__ ((fo
 
 #define FAIL_DELAY    3
 extern void change_identity ( const struct passwd *pw );
-extern const char *change_identity_e2str ( const struct passwd *pw );
 extern void run_shell ( const char *shell, int loginshell, const char *command, const char **additional_args
 #ifdef CONFIG_SELINUX
 	, security_id_t sid
 #endif
 );
-extern int run_parts(char **args, const unsigned char test_mode, char **env);
+extern int run_parts(char **args, const unsigned char test_mode);
 extern int restricted_shell ( const char *shell );
 extern void setup_environment ( const char *shell, int loginshell, int changeenv, const struct passwd *pw );
 extern int correct_password ( const struct passwd *pw );
@@ -471,17 +447,7 @@ typedef struct llist_s {
 } llist_t;
 extern llist_t *llist_add_to(llist_t *old_head, char *new_item);
 
-extern void print_login_issue(const char *issue_file, const char *tty);
-extern void print_login_prompt(void);
-
-extern void vfork_daemon_rexec(int nochdir, int noclose,
-		int argc, char **argv, char *foreground_opt);
-extern void get_terminal_width_height(int fd, int *width, int *height);
-extern unsigned long get_ug_id(const char *s, long (*my_getxxnam)(const char *));
-extern void xregcomp(regex_t *preg, const char *regex, int cflags);
-
-#define HASH_SHA1	1
-#define HASH_MD5	2
-extern int hash_fd(int fd, const size_t size, const uint8_t hash_algo, uint8_t *hashval);
+void print_login_issue(const char *issue_file, const char *tty);
+void print_login_prompt(void);
 
 #endif /* __LIBCONFIG_H__ */

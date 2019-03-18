@@ -9,8 +9,8 @@
  *		only standard in to standard out with -9 compression.  It also requires
  *		the zcat module for some important functions."
  *
- * Adjusted further by Erik Andersen <andersen@codepoet.org> to support
- * files as well as stdin/stdout, and to generally behave itself wrt
+ * Adjusted further by Erik Andersen <andersen@codepoet.org> to support 
+ * files as well as stdin/stdout, and to generally behave itself wrt 
  * command line handling.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -30,7 +30,7 @@
  */
 
 /* These defines are very important for BusyBox.  Without these,
- * huge chunks of ram are pre-allocated making the BusyBox bss
+ * huge chunks of ram are pre-allocated making the BusyBox bss 
  * size Freaking Huge(tm), which is a bad thing.*/
 #define SMALL_MEM
 #define DYN_ALLOC
@@ -305,6 +305,8 @@ DECLARE(ush, d_buf, DIST_BUFSIZE);
 DECLARE(uch, window, 2L * WSIZE);
 DECLARE(ush, tab_prefix, 1L << BITS);
 
+static int crc_table_empty = 1;
+
 static int foreground;	/* set if program run in foreground */
 static int method = DEFLATED;	/* compression method */
 static int exit_code = OK;	/* program exit code */
@@ -385,13 +387,14 @@ static ulg updcrc(uch * s, unsigned n)
 	register ulg c;		/* temporary variable */
 	static unsigned long crc_32_tab[256];
 
-	if (crc_32_tab[1] == 0x00000000L) {
+	if (crc_table_empty) {
 		unsigned long csr;	/* crc shift register */
 		const unsigned long e = 0xedb88320L;	/* polynomial exclusive-or pattern */
 		int i;			/* counter for all possible eight bit values */
 		int k;			/* byte being shifted into crc apparatus */
 
 		/* Compute table of CRC's. */
+		crc_32_tab[0] = 0x00000000L;
 		for (i = 1; i < 256; i++) {
 			csr = i;
 			/* The idea to initialize the register with the byte instead of
@@ -632,7 +635,7 @@ static void copy_block(char *buf, unsigned len, int header)
  *      However the F&G algorithm may be faster for some highly redundant
  *      files if the parameter max_chain_length (described below) is too large.
  *
- *  ACKNOWLEDGMENTS
+ *  ACKNOWLEDGEMENTS
  *
  *      The idea of lazy evaluation of matches is due to Jan-Mark Wams, and
  *      I found it in 'freeze' written by Leonid Broukhis.

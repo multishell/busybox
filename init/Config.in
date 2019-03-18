@@ -27,7 +27,7 @@ config CONFIG_FEATURE_INITRD
 
 config CONFIG_FEATURE_INIT_COREDUMPS
 	bool "  Support dumping core for child processes (debugging only)?"
-	default n
+	default y
 	depends on CONFIG_INIT
 	help
 	  If this option is enabled and the file /.init_enable_core
@@ -43,30 +43,67 @@ config CONFIG_FEATURE_EXTRA_QUIET
 	  Prevent init from logging some messages to the console
 	  during boot.
 
+# Some apps that are meaningless without BusyBox running as init
 config CONFIG_HALT
 	bool "halt"
 	default y
+	depends on CONFIG_INIT
 	help
-	  Stop all processes and halt the system.
+	  'halt' tells the kernel to stop all processes and halt the system.
 
 config CONFIG_POWEROFF
 	bool "poweroff"
 	default y
+	depends on CONFIG_INIT
 	help
 	  Stop all processes and (try to) power off the system.
 
 config CONFIG_REBOOT
 	bool "reboot"
 	default y
+	depends on CONFIG_INIT
 	help
 	  Stop all processes and reboot the system.
+
+config CONFIG_MINIT
+	bool "minit"
+	default n
+	help
+	  Minimal init, based on minit v0.9.1.  This is a simple
+	  init replacement that handles starting/stopping services,
+	  and service dependencies.  See http://www.fefe.de/minit/
+	  for additional information.
+
+config CONFIG_PIDFILEHACK
+	bool "pidfilehack"
+	default y
+	depends on CONFIG_MINIT
+	help
+	  pidfilehack is used by minit to run servers.
+
+config CONFIG_MSVC
+	bool "msvc"
+	default y
+	depends on CONFIG_MINIT
+	help
+	  msvc is used to start and stop processes controlled by minit
+
+# Should start-stop-daemon be moved under debianutils?
+config CONFIG_START_STOP_DAEMON
+	bool "start-stop-daemon"
+	default y
+	help
+	  start-stop-daemon is used to control the creation and
+	  termination of system-level processes, usually the ones
+	  started during the startup of the system.
 
 config CONFIG_MESG
 	bool "mesg"
 	default y
 	help
-	  Mesg controls access to your terminal by others.  It is typically
-	  used to allow or disallow other users to write to your terminal
+	  Mesg  controls  the  access to your terminal by others.  It
+	  is typically used to allow or disallow other users to write
+	  to your  terminal
 
 endmenu
 

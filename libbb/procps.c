@@ -54,11 +54,6 @@ extern procps_status_t * procps_scan(int save_user_arg0
 		pid = atoi(name);
 		curstatus.pid = pid;
 
-		sprintf(status, "/proc/%d", pid);
-		if(stat(status, &sb))
-			continue;
-		my_getpwuid(curstatus.user, sb.st_uid, sizeof(curstatus.user));
-
 		sprintf(status, "/proc/%d/stat", pid);
 		if((fp = fopen(status, "r")) == NULL)
 			continue;
@@ -70,6 +65,9 @@ extern procps_status_t * procps_scan(int save_user_arg0
 		}
 		else
 #endif
+		if(fstat(fileno(fp), &sb))
+			continue;
+		my_getpwuid(curstatus.user, sb.st_uid);
 		name = fgets(buf, sizeof(buf), fp);
 		fclose(fp);
 		if(name == NULL)
@@ -117,11 +115,7 @@ extern procps_status_t * procps_scan(int save_user_arg0
 		else
 			curstatus.state[2] = ' ';
 
-#ifdef PAGE_SHIFT
 		curstatus.rss <<= (PAGE_SHIFT - 10);     /* 2**10 = 1kb */
-#else
-		curstatus.rss *= (getpagesize() >> 10);     /* 2**10 = 1kb */
-#endif
 
 		if(save_user_arg0) {
 			sprintf(status, "/proc/%d/cmdline", pid);

@@ -5,13 +5,13 @@
    be here. Now read the real man-page agetty.8 instead.
 
    -f option added by Eric Rasmussen <ear@usfirst.org> - 12/28/95
-
+   
    1999-02-22 Arkadiusz Mi¶kiewicz <misiek@misiek.eu.org>
    - added Native Language Support
 
    1999-05-05 Thorsten Kranzkowski <dl8bcu@gmx.net>
    - enable hardware flow control before displaying /etc/issue
-
+   
 */
 
 #include <stdio.h>
@@ -54,11 +54,11 @@ extern void updwtmp(const char *filename, const struct utmp *ut);
 
  /*
   * Things you may want to modify.
-  *
+  * 
   * If ISSUE is not defined, agetty will never display the contents of the
   * /etc/issue file. You will not want to spit out large "issue" files at the
   * wrong baud rate. Relevant for System V only.
-  *
+  * 
   * You may disagree with the default line-editing etc. characters defined
   * below. Note, however, that DEL cannot be used for interrupt generation
   * and for line editing at the same time.
@@ -228,7 +228,7 @@ static void termio_final(struct options *op, struct termio *tp,
 
 				  struct chardata *cp);
 static int caps_lock(const char *s);
-static int bcode(char *s);
+static int bcode(const char *s);
 static void error(const char *fmt, ...) __attribute__ ((noreturn));
 
 #ifdef CONFIG_FEATURE_U_W_TMP
@@ -386,7 +386,7 @@ static void parse_args(int argc, char **argv, struct options *op)
 		case 'I':
 			if (!(op->initstring = strdup(optarg)))
 				error(bb_msg_memory_exhausted);
-
+				
 			{
 				const char *p;
 				char *q;
@@ -503,9 +503,6 @@ static void update_utmp(char *line)
 	 * utmp file can be opened for update, and if we are able to find our
 	 * entry in the utmp file.
 	 */
-	if (access(_PATH_UTMP, R_OK|W_OK) == -1) {
-		close(creat(_PATH_UTMP, 0664));
-	}
 	utmpname(_PATH_UTMP);
 	setutent();
 	while ((utp = getutent())
@@ -534,9 +531,6 @@ static void update_utmp(char *line)
 	endutent();
 
 	{
-		if (access(_PATH_WTMP, R_OK|W_OK) == -1) {
-			close(creat(_PATH_WTMP, 0664));
-		}
 		updwtmp(_PATH_WTMP, &ut);
 	}
 }
@@ -706,9 +700,9 @@ static void auto_baud(struct termio *tp)
 	 * the DCD line, and if the computer is fast enough to set the proper
 	 * baud rate before the message has gone by. We expect a message of the
 	 * following format:
-	 *
+	 * 
 	 * <junk><number><junk>
-	 *
+	 * 
 	 * The number is interpreted as the baud rate of the incoming call. If the
 	 * modem does not tell us the baud rate within one second, we will keep
 	 * using the current baud rate. It is advisable to enable BREAK
@@ -959,17 +953,24 @@ static int caps_lock(const char *s)
 }
 
 /* bcode - convert speed string to speed code; return 0 on failure */
-static int bcode(char *s)
+static int bcode(const char *s)
 {
+#if 0
+	struct Speedtab *sp;
+	long speed = atol(s);
+
+	for (sp = speedtab; sp->speed; sp++)
+		if (sp->speed == speed)
+			return (sp->code);
+	return (0);
+#else
 	int r;
-	unsigned long value;
-	if (safe_strtoul(s, &value)) {
-		return -1;
-	}
-	if ((r = bb_value_to_baud(value)) > 0) {
+
+	if ((r = bb_value_to_baud(atol(s))) > 0) {
 		return r;
 	}
 	return 0;
+#endif
 }
 
 /* error - report errors to console or syslog; only understands %s and %m */
@@ -1004,9 +1005,7 @@ static void error(const char *fmt, ...)
 	va_end(va_alist);
 
 #ifdef	USE_SYSLOG
-	openlog(bb_applet_name, 0, LOG_AUTH);
-	syslog(LOG_ERR, "%s", buf);
-	closelog();
+	syslog_msg(LOG_AUTH, LOG_ERR, buf);
 #else
 	strncat(bp, "\r\n", 256 - strlen(buf));
 	buf[255] = 0;

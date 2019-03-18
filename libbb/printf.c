@@ -28,7 +28,7 @@
  * reasons for failure which don't set the streams error indicator,
  * SUSv3 lists EILSEQ, EINVAL, and ENOMEM.
  *
- * In some cases, it would be desirable to have a group of *printf()
+ * In some cases, it would be desireable to have a group of *printf()
  * functions available that _always_ set the stream error indicator on
  * failure.  That would allow us to defer error checking until applet
  * exit.  Unfortunately, there is no standard way of setting a streams
@@ -38,7 +38,7 @@
  * free to send patches for stdio implementations where the following
  * fails.
  *
- * NOTE: None of this is thread safe.  As busybox is a non-threaded app,
+ * NOTE: None of this is threadsafe.  As busybox is a nonthreaded app,
  *       that isn't currently an issue.
  */
 
@@ -46,7 +46,7 @@
 #include <stdarg.h>
 #include "libbb.h"
 
-#if defined(__UCLIBC__)
+#if defined(__UCLIBC__) 
 
 # if defined(__FLAG_ERROR)
 /* Using my newer stdio implementation.  Unlocked macros are:
@@ -55,13 +55,9 @@
  * #define __FEOF(stream)		((stream)->modeflags & __FLAG_EOF)
  * #define __FERROR(stream)	((stream)->modeflags & __FLAG_ERROR)
  */
-#  if defined(__MASK_READING)
-#   define SET_FERROR_UNLOCKED(S)    ((S)->__modeflags |= __FLAG_ERROR)
-#  else
-#   define SET_FERROR_UNLOCKED(S)    ((S)->modeflags |= __FLAG_ERROR)
-#  endif
+#define SET_FERROR_UNLOCKED(S)    ((S)->modeflags |= __FLAG_ERROR)
 
-# elif defined(__MODE_ERR)
+#elif defined(__MODE_ERR)
 /* Using either the original stdio implementation (from dev86) or
  * my original stdio rewrite.  Macros were:
  * #define ferror(fp)	(((fp)->mode&__MODE_ERR) != 0)
@@ -70,9 +66,9 @@
  */
 #define SET_FERROR_UNLOCKED(S)    ((S)->mode |= __MODE_ERR)
 
-# else
+#else
 #error unknown uClibc stdio implemenation!
-# endif
+#endif
 
 #elif defined(__GLIBC__)
 
@@ -109,7 +105,7 @@
  *
  * Some example bugs as of March 12, 2003...
  *   1) fputc() doesn't set the error indicator on failure.
- *   2) freopen() doesn't maintain the same stream object, contrary to
+ *   2) freopen() doesn't maintain the same stream object, contary to
  *      standards.  This makes it useless in its primary role of
  *      reassociating stdin/stdout/stderr.
  *   3) printf() often fails to correctly format output when conversions
@@ -123,7 +119,7 @@
 #error dietlibc is currently not supported.  Please see the commented source.
 
 #else /* some other lib */
-/* Please see the comments for the above supported libraries for examples
+/* Please see the comments for the above supported libaries for examples
  * of what is required to support your stdio implementation.
  */
 #error Your stdio library is currently not supported.  Please see the commented source.

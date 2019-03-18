@@ -2,7 +2,7 @@
 /*
  * Utility routines.
  *
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,31 +19,26 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
- /* Hacked by Tito Ragusa (c) 2004 <farmatito@tiscali.it> to make it more
-  * flexible :
-  *
-  * if bufsize is > 0 char *name can not be set to NULL.
-  *                   On success username is written on the static allocated buffer name 
-  *                   (and a pointer to it is returned).
-  *                   On failure uid as string is written to the static allocated buffer name
-  *                   and NULL is returned.
-  * if bufsize is = 0 char *name can be set to NULL.
-  *                   On success username is returned. 
-  *                   On failure NULL is returned.
-  * if bufsize is < 0 char *name can be set to NULL
-  *                   On success username is returned.
-  *                   On failure an error message is printed and the program exits.   
-  */
-  
+#include <stdio.h>
+#include <string.h>
 #include "libbb.h"
 #include "pwd_.h"
+#include "grp_.h"
+
+
 
 /* gets a username given a uid */
-char * my_getpwuid(char *name, long uid, int bufsize)
+char * my_getpwuid(char *name, long uid)
 {
-	struct passwd *myuser = getpwuid(uid);
+	struct passwd *myuser;
 
-	return  my_getug(name, (myuser) ? myuser->pw_name : (char *)myuser , uid, bufsize, 'u');
+	myuser  = getpwuid(uid);
+	if (myuser==NULL) {
+		sprintf(name, "%ld", (long)uid);
+		return NULL;
+	} else {
+		return strcpy(name, myuser->pw_name);
+	}
 }
 
 /* END CODE */

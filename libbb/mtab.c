@@ -2,7 +2,7 @@
 /*
  * Utility routines.
  *
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,12 +27,11 @@
 #include <mntent.h>
 #include "libbb.h"
 
-#define MTAB_MAX_ENTRIES 40
 static const int MS_RDONLY = 1;	/* Mount read-only.  */
 
 void erase_mtab(const char *name)
 {
-	struct mntent entries[MTAB_MAX_ENTRIES];
+	struct mntent entries[20];
 	int count = 0;
 	FILE *mountTable = setmntent(bb_path_mtab_file, "r");
 	struct mntent *m;
@@ -45,8 +44,7 @@ void erase_mtab(const char *name)
 		return;
 	}
 
-	while (((m = getmntent(mountTable)) != 0) && (count < MTAB_MAX_ENTRIES))
-	{
+	while ((m = getmntent(mountTable)) != 0) {
 		entries[count].mnt_fsname = strdup(m->mnt_fsname);
 		entries[count].mnt_dir = strdup(m->mnt_dir);
 		entries[count].mnt_type = strdup(m->mnt_type);

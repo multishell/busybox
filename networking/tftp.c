@@ -76,15 +76,15 @@ const int tftp_cmd_put = 2;
 
 #ifdef CONFIG_FEATURE_TFTP_BLOCKSIZE
 
-static int tftp_blocksize_check(int blocksize, int bufsize)
+static int tftp_blocksize_check(int blocksize, int bufsize)  
 {
-        /* Check if the blocksize is valid:
+        /* Check if the blocksize is valid: 
 	 * RFC2348 says between 8 and 65464,
 	 * but our implementation makes it impossible
 	 * to use blocksizes smaller than 22 octets.
 	 */
 
-        if ((bufsize && (blocksize > bufsize)) ||
+        if ((bufsize && (blocksize > bufsize)) || 
 	    (blocksize < 8) || (blocksize > 65464)) {
 	        bb_error_msg("bad blocksize");
 	        return 0;
@@ -93,12 +93,12 @@ static int tftp_blocksize_check(int blocksize, int bufsize)
 	return blocksize;
 }
 
-static char *tftp_option_get(char *buf, int len, char *option)
+static char *tftp_option_get(char *buf, int len, char *option)  
 {
         int opt_val = 0;
 	int opt_found = 0;
 	int k;
-
+  
 	while (len > 0) {
 
 	        /* Make sure the options are terminated correctly */
@@ -117,28 +117,28 @@ static char *tftp_option_get(char *buf, int len, char *option)
 			if (strcasecmp(buf, option) == 0) {
 			        opt_found = 1;
 			}
-		}
+		}      
 		else {
 		        if (opt_found) {
 				return buf;
 			}
 		}
-
+    
 		k++;
-
+		
 		buf += k;
 		len -= k;
-
+		
 		opt_val ^= 1;
 	}
-
+	
 	return NULL;
 }
 
 #endif
 
 static inline int tftp(const int cmd, const struct hostent *host,
-	const char *remotefile, int localfd, const unsigned short port, int tftp_bufsize)
+	const char *remotefile, int localfd, const int port, int tftp_bufsize)
 {
 	const int cmd_get = cmd & tftp_cmd_get;
 	const int cmd_put = cmd & tftp_cmd_put;
@@ -156,7 +156,7 @@ static inline int tftp(const int cmd, const struct hostent *host,
 	int opcode = 0;
 	int finished = 0;
 	int timeout = bb_tftp_num_retries;
-	unsigned short block_nr = 1;
+	int block_nr = 1;
 
 #ifdef CONFIG_FEATURE_TFTP_BLOCKSIZE
 	int want_option_ack = 0;
@@ -179,7 +179,7 @@ static inline int tftp(const int cmd, const struct hostent *host,
 	bind(socketfd, (struct sockaddr *)&sa, len);
 
 	sa.sin_family = host->h_addrtype;
-	sa.sin_port = port;
+	sa.sin_port = htons(port);
 	memcpy(&sa.sin_addr, (struct in_addr *) host->h_addr,
 		   sizeof(sa.sin_addr));
 
@@ -207,7 +207,7 @@ static inline int tftp(const int cmd, const struct hostent *host,
 
 		if ((cmd_get && (opcode == TFTP_RRQ)) ||
 			(cmd_put && (opcode == TFTP_WRQ))) {
-                        int too_long = 0;
+                        int too_long = 0; 
 
 			/* see if the filename fits into buf */
 			/* and fill in packet                */
@@ -267,7 +267,7 @@ static inline int tftp(const int cmd, const struct hostent *host,
 			block_nr++;
 
 			if (cmd_put && (opcode == TFTP_DATA)) {
-				len = bb_full_read(localfd, cp, tftp_bufsize - 4);
+				len = read(localfd, cp, tftp_bufsize - 4);
 
 				if (len < 0) {
 					bb_perror_msg("read");
@@ -286,16 +286,15 @@ static inline int tftp(const int cmd, const struct hostent *host,
 		/* send packet */
 
 
-		timeout = bb_tftp_num_retries;  /* re-initialize */
 		do {
 
 			len = cp - buf;
 
 #ifdef CONFIG_FEATURE_TFTP_DEBUG
-			fprintf(stderr, "sending %u bytes\n", len);
+			printf("sending %u bytes\n", len);
 			for (cp = buf; cp < &buf[len]; cp++)
-				fprintf(stderr, "%02x ", (unsigned char)*cp);
-			fprintf(stderr, "\n");
+				printf("%02x ", *cp);
+			printf("\n");
 #endif
 			if (sendto(socketfd, buf, len, 0,
 					(struct sockaddr *) &sa, sizeof(sa)) < 0) {
@@ -305,7 +304,7 @@ static inline int tftp(const int cmd, const struct hostent *host,
 			}
 
 
-			if (finished && (opcode == TFTP_ACK)) {
+			if (finished) {
 				break;
 			}
 
@@ -332,7 +331,7 @@ static inline int tftp(const int cmd, const struct hostent *host,
 
 				timeout = 0;
 
-				if (sa.sin_port == port) {
+				if (sa.sin_port == htons(port)) {
 					sa.sin_port = from.sin_port;
 				}
 				if (sa.sin_port == from.sin_port) {
@@ -346,10 +345,11 @@ static inline int tftp(const int cmd, const struct hostent *host,
 			case 0:
 				bb_error_msg("timeout");
 
-				timeout--;
 				if (timeout == 0) {
 					len = -1;
 					bb_error_msg("last timeout");
+				} else {
+					timeout--;
 				}
 				break;
 
@@ -371,7 +371,7 @@ static inline int tftp(const int cmd, const struct hostent *host,
 		tmp = ntohs(*((unsigned short *) &buf[2]));
 
 #ifdef CONFIG_FEATURE_TFTP_DEBUG
-		fprintf(stderr, "received %d bytes: %04x %04x\n", len, opcode, tmp);
+		printf("received %d bytes: %04x %04x\n", len, opcode, tmp);
 #endif
 
 		if (opcode == TFTP_ERROR) {
@@ -380,7 +380,7 @@ static inline int tftp(const int cmd, const struct hostent *host,
 			if (buf[4] != '\0') {
 				msg = &buf[4];
 				buf[tftp_bufsize - 1] = '\0';
-			} else if (tmp < (sizeof(tftp_bb_error_msg)
+			} else if (tmp < (sizeof(tftp_bb_error_msg) 
 					  / sizeof(char *))) {
 
 				msg = (char *) tftp_bb_error_msg[tmp];
@@ -404,12 +404,12 @@ static inline int tftp(const int cmd, const struct hostent *host,
 
 			         char *res;
 
-				 res = tftp_option_get(&buf[2], len-2,
+				 res = tftp_option_get(&buf[2], len-2, 
 						       "blksize");
 
 				 if (res) {
 				         int blksize = atoi(res);
-			
+			     
 					 if (tftp_blocksize_check(blksize,
 							   tftp_bufsize - 4)) {
 
@@ -420,7 +420,7 @@ static inline int tftp(const int cmd, const struct hostent *host,
 				                         opcode = TFTP_ACK;
 						 }
 #ifdef CONFIG_FEATURE_TFTP_DEBUG
-						 fprintf(stderr, "using blksize %u\n", blksize);
+						 printf("using blksize %u\n", blksize);
 #endif
 					         tftp_bufsize = blksize + 4;
 						 block_nr = 0;
@@ -443,8 +443,8 @@ static inline int tftp(const int cmd, const struct hostent *host,
 		if (cmd_get && (opcode == TFTP_DATA)) {
 
 			if (tmp == block_nr) {
-			
-				len = bb_full_write(localfd, &buf[4], len - 4);
+			    
+				len = write(localfd, &buf[4], len - 4);
 
 				if (len < 0) {
 					bb_perror_msg("write");
@@ -462,7 +462,7 @@ static inline int tftp(const int cmd, const struct hostent *host,
 
 		if (cmd_put && (opcode == TFTP_ACK)) {
 
-			if (tmp == (unsigned short)(block_nr - 1)) {
+			if (tmp == (block_nr - 1)) {
 				if (finished) {
 					break;
 				}
@@ -485,9 +485,9 @@ static inline int tftp(const int cmd, const struct hostent *host,
 int tftp_main(int argc, char **argv)
 {
 	struct hostent *host = NULL;
-	const char *localfile = NULL;
-	const char *remotefile = NULL;
-	int port;
+	char *localfile = NULL;
+	char *remotefile = NULL;
+	int port = 69;
 	int cmd = 0;
 	int fd = -1;
 	int flags = 0;
@@ -506,13 +506,13 @@ int tftp_main(int argc, char **argv)
 #ifdef CONFIG_FEATURE_TFTP_GET
 #define GET "g"
 #else
-#define GET
+#define GET 
 #endif
 
 #ifdef CONFIG_FEATURE_TFTP_PUT
 #define PUT "p"
 #else
-#define PUT
+#define PUT 
 #endif
 
 	while ((opt = getopt(argc, argv, BS GET PUT "l:r:")) != -1) {
@@ -528,7 +528,7 @@ int tftp_main(int argc, char **argv)
 #ifdef CONFIG_FEATURE_TFTP_GET
 		case 'g':
 			cmd = tftp_cmd_get;
-			flags = O_WRONLY | O_CREAT | O_TRUNC;
+			flags = O_WRONLY | O_CREAT;
 			break;
 #endif
 #ifdef CONFIG_FEATURE_TFTP_PUT
@@ -537,11 +537,11 @@ int tftp_main(int argc, char **argv)
 			flags = O_RDONLY;
 			break;
 #endif
-		case 'l':
-			localfile = optarg;
+		case 'l': 
+			localfile = bb_xstrdup(optarg);
 			break;
 		case 'r':
-			remotefile = optarg;
+			remotefile = bb_xstrdup(optarg);
 			break;
 		}
 	}
@@ -564,10 +564,13 @@ int tftp_main(int argc, char **argv)
 	}
 
 	host = xgethostbyname(argv[optind]);
-	port = bb_lookup_port(argv[optind + 1], "udp", 69);
+
+	if (optind + 2 == argc) {
+		port = atoi(argv[optind + 1]);
+	}
 
 #ifdef CONFIG_FEATURE_TFTP_DEBUG
-	fprintf(stderr, "using server \"%s\", remotefile \"%s\", "
+	printf("using server \"%s\", remotefile \"%s\", "
 		"localfile \"%s\".\n",
 		inet_ntoa(*((struct in_addr *) host->h_addr)),
 		remotefile, localfile);
@@ -576,7 +579,7 @@ int tftp_main(int argc, char **argv)
 	result = tftp(cmd, host, remotefile, fd, port, blocksize);
 
 #ifdef CONFIG_FEATURE_CLEAN_UP
-	if (!(fd == STDOUT_FILENO || fd == STDIN_FILENO)) {
+	if (!(fd == fileno(stdout) || fd == fileno(stdin))) {
 	    close(fd);
 	}
 #endif

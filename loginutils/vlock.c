@@ -193,9 +193,10 @@ extern int vlock_main(int argc, char **argv)
 
 		snprintf(prompt, 100, "%s's password: ", pw->pw_name);
 
-		if ((pass = bb_askpass(0, prompt)) == NULL) {
+		if ((pass = getpass(prompt)) == NULL) {
+			perror("getpass");
 			restore_terminal();
-			bb_perror_msg_and_die("password");
+			exit(1);
 		}
 
 		crypt_pass = pw_encrypt(pass, pw->pw_passwd);
@@ -209,8 +210,9 @@ extern int vlock_main(int argc, char **argv)
 		memset(crypt_pass, 0, strlen(crypt_pass));
 
 		if (isatty(STDIN_FILENO) == 0) {
+			perror("isatty");
 			restore_terminal();
-			bb_perror_msg_and_die("isatty");
+			exit(1);
 		}
 
 		sleep(++times);

@@ -2,7 +2,7 @@
 /*
  * Mini chroot implementation for busybox
  *
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -43,7 +43,7 @@ int chroot_main(int argc, char **argv)
 	if (argc == 2) {
 		argv -= 2;
 		if (!(*argv = getenv("SHELL"))) {
-			*argv = (char *) DEFAULT_SHELL;
+			*argv = (char *) "/bin/sh";
 		}
 		argv[1] = (char *) "-i";
 	}

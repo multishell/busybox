@@ -1,8 +1,2 @@
-set +e
+# XFAIL
 echo -e '\0' | busybox grep .
-if [ $? != 0 ] ; then
-	exit 0;
-fi
-
-exit 1;
-

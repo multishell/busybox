@@ -1,6 +1,6 @@
 # Makefile for busybox
 #
-# Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+# Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,15 +17,13 @@
 # Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 #
 
-top_srcdir=..
-top_builddir=..
-srcdir=$(top_srcdir)/shell
+TOPDIR:= ../
 SHELL_DIR:=./
-include $(top_builddir)/Rules.mak
-include $(top_builddir)/.config
+include $(TOPDIR).config
+include $(TOPDIR)Rules.mak
 include Makefile.in
 all: $(libraries-y)
--include $(top_builddir)/.depend
+-include $(TOPDIR).depend
 
 clean:
 	rm -f *.o *.a $(AR_TARGET)

@@ -2,7 +2,7 @@
 /*
  * Mini chgrp implementation for busybox
  *
- * Copyright (C) 1999-2004 by Erik Andersen <andersen@codepoet.org>
+ * Copyright (C) 1999-2003 by Erik Andersen <andersen@codepoet.org>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -29,7 +29,7 @@
 #include <unistd.h>
 #include "busybox.h"
 
-/* Don't use lchown glibc older then 2.1.x */
+/* Don't use lchown for libc5 or glibc older then 2.1.x */
 #if (__GLIBC__ <= 2) && (__GLIBC_MINOR__ < 1)
 #define lchown	chown
 #endif
@@ -48,6 +48,7 @@ int chgrp_main(int argc, char **argv)
 	long gid;
 	int recursiveFlag;
 	int retval = EXIT_SUCCESS;
+	char *p;
 
 	recursiveFlag = bb_getopt_ulflags(argc, argv, "R");
 
@@ -58,12 +59,15 @@ int chgrp_main(int argc, char **argv)
 	argv += optind;
 
 	/* Find the selected group */
-	gid = get_ug_id(*argv, my_getgrnam);
+	gid = strtoul(*argv, &p, 10);	/* maybe it's already numeric */
+	if (*p || (p == *argv)) {		/* trailing chars or nonnumeric */
+		gid = my_getgrnam(*argv);
+	}
 	++argv;
 
 	/* Ok, ready to do the deed now */
 	do {
-		if (! recursive_action (*argv, recursiveFlag, FALSE, FALSE,
+		if (! recursive_action (*argv, recursiveFlag, FALSE, FALSE, 
 								fileAction, fileAction, &gid)) {
 			retval = EXIT_FAILURE;
 		}

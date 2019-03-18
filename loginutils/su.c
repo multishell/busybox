@@ -21,6 +21,7 @@
 
 
 /* The shell to run if none is given in the user's passwd entry.  */
+#define DEFAULT_SHELL "/bin/sh"
 #define DEFAULT_USER  "root"
 
 //#define SYSLOG_SUCCESS
@@ -28,112 +29,120 @@
 
 
 #if defined( SYSLOG_SUCCESS ) || defined( SYSLOG_FAILURE )
-/* Log the fact that someone has run su */
+/* Log the fact that someone has run su to the user given by PW;
+   if SUCCESSFUL is nonzero, they gave the correct password, etc.  */
 
-# if defined( SYSLOG_SUCCESS ) && defined( SYSLOG_FAILURE )
-static void log_su (const char *successful, const char *old_user, const char *tty)
+static void log_su ( const struct passwd *pw, int successful )
 {
-	syslog ( LOG_NOTICE, "%s%s on %s", successful, old_user, tty);
-}
-#  define log_su_successful(cu, u, tty) if(!cu) log_su("", u, tty)
-#  define log_su_failure(cu, u, tty)    if(!cu) log_su("FAILED SU ", u, tty)
-# else
-	/* partial logging */
-#  if !defined( SYSLOG_SUCESS )
-#   define log_su_successful(cu, u, tty)
-#   define log_su_failure(cu, u, t) if(!cu) \
-			syslog(LOG_NOTICE, "FAILED SU %s on %s", u, t)
-#  else
-#   define log_su_successful(cu, u, t) if(!cu) \
-			syslog(LOG_NOTICE, "%s on %s", u, t)
-#   define log_su_failure(cu, u, tty)
-#  endif
-# endif
-#else
-	/* logging not used */
-# define log_su_successful(cu, u, tty)
-# define log_su_failure(cu, u, tty)
+	const char *old_user, *tty;
+
+#if !defined( SYSLOG_SUCESS )
+	if ( successful )
+		return;
 #endif
+#if !defined( SYSLOG_FAILURE )
+	if ( !successful )
+		return;
+#endif
+
+	if ( pw-> pw_uid ) // not to root -> ignored
+		return;
+
+	/* The utmp entry (via getlogin) is probably the best way to identify
+	   the user, especially if someone su's from a su-shell.  */
+	old_user = getlogin ( );
+	if ( !old_user ) {
+		/* getlogin can fail -- usually due to lack of utmp entry. Resort to getpwuid.  */
+		struct passwd *pwd = getpwuid ( getuid ( ));
+		old_user = ( pwd ? pwd-> pw_name : "" );
+	}
+	
+	tty = ttyname ( 2 );
+
+	openlog ( "su", 0, LOG_AUTH );
+	syslog ( LOG_NOTICE, "%s%s on %s", successful ? "" : "FAILED SU ", old_user, tty ? tty : "none" );
+}
+#endif
+
 
 
 int su_main ( int argc, char **argv )
 {
-	unsigned long flags;
-	int opt_preserve;
-	int opt_loginshell;
+	int flag;
+	int opt_preserve = 0;
+	int opt_loginshell = 0;
 	char *opt_shell = 0;
 	char *opt_command = 0;
 	char *opt_username = DEFAULT_USER;
 	char **opt_args = 0;
-	struct passwd *pw;
-	uid_t cur_uid = getuid();
+	struct passwd *pw, pw_copy;
 
-#if defined( SYSLOG_SUCCESS ) || defined( SYSLOG_FAILURE )
-	const char *tty;
-	const char *old_user;
-#endif
 
-	flags = bb_getopt_ulflags(argc, argv, "mplc:s:",
-						  &opt_command, &opt_shell);
-	opt_preserve = flags & 3;
-	opt_loginshell = (flags & 4 ? 1 : 0);
+	while (( flag = getopt ( argc, argv, "c:lmps:" )) != -1 ) {
+		switch ( flag ) {
+		case 'c':
+			opt_command = optarg;
+			break;
+		case 'm':
+		case 'p':
+			opt_preserve = 1;
+			break;
+		case 's':
+			opt_shell = optarg;
+			break;
+		case 'l':
+			opt_loginshell = 1;
+			break;
+		default:
+			bb_show_usage( );
+			break;
+		}
+	}
 
-	if (optind < argc  && argv[optind][0] == '-' && argv[optind][1] == 0) {
+	if (( optind < argc ) && ( argv [optind][0] == '-' ) && ( argv [optind][1] == 0 )) {
 		opt_loginshell = 1;
 		++optind;
     }
 
 	/* get user if specified */
-	if ( optind < argc )
+	if ( optind < argc ) 
 		opt_username = argv [optind++];
 
 	if ( optind < argc )
 		opt_args = argv + optind;
-
-#if defined( SYSLOG_SUCCESS ) || defined( SYSLOG_FAILURE )
-#ifdef CONFIG_FEATURE_U_W_TMP
-	/* The utmp entry (via getlogin) is probably the best way to identify
-	   the user, especially if someone su's from a su-shell.  */
-	old_user = getlogin ( );
-	if ( !old_user )
-#endif
-		{
-		/* getlogin can fail -- usually due to lack of utmp entry. Resort to getpwuid.  */
-		pw = getpwuid ( cur_uid );
-		old_user = ( pw ? pw->pw_name : "" );
-	}
-	tty = ttyname ( 2 );
-	if(!tty)
-		tty = "none";
-
-	openlog ( bb_applet_name, 0, LOG_AUTH );
-#endif
-
+		
+		
 	pw = getpwnam ( opt_username );
 	if ( !pw )
 		bb_error_msg_and_die ( "user %s does not exist", opt_username );
-
+		
 	/* Make sure pw->pw_shell is non-NULL.  It may be NULL when NEW_USER
 	   is a username that is retrieved via NIS (YP), but that doesn't have
 	   a default shell listed.  */
 	if ( !pw-> pw_shell || !pw->pw_shell [0] )
 		pw-> pw_shell = (char *) DEFAULT_SHELL;
 
-	if ((( cur_uid == 0 ) || correct_password ( pw ))) {
-		log_su_successful(pw->pw_uid, old_user, tty );
-	} else {
-		log_su_failure (pw->pw_uid, old_user, tty );
+	/* Make a copy of the password information and point pw at the local
+	   copy instead.  Otherwise, some systems (e.g. Linux) would clobber
+	   the static data through the getlogin call from log_su.  */
+	pw_copy = *pw;
+	pw = &pw_copy;
+	pw-> pw_name  = bb_xstrdup ( pw-> pw_name );
+	pw-> pw_dir   = bb_xstrdup ( pw-> pw_dir );
+	pw-> pw_shell = bb_xstrdup ( pw-> pw_shell );
+
+	if (( getuid ( ) == 0 ) || correct_password ( pw )) 
+		log_su ( pw, 1 );
+	else {
+		log_su ( pw, 0 );
 		bb_error_msg_and_die ( "incorrect password" );
 	}
-
-#if defined( SYSLOG_SUCCESS ) || defined( SYSLOG_FAILURE )
-	closelog();
-#endif
 
 	if ( !opt_shell && opt_preserve )
 		opt_shell = getenv ( "SHELL" );
 
-	if ( opt_shell && cur_uid && restricted_shell ( pw-> pw_shell )) {
+	if ( opt_shell && getuid ( ) && restricted_shell ( pw-> pw_shell ))
+	{
 		/* The user being su'd to has a nonstandard shell, and so is
 		   probably a uucp account or has restricted access.  Don't
 		   compromise the account by allowing access with a standard
@@ -143,15 +152,15 @@ int su_main ( int argc, char **argv )
 	}
 
 	if ( !opt_shell )
-		opt_shell = pw->pw_shell;
+		opt_shell = bb_xstrdup ( pw-> pw_shell );
 
-	change_identity ( pw );
+	change_identity ( pw );	
 	setup_environment ( opt_shell, opt_loginshell, !opt_preserve, pw );
 	run_shell ( opt_shell, opt_loginshell, opt_command, (const char**)opt_args
 #ifdef CONFIG_SELINUX
 	, 0
 #endif
 	);
-
+	
 	return EXIT_FAILURE;
 }

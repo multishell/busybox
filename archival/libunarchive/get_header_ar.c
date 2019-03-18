@@ -45,11 +45,9 @@ extern char get_header_ar(archive_handle_t *archive_handle)
 	if (read(archive_handle->src_fd, ar.raw, 60) != 60) {
 		/* End Of File */
 		return(EXIT_FAILURE);
-	}
+		}
 
-	/* ar header starts on an even byte (2 byte aligned)
-	 * '\n' is used for padding
-	 */
+	/* Some ar entries have a trailing '\n' after the previous data entry */
 	if (ar.raw[0] == '\n') {
 		/* fix up the header, we started reading 1 byte too early */
 		memmove(ar.raw, &ar.raw[1], 59);
@@ -57,7 +55,7 @@ extern char get_header_ar(archive_handle_t *archive_handle)
 		archive_handle->offset++;
 	}
 	archive_handle->offset += 60;
-
+		
 	/* align the headers based on the header magic */
 	if ((ar.formated.magic[0] != '`') || (ar.formated.magic[1] != '\n')) {
 		bb_error_msg_and_die("Invalid ar header");
@@ -86,7 +84,6 @@ extern char get_header_ar(archive_handle_t *archive_handle)
 		} else if (ar.formated.name[1] == ' ') {
 			/* This is the index of symbols in the file for compilers */
 			data_skip(archive_handle);
-			archive_handle->offset += typed->size;
 			return (get_header_ar(archive_handle)); /* Return next header */
 		} else {
 			/* The number after the '/' indicates the offset in the ar data section
@@ -115,12 +112,11 @@ extern char get_header_ar(archive_handle_t *archive_handle)
 			archive_handle->action_data(archive_handle);
 		}
 	} else {
-		data_skip(archive_handle);
+		data_skip(archive_handle);			
 	}
 
-	archive_handle->offset += typed->size;
-	/* Set the file pointer to the correct spot, we may have been reading a compressed file */
-	lseek(archive_handle->src_fd, archive_handle->offset, SEEK_SET);
+	archive_handle->offset += typed->size + 1;
 
 	return(EXIT_SUCCESS);
 }
+

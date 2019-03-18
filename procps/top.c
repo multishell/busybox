@@ -7,14 +7,14 @@
  * This reads the PIDs of all processes and their status and shows
  * the status of processes (first ones that fit to screen) at given
  * intervals.
- *
+ * 
  * NOTES:
  * - At startup this changes to /proc, all the reads are then
  *   relative to that.
- *
+ * 
  * (C) Eero Tamminen <oak at welho dot com>
  *
- * Rewritten by Vladimir Oleynik (C) 2002 <dzo@simtreas.ru>
+ * Rewroted by Vladimir Oleynik (C) 2002 <dzo@simtreas.ru>
  */
 
 /* Original code Copyrights */
@@ -55,12 +55,22 @@ static int ntop;
 
 static int pid_sort (procps_status_t *P, procps_status_t *Q)
 {
-    return (Q->pid - P->pid);
+    int p = P->pid;
+    int q = Q->pid;
+
+    if( p < q ) return -1;
+    if( p > q ) return  1;
+    return 0;
 }
 
 static int mem_sort (procps_status_t *P, procps_status_t *Q)
 {
-    return (int)(Q->rss - P->rss);
+    long p = P->rss;
+    long q = Q->rss;
+
+    if( p > q ) return -1;
+    if( p < q ) return  1;
+    return 0;
 }
 
 #ifdef FEATURE_CPU_USAGE_PERCENTAGE
@@ -70,12 +80,24 @@ static cmp_t sort_function[sort_depth];
 
 static int pcpu_sort (procps_status_t *P, procps_status_t *Q)
 {
-    return (Q->pcpu - P->pcpu);
+    int p = P->pcpu;
+    int q = Q->pcpu;
+
+    if( p > q ) return -1;
+    if( p < q ) return  1;
+    return 0;
 }
 
 static int time_sort (procps_status_t *P, procps_status_t *Q)
 {
-    return (int)((Q->stime + Q->utime) - (P->stime + P->utime));
+    long p = P->stime;
+    long q = Q->stime;
+
+    p += P->utime;
+    q += Q->utime;
+    if( p > q ) return -1;
+    if( p < q ) return  1;
+    return 0;
 }
 
 int mult_lvl_cmp(void* a, void* b) {
@@ -111,7 +133,7 @@ static unsigned long Hertz;
  * is the kernel clock tick rate. One of these units is called a jiffy.
  * The HZ value used in the kernel may vary according to hacker desire.
  * According to Linus Torvalds, this is not true. He considers the values
- * in /proc as being in architecture-dependent units that have no relation
+ * in /proc as being in architecture-dependant units that have no relation
  * to the kernel clock tick rate. Examination of the kernel source code
  * reveals that opinion as wishful thinking.
  *
@@ -289,50 +311,17 @@ static unsigned long display_generic(void)
 	char buf[80];
 	float avg1, avg2, avg3;
 	unsigned long total, used, mfree, shared, buffers, cached;
-	unsigned int needs_conversion = 1;
 
 	/* read memory info */
 	fp = bb_xfopen("meminfo", "r");
+	fgets(buf, sizeof(buf), fp);	/* skip first line */
 
-	/*
-	 * Old kernels (such as 2.4.x) had a nice summary of memory info that
-	 * we could parse, however this is gone entirely in 2.6. Try parsing
-	 * the old way first, and if that fails, parse each field manually.
-	 *
-	 * First, we read in the first line. Old kernels will have bogus
-	 * strings we don't care about, whereas new kernels will start right
-	 * out with MemTotal:
-	 * 				-- PFM.
-	 */
-	if (fscanf(fp, "MemTotal: %lu %s\n", &total, buf) != 2) {
-		fgets(buf, sizeof(buf), fp);	/* skip first line */
-
-		fscanf(fp, "Mem: %lu %lu %lu %lu %lu %lu",
-		   &total, &used, &mfree, &shared, &buffers, &cached);
-	} else {
-		/*
-		 * Revert to manual parsing, which incidentally already has the
-		 * sizes in kilobytes. This should be safe for both 2.4 and
-		 * 2.6.
-		 */
-		needs_conversion = 0;
-
-		fscanf(fp, "MemFree: %lu %s\n", &mfree, buf);
-
-		/*
-		 * MemShared: is no longer present in 2.6. Report this as 0,
-		 * to maintain consistent behavior with normal procps.
-		 */
-		if (fscanf(fp, "MemShared: %lu %s\n", &shared, buf) != 2)
-			shared = 0;
-
-		fscanf(fp, "Buffers: %lu %s\n", &buffers, buf);
-		fscanf(fp, "Cached: %lu %s\n", &cached, buf);
-
-		used = total - mfree;
+	if (fscanf(fp, "Mem: %lu %lu %lu %lu %lu %lu",
+		   &total, &used, &mfree, &shared, &buffers, &cached) != 6) {
+		bb_error_msg_and_die("failed to read '%s'", "meminfo");
 	}
 	fclose(fp);
-
+	
 	/* read load average */
 	fp = bb_xfopen("loadavg", "r");
 	if (fscanf(fp, "%f %f %f", &avg1, &avg2, &avg3) != 3) {
@@ -340,16 +329,13 @@ static unsigned long display_generic(void)
 	}
 	fclose(fp);
 
-	if (needs_conversion) {
-		/* convert to kilobytes */
-		used /= 1024;
-		mfree /= 1024;
-		shared /= 1024;
-		buffers /= 1024;
-		cached /= 1024;
-		total /= 1024;
-	}
-
+	/* convert to kilobytes */
+	used /= 1024;
+	mfree /= 1024;
+	shared /= 1024;
+	buffers /= 1024;
+	cached /= 1024;
+	
 	/* output memory info and load average */
 	/* clear screen & go to top */
 	printf("\e[H\e[J" "Mem: "
@@ -358,7 +344,7 @@ static unsigned long display_generic(void)
 	printf("Load average: %.2f, %.2f, %.2f    "
 			"(State: S=sleeping R=running, W=waiting)\n",
 	       avg1, avg2, avg3);
-	return total;
+	return total / 1024;
 }
 
 
@@ -368,7 +354,7 @@ static void display_status(int count, int col)
 	procps_status_t *s = top;
 	char rss_str_buf[8];
 	unsigned long total_memory = display_generic();
-
+	
 #ifdef FEATURE_CPU_USAGE_PERCENTAGE
 	/* what info of the processes is shown */
 	printf("\n\e[7m  PID USER     STATUS   RSS  PPID %%CPU %%MEM COMMAND\e[0m\n");
@@ -382,20 +368,21 @@ static void display_status(int count, int col)
 
 		pmem = 1000.0 * s->rss / total_memory;
 		if (pmem > 999) pmem = 999;
-
+	
 		if(s->rss > 10*1024)
 			sprintf(rss_str_buf, "%6ldM", s->rss/1024);
 		else
 			sprintf(rss_str_buf, "%7ld", s->rss);
 #ifdef FEATURE_CPU_USAGE_PERCENTAGE
 		printf("%5d %-8s %s  %s %5d %2d.%d %2u.%u ",
-			s->pid, s->user, s->state, rss_str_buf, s->ppid,
-			s->pcpu/10, s->pcpu%10, pmem/10, pmem%10);
 #else
 		printf("%5d %-8s %s  %s %5d %2u.%u ",
-			s->pid, s->user, s->state, rss_str_buf, s->ppid,
-			pmem/10, pmem%10);
 #endif
+			s->pid, s->user, s->state, rss_str_buf, s->ppid,
+#ifdef FEATURE_CPU_USAGE_PERCENTAGE
+			s->pcpu/10, s->pcpu%10,
+#endif
+			pmem/10, pmem%10);
 			if(strlen(namecmd) > col)
 				namecmd[col] = 0;
 			printf("%s\n", namecmd);
@@ -428,7 +415,7 @@ static void reset_term(void)
 #endif
 #endif /* CONFIG_FEATURE_CLEAN_UP */
 }
-
+	
 static void sig_catcher (int sig)
 {
 	reset_term();
@@ -445,6 +432,9 @@ int top_main(int argc, char **argv)
 	fd_set readfds;
 	unsigned char c;
 	struct sigaction sa;
+#if defined CONFIG_FEATURE_AUTOWIDTH
+	struct winsize win = { 0, 0, 0, 0 };
+#endif
 #endif /* CONFIG_FEATURE_USE_TERMIOS */
 
 	/* Default update rate is 5 seconds */
@@ -488,16 +478,17 @@ int top_main(int argc, char **argv)
 	sigaction (SIGINT, &sa, (struct sigaction *) 0);
 	tcsetattr(0, TCSANOW, (void *) &new_settings);
 	atexit(reset_term);
-
-	get_terminal_width_height(0, &col, &lines);
-	if (lines > 4) {
-	    lines -= 5;
+#if defined CONFIG_FEATURE_AUTOWIDTH
+	ioctl(0, TIOCGWINSZ, &win);
+	if (win.ws_row > 4) {
+	    lines = win.ws_row - 5;
 #ifdef FEATURE_CPU_USAGE_PERCENTAGE
-	    col = col - 80 + 35 - 6;
+	    col = win.ws_col - 80 + 35 - 6;
 #else
-	    col = col - 80 + 35;
+	    col = win.ws_col - 80 + 35;
 #endif
 	}
+#endif
 #endif /* CONFIG_FEATURE_USE_TERMIOS */
 #ifdef FEATURE_CPU_USAGE_PERCENTAGE
 	sort_function[0] = pcpu_sort;
@@ -587,6 +578,6 @@ int top_main(int argc, char **argv)
 #endif                                  /* CONFIG_FEATURE_USE_TERMIOS */
 		clearmems();
 	}
-
+	
 	return EXIT_SUCCESS;
 }

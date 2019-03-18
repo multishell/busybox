@@ -38,6 +38,7 @@ extern int update_passwd(const struct passwd *pw, char *crypt_pw)
 	char buffer[80];
 	char username[32];
 	char *pw_rest;
+	int has_shadow = 0;
 	int mask;
 	int continued;
 	FILE *fp;
@@ -45,12 +46,12 @@ extern int update_passwd(const struct passwd *pw, char *crypt_pw)
 	struct stat sb;
 	struct flock lock;
 
-#ifdef CONFIG_FEATURE_SHADOWPASSWDS
 	if (access(bb_path_shadow_file, F_OK) == 0) {
+		has_shadow = 1;
+	}
+	if (has_shadow) {
 		snprintf(filename, sizeof filename, "%s", bb_path_shadow_file);
-	} else
-#endif
-	{
+	} else {
 		snprintf(filename, sizeof filename, "%s", bb_path_passwd_file);
 	}
 
@@ -139,11 +140,12 @@ extern int passwd_main(int argc, char **argv)
 	char *name;
 	char *myname;
 	int flag;
-	int algo = 1;				/* -a - password algorithm */
+	int algo = 0;				/* -a - password algorithm */
 	int lflg = 0;				/* -l - lock account */
 	int uflg = 0;				/* -u - unlock account */
 	int dflg = 0;				/* -d - delete password */
 	const struct passwd *pw;
+	unsigned short ruid;
 
 #ifdef CONFIG_FEATURE_SHADOWPASSWDS
 	const struct spwd *sp;
@@ -168,8 +170,12 @@ extern int passwd_main(int argc, char **argv)
 			bb_show_usage();
 		}
 	}
-	myname = (char *) bb_xstrdup(my_getpwuid(NULL, getuid(), -1));
-	/* exits on error */
+	ruid = getuid();
+	pw = (struct passwd *) getpwuid(ruid);
+	if (!pw) {
+               bb_error_msg_and_die("Cannot determine your user name.");
+	}
+	myname = (char *) bb_xstrdup(pw->pw_name);
 	if (optind < argc) {
 		name = argv[optind];
 	} else {
@@ -326,7 +332,7 @@ static int new_password(const struct passwd *pw, int amroot, int algo)
 	time_t start, now;
 
 	if (!amroot && crypt_passwd[0]) {
-		if (!(clear = bb_askpass(0, "Old password:"))) {
+		if (!(clear = getpass("Old password:"))) {
 			/* return -1; */
 			return 1;
 		}
@@ -350,7 +356,7 @@ static int new_password(const struct passwd *pw, int amroot, int algo)
 	} else {
 		orig[0] = '\0';
 	}
-	if (! (cp=bb_askpass(0, "Enter the new password (minimum of 5, maximum of 8 characters)\n"
+	if (! (cp=getpass("Enter the new password (minimum of 5, maximum of 8 characters)\n"
 					  "Please use a combination of upper and lower case letters and numbers.\n"
 					  "Enter new password: ")))
 	{
@@ -369,7 +375,7 @@ static int new_password(const struct passwd *pw, int amroot, int algo)
 			return 1;
 		}
 	}
-	if (!(cp = bb_askpass(0, "Re-enter new password: "))) {
+	if (!(cp = getpass("Re-enter new password: "))) {
 		bzero(orig, sizeof orig);
 		/* return -1; */
 		return 1;

@@ -82,10 +82,10 @@ enum rpm_functions_e {
 };
 
 typedef struct {
-	uint32_t tag; /* 4 byte tag */
-	uint32_t type; /* 4 byte type */
-	uint32_t offset; /* 4 byte offset */
-	uint32_t count; /* 4 byte count */
+	u_int32_t tag; /* 4 byte tag */
+	u_int32_t type; /* 4 byte type */
+	u_int32_t offset; /* 4 byte offset */
+	u_int32_t count; /* 4 byte count */
 } rpm_index;
 
 static void *map;
@@ -197,6 +197,7 @@ void extract_cpio_gz(int fd) {
 
 	/* Initialise */
 	archive_handle = init_handle();
+	archive_handle->read = read_gz;
 	archive_handle->seek = seek_by_char;
 	//archive_handle->action_header = header_list;
 	archive_handle->action_data = data_extract_all;
@@ -204,17 +205,19 @@ void extract_cpio_gz(int fd) {
 	archive_handle->flags |= ARCHIVE_CREATE_LEADING_DIRS;
 	archive_handle->src_fd = fd;
 	archive_handle->offset = 0;
-
+	
 	bb_xread_all(archive_handle->src_fd, &magic, 2);
 	if ((magic[0] != 0x1f) || (magic[1] != 0x8b)) {
 		bb_error_msg_and_die("Invalid gzip magic");
 	}
-	check_header_gzip(archive_handle->src_fd);
+	check_header_gzip(archive_handle->src_fd);	
 	chdir("/"); // Install RPM's to root
 
-	archive_handle->src_fd = open_transformer(archive_handle->src_fd, inflate_gunzip);
-	archive_handle->offset = 0;
+	GZ_gzReadOpen(archive_handle->src_fd, 0, 0);
 	while (get_header_cpio(archive_handle) == EXIT_SUCCESS);
+	GZ_gzReadClose();
+	
+	check_trailer_gzip(archive_handle->src_fd);
 }
 
 
@@ -227,10 +230,10 @@ rpm_index **rpm_gettags(int fd, int *num_tags)
 	for (pass = 0; pass < 2; pass++) { /* 1st pass is the signature headers, 2nd is the main stuff */
 		struct {
 			char magic[3]; /* 3 byte magic: 0x8e 0xad 0xe8 */
-			uint8_t version; /* 1 byte version number */
-			uint32_t reserved; /* 4 bytes reserved */
-			uint32_t entries; /* Number of entries in header (4 bytes) */
-			uint32_t size; /* Size of store (4 bytes) */
+			u_int8_t version; /* 1 byte version number */
+			u_int32_t reserved; /* 4 bytes reserved */
+			u_int32_t entries; /* Number of entries in header (4 bytes) */
+			u_int32_t size; /* Size of store (4 bytes) */
 		} header;
 		rpm_index *tmpindex;
 		int storepos;

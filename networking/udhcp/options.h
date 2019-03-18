@@ -24,16 +24,16 @@ enum {
 struct dhcp_option {
 	char name[10];
 	char flags;
-	uint8_t code;
+	unsigned char code;
 };
 
-extern struct dhcp_option dhcp_options[];
+extern struct dhcp_option options[];
 extern int option_lengths[];
 
-uint8_t *get_option(struct dhcpMessage *packet, int code);
-int end_option(uint8_t *optionptr);
-int add_option_string(uint8_t *optionptr, uint8_t *string);
-int add_simple_option(uint8_t *optionptr, uint8_t code, uint32_t data);
+unsigned char *get_option(struct dhcpMessage *packet, int code);
+int end_option(unsigned char *optionptr);
+int add_option_string(unsigned char *optionptr, unsigned char *string);
+int add_simple_option(unsigned char *optionptr, unsigned char code, u_int32_t data);
 struct option_set *find_option(struct option_set *opt_list, char code);
 void attach_option(struct option_set **opt_list, struct dhcp_option *option, char *buffer, int length);
 
