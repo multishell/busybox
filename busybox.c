@@ -475,6 +475,11 @@ int main(int argc, char **argv)
 			applet_name = s;
 	}
 
+	// Hack to run a shell by default when NOT invoked as "busybox"
+	if (strncmp(applet_name, "busybox-", 8) == 0) {
+		applet_name = "sh";
+	}
+
 	*argv = (char*)applet_name;
 
 #ifdef BB_SH
