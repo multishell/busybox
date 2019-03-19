@@ -93,7 +93,7 @@
 
 /* The 9 mode bits to test */
 
-static const umode_t MBIT[] = {
+static const __mode_t MBIT[] = {
   S_IRUSR, S_IWUSR, S_IXUSR,
   S_IRGRP, S_IWGRP, S_IXGRP,
   S_IROTH, S_IWOTH, S_IXOTH
@@ -101,7 +101,7 @@ static const umode_t MBIT[] = {
 
 /* The special bits. If set, display SMODE0/1 instead of MODE0/1 */
 
-static const umode_t SBIT[] = {
+static const __mode_t SBIT[] = {
   0, 0, S_ISUID,
   0, 0, S_ISGID,
   0, 0, S_ISVTX
@@ -192,7 +192,7 @@ static void tab(short col)
 }
 
 #ifdef FEATURE_FILETYPECHAR
-static char append_char(umode_t mode)
+static char append_char(__mode_t mode)
 {
 	if (!(opts & DISP_FTYPE))
 		return '\0';
@@ -218,7 +218,7 @@ static void list_single(const char *name, struct stat *info)
 #endif
 	
 	if (display_fmt == FMT_LONG) {
-		umode_t mode = info->st_mode; 
+		__mode_t mode = info->st_mode; 
 		int i;
 		
 		scratch[0] = TYPECHAR(mode);
