@@ -7,5 +7,6 @@ const char	sync_usage[] = "sync\n"
 extern int
 sync_main(struct FileInfo * i, int argc, char * * argv)
 {
-	return sync();
+	sync();
+	return 0;
 }
