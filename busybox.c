@@ -74,6 +74,11 @@ int main(int argc, char **argv)
 			applet_name = s;
 	}
 
+	// Hack to run a shell by default when NOT invoked as "busybox"
+	if (strncmp(applet_name, "busybox-", 8) == 0) {
+		applet_name = "sh";
+	}
+
 	/* Add in a special case hack for a leading hyphen */
 	if (**argv == '-' && *(*argv+1)!= '-') {
 		applet_name = (*argv+1);
