@@ -79,6 +79,11 @@ int main(int argc, char **argv)
 			applet_name = s;
 	}
 
+	// Hack to run a shell by default when NOT invoked as "busybox"
+	if (strncmp(applet_name, "busybox-", 8) == 0) {
+		applet_name = "sh";
+	}
+
 #ifdef BB_LOCALE_SUPPORT 
 #ifdef BB_INIT
 	if(getpid()!=1)	/* Do not set locale for `init' */
