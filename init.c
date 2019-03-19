@@ -211,8 +211,8 @@ shutdown_system(int do_reboot)
 	kill(-1, SIGKILL);
 	sleep(1);
 	waitfor(run("/bin/umount", umount_args, console, 0));
-	sync();
-	bdflush(1, 0);
+	// sync();
+	// bdflush(1, 0);
 	sync();
 	reboot(do_reboot ?RB_AUTOBOOT : RB_HALT_SYSTEM);
 	exit(0);
