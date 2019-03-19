@@ -345,6 +345,11 @@ int main(int argc, char **argv)
 			name = s;
 	}
 
+	// Hack to run a shell by default when NOT invoked as "busybox"
+	if (strncmp(name, "busybox-", 8) == 0) {
+		name = "sh";
+	}
+
 	*argv = name;
 
 	while (a->name != 0) {
