@@ -40,7 +40,7 @@
 #include <string.h>
 #include <sys/fcntl.h>
 #include <sys/ioctl.h>
-#include <sys/kdaemon.h>
+//#include <sys/kdaemon.h>
 #include <sys/mount.h>
 #include <sys/reboot.h>
 #include <sys/sysinfo.h>		/* For check_free_memory() */
@@ -530,7 +530,7 @@ static void shutdown_system(void)
 	sync();
 	if (kernelVersion > 0 && kernelVersion <= 2 * 65536 + 2 * 256 + 11) {
 		/* bdflush, kupdate not needed for kernels >2.2.11 */
-		bdflush(1, 0);
+		//bdflush(1, 0);
 		sync();
 	}
 }
