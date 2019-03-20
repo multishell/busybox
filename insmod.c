@@ -283,6 +283,7 @@ int delete_module(const char *);
 
 #include <stdio.h>
 #include <elf.h>
+#include <linux/elf-em.h>
 
 
 /* Machine-specific elf macros for i386 et al.  */
