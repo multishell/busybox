@@ -74,6 +74,10 @@ unsigned long create_module(const char *name, size_t size)
 	return ret;
 }
 
+#else
+int query_module(const char *name, int which, void *buf, size_t bufsize, size_t *ret) {
+    return syscall(SYS_query_module, name, which, buf, bufsize, ret);
+}
 #endif /* __GNU_LIBRARY__ < 5 */
 
 
