@@ -32,8 +32,8 @@
 #include <sys/syscall.h>
 #include <linux/unistd.h>
 
-_syscall2(int, swapon, const char *, path, int, flags);
-_syscall1(int, swapoff, const char *, path);
+//_syscall2(int, swapon, const char *, path, int, flags);
+//_syscall1(int, swapoff, const char *, path);
 
 
 static int whichApp;
@@ -47,9 +47,9 @@ static void swap_enable_disable(char *device)
 	int status;
 
 	if (whichApp == SWAPON_APP)
-		status = swapon(device, 0);
+		status = syscall(SYS_swapon, device, 0);
 	else
-		status = swapoff(device);
+		status = syscall(SYS_swapoff, device);
 
 	if (status != 0)
 		perror_msg_and_die(applet_name);
