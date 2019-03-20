@@ -30,5 +30,7 @@
 #include "grp.h"
 
 //#define __NR_setgroups        81
-_syscall2(int, setgroups, size_t, size, const gid_t *, list);
-
+//_syscall2(int, setgroups, size_t, size, const gid_t *, list);
+int setgroups(size_t size, const gid_t *list) {
+    return syscall(SYS_setgroups, size, list);
+}
