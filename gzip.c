@@ -71,7 +71,7 @@ typedef unsigned long ulg;
 /* methods 4 to 7 reserved */
 #define DEFLATED    8
 #define MAX_METHODS 9
-extern int method;				/* compression method */
+static int method;				/* compression method */
 
 /* To save memory for 16 bit systems, some arrays are overlaid between
  * the various modules:
@@ -141,25 +141,25 @@ EXTERN(ush, tab_prefix0);		/* prefix for even codes */
 EXTERN(ush, tab_prefix1);		/* prefix for odd  codes */
 #endif
 
-extern unsigned insize;			/* valid bytes in inbuf */
+static unsigned insize;			/* valid bytes in inbuf */
 extern unsigned inptr;			/* index of next byte to be processed in inbuf */
-extern unsigned outcnt;			/* bytes in output buffer */
+static unsigned outcnt;			/* bytes in output buffer */
 
-extern long bytes_in;			/* number of input bytes */
-extern long bytes_out;			/* number of output bytes */
+static long bytes_in;			/* number of input bytes */
+static long bytes_out;			/* number of output bytes */
 extern long header_bytes;		/* number of bytes in gzip header */
 
 #define isize bytes_in
 /* for compatibility with old zip sources (to be cleaned) */
 
-extern int ifd;					/* input file descriptor */
-extern int ofd;					/* output file descriptor */
-extern char ifname[];			/* input file name or "stdin" */
-extern char ofname[];			/* output file name or "stdout" */
+static int ifd;					/* input file descriptor */
+static int ofd;					/* output file descriptor */
+static char ifname[];			/* input file name or "stdin" */
+static char ofname[];			/* output file name or "stdout" */
 extern char *progname;			/* program name */
 
-extern long time_stamp;			/* original time stamp (modification time) */
-extern long ifile_size;			/* input file size, -1 for devices (debug only) */
+static long time_stamp;			/* original time stamp (modification time) */
+static long ifile_size;			/* input file size, -1 for devices (debug only) */
 
 typedef int file_t;				/* Do not use stdio */
 
@@ -205,7 +205,7 @@ typedef int file_t;				/* Do not use stdio */
  */
 
 extern int decrypt;				/* flag to turn on decryption */
-extern int exit_code;			/* program exit code */
+static int exit_code;			/* program exit code */
 extern int verbose;				/* be verbose (-v) */
 extern int quiet;				/* be quiet (-q) */
 extern int test;				/* check .z file integrity */
