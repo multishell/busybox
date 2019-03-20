@@ -27,12 +27,12 @@
 #include <unistd.h>
 #define __LIBRARY__
 #include <asm/unistd.h>
-/* #include <sys/syscall.h> */
+#include <sys/syscall.h>
 
 
 
 /* And the system call of the day is...  */
-_syscall1(int, delete_module, const char *, name)
+//_syscall1(int, delete_module, const char *, name)
 
 
 static const char rmmod_usage[] =
@@ -58,7 +58,7 @@ extern int rmmod_main(int argc, char **argv)
 			switch (**argv) {
 			case 'a':
 				/* Unload _all_ unused modules via NULL delete_module() call */
-				if (delete_module(NULL)) {
+				if (syscall(SYS_delete_module, NULL)) {
 					perror("rmmod");
 					exit(FALSE);
 				}
@@ -70,7 +70,7 @@ extern int rmmod_main(int argc, char **argv)
 	}
 
 	while (argc-- > 0) {
-		if (delete_module(*argv) < 0) {
+		if (syscall(SYS_delete_module, *argv) < 0) {
 			perror(*argv);
 		}
 		argv++;
