@@ -61,6 +61,10 @@
 #define xstrdup strdup
 #define xstrndup strndup
 
+#ifndef NFS_VERSION
+#define NFS_VERSION 2
+#endif
+
 
 static char *nfs_strerror(int stat);
 
