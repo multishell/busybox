@@ -41,7 +41,10 @@ int sysfs( int option, unsigned int fs_index, char * buf)
 	return(syscall(__NR_sysfs, option, fs_index, buf));
 }
 #else
-_syscall3(int, sysfs, int, option, unsigned int, fs_index, char *, buf);
+//_syscall3(int, sysfs, int, option, unsigned int, fs_index, char *, buf);
+int sysfs(int option, unsigned int fs_index, char *buf) {
+    return syscall(SYS_sysfs, option, fs_index, buf);
+}
 #endif
 
 #ifndef __NR_pivot_root
@@ -66,7 +69,10 @@ int pivot_root(const char * new_root,const char * put_old)
 		return(syscall(__NR_pivot_root, new_root, put_old));
 	}
 #  else
-    _syscall2(int,pivot_root,const char *,new_root,const char *,put_old);
+    //_syscall2(int,pivot_root,const char *,new_root,const char *,put_old);
+    int pivot_root(const char *new_root, const char *put_old) {
+        return syscall(SYS_pivot_root, new_root, put_old);
+    }
 #  endif
 #endif
 
