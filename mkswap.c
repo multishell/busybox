@@ -44,7 +44,7 @@
 #include <sys/ioctl.h>			/* for _IO */
 #include <sys/utsname.h>
 #include <sys/stat.h>
-#include <asm/page.h>			/* for PAGE_SIZE and PAGE_SHIFT */
+//#include <asm/page.h>			/* for PAGE_SIZE and PAGE_SHIFT */
 				/* we also get PAGE_SIZE via getpagesize() */
 
 
