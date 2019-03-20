@@ -220,9 +220,9 @@ struct new_module_info
 #define NEW_MOD_VISITED		8
 #define NEW_MOD_USED_ONCE	16
 
-int new_sys_init_module(const char *name, const struct new_module *);
-int query_module(const char *name, int which, void *buf, size_t bufsize,
-		 size_t *ret);
+//int new_sys_init_module(const char *name, const struct new_module *);
+//int query_module(const char *name, int which, void *buf, size_t bufsize,
+//		 size_t *ret);
 
 /* Values for query_module's which.  */
 
@@ -235,7 +235,7 @@ int query_module(const char *name, int which, void *buf, size_t bufsize,
 /*======================================================================*/
 /* The system calls unchanged between 2.0 and 2.1.  */
 
-unsigned long create_module(const char *, size_t);
+//unsigned long create_module(const char *, size_t);
 int delete_module(const char *);
 
 
@@ -523,17 +523,17 @@ int n_ext_modules_used;
 
 /* Some firendly syscalls to cheer everyone's day...  */
 #define __NR_new_sys_init_module  __NR_init_module
-_syscall2(int, new_sys_init_module, const char *, name,
-		  const struct new_module *, info)
+//_syscall2(int, new_sys_init_module, const char *, name,
+//		  const struct new_module *, info)
 #define __NR_old_sys_init_module  __NR_init_module
-_syscall5(int, old_sys_init_module, const char *, name, char *, code,
-		  unsigned, codesize, struct old_mod_routines *, routines,
-		  struct old_symbol_table *, symtab)
+//_syscall5(int, old_sys_init_module, const char *, name, char *, code,
+//		  unsigned, codesize, struct old_mod_routines *, routines,
+//		  struct old_symbol_table *, symtab)
 #ifndef __NR_query_module
 #define __NR_query_module     167
 #endif
-_syscall5(int, query_module, const char *, name, int, which,
-		void *, buf, size_t, bufsize, size_t*, ret);
+//_syscall5(int, query_module, const char *, name, int, which,
+//		void *, buf, size_t, bufsize, size_t*, ret);
 #ifndef BB_RMMOD
 _syscall1(int, delete_module, const char *, name)
 #else
@@ -543,8 +543,8 @@ extern int delete_module(const char *);
 #if defined(__i386__) || defined(__m68k__) || defined(__arm__)
 /* Jump through hoops to fixup error return codes */
 #define __NR__create_module  __NR_create_module
-static inline _syscall2(long, _create_module, const char *, name, size_t,
-						size)
+//static inline _syscall2(long, _create_module, const char *, name, size_t,
+//						size)
 unsigned long create_module(const char *name, size_t size)
 {
 	long ret = _create_module(name, size);
@@ -556,7 +556,7 @@ unsigned long create_module(const char *name, size_t size)
 	return ret;
 }
 #else
-_syscall2(unsigned long, create_module, const char *, name, size_t, size)
+//_syscall2(unsigned long, create_module, const char *, name, size_t, size)
 #endif
 static char m_filename[BUFSIZ + 1] = "\0";
 static char m_fullName[BUFSIZ + 1] = "\0";
@@ -1836,7 +1836,7 @@ static int new_get_kernel_symbols(void)
 
 	module_names = xmalloc(bufsize = 256);
   retry_modules_load:
-	if (query_module(NULL, QM_MODULES, module_names, bufsize, &ret)) {
+	if (syscall(SYS_query_module, NULL, QM_MODULES, module_names, bufsize, &ret)) {
 		if (errno == ENOSPC) {
 			module_names = xrealloc(module_names, bufsize = ret);
 			goto retry_modules_load;
@@ -1855,7 +1855,7 @@ static int new_get_kernel_symbols(void)
 		 i < nmod; ++i, ++m, mn += strlen(mn) + 1) {
 		struct new_module_info info;
 
-		if (query_module(mn, QM_INFO, &info, sizeof(info), &ret)) {
+		if (syscall(SYS_query_module, mn, QM_INFO, &info, sizeof(info), &ret)) {
 			if (errno == ENOENT) {
 				/* The module was removed out from underneath us.  */
 				continue;
@@ -1866,7 +1866,7 @@ static int new_get_kernel_symbols(void)
 
 		syms = xmalloc(bufsize = 1024);
 	  retry_mod_sym_load:
-		if (query_module(mn, QM_SYMBOLS, syms, bufsize, &ret)) {
+		if (syscall(SYS_query_module, mn, QM_SYMBOLS, syms, bufsize, &ret)) {
 			switch (errno) {
 			case ENOSPC:
 				syms = xrealloc(syms, bufsize = ret);
@@ -1895,7 +1895,7 @@ static int new_get_kernel_symbols(void)
 
 	syms = xmalloc(bufsize = 16 * 1024);
   retry_kern_sym_load:
-	if (query_module(NULL, QM_SYMBOLS, syms, bufsize, &ret)) {
+	if (syscall(SYS_query_module, NULL, QM_SYMBOLS, syms, bufsize, &ret)) {
 		if (errno == ENOSPC) {
 			syms = xrealloc(syms, bufsize = ret);
 			goto retry_kern_sym_load;
@@ -2079,7 +2079,7 @@ new_init_module(const char *m_name, struct obj_file *f,
 	image = xmalloc(m_size);
 	obj_create_image(f, image);
 
-	ret = new_sys_init_module(m_name, (struct new_module *) image);
+	ret = syscall(SYS_init_module, m_name, (struct new_module *) image);
 	if (ret)
 		errorMsg("init_module: %s: %s", m_name, strerror(errno));
 
@@ -2777,7 +2777,7 @@ extern int insmod_main( int argc, char **argv)
 	k_crcs = 0;
 #endif							/* BB_FEATURE_INSMOD_VERSION_CHECKING */
 
-	k_new_syscalls = !query_module(NULL, 0, NULL, 0, NULL);
+	k_new_syscalls = !syscall(SYS_query_module, NULL, 0, NULL, 0, NULL);
 
 	if (k_new_syscalls) {
 #ifdef BB_FEATURE_INSMOD_NEW_KERNEL
@@ -2846,7 +2846,7 @@ extern int insmod_main( int argc, char **argv)
 
 
 	errno = 0;
-	m_addr = create_module(m_name, m_size);
+	m_addr = syscall(SYS_create_module, m_name, m_size);
 	switch (errno) {
 	case 0:
 		break;
