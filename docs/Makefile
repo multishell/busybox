@@ -9,7 +9,7 @@ doc:
 	@echo BusyBox Documentation
 	@echo
 	pod2html busybox.pod > ../BusyBox.html 
-	@rm pod2html-*
+	@rm -f pod2html-* pod2htmd.tmp
 	pod2man --center=BusyBox --release="version $(VERSION)" busybox.pod > ../BusyBox.1
 	pod2text busybox.pod > ../BusyBox.txt
 	@rm -f pod2html*
