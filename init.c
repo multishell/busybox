@@ -91,7 +91,7 @@
 #endif
 
 #if defined(__GLIBC__)
-#include <sys/kdaemon.h>
+//#include <sys/kdaemon.h>
 #else
 static _syscall2(int, bdflush, int, func, int, data);
 #endif							/* __GLIBC__ */
@@ -556,7 +556,7 @@ static void shutdown_system(void)
 	sync();
 	if (kernelVersion > 0 && kernelVersion <= 2 * 65536 + 2 * 256 + 11) {
 		/* bdflush, kupdate not needed for kernels >2.2.11 */
-		bdflush(1, 0);
+		//bdflush(1, 0);
 		sync();
 	}
 }
