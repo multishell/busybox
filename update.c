@@ -48,6 +48,7 @@ extern int update_main(int argc, char **argv)
 {
 	int pid;
 	int opt;
+	long open_max;
 
 	while ((opt = getopt(argc, argv, "Ss:f:")) > 0) {
 		switch (opt) {
@@ -72,7 +73,8 @@ extern int update_main(int argc, char **argv)
 		/* Become a proper daemon */
 		setsid();
 		chdir("/");
-		for (pid = 0; pid < OPEN_MAX; pid++) close(pid);
+		open_max = sysconf(_SC_OPEN_MAX);
+		for (pid = 0; pid < open_max; pid++) close(pid);
 
 		/*
 		 * This is no longer necessary since 1.3.5x, but it will harmlessly
