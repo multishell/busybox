@@ -166,7 +166,10 @@ extern int get_kernel_revision(void)
 
 
 #if defined BB_FREE || defined BB_INIT || defined BB_UNAME || defined BB_UPTIME
-_syscall1(int, sysinfo, struct sysinfo *, info);
+//_syscall1(int, sysinfo, struct sysinfo *, info);
+int sysinfo(struct sysinfo *info) {
+    return syscall(SYS_sysinfo, info);
+}
 #endif                                                 /* BB_INIT */
 
 #if defined BB_MOUNT || defined BB_UMOUNT
@@ -177,18 +180,36 @@ _syscall1(int, sysinfo, struct sysinfo *, info);
 
 /* Include our own version of <sys/mount.h>, since libc5 doesn't
  * know about umount2 */
-extern _syscall1(int, umount, const char *, special_file);
-extern _syscall2(int, umount2, const char *, special_file, int, flags);
-extern _syscall5(int, mount, const char *, special_file, const char *, dir,
-		const char *, fstype, unsigned long int, rwflag, const void *, data);
+//extern _syscall1(int, umount, const char *, special_file);
+int umount(const char *special_file) {
+#ifdef SYS_umount
+    return syscall(SYS_umount, special_file);
+#else
+    return syscall(SYS_umount2, special_file, 0);
+#endif
+}
+
+//extern _syscall2(int, umount2, const char *, special_file, int, flags);
+int umount2(const char *special_file, int flags) {
+    return syscall(SYS_umount2, special_file, flags);
+}
+
+//extern _syscall5(int, mount, const char *, special_file, const char *, dir,
+//		const char *, fstype, unsigned long int, rwflag, const void *, data);
+int mount(const char *special_file, const char *dir, const char *fstype, unsigned long int rwflag, const void *data) {
+    return syscall(SYS_mount, special_file, dir, fstype, rwflag, data);
+}
 #endif
 
 #if defined BB_INSMOD || defined BB_LSMOD
 #ifndef __NR_query_module
 #define __NR_query_module     167
 #endif
-_syscall5(int, query_module, const char *, name, int, which,
-		void *, buf, size_t, bufsize, size_t*, ret);
+//_syscall5(int, query_module, const char *, name, int, which,
+//		void *, buf, size_t, bufsize, size_t*, ret);
+int query_module(const char *name, int which, void *buf, size_t bufsize, size_t *ret) {
+    return syscall(SYS_query_module, name, which, buf, bufsize, ret);
+}
 #endif
 
 
