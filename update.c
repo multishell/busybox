@@ -29,7 +29,7 @@
 
 
 #if defined(__GLIBC__)
-#include <sys/kdaemon.h>
+//#include <sys/kdaemon.h>
 #else
 static _syscall2(int, bdflush, int, func, int, data);
 #endif							/* __GLIBC__ */
@@ -100,6 +100,7 @@ extern int update_main(int argc, char **argv)
 				sync();
 			} else {
 				sleep(flush_duration);
+#ifdef EXCLUDED_SINCE_LINUX_2_6
 				if (bdflush(1, 0) < 0) {
 					openlog("update", LOG_CONS, LOG_DAEMON);
 					syslog(LOG_INFO,
@@ -107,6 +108,7 @@ extern int update_main(int argc, char **argv)
 					closelog();
 					exit(TRUE);
 				}
+#endif
 			}
 		}
 	}
