@@ -113,7 +113,7 @@ const struct signal_name signames[] = {
 	/* intel only */
 	{"STKFLT", SIGSTKFLT},
 	{"PWR", SIGPWR},
-	{"UNUSED", SIGUNUSED},
+	{"UNUSED", SIGSYS},
 #endif
 	{0, 0}
 };
