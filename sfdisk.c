@@ -232,7 +232,7 @@ static void warn(char *s, ...)
  * The routines _llseek and sseek below are the only ones that
  * know about the loff_t type.
  */
-#ifndef __alpha__
+#if defined(SYS_llseek) && defined(__alpha__)
 static
 _syscall5(int, _llseek, uint, fd, ulong, hi, ulong, lo,
 		  loff_t *, res, uint, wh);
@@ -245,8 +245,8 @@ static int sseek(char *dev, unsigned int fd, unsigned long s)
 	in = ((loff_t) s << 9);
 	out = 1;
 
-#ifndef __alpha__
-	if (_llseek(fd, in >> 32, in & 0xffffffff, &out, SEEK_SET) != 0) {
+#if defined(SYS_llseek) && defined(__alpha__)
+	if (syscall(SYS_llseek, fd, in >> 32, in & 0xffffffff, &out, SEEK_SET) != 0) {
 #else
 	if ((out = lseek(fd, in, SEEK_SET)) != in) {
 #endif
