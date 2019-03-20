@@ -213,8 +213,7 @@ extern int cut_main(int argc, char **argv)
 	}
 
 	if (supress_non_delimited_lines && part != 'f') {
-		error_msg_and_die("suppressing non-delimited lines makes sense
-	only when operating on fields\n");
+		error_msg_and_die("suppressing non-delimited lines makes sense only when operating on fields\n");
 	}
 
 	if (delim != '\t' && part != 'f') {
