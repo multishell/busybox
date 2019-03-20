@@ -402,7 +402,7 @@ static void mark_good_blocks(void)
 		mark_zone(good_blocks_table[blk]);
 }
 
-inline int next(int zone)
+static inline int next(int zone)
 {
 	if (!zone)
 		zone = FIRSTZONE - 1;
