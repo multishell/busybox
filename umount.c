@@ -27,15 +27,16 @@
 #include <mntent.h>
 #include <errno.h>
 #include <linux/unistd.h>
+#include <syscall.h>
 
 
 //#include <sys/mount.h>
 /* Include our own version of sys/mount.h, since libc5 doesn't
  * know about umount2 */
-static _syscall1(int, umount, const char *, special_file);
-static _syscall2(int, umount2, const char *, special_file, int, flags);
-static _syscall5(int, mount, const char *, special_file, const char *, dir,
-		const char *, fstype, unsigned long int, rwflag, const void *, data);
+//static _syscall1(int, umount, const char *, special_file);
+//static _syscall2(int, umount2, const char *, special_file, int, flags);
+//static _syscall5(int, mount, const char *, special_file, const char *, dir,
+//		const char *, fstype, unsigned long int, rwflag, const void *, data);
 #define MNT_FORCE		1
 #define MS_MGC_VAL		0xc0ed0000		/* Magic flag number to indicate "new" flags */
 #define MS_REMOUNT		32				/* Alter flags of a mounted FS.  */
@@ -191,7 +192,11 @@ static int do_umount(const char *name, int useMtab)
 	if (blockDevice && strcmp(blockDevice, name) == 0)
 		name = mtab_getinfo(blockDevice, MTAB_GETMOUNTPT);
 
-	status = umount(name);
+#ifdef SYS_umount
+	status = syscall(SYS_umount, name);
+#else
+    status = syscall(SYS_umount2, blockDevice, 0);
+#endif
 
 #if defined BB_FEATURE_MOUNT_LOOP
 	if (freeLoop == TRUE && blockDevice != NULL && !strncmp("/dev/loop", blockDevice, 9))
@@ -200,14 +205,14 @@ static int do_umount(const char *name, int useMtab)
 #endif
 #if defined BB_FEATURE_MOUNT_FORCE
 	if (status != 0 && doForce == TRUE) {
-		status = umount2(blockDevice, MNT_FORCE);
+		status = syscall(SYS_umount2, blockDevice, MNT_FORCE);
 		if (status != 0) {
 			fatalError("umount: forced umount of %s failed!\n", blockDevice);
 		}
 	}
 #endif
 	if (status != 0 && doRemount == TRUE && errno == EBUSY) {
-		status = mount(blockDevice, name, NULL,
+		status = syscall(SYS_mount, blockDevice, name, NULL,
 					   MS_MGC_VAL | MS_REMOUNT | MS_RDONLY, NULL);
 		if (status == 0) {
 			fprintf(stderr, "umount: %s busy - remounted read-only\n",
