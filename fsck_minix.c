@@ -104,6 +104,9 @@
 
 #ifdef MINIX2_SUPER_MAGIC2
 #define HAVE_MINIX2 1
+#ifndef MINIX2_INODES_PER_BLOCK
+#define MINIX2_INODES_PER_BLOCK ((BLOCK_SIZE)/(sizeof (struct minix2_inode)))
+#endif
 #endif
 
 #ifndef __linux__
