@@ -103,7 +103,7 @@ struct serial_struct {
 #define KERNEL_VERSION(a,b,c) (((a) << 16) + ((b) << 8) + (c))
 
 #if __GNU_LIBRARY__ > 5
-	#include <sys/kdaemon.h>
+	//#include <sys/kdaemon.h>
 #else
 	extern int bdflush (int func, long int data);
 #endif
@@ -736,7 +736,7 @@ static void shutdown_system(void)
 	sync();
 	if (kernelVersion > 0 && kernelVersion <= KERNEL_VERSION(2,2,11)) {
 		/* bdflush, kupdate not needed for kernels >2.2.11 */
-		bdflush(1, 0);
+		//bdflush(1, 0);
 		sync();
 	}
 }
