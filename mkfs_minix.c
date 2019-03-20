@@ -136,17 +136,17 @@ static char super_block_buffer[BLOCK_SIZE];
 static char boot_block_buffer[512];
 
 #define Super (*(struct minix_super_block *)super_block_buffer)
-#define INODES ((unsigned long)Super.s_ninodes)
+#define INODES (Super.s_ninodes)
 #ifdef HAVE_MINIX2
-#define ZONES ((unsigned long)(version2 ? Super.s_zones : Super.s_nzones))
+#define ZONES ((version2 ? Super.s_zones : Super.s_nzones))
 #else
-#define ZONES ((unsigned long)(Super.s_nzones))
+#define ZONES ((Super.s_nzones))
 #endif
-#define IMAPS ((unsigned long)Super.s_imap_blocks)
-#define ZMAPS ((unsigned long)Super.s_zmap_blocks)
-#define FIRSTZONE ((unsigned long)Super.s_firstdatazone)
-#define ZONESIZE ((unsigned long)Super.s_log_zone_size)
-#define MAXSIZE ((unsigned long)Super.s_max_size)
+#define IMAPS (Super.s_imap_blocks)
+#define ZMAPS (Super.s_zmap_blocks)
+#define FIRSTZONE (Super.s_firstdatazone)
+#define ZONESIZE (Super.s_log_zone_size)
+#define MAXSIZE (Super.s_max_size)
 #define MAGIC (Super.s_magic)
 #define NORM_FIRSTZONE (2+IMAPS+ZMAPS+INODE_BLOCKS)
 
@@ -494,7 +494,11 @@ static void setup_tables(void)
 	MAGIC = magic;
 	ZONESIZE = 0;
 	MAXSIZE = version2 ? 0x7fffffff : (7 + 512 + 512 * 512) * 1024;
-	ZONES = BLOCKS;
+	//ZONES = BLOCKS;
+	if (version2)
+		Super.s_zones = BLOCKS;
+	else
+		Super.s_nzones = BLOCKS;
 /* some magic nrs: 1 inode / 3 blocks */
 	if (req_nr_inodes == 0)
 		inodes = BLOCKS / 3;
