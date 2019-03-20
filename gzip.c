@@ -70,7 +70,7 @@ typedef unsigned long ulg;
 /* methods 4 to 7 reserved */
 #define DEFLATED    8
 #define MAX_METHODS 9
-extern int method;				/* compression method */
+static int method;				/* compression method */
 
 /* To save memory for 16 bit systems, some arrays are overlaid between
  * the various modules:
@@ -204,7 +204,7 @@ typedef int file_t;				/* Do not use stdio */
  */
 
 extern int decrypt;				/* flag to turn on decryption */
-extern int exit_code;			/* program exit code */
+static int exit_code;			/* program exit code */
 extern int verbose;				/* be verbose (-v) */
 extern int quiet;				/* be quiet (-q) */
 extern int test;				/* check .z file integrity */
