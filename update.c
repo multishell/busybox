@@ -34,7 +34,7 @@
 #include <stdlib.h>
 
 #if __GNU_LIBRARY__ > 5
-	#include <sys/kdaemon.h>
+	//#include <sys/kdaemon.h>
 #else
 	extern int bdflush (int func, long int data);
 #endif
@@ -95,6 +95,7 @@ extern int update_main(int argc, char **argv)
 				sync();
 			} else {
 				sleep(flush_duration);
+#ifdef EXCLUDED_SINCE_LINUX_2_6
 				if (bdflush(1, 0) < 0) {
 					openlog("update", LOG_CONS, LOG_DAEMON);
 					syslog(LOG_INFO,
@@ -102,6 +103,7 @@ extern int update_main(int argc, char **argv)
 					closelog();
 					return EXIT_SUCCESS;
 				}
+#endif
 			}
 		}
 	}
