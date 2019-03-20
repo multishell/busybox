@@ -39,6 +39,7 @@
 #include <sys/un.h>
 #include <time.h>
 #include <unistd.h>
+#include <limits.h>
 
 #define ksyslog klogctl
 extern int ksyslog(int type, char *buf, int len);
