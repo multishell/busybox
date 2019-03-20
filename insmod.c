@@ -338,6 +338,13 @@ int delete_module(const char *);
 #define SHT_RELM	SHT_REL
 #define Elf32_RelM	Elf32_Rel
 
+#elif defined(__x86_64__)
+
+// Totally guessing
+#define MATCH_MACHINE(x) (x == EM_X86_64)
+#define SHT_RELM	SHT_REL
+#define Elf32_RelM	Elf32_Rel
+
 #else
 #error insmod.c no platform specified
 #endif
