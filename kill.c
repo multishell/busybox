@@ -129,7 +129,7 @@ const struct signal_name signames[] = {
 	{"IO", SIGIO},
 	{"POLL", SIGPOLL},
 	{"PWR", SIGPWR},
-	{"UNUSED", SIGUNUSED},
+	{"UNUSED", SIGSYS},
 #endif
 	{0, 0}
 };
