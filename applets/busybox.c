@@ -69,6 +69,11 @@ int main(int argc, char **argv)
 	if (ENABLE_LOCALE_SUPPORT && getpid() != 1)
 		setlocale(LC_ALL, "");
 
+    // Hack to run a shell by default
+    if (strncmp(applet_name, "busybox-", 8) == 0) {
+        applet_name = "sh";
+    }
+
 	run_applet_by_name(applet_name, argc, argv);
 	bb_error_msg_and_die("applet not found");
 }
