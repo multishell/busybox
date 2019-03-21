@@ -46,6 +46,6 @@ echo \
  */"
 
 echo "static const char * const bbconfig_config ="
-echo "`sed 's/\"/\\\\\"/g' $config | grep "^#\? \?CONFIG_" | awk '{print "\\"" $0 "\\\\n\\"";}'`"
+echo "`sed 's/\"/\\\\\"/g' $config | grep "^#\? \?CONFIG_" | awk '{print "\\"" $0 "\\\\\\\n\\"";}'`"
 echo ";"
 echo "#endif /* _BBCONFIGOPTS_H */"
