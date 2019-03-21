@@ -220,6 +220,7 @@ int nfsmount(const char *spec, const char *node, int *flags,
 
 /* Include our own copy of struct sysinfo to avoid binary compatability
  * problems with Linux 2.4, which changed things.  Grumble, grumble. */
+#ifdef DO_NOT_USE_THIS_INTERNAL_VERSION
 struct sysinfo {
 	long uptime;			/* Seconds since boot */
 	unsigned long loads[3];		/* 1, 5, and 15 minute load averages */
@@ -237,6 +238,9 @@ struct sysinfo {
 	char _f[20-2*sizeof(long)-sizeof(int)];	/* Padding: libc5 uses this.. */
 };
 extern int sysinfo (struct sysinfo* info);
+#else
+#include <sys/sysinfo.h>
+#endif
 
 enum {
 	KILOBYTE = 1024,
