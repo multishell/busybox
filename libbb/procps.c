@@ -14,6 +14,7 @@
 #include <sys/param.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/user.h>
 
 #include "libbb.h"
 
