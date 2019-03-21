@@ -61,6 +61,7 @@
 #include "busybox.h"
 #include <libgen.h>
 #include <sys/utsname.h>
+#include <syscall.h>
 
 #if !ENABLE_FEATURE_2_4_MODULES && !ENABLE_FEATURE_2_6_MODULES
 #undef ENABLE_FEATURE_2_4_MODULES
@@ -441,7 +442,9 @@ enum {
 
 int init_module(const char *name, const struct new_module *);
 int query_module(const char *name, int which, void *buf,
-		size_t bufsize, size_t *ret);
+		size_t bufsize, size_t *ret) {
+    return syscall(SYS_query_module, name, which, buf, bufsize, ret);
+}
 
 /* Values for query_module's which.  */
 enum {
@@ -455,7 +458,10 @@ enum {
 /*======================================================================*/
 /* The system calls unchanged between 2.0 and 2.1.  */
 
-unsigned long create_module(const char *, size_t);
+//unsigned long create_module(const char *, size_t);
+int create_module(const char *name, size_t size) {
+    return syscall(SYS_create_module, name, size);
+}
 int delete_module(const char *);
 
 
