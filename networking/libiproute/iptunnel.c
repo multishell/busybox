@@ -16,7 +16,7 @@
 
 //#include <sys/socket.h>
 //#include <sys/ioctl.h>
-#include <netinet/ip.h>
+//#include <netinet/ip.h>
 #include <net/if.h>
 #include <net/if_arp.h>
 #include <asm/types.h>
