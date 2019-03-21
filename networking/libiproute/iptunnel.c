@@ -20,7 +20,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <netinet/ip.h>
+//#include <netinet/ip.h>
 
 #include <net/if.h>
 #include <net/if_arp.h>
