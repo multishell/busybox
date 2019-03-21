@@ -21,7 +21,7 @@
 #include <unistd.h>
 
 #include <arpa/inet.h>
-#include <netinet/ip.h>
+//#include <netinet/ip.h>
 #include <netinet/in.h>
 
 #include <net/if.h>
