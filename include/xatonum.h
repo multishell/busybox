@@ -137,8 +137,8 @@ inline
 unsigned long bb_strtoi(const char *arg, char **endp, int base)
 { return bb_strtol(arg, endp, base); }
 #else
-unsigned long bb_strtou(const char *arg, char **endp, int base);
-long bb_strtoi(const char *arg, char **endp, int base);
+unsigned bb_strtou(const char *arg, char **endp, int base);
+int bb_strtoi(const char *arg, char **endp, int base);
 #endif
 
 int BUG_bb_strtou32_unimplemented(void);
