@@ -202,6 +202,7 @@ int vdprintf(int d, const char *format, va_list ap);
 // confusing the two versions of basename.  See the dirname/basename man page
 // for details.
 char *dirname(char *path);
+#ifdef DO_NOT_USE_INTERNAL_SYSINFO
 /* Include our own copy of struct sysinfo to avoid binary compatibility
  * problems with Linux 2.4, which changed things.  Grumble, grumble. */
 struct sysinfo {
@@ -221,6 +222,8 @@ struct sysinfo {
 	char _f[20-2*sizeof(long)-sizeof(int)];	/* Padding: libc5 uses this.. */
 };
 extern int sysinfo(struct sysinfo* info);
+#endif
+#include <linux/sysinfo.h>
 
 
 extern void chomp(char *s);
