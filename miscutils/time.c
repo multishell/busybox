@@ -10,6 +10,7 @@
 */
 
 #include "libbb.h"
+#include <sys/resource.h>
 
 /* Information on the resources used by a child process.  */
 typedef struct {
