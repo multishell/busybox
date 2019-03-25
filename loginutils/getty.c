@@ -18,6 +18,7 @@
 
 #include "libbb.h"
 #include <syslog.h>
+#include <sys/resource.h>
 
 #if ENABLE_FEATURE_UTMP
 #include <utmp.h>

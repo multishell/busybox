@@ -31,6 +31,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "libbb.h"
 
 #include <dirent.h>
+#include <sys/resource.h>
 
 // Must match constants in chpst_main!
 #define OPT_verbose  (option_mask32 & 0x2000)
