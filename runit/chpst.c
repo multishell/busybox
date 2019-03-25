@@ -30,6 +30,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "libbb.h"
 #include <dirent.h>
+#include <sys/resource.h>
 
 /*
 Five applets here: chpst, envdir, envuidgid, setuidgid, softlimit.
