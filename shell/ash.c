@@ -48,6 +48,7 @@
 #include <paths.h>
 #include <setjmp.h>
 #include <fnmatch.h>
+#include <sys/resource.h>
 
 #include "shell_common.h"
 #include "builtin_read.h"
