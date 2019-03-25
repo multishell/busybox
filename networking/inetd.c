@@ -156,6 +156,7 @@
 
 #include <syslog.h>
 #include <sys/un.h>
+#include <sys/resource.h>
 
 #include "libbb.h"
 
