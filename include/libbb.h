@@ -95,6 +95,7 @@ int klogctl(int type, char *b, int len);
 char *dirname(char *path);
 /* Include our own copy of struct sysinfo to avoid binary compatibility
  * problems with Linux 2.4, which changed things.  Grumble, grumble. */
+#ifdef DO_NOT_USE_INTERNAL_SYSINFO
 struct sysinfo {
 	long uptime;			/* Seconds since boot */
 	unsigned long loads[3];		/* 1, 5, and 15 minute load averages */
@@ -112,6 +113,8 @@ struct sysinfo {
 	char _f[20 - 2*sizeof(long) - sizeof(int)]; /* Padding: libc5 uses this.. */
 };
 int sysinfo(struct sysinfo* info);
+#endif
+#include <linux/sysinfo.h>
 
 
 /* Make all declarations hidden (-fvisibility flag only affects definitions) */
