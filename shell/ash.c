@@ -50,6 +50,7 @@
 #include <paths.h>
 #include <setjmp.h>
 #include <fnmatch.h>
+#include <sys/resource.h>
 #include "math.h"
 
 #if defined SINGLE_APPLET_MAIN
