@@ -57,6 +57,7 @@
 #include <paths.h>
 #include <setjmp.h>
 #include <fnmatch.h>
+#include <sys/resource.h>
 #if JOBS || ENABLE_ASH_READ_NCHARS
 #include <termios.h>
 #endif
