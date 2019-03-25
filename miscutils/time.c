@@ -10,6 +10,7 @@
 */
 
 #include "busybox.h"
+#include <sys/resource.h>
 
 #define TV_MSEC tv_usec / 1000
 
