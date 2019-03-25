@@ -158,6 +158,7 @@
 #include "libbb.h"
 #include <syslog.h>
 #include <sys/un.h>
+#include <sys/resource.h>
 
 //#define ENABLE_FEATURE_INETD_RPC 1
 //#define ENABLE_FEATURE_INETD_SUPPORT_BUILTIN_ECHO 1
