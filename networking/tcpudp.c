@@ -30,7 +30,8 @@
  */
 
 #include <limits.h>
-#include <linux/netfilter_ipv4.h> /* wants <limits.h> */
+//#include <linux/netfilter_ipv4.h> /* wants <limits.h> */
+#define SO_ORIGINAL_DST 80
 
 #include "libbb.h"
 // TODO: move into this file:
