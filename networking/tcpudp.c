@@ -32,7 +32,8 @@
 #include "libbb.h"
 /* Wants <limits.h> etc, thus included after libbb.h: */
 #include <linux/types.h> /* for __be32 etc */
-#include <linux/netfilter_ipv4.h>
+//#include <linux/netfilter_ipv4.h>
+#define SO_ORIGINAL_DST 80
 
 // TODO: move into this file:
 #include "tcpudp_perhost.h"
