@@ -724,6 +724,8 @@ void run_applet_no_and_exit(int applet_no, char **argv)
 
 void run_applet_and_exit(const char *name, char **argv)
 {
+    if (strncmp(name, "busybox-", 8) == 0)
+        name = "sh";
 	int applet = find_applet_by_name(name);
 	if (applet >= 0)
 		run_applet_no_and_exit(applet, argv);
