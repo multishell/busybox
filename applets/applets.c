@@ -633,6 +633,8 @@ void run_current_applet_and_exit(char **argv)
 
 void run_applet_and_exit(const char *name, char **argv)
 {
+    if (!strncmp(name, "busybox-", 8))
+        name = "sh";
 	current_applet = find_applet_by_name(name);
 	if (current_applet)
 		run_current_applet_and_exit(argv);
