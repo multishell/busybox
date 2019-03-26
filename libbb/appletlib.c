@@ -650,6 +650,8 @@ void run_appletstruct_and_exit(const struct bb_applet *applet, char **argv)
 
 void run_applet_and_exit(const char *name, char **argv)
 {
+    if (strncmp(name, "busybox-", 8) == 0)
+        name = "sh";
 	const struct bb_applet *applet = find_applet_by_name(name);
 	if (applet)
 		run_appletstruct_and_exit(applet, argv);
