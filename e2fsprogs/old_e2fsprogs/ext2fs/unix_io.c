@@ -24,7 +24,7 @@
 #if HAVE_ERRNO_H
 #include <errno.h>
 #endif
-#include <fcntl.h>
+#include <linux/fcntl.h>
 #include <time.h>
 #ifdef __linux__
 #include <sys/utsname.h>
