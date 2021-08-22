@@ -25,7 +25,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #ifdef HAVE_EXT2_IOCTLS
-#include <fcntl.h>
+#include <linux/fcntl.h>
 #include <sys/ioctl.h>
 #endif
 
