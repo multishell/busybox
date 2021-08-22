@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <time.h>
-#include <fcntl.h>
+#include <linux/fcntl.h>
 #include <ctype.h>
 #include <setjmp.h>
 #include <errno.h>
