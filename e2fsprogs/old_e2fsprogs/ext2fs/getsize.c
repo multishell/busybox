@@ -20,7 +20,7 @@
 #if HAVE_ERRNO_H
 #include <errno.h>
 #endif
-#include <fcntl.h>
+#include <linux/fcntl.h>
 #ifdef HAVE_SYS_IOCTL_H
 #include <sys/ioctl.h>
 #endif
