@@ -30,7 +30,7 @@
 # include <string.h>
 # include <errno.h>
 # include <dirent.h>
-# include <fcntl.h>
+# include <linux/fcntl.h>
 # include <ctype.h>
 # include <assert.h>
 # define bb_dev_null "/dev/null"
