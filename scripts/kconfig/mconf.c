@@ -12,7 +12,7 @@
 #include <sys/wait.h>
 #include <ctype.h>
 #include <errno.h>
-#include <fcntl.h>
+#include <linux/fcntl.h>
 #include <limits.h>
 #include <signal.h>
 #include <stdarg.h>

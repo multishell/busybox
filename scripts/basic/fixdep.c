@@ -106,7 +106,7 @@
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <unistd.h>
-#include <fcntl.h>
+#include <linux/fcntl.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>

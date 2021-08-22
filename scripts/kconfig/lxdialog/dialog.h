@@ -19,7 +19,7 @@
  */
 
 #include <sys/types.h>
-#include <fcntl.h>
+#include <linux/fcntl.h>
 #include <unistd.h>
 #include <ctype.h>
 #include <stdlib.h>
