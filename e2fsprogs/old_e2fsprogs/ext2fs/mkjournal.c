@@ -18,7 +18,7 @@
 #if HAVE_ERRNO_H
 #include <errno.h>
 #endif
-#include <fcntl.h>
+#include <linux/fcntl.h>
 #include <time.h>
 #if HAVE_SYS_STAT_H
 #include <sys/stat.h>
