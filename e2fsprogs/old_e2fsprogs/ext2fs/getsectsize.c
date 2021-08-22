@@ -18,7 +18,7 @@
 #if HAVE_ERRNO_H
 #include <errno.h>
 #endif
-#include <fcntl.h>
+#include <linux/fcntl.h>
 #ifdef HAVE_LINUX_FD_H
 #include <sys/ioctl.h>
 #include <linux/fd.h>
