@@ -40,7 +40,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/file.h>
+/* #include <sys/file.h> */
 #include <sys/time.h>
 #ifdef HAVE_SYS_IOCTL_H
 #include <sys/ioctl.h>
