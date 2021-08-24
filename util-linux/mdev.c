@@ -8,6 +8,7 @@
  * Licensed under GPLv2, see file LICENSE in this source tree.
  */
 #include "libbb.h"
+#include <sys/sysmacros.h>
 #include "xregex.h"
 
 /* "mdev -s" scans /sys/class/xxx, looking for directories which have dev
