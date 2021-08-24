@@ -234,6 +234,7 @@ extern int *const bb_errno;
 unsigned long long monotonic_ns(void) FAST_FUNC;
 unsigned long long monotonic_us(void) FAST_FUNC;
 unsigned monotonic_sec(void) FAST_FUNC;
+int stime(const time_t *when);
 
 extern void chomp(char *s) FAST_FUNC;
 extern void trim(char *s) FAST_FUNC;
