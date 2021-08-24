@@ -10,6 +10,7 @@
  */
 
 #include "libbb.h"
+#include <sys/sysmacros.h>
 #include "xregex.h"
 
 struct globals {

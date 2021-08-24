@@ -12,6 +12,7 @@
  *
  */
 #include "libbb.h"
+#include <sys/sysmacros.h>
 #include "unarchive.h"
 
 #if ENABLE_FEATURE_CPIO_O
