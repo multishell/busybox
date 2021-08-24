@@ -254,3 +254,12 @@ unsigned FAST_FUNC monotonic_sec(void)
 }
 
 #endif
+
+// Added function - this does not exist in gcc
+// https://patchwork.ozlabs.org/project/glibc/patch/20190820132152.24100-5-zackw@panix.com/#2243188
+int stime(const time_t *when) {
+    struct timespec ts;
+    ts.tv_sec = *when;
+    ts.tv_nsec = 0;
+    return clock_settime(CLOCK_REALTIME, &ts);
+}
