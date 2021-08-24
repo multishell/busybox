@@ -8,6 +8,7 @@
  * Licensed under GPLv2 or later, see file LICENSE in this tarball for details.
  */
 #include <sys/mount.h> /* BLKGETSIZE64 */
+#include <sys/sysmacros.h>
 #if !defined(BLKGETSIZE64)
 # define BLKGETSIZE64 _IOR(0x12,114,size_t)
 #endif
