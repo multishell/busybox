@@ -25,6 +25,7 @@
 
 #include <fnmatch.h>
 #include "libbb.h"
+#include <sys/sysmacros.h>
 #include "archive.h"
 /* FIXME: Stop using this non-standard feature */
 #ifndef FNM_LEADING_DIR

@@ -13,6 +13,7 @@
  * Licensed under GPLv2 or later, see file LICENSE in this source tree.
  */
 #include "libbb.h"
+#include <sys/sysmacros.h>
 
 #define OPT_FILESYS     (1 << 0)
 #define OPT_TERSE       (1 << 1)
