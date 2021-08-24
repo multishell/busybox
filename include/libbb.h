@@ -239,6 +239,7 @@ extern int *const bb_errno;
 
 unsigned long long monotonic_us(void);
 unsigned monotonic_sec(void);
+int stime(const time_t *when);
 
 extern void chomp(char *s);
 extern void trim(char *s);
