@@ -30,7 +30,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /* TODO: review, eliminate unneeded stuff, move good stuff to libbb */
 
 #include <sys/poll.h>
-#include <sys/file.h>
+/* #include <sys/file.h> */
 #include "libbb.h"
 #include "runit_lib.h"
 
