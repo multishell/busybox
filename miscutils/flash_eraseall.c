@@ -12,7 +12,11 @@
 
 #include "libbb.h"
 #include <mtd/mtd-user.h>
-#include <mtd/jffs2-user.h>
+#include <linux/jffs2.h>
+#define t16(x) ({ uint16_t __b = (x); (target_endian==__BYTE_ORDER)?__b:bswap_16(__b); })
+#define t32(x) ({ uint32_t __b = (x); (target_endian==__BYTE_ORDER)?__b:bswap_32(__b); })
+#define cpu_to_je16(x) ((jint16_t){t16(x)})
+#define cpu_to_je32(x) ((jint32_t){t32(x)})
 
 #define OPTION_J	(1 << 0)
 #define OPTION_Q	(1 << 1)
