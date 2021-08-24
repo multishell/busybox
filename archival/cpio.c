@@ -12,6 +12,7 @@
  *
  */
 #include "libbb.h"
+#include <sys/sysmacros.h>
 #include "unarchive.h"
 
 enum {
