@@ -12,6 +12,7 @@
  *
  */
 #include "libbb.h"
+#include <sys/sysmacros.h>
 #include "archive.h"
 
 /* GNU cpio 2.9 --help (abridged):
