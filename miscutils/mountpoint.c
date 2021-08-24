@@ -10,6 +10,7 @@
  */
 
 #include "libbb.h"
+#include <sys/sysmacros.h>
 
 int mountpoint_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int mountpoint_main(int argc UNUSED_PARAM, char **argv)
