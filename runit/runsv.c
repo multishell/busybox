@@ -29,7 +29,7 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /* TODO: depends on runit_lib.c - review and reduce/eliminate */
 
 #include <sys/poll.h>
-#include <sys/file.h>
+/* #include <sys/file.h> */
 #include "libbb.h"
 #include "runit_lib.h"
 
