@@ -32,6 +32,7 @@
  */
 
 #include "libbb.h"
+#include <sys/sysmacros.h>
 
 #if ENABLE_FEATURE_ASSUME_UNICODE
 #include <wchar.h>
