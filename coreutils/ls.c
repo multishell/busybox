@@ -31,6 +31,7 @@
  */
 #include "libbb.h"
 #include "unicode.h"
+#include <sys/sysmacros.h>
 
 
 /* This is a NOEXEC applet. Be very careful! */
