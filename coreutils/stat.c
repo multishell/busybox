@@ -14,6 +14,7 @@
  */
 
 #include "libbb.h"
+#include <sys/sysmacros.h>
 
 /* vars to control behavior */
 #define OPT_FILESYS     (1 << 0)
