@@ -8,6 +8,7 @@
  * Licensed under GPL version 2, see file LICENSE in this tarball for details.
  */
 #include "libbb.h"
+#include <sys/sysmacros.h>
 #include "xregex.h"
 
 struct globals {
