@@ -9,7 +9,7 @@
  */
 #include "libbb.h"
 #include <linux/fs.h>
-#include <linux/ext2_fs.h>
+#include <ext2fs/ext2_fs.h>
 #include "volume_id/volume_id_internal.h"
 
 #define	ENABLE_FEATURE_MKFS_EXT2_RESERVED_GDT 0
@@ -457,13 +457,13 @@ int mkfs_ext2_main(int argc UNUSED_PARAM, char **argv)
 		STORE_LE(sb->s_reserved[21], 0x001C001C);
 	STORE_LE(sb->s_first_ino, EXT2_GOOD_OLD_FIRST_INO);
 	STORE_LE(sb->s_log_block_size, blocksize_log2 - EXT2_MIN_BLOCK_LOG_SIZE);
-	STORE_LE(sb->s_log_frag_size, blocksize_log2 - EXT2_MIN_BLOCK_LOG_SIZE);
+	STORE_LE(sb->s_log_cluster_size, blocksize_log2 - EXT2_MIN_BLOCK_LOG_SIZE);
 	// first 1024 bytes of the device are for boot record. If block size is 1024 bytes, then
 	// the first block is 1, otherwise 0
 	STORE_LE(sb->s_first_data_block, first_block);
 	// block and inode bitmaps occupy no more than one block, so maximum number of blocks is
 	STORE_LE(sb->s_blocks_per_group, blocks_per_group);
-	STORE_LE(sb->s_frags_per_group, blocks_per_group);
+	STORE_LE(sb->s_clusters_per_group, blocks_per_group);
 	// blocks
 	STORE_LE(sb->s_blocks_count, nblocks);
 	// reserve blocks for superuser
@@ -487,7 +487,7 @@ int mkfs_ext2_main(int argc UNUSED_PARAM, char **argv)
 	// we use values which match "mke2fs -O ^resize_inode":
 	// in this case 1.41.9 never sets EXT3_FEATURE_RO_COMPAT_LARGE_FILE.
 	STORE_LE(sb->s_feature_compat, EXT2_FEATURE_COMPAT_SUPP
-		| (EXT2_FEATURE_COMPAT_RESIZE_INO * ENABLE_FEATURE_MKFS_EXT2_RESERVED_GDT)
+		| (EXT2_FEATURE_COMPAT_RESIZE_INODE * ENABLE_FEATURE_MKFS_EXT2_RESERVED_GDT)
 		| (EXT2_FEATURE_COMPAT_DIR_INDEX * ENABLE_FEATURE_MKFS_EXT2_DIR_INDEX)
 	);
 	STORE_LE(sb->s_feature_incompat, EXT2_FEATURE_INCOMPAT_FILETYPE);
