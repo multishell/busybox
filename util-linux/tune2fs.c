@@ -8,7 +8,7 @@
  */
 #include "libbb.h"
 #include <linux/fs.h>
-#include <linux/ext2_fs.h>
+#include <ext2fs/ext2_fs.h>
 #include "volume_id/volume_id_internal.h"
 
 // storage helpers
