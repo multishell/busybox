@@ -44,6 +44,7 @@
 //usage:     "\n	-p PEER	Obtain time from PEER (may be repeated)"
 
 #include "libbb.h"
+#include <sys/resource.h>
 #include <math.h>
 #include <netinet/ip.h> /* For IPTOS_LOWDELAY definition */
 #include <sys/timex.h>
