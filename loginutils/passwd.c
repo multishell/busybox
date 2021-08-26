@@ -4,6 +4,7 @@
  */
 #include "libbb.h"
 #include <syslog.h>
+#include <sys/resource.h>
 
 static void nuke_str(char *str)
 {
